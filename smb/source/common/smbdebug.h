@@ -7,6 +7,11 @@
 void _rtsmb_debug_output_str(void* msg, int type);
 void _rtsmb_debug_output_int(long val);
 
+#define DUMPBIN     0
+#define DUMPASCII   1
+#define DUMPUNICODE 2
+extern void rtsmb_dump_bytes(char *prompt, byte *pbytes, int length, int format);
+
 #define RTSMB_DEBUG_TYPE_ASCII       0
 #define RTSMB_DEBUG_TYPE_UNICODE     1
 #define RTSMB_DEBUG_TYPE_SYS_DEFINED 2

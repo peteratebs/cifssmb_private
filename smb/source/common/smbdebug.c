@@ -14,6 +14,23 @@
 #include "smbdebug.h"
 #include "rtpdebug.h"
 
+void rtsmb_dump_bytes(char *prompt, byte *pbytes, int length, int format)
+{
+int i;
+    rtp_printf("%20s:(%4d) bytes: ", prompt, length);
+    for (i=0; i<length; i++)
+      if (format==DUMPBIN)
+          rtp_printf("%x ", pbytes[i]);
+      else
+      {
+        rtp_printf("%c", (char) pbytes[i]);
+        if (format==DUMPUNICODE)
+          i++;
+      }
+      rtp_printf("\n");
+}
+
+
 char cnv_msg[100];
 void _rtsmb_debug_output_str(void* msg, int type)
 {
