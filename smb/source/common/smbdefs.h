@@ -8,14 +8,38 @@
 //**             network stack.  It also defines various constants needed by
 //**             the code.
 //****************************************************************************
+
+// Definitions for development
+#define HARDWIRE_SERVER_SETTINGS           1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares
+#define HARDWIRED_USER_NAME  "ebs"
+#define HARDWIRED_PASSWORD   "password"
+#define HARDWIRED_SHARE_NAME  "share0"
+#define HARDWIRED_SHARE_PATH "/media"
+#define HARDWIRED_TEMP_PATH "/tmp"
+#define HARDWIRED_HOST_NAME  "EBSRTSMB"
+#define HARDWIRED_GROUP_NAME "WORKGROUP"
+#define HARDWIRED_EXTENDED_SECURITY    1         // Use extended security if true and client supports it.
+#define HARDWIRED_DEBUG_ENCRYPTION_KEY 1         // send 0123456789abcde for an encrypion key for easier debugging of hash functions
+#define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  1  // If one force a successful login even though the password checker desn't work yet
+
+
+// Passed with the extended security client challenge. Target configuration strings.
+#define HARDWIRED_TARGET_NAME       "TARGETNAME"
+#define HARDWIRED_NBDOMAIN_NAME     "NETBIOSDOMAINNAME"
+#define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
+#define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
+#define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"
+
+
 //============================================================================
 //    INTERFACE REQUIRED HEADERS
 //============================================================================
-//common program headers
 
+
+//common program headers
 #include "rtptypes.h"
 #include "rtpdebug.h"
-#include "rtpstr.h" 
+#include "rtpstr.h"
 #include "rtptotc.h"
 #include "smbconf.h"
 #include "smb.h"
@@ -24,7 +48,7 @@
 #include "rtpprint.h"
 #define SMB_ERROR rtp_printf
 #else
-#define SMB_ERROR 
+#define SMB_ERROR
 #endif
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 #define MAX(A, B) (((A) > (B)) ? (A) : (B))

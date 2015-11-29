@@ -20,12 +20,14 @@
 #define MAX_OID_SIZE 64
 #define MAX_OID_COUNT 8
 
+#define MAX_LEGAL_SECURITY_BUFFER_SIZE 512 // To protect against allocating huge buffers with bad values
+
 #define SPNEGO_NO_ERROR           0
 #define SPNEGO_NOT_INIT_PACKET   -1
 #define SPNEGO_MALFORMED_PACKET  -2
 #define SPNEGO_SYSTEM_ERROR      -3
 
-
+// Encodings for what OID's were detected in a stream and should be encoded.
 typedef enum {
   oid_none,
   oid_unkown,
@@ -35,10 +37,17 @@ typedef enum {
   oid_ntlmssp
 } oid_t;
 
+// For instructing decoders what type of object to decode.
+typedef enum {
+  objtype_oid    = 0,
+  objtype_length,
+  objtype_bitstring,
+} asn1_objtype_t;
 
-#define MAX_OID_SIZE 64
-#define MAX_OID_COUNT 8
-typedef struct parsed_init_token_s {
+
+
+// Structure populated by spnego_decode_NegTokenInit_packet() when a SETUP_ANDX packet containing a type1 NTLM security blob
+typedef struct decoded_NegTokenInit_s {
  dword Flags;
  int   mechTypesCount;
  oid_t mechTypes[MAX_OID_COUNT];
@@ -46,14 +55,34 @@ typedef struct parsed_init_token_s {
  size_t mechTokenSize;  // 0 to start
  byte  *mechListMic;  // null to start, allocated with malloc() and copied in if found and must be freed
  size_t mechListMicSize;  // 0 to start
-} parsed_init_token_t;
-
-void parsed_neg_init_token_destructor(parsed_init_token_t *parsed_token);
-int parse_spnego_init_packet(parsed_init_token_t *parsed_init_token, unsigned char *pinbuffer, size_t buffer_length);
-int rtsmb_util_get_spnego_ntlmssp_blob(byte **pblob);
-void rtsmb_util_get_new_Guid(byte *pGuid);
-int rtsmb_util_get_spnego_other_blob(byte **pblob);
-int encode_spnego_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length);
+} decoded_NegTokenInit_t;
 
 
-#define INCLUDE_RTSMB_EXTENDED_SECURITY 1
+
+typedef struct SecurityBuffer_s {
+  dword size;
+  word  offset;
+  byte  *value_at_offset;
+} SecurityBuffer_t;
+
+// Structure populated by spnego_decode_NegTokenTarg_packet() when a SETUP_ANDX packet containing a type3 NTLM security blob
+typedef struct decoded_NegTokenTarg_s {
+  dword Flags;
+  SecurityBuffer_t *lm_response;
+  SecurityBuffer_t *client_challenge;
+  SecurityBuffer_t *user_name;
+  SecurityBuffer_t *domain_name;
+  SecurityBuffer_t *host_name;
+  SecurityBuffer_t *session_key;
+} decoded_NegTokenTarg_t;
+
+
+void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
+int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
+int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
+int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
+void spnego_get_Guid(byte *pGuid);
+int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
+int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+void spnego_init_extended_security(void);
