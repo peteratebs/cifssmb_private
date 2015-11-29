@@ -17,8 +17,8 @@
 #include "smbnbns.h"  /* for port number */
 #include "smbnbds.h"  /* for port number */
 #include "smbnbss.h"  /* for port number */
-#include "rtpstr.h"
-#include "rtpscnv.h"
+#include "rtpstr.h" 
+#include "rtpscnv.h" 
 #include "rtpnet.h"
 #include "rtpprint.h"
 #include "smbdebug.h"
@@ -31,7 +31,7 @@ RTSMB_STATIC byte rtsmb_net_broadcast_ip [4];
 RTSMB_STATIC BBOOL rtsmb_net_ip_is_set = FALSE;
 
 
-int rtsmb_net_ip_to_str (PFBYTE pfAddr, PFCHAR pfAddrStr);
+int rtsmb_net_ip_to_str (PFBYTE pfAddr, PFCHAR pfAddrStr); 
 
 /* global data */
 int rtsmb_nbds_port = RTSMB_NBDS_PORT;
@@ -299,6 +299,7 @@ int rtsmb_net_write_datagram (RTP_SOCKET socket, PFBYTE remote, int port, PFVOID
     do
     {
         bytes_sent = rtp_net_sendto(socket, buf,size,remote,port, 4);
+
         if (bytes_sent < 0) /* an error occurred */
         {
             rv = -1;

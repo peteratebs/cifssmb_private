@@ -238,20 +238,12 @@ int srv_cmd_read_session_setup_and_x_nt (PFVOID origin, PFVOID buf, rtsmb_size s
 	PFVOID s, e, stated_end, bend;
 	byte b;
 	word w;
-	word asize, usize, blobsize; /* blob, ansi and unicode password sizes from packet */
-    BBOOL is_extended_security = FALSE;
+	word asize, usize; /* ansi and unicode password sizes from packet */
+
 	s = buf;
 
 	RTSMB_READ_BYTE (&b);	/* word count */
-
-printf("\nRead sesiion setup : !!!!!!!!!!!!!!!!!! wordcount == %u\n", b);
-
-	if (b == 12) // length == 12 is an extended security packet
-     is_extended_security = TRUE;
-    else         // length != 12 or 13 is a bug
-    {
-	  ASSURE (b == 13, -1);
-    }
+	ASSURE (b == 13, -1);
 
 	RTSMB_READ_BYTE (&pSession->next_command);
 	RTSMB_READ_SKIP (1);	/* reserved */
@@ -262,75 +254,55 @@ printf("\nRead sesiion setup : !!!!!!!!!!!!!!!!!! wordcount == %u\n", b);
 	RTSMB_READ_WORD (&pSession->max_mpx_count);
 	RTSMB_READ_WORD (&pSession->vc_number);
 	RTSMB_READ_DWORD (&pSession->session_id);
-
-	if (b == 12) // length == 12 is an extended security packet
-    {
-	  RTSMB_READ_WORD (&blobsize);	/* securiy blob size */
-    }
-    else
-    {
-	  RTSMB_READ_WORD (&asize);	/* ansi password size */
-	  RTSMB_READ_WORD (&usize); /* unicode password size */
-    }
+	RTSMB_READ_WORD (&asize);	/* ansi password size */
+	RTSMB_READ_WORD (&usize); /* unicode password size */
 	RTSMB_READ_SKIP (4);	/* reserved */
 	RTSMB_READ_DWORD (&pSession->capabilities);
 
 	RTSMB_READ_WORD (&w);	/* byte count */
+
 	bend = PADD (buf, w);
 
-	if (b == 12) // length == 12 is an extended security packet
-    {
+	if (asize == 0 && pSession->ansi_password_size > 0 && pSession->ansi_password)
+	{
 		pSession->ansi_password[0] = '\0';
-		pSession->unicode_password[0] = '\0';
-		pSession->account_name[0] = '\0';
-		pSession->primary_domain[0] = '\0';
-		ASSURE (blobsize <= pSession->security_blob_size, -1);
-		if (PDIFF (bend, buf) > 0)
-        {
-	      RTSMB_READ_ITEM (pSession->security_blob, blobsize);
-          pSession->security_blob_size = blobsize;
-        }
-    }
-    else
-    {
-		if (asize == 0 && pSession->ansi_password_size > 0 && pSession->ansi_password)
-		{
-			pSession->ansi_password[0] = '\0';
-		}
-		else
-		{
-			ASSURE (asize <= pSession->ansi_password_size, -1);
-			pSession->ansi_password_size = asize;
-			RTSMB_READ_ITEM (pSession->ansi_password, pSession->ansi_password_size);
-		}
-		if (usize == 0 && pSession->unicode_password_size > 0 && pSession->unicode_password)
-		{
-			pSession->unicode_password[0] = '\0';
-		}
-		else
-		{
-			ASSURE (usize <= pSession->unicode_password_size, -1);
-			pSession->unicode_password_size = usize;
-			RTSMB_READ_ITEM (pSession->unicode_password, pSession->unicode_password_size);
-		}
-		if (PDIFF (bend, buf) > 0)
-		{
-			RTSMB_READ_STRING (pSession->account_name, pSession->account_name_size, RTSMB_READ_ANY);
-		}
-		else if (pSession->account_name && pSession->account_name_size > 0)
-		{
-			pSession->account_name[0] = '\0';
-		}
+	}
+	else
+	{
+		ASSURE (asize <= pSession->ansi_password_size, -1);
+		pSession->ansi_password_size = asize;
+		RTSMB_READ_ITEM (pSession->ansi_password, pSession->ansi_password_size);
+	}
 
-		if (PDIFF (bend, buf) > 0)
-		{
-			RTSMB_READ_STRING (pSession->primary_domain, pSession->primary_domain_size, RTSMB_READ_ANY);
-		}
-		else if (pSession->primary_domain && pSession->primary_domain_size > 0)
-		{
-			pSession->primary_domain[0] = '\0';
-		}
-    }
+	if (usize == 0 && pSession->unicode_password_size > 0 && pSession->unicode_password)
+	{
+		pSession->unicode_password[0] = '\0';
+	}
+	else
+	{
+		ASSURE (usize <= pSession->unicode_password_size, -1);
+		pSession->unicode_password_size = usize;
+		RTSMB_READ_ITEM (pSession->unicode_password, pSession->unicode_password_size);
+	}
+
+	if (PDIFF (bend, buf) > 0)
+	{
+		RTSMB_READ_STRING (pSession->account_name, pSession->account_name_size, RTSMB_READ_ANY);
+	}
+	else if (pSession->account_name && pSession->account_name_size > 0)
+	{
+		pSession->account_name[0] = '\0';
+	}
+
+	if (PDIFF (bend, buf) > 0)
+	{
+		RTSMB_READ_STRING (pSession->primary_domain, pSession->primary_domain_size, RTSMB_READ_ANY);
+	}
+	else if (pSession->primary_domain && pSession->primary_domain_size > 0)
+	{
+		pSession->primary_domain[0] = '\0';
+	}
+
 	if (PDIFF (bend, buf) > 0)
 	{
 		RTSMB_READ_STRING (pSession->native_os, pSession->native_os_size, RTSMB_READ_ANY);

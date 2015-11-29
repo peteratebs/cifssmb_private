@@ -147,11 +147,11 @@
 #endif
 
 /* It is not recommended that you change these */
-#define CFG_RTSMB_MAX_GROUPNAME_SIZE   10   // the maximum size of group names
-#define CFG_RTSMB_MAX_USERNAME_SIZE    128  // the maximum size of account names
-#define CFG_RTSMB_MAX_PASSWORD_SIZE    128  // the maximum size of passwords (must be at least 24 when using encryption)
-#define CFG_RTSMB_MAX_DOMAIN_NAME_SIZE 128  // the maximum size of domain names
-#define CFG_RTSMB_MAX_SECURITYBLOB_SIZE 256 // the maximum size of spnego security blob
+#define CFG_RTSMB_MAX_GROUPNAME_SIZE   10  // the maximum size of group names
+#define CFG_RTSMB_MAX_USERNAME_SIZE    128 // the maximum size of account names
+#define CFG_RTSMB_MAX_PASSWORD_SIZE    128 // the maximum size of passwords (must be at least 24 when using encryption)
+#define CFG_RTSMB_MAX_DOMAIN_NAME_SIZE 128 // the maximum size of domain names
+
 
 /* Helper stuff (don't change) */
 #define CFG_RTSMB_EIGHT_THREE_BUFFER_SIZE 13

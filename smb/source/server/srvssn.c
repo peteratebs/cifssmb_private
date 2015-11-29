@@ -39,7 +39,7 @@
 #include "smbnbss.h"
 #include "srvcfg.h"
 #include "smbnet.h"
-#include "smbspnego.h"
+
 
 #include "rtptime.h"
 
@@ -227,7 +227,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
     rtsmb_char password_buf2[CFG_RTSMB_MAX_PASSWORD_SIZE];
     rtsmb_char username[CFG_RTSMB_MAX_USERNAME_SIZE + 1];
     rtsmb_char domainname[CFG_RTSMB_MAX_USERNAME_SIZE + 1];
-    byte security_blob_buf[CFG_RTSMB_MAX_SECURITYBLOB_SIZE];
     byte next_command;
     word max_buffer_size;
     /* word max_mpx_count;   */
@@ -235,8 +234,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
     /* dword session_id;     */
 
     response.guest_logon = FALSE;
-	response.extended_security = FALSE; /* respond with an extended security message */
-
     response.next_command = SMB_COM_NONE;
     response.srv_native_os = (PFRTCHAR)0;
     response.srv_native_lan_man = (PFRTCHAR)0;
@@ -271,10 +268,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
         command.ansi_password_size = CFG_RTSMB_MAX_PASSWORD_SIZE;
         command.ansi_password = (PFBYTE) password_buf;
-
-        command.security_blob_size = CFG_RTSMB_MAX_SECURITYBLOB_SIZE;
-        command.security_blob = (PFBYTE)security_blob_buf;
-
         command.unicode_password_size = CFG_RTSMB_MAX_PASSWORD_SIZE;
         command.unicode_password = (PFBYTE)password_buf2;
         command.account_name_size = CFG_RTSMB_MAX_USERNAME_SIZE + 1;
@@ -287,35 +280,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
         next_command = command.next_command;
         max_buffer_size = command.max_buffer_size;
-        if (command.capabilities & CAP_EXTENDED_SECURITY)
-        {
-           parsed_init_token_t parsed_init_token;
-           response.extended_security = TRUE;
-           printf("Got extended !!! , fake yes\n");
-           if (memcmp("NTLMSSP",command.security_blob,8)==0)
-           {
-             printf("Type == %X \n", *((dword *)(command.security_blob+8)));
-             printf("Flags == %X \n", *((dword *)(command.security_blob+12)));
-             printf("Domain:\n");
-             printf("  Length  == %u \n", *((word *)(command.security_blob+16)));
-             printf("  Alloced == %u \n", *((word *)(command.security_blob+18)));
-             printf("  Offset  == %u \n", *((dword *)(command.security_blob+20)));
-             printf("Workstation:\n");
-             printf("  Length  == %u \n", *((word *)(command.security_blob+24)));
-             printf("  Alloced == %u \n", *((word *)(command.security_blob+26)));
-             printf("  Offset  == %u \n", *((dword *)(command.security_blob+28)));
-             printf("OS:\n");
-             printf("  Major  == %u \n", *((byte *)(command.security_blob+32)));
-             printf("  Minor  == %u \n", *((byte *)(command.security_blob+33)));
-             printf("  Build  == %u \n", *((word *)(command.security_blob+34)));
-             printf("  Size   == %u \n",  command.security_blob_size);
-          }
-           else
-           {
-             parse_spnego_init_packet(&parsed_init_token, command.security_blob,command.security_blob_size);
-             parsed_neg_init_token_destructor(&parsed_init_token);
-           }
-        }
 /*      max_mpx_count = command.max_mpx_count;   */
 /*      vc_number = command.vc_number;           */
 /*      session_id = command.session_id;         */
@@ -328,16 +292,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
         BBOOL firstTime = TRUE;
         PUSER user = (PUSER)0;
 
-       if (response.extended_security)
-       {
-         printf("Got extended !!! , fake access = 0, authid = 0\n");
-         access = 0;
-         authId = 0;
-       }
-       else
-       {
-         access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
-       }
+        access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
 
         if (access == AUTH_NOACCESS)
         {
@@ -1287,7 +1242,6 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
 } /* End ProcAndx */
 
 
-
 /*
 ================
 Proccess Negotiate protocol requests.  This function
@@ -1367,7 +1321,6 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.security_mode = 0;
         response.security_mode = 0;
         if (authmode == AUTH_USER_MODE)  response.security_mode |= 1;
-#define INCLUDE_RTSMB_EXTENDED_SECURITY 1
 #if (INCLUDE_RTSMB_ENCRYPTION)
         response.security_mode |= 2; /* encrypted */
 #endif
@@ -1403,19 +1356,6 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.time_high = 0;
         response.time_low = 0;
         response.time_zone = 0x00F0;
-#if (INCLUDE_RTSMB_EXTENDED_SECURITY)
-        if (ON (pInHdr->flags2, SMB_FLG2_EXATTRIB))
-        {
-           response.challenge_size = 0;
-           response.capabilities |= CAP_EXTENDED_SECURITY;
-           pOutHdr->flags2 |= SMB_FLG2_EXATTRIB;
-           response.valid_guid = TRUE;
-		   rtsmb_util_get_new_Guid(response.guid);
-           response.spnego_blob_size = rtsmb_util_get_spnego_ntlmssp_blob(&response.spnego_blob);
-        }
-        else
-#endif
-        {
         response.challenge_size = 8;
 
         for (i = 0; i < 4; i++)
@@ -1425,9 +1365,10 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         }
 
         response.challenge = pCtx->encryptionKey;
+
         response.valid_guid = FALSE;
         response.valid_domain = FALSE;
-        }
+
 #ifdef SUPPORT_SMB2
 #if (0)
 THIS IS WRONG
@@ -1453,7 +1394,7 @@ THIS IS WRONG
             response.SecurityBufferLength = 0;
             response.pSecurityBuffer = 0;
             response.Reserved2 = 0;
-
+    
             /* Passes srv_cmd_fill_negotiate_smb2 pOutHdr, and &response   */
             WRITE_SMB2 (cmd_fill_negotiate_response_smb2);
         }
@@ -5021,6 +4962,3 @@ static char *trans2Commandname(int command)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
-
-

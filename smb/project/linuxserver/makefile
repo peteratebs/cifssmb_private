@@ -71,8 +71,6 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 
 
 
-
-cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/des_enc.c
 cfiles += $(lib_to_rtsmb_common_path)/ecb_enc.c
 cfiles += $(lib_to_rtsmb_common_path)/md4_dgst.c
