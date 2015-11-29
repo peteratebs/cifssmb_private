@@ -137,7 +137,6 @@ ddword rtsmb_util_get_current_filetime    (void);
 dword    rtsmb_util_time_rtp_date_to_unix (RTP_DATE rtp_date);
 RTP_DATE rtsmb_util_time_unix_to_rtp_date (dword unix_time);
 RTP_DATE rtsmb_util_time_ms_to_rtp_date   (TIME ms_time);
-void rtsmb_util_get_new_Guid              (byte *ppGuid);
 byte rtsmb_util_smb_to_rtsmb_attributes (word smb_attributes);
 word rtsmb_util_rtsmb_to_smb_attributes (byte rtsmb_attributes);
 

@@ -22,6 +22,9 @@ int srv_cmd_fill_negotiate_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 int srv_cmd_fill_session_setup_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_R pSessionR);
 
+int srv_cmd_fill_session_setup_extended_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
+  PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_R pSessionR);
+
 int srv_cmd_fill_logoff_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_LOGOFF_AND_X_R pLogoffR);
 

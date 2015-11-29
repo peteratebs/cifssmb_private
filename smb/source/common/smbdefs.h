@@ -21,6 +21,7 @@
 #define HARDWIRED_EXTENDED_SECURITY    1         // Use extended security if true and client supports it.
 #define HARDWIRED_DEBUG_ENCRYPTION_KEY 1         // send 0123456789abcde for an encrypion key for easier debugging of hash functions
 #define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  1  // If one force a successful login even though the password checker desn't work yet
+#define HARDWIRED_ENCRYPIOM_KEY_HACK          1  // Must be fixed. Use a global to pass the encryption key between levels in trans.
 
 
 // Passed with the extended security client challenge. Target configuration strings.

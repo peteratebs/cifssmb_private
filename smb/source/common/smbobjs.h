@@ -58,8 +58,12 @@ typedef struct
 
 	BBOOL valid_guid;	/* true if |guid| has useful data */
 	byte guid [16];
+
 	byte challenge_size;
 	PFBYTE challenge;
+
+	byte spnego_blob_size; /* Used if capabilities & CAP_EXTENDED_SECURITY to hold security blob*/
+	PFBYTE spnego_blob;
 
 	BBOOL valid_domain;	/* true if |domain| has useful data */
 	dword domain_size;
@@ -104,8 +108,12 @@ typedef struct
 
 	word ansi_password_size;
 	word unicode_password_size;
+    word security_blob_size;
+
 	PFBYTE ansi_password;
 	PFBYTE unicode_password;
+    PFBYTE security_blob;
+
 	dword account_name_size;
 	PFRTCHAR account_name;	/* in unicode */
 	dword primary_domain_size;
@@ -121,6 +129,7 @@ typedef struct
 {
 	byte next_command;
 	BBOOL guest_logon;	/* were we logged on as a guest? */
+	BBOOL extended_security; /* respond with an extended security message */
 
 	dword srv_native_os_size;
 	PFRTCHAR srv_native_os;
@@ -153,6 +162,7 @@ typedef struct
 {
 	byte next_command;
 	BBOOL guest_logon;	/* were we logged on as a guest? */
+
 
 	dword blob_size;
 	PFBYTE blob;
