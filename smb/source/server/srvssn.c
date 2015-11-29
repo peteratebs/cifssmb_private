@@ -39,7 +39,7 @@
 #include "smbnbss.h"
 #include "srvcfg.h"
 #include "smbnet.h"
-
+#include "smbspnego.h"
 
 #include "rtptime.h"
 
@@ -204,6 +204,69 @@ NextUID:  ;
     }
 }
 
+
+
+#if (HARDWIRED_EXTENDED_SECURITY)
+
+word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
+{
+    // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
+    // Note: pCtx->encryptionKey[] holds the key we sent
+     //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
+// access = decode (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
+
+    rtp_printf("\n");
+    if (decoded_targ_token->lm_response)       //
+    {
+        rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
+        ;
+    }
+    if (decoded_targ_token->client_challenge)
+    {
+        rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->client_challenge->size, DUMPBIN);
+        ;
+    }
+    if (decoded_targ_token->user_name)
+    {
+        rtsmb_dump_bytes("USER NAME", decoded_targ_token->user_name->value_at_offset, decoded_targ_token->user_name->size, DUMPUNICODE);
+        ;
+    }
+    if (decoded_targ_token->domain_name)
+    {
+        rtsmb_dump_bytes("DOMAIN NAME", decoded_targ_token->domain_name->value_at_offset, decoded_targ_token->domain_name->size, DUMPUNICODE);
+        ;
+    }
+    if (decoded_targ_token->host_name)
+    {
+        rtsmb_dump_bytes("HOST NAME", decoded_targ_token->host_name->value_at_offset, decoded_targ_token->host_name->size, DUMPUNICODE);
+        ;
+    }
+    if (decoded_targ_token->session_key)
+    {
+        rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
+        ;
+    }
+    // if NT_LM security ansi_password is actually the LM security code
+    // domainname and uni_password only matter for lmv2
+
+// This is not right for NT_LM
+    //word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->client_challenge->value_at_offset, 0,  extended_authId);
+    // Encrypt the password with the client's key in lm_response and we should get the lm response value
+    word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
+    rtp_printf("Auth_AuthenticateUser returned %X\n", Access);
+#if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
+    if (Access == AUTH_NOACCESS)
+    {
+      rtp_printf("Fake success by returning %X\n",AUTH_USER_MODE);
+      Access = AUTH_USER_MODE;
+    }
+#endif
+    return Access;
+    // word decode (pCtx, decoded_targ_token->user_name, PFRTCHAR domainname, PFCHAR ansi_password, PFCHAR uni_password, word *authId)
+}
+#endif
+
+
 /* --------------------------------------------------- /
  * SMB Session Setup Andx Command                      /
  *                                                     /
@@ -220,6 +283,11 @@ NextUID:  ;
  * Returns: returns the command value of the next      /
  * command in the Andx                                 /
  * -------------------------------------------------- */
+
+#if (HARDWIRED_ENCRYPIOM_KEY_HACK)
+extern byte * glencryptionKey;
+#endif
+
 int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PRTSMB_HEADER pOutHdr, PFVOID *pOutBuf)
 {
     RTSMB_SESSION_SETUP_AND_X_R response;
@@ -227,13 +295,18 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
     rtsmb_char password_buf2[CFG_RTSMB_MAX_PASSWORD_SIZE];
     rtsmb_char username[CFG_RTSMB_MAX_USERNAME_SIZE + 1];
     rtsmb_char domainname[CFG_RTSMB_MAX_USERNAME_SIZE + 1];
+    byte security_blob_buf[CFG_RTSMB_MAX_SECURITYBLOB_SIZE];
     byte next_command;
     word max_buffer_size;
+    word  extended_access = AUTH_NOACCESS; // extended_access will be recalculated if the input packet requests extended security
+    word  extended_authId=0;
     /* word max_mpx_count;   */
     /* word vc_number;       */
     /* dword session_id;     */
 
     response.guest_logon = FALSE;
+	response.extended_security = FALSE; /* respond with an extended security message */
+
     response.next_command = SMB_COM_NONE;
     response.srv_native_os = (PFRTCHAR)0;
     response.srv_native_lan_man = (PFRTCHAR)0;
@@ -268,6 +341,10 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
         command.ansi_password_size = CFG_RTSMB_MAX_PASSWORD_SIZE;
         command.ansi_password = (PFBYTE) password_buf;
+
+        command.security_blob_size = CFG_RTSMB_MAX_SECURITYBLOB_SIZE;
+        command.security_blob = (PFBYTE)security_blob_buf;
+
         command.unicode_password_size = CFG_RTSMB_MAX_PASSWORD_SIZE;
         command.unicode_password = (PFBYTE)password_buf2;
         command.account_name_size = CFG_RTSMB_MAX_USERNAME_SIZE + 1;
@@ -280,6 +357,33 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
         next_command = command.next_command;
         max_buffer_size = command.max_buffer_size;
+#if (HARDWIRED_EXTENDED_SECURITY)
+        if (command.security_blob_size && command.capabilities & CAP_EXTENDED_SECURITY)
+        {
+           response.extended_security = TRUE;
+           pOutHdr->flags2 |= SMB_FLG2_32BITERROR|SMB_FLG2_EXTENDED_SECURITY|SMB_FLG2_LONGNAME;
+           if (command.security_blob[0] == 0x60)
+           { // Init token
+           decoded_NegTokenInit_t decoded_init_token;
+             spnego_decode_NegTokenInit_packet(&decoded_init_token, command.security_blob,command.security_blob_size);
+             pOutHdr->status =  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED;
+             spnego_decoded_NegTokenInit_destructor(&decoded_init_token);
+           }
+           else if (command.security_blob[0] == 0xA1)
+           {// Targ token
+             decoded_NegTokenTarg_t decoded_targ_token;
+             spnego_decode_NegTokenTarg_packet(&decoded_targ_token, command.security_blob,command.security_blob_size);
+             extended_access = spnego_AuthenticateUser (pCtx, &decoded_targ_token, &extended_authId);
+             spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
+           }
+           else
+           {
+              rtp_printf("Lost Got extended blob signature == %X2\n",command.security_blob[0]);
+              SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
+           }
+
+        }
+#endif
 /*      max_mpx_count = command.max_mpx_count;   */
 /*      vc_number = command.vc_number;           */
 /*      session_id = command.session_id;         */
@@ -292,11 +396,35 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
         BBOOL firstTime = TRUE;
         PUSER user = (PUSER)0;
 
-        access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
+       if (response.extended_security)
+       {
+         if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+         {
+           printf("Got extended !!!  phase 1\n");
+           access = 0;
+           authId = 0;
+         }
+         else
+         {
+           authId = extended_authId;
+           access = extended_access;
+         }
+       }
+       else
+       {
+          access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
+       }
 
         if (access == AUTH_NOACCESS)
         {
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+            if (response.extended_security)
+            {
+              pOutHdr->status = SMB_NT_STATUS_LOGON_FAILURE;
+            }
+            else
+            {
+              pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+            }
         }
         else
         {
@@ -392,8 +520,17 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
     }
 
     response.next_command = next_command;
+    if (response.extended_security)
+    {
+       glencryptionKey = pCtx->encryptionKey;
+       rtp_printf("Fix this hack to send the encryption key with spnego\n");
 
-    WRITE_SMB_AND_X (srv_cmd_fill_session_setup_and_x);
+        WRITE_SMB_AND_X (srv_cmd_fill_session_setup_extended_and_x);
+    }
+    else
+    {
+        WRITE_SMB_AND_X (srv_cmd_fill_session_setup_and_x);
+    }
 
     return next_command;
 } /* End ProcSetupAndx */
@@ -1234,12 +1371,20 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
 
     if (pOutHdr->status)
     {
-        pCtx->outBodySize = last_body_size + 3;
-        tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
+        if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+        {
+          printf(" SMB_NT_STATUS_MORE_PROCESSING_REQUIRED May have to support all 32 bit errors\n");
+        }
+        else
+        {
+          pCtx->outBodySize = last_body_size + 3;
+          tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
+        }
     }
 
     return TRUE;
 } /* End ProcAndx */
+
 
 
 /*
@@ -1356,6 +1501,37 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.time_high = 0;
         response.time_low = 0;
         response.time_zone = 0x00F0;
+#if (HARDWIRED_EXTENDED_SECURITY)
+        if (ON (pInHdr->flags2, SMB_FLG2_EXATTRIB))
+        {
+           response.challenge_size = 0;
+           response.capabilities |= CAP_EXTENDED_SECURITY;
+           pOutHdr->flags2 |= SMB_FLG2_EXATTRIB;
+           response.valid_guid = TRUE;
+		   spnego_get_Guid(response.guid);
+           response.challenge_size = 8;
+#if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
+           static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
+#else
+           tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
+           for (i = 0; i < 4; i++)
+           {
+            word randnum = (word) tc_rand();    /* returns 15 bits of random data */
+            tc_memcpy (&(pCtx->encryptionKey[i * 2]), &randnum, 2);
+           }
+#endif
+          response.valid_domain = FALSE;
+          response.challenge = pCtx->encryptionKey;
+           // Send this in NTLM reponse to evoke an NTLMSSP_NEGOTIATE NTLM TYPE 1 response from the client.
+           // Contents:
+           // OID: 1.3.6.1.5.5.2 (SPNEGO - Simple Protected Negotiation)
+           // MechType: 1.3.6.1.4.1.311.2.2.10 (NTLMSSP - Microsoft NTLM Security Support Provider)
+           // principal: not_defined_in_RFC4178@please_ignore
+           response.spnego_blob_size = spnego_get_negotiate_ntlmssp_blob(&response.spnego_blob);
+        }
+        else
+#endif
+        {
         response.challenge_size = 8;
 
         for (i = 0; i < 4; i++)
@@ -1365,10 +1541,9 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         }
 
         response.challenge = pCtx->encryptionKey;
-
         response.valid_guid = FALSE;
         response.valid_domain = FALSE;
-
+        }
 #ifdef SUPPORT_SMB2
 #if (0)
 THIS IS WRONG
@@ -1394,7 +1569,7 @@ THIS IS WRONG
             response.SecurityBufferLength = 0;
             response.pSecurityBuffer = 0;
             response.Reserved2 = 0;
-    
+
             /* Passes srv_cmd_fill_negotiate_smb2 pOutHdr, and &response   */
             WRITE_SMB2 (cmd_fill_negotiate_response_smb2);
         }

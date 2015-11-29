@@ -13,6 +13,7 @@
 // time conversion
 
 
+#include "smbdebug.h"
 #include "smbutil.h"
 #include "smbnb.h"
 #include "smbsjis.h"
@@ -1104,9 +1105,30 @@ void encrypt24 (PFBYTE p21, PFBYTE data, PFBYTE output)
 	encrypt_block (&p21[14], data, &output[16]);
 }
 
+// This value is split into three 7-byte thirds.
+// These values are used to create three DES keys (one from each 7-byte third).
+// Each of these keys is used to DES-encrypt the challenge from the Type 2 message (resulting in three 8-byte ciphertext values).
+// These three ciphertext values are concatenated to form a 24-byte value. This is the LM response.
+
+// The user's password (as an OEM string) is converted to uppercase.
+// This password is null-padded to 14 bytes.
+// This "fixed" password is split into two 7-byte halves.
+// These values are used to create two DES keys (one from each 7-byte half).
+// Each of these keys is used to DES-encrypt the constant ASCII string "KGS!@#$%" (resulting in two 8-byte ciphertext values).
+// These two ciphertext values are concatenated to form a 16-byte value - the LM hash.
+
+// encrypt24 (p21, data, output);
+// The 16-byte LM hash is null-padded to 21 bytes.
+// This value is split into three 7-byte thirds.
+// These values are used to create three DES keys (one from each 7-byte third).
+// Each of these keys is used to DES-encrypt the challenge from the Type 2 message (resulting in three 8-byte ciphertext values).
+// These three ciphertext values are concatenated to form a 24-byte value. This is the LM response.
+
 // DES encryption on password to achieve an encrypted
 // 24 byte long password ('output').
 // Password, data, and output can overlap.
+
+
 PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE output)
 {
 	byte p21 [21];
@@ -1117,15 +1139,18 @@ PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE ou
 	tc_memset (&p21[16], 0, 5);
 
 	tc_memset (p14, '\0', 14); // password is null-extended
-
+    rtsmb_dump_bytes("Password", password, 14, DUMPASCII);
 	tc_strncpy ((PFCHAR) p14, password, 14);
 	rtsmb_util_latin_string_toupper ((PFCHAR) p14);	// must be uppercase
+    rtsmb_dump_bytes("UCPassword", p14, 14, DUMPASCII);
 
 	// encrypt S8 using 7-byte blocks from password
 	encrypt_block (p14, (PFBYTE) S8, p21);
 	encrypt_block (&p14[7], (PFBYTE) S8, &p21[8]);
-
+    rtsmb_dump_bytes("16 byte hash", p21, 16, DUMPBIN);
+    rtsmb_dump_bytes("8 byte input", data, 8, DUMPBIN);
 	encrypt24 (p21, data, output);
+    rtsmb_dump_bytes("24 byte outpu", output, 24, DUMPBIN);
 
 	return output;
 }

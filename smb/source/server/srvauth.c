@@ -41,7 +41,7 @@ int uid;
     {
         if (prtsmb_srv_ctx->userList.users[i].inUse)
         {
-            rtsmb_util_rtsmb_to_ascii(prtsmb_srv_ctx->userList.users[i].name, 
+            rtsmb_util_rtsmb_to_ascii(prtsmb_srv_ctx->userList.users[i].name,
                                       rtsmb_user, CFG_RTSMB_USER_CODEPAGE);
 
             rtp_printf("USER TABLE ENTRY: %d USER: %s; PASSWORD: %s\n",
@@ -103,6 +103,11 @@ short getUserIdFromName (PFRTCHAR name)
     return -1;
 }
 
+
+
+// if NT_LM security ansi_password is actually the LM security code
+// domainname and uni_password only matter for lmv2
+
 word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname, PFCHAR ansi_password, PFCHAR uni_password, word *authId)
 {
     short uid;
@@ -114,8 +119,11 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
 
     RTSMB_DEBUG_OUTPUT_STR ("\nUser \" ", RTSMB_DEBUG_TYPE_ASCII);
     RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-    RTSMB_DEBUG_OUTPUT_STR (" \" with domainname \" ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (domainname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
+    if (domainname)
+    {
+      RTSMB_DEBUG_OUTPUT_STR (" \" with domainname \" ", RTSMB_DEBUG_TYPE_ASCII);
+      RTSMB_DEBUG_OUTPUT_STR (domainname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
+    }
     RTSMB_DEBUG_OUTPUT_STR (" \" is trying to access the share created on this server\n", RTSMB_DEBUG_TYPE_ASCII);
 
     if (uid >= 0)
@@ -224,6 +232,10 @@ byte mergeAccessRights (byte one, byte two)
     }
 }
 
+
+// if NT_LM security plaintext is the password from the user structure
+// if NT_LM security ansi_password is actually the LM security code
+// domainname and uni_password only matter for lmv2
 BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname,
                              PFCHAR  plaintext, PFBYTE ansi_password, PFBYTE uni_password) /*_YI_ */
 {
@@ -242,8 +254,19 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
             rtp_printf("Auth_DoPasswordsMatch: ansi_password = %s\n", plaintext);
             for (i=0; i<24; i++)
                 rtp_printf("%x ", ansi_password[i]);
+            rtp_printf("\n");
         }
-        
+
+
+
+byte passbuf_nt[24];
+byte passbuf_pre_nt[24];
+cli_util_encrypt_password_nt (plaintext, pCtx->encryptionKey, passbuf_nt);
+cli_util_encrypt_password_pre_nt (plaintext, pCtx->encryptionKey, passbuf_pre_nt);
+rtsmb_dump_bytes("compare to                       :", ansi_password, 24, DUMPBIN);
+rtsmb_dump_bytes("cli_util_encrypt_password_nt     :", passbuf_nt, 24, DUMPBIN);
+rtsmb_dump_bytes("cli_util_encrypt_password_pre_nt :", passbuf_pre_nt, 24, DUMPBIN);
+
         if (pCtx->dialect >= NT_LM &&
             tc_memcmp (cli_util_encrypt_password_nt (plaintext, pCtx->encryptionKey, passbuf), ansi_password, 24)==0)
         {
@@ -253,7 +276,7 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
         {
             ret_val = TRUE;
         }
-        else if (name && domainname && uni_password && 
+        else if (name && domainname && uni_password &&
                  (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf,uni_password, name, domainname), ansi_password, 24)==0))
         {
             ret_val = TRUE;
@@ -651,4 +674,3 @@ void Auth_Init (void)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
