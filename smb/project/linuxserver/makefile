@@ -71,6 +71,8 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 
 
 
+
+cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/des_enc.c
 cfiles += $(lib_to_rtsmb_common_path)/ecb_enc.c
 cfiles += $(lib_to_rtsmb_common_path)/md4_dgst.c
@@ -116,7 +118,8 @@ cfiles += $(lib_to_rtptarget)/rtpthrd.c
 cfiles += $(lib_to_rtptarget)/rtptime.c
 cfiles += $(lib_to_rtptarget)/rtpwfile.c
 #DEMO FILE
-cfiles +=  $(lib_to_rtsmb_server_demo_path)/serverexample.c
+cfiles += $(lib_to_rtsmb_server_demo_path)/serverinteractive.c
+cfiles += $(lib_to_rtsmb_server_demo_path)/serverexample.c
 
 cmodules := $(patsubst %.c,%,$(cfiles))
 

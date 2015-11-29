@@ -40,16 +40,16 @@ ifeq ($(compiler),GNUCOMPILER)
 	ar ru $@ $^
 
 $(OBJDIR)/%.$(obj): %.c
-	echo COMPILING $<
-	gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+	@echo COMPILING $<
+	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 $(OBJDIR)/%.$(obj): %.cpp
-	echo xxx %.cpp COMPILING $<
+	@echo xxx %.cpp COMPILING $<
 	$(toolprefix)gcc $(ccflags)	$(defines:%=-D%) $(includes:%=-I%) -c $< -o $(OBJDIR)/$(notdir $@)
 
 %.$(exe):
-	echo LINKING $@
-	g++ $(ldflags) -o $(notdir $@) $^
+	@echo LINKING $@
+	@g++ $(ldflags) -o $(notdir $@) $^
 
 endif #	GNUCOMPILER
 
