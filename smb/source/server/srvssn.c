@@ -215,7 +215,7 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
 // access = decode (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
 
-    rtp_printf("\n");
+    rtp_printf("\nAuthenticate user from SPNEGO PACCKET\n");
     if (decoded_targ_token->lm_response)       //
     {
         rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
@@ -252,6 +252,7 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
 // This is not right for NT_LM
     //word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->client_challenge->value_at_offset, 0,  extended_authId);
     // Encrypt the password with the client's key in lm_response and we should get the lm response value
+    rtp_printf("call Auth_AuthenticateUser with user and LM response\n");
     word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
     rtp_printf("Auth_AuthenticateUser returned %X\n", Access);
 #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
@@ -284,7 +285,7 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
  * command in the Andx                                 /
  * -------------------------------------------------- */
 
-#if (HARDWIRED_ENCRYPIOM_KEY_HACK)
+#if (HARDWIRED_ENCRYPION_KEY_HACK)
 extern byte * glencryptionKey;
 #endif
 
@@ -1512,8 +1513,8 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
            response.challenge_size = 8;
 #if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
            static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
-#else
            tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
+#else
            for (i = 0; i < 4; i++)
            {
             word randnum = (word) tc_rand();    /* returns 15 bits of random data */

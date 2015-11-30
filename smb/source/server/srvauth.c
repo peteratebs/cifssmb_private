@@ -251,9 +251,7 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
         if (pCtx->dialect >= NT_LM)
         {
         int i;
-            rtp_printf("Auth_DoPasswordsMatch: ansi_password = %s\n", plaintext);
-            for (i=0; i<24; i++)
-                rtp_printf("%x ", ansi_password[i]);
+            rtsmb_dump_bytes("Auth_DoPasswordsMatch: ansi_password :", ansi_password, 24, DUMPBIN);
             rtp_printf("\n");
         }
 

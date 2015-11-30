@@ -17,7 +17,7 @@
 void rtsmb_dump_bytes(char *prompt, byte *pbytes, int length, int format)
 {
 int i;
-    rtp_printf("%20s:(%4d) bytes: ", prompt, length);
+    rtp_printf("%-40s:(%4d) bytes:", prompt, length);
     for (i=0; i<length; i++)
       if (format==DUMPBIN)
           rtp_printf("%x ", pbytes[i]);
@@ -27,7 +27,7 @@ int i;
         if (format==DUMPUNICODE)
           i++;
       }
-      rtp_printf("\n");
+      rtp_printf("\n===\n");
 }
 
 

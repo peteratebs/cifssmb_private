@@ -1147,10 +1147,10 @@ PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE ou
 	// encrypt S8 using 7-byte blocks from password
 	encrypt_block (p14, (PFBYTE) S8, p21);
 	encrypt_block (&p14[7], (PFBYTE) S8, &p21[8]);
-    rtsmb_dump_bytes("16 byte hash", p21, 16, DUMPBIN);
-    rtsmb_dump_bytes("8 byte input", data, 8, DUMPBIN);
+    rtsmb_dump_bytes("pasword hash", p21, 16, DUMPBIN);
+    rtsmb_dump_bytes("challenge", data, 8, DUMPBIN);
 	encrypt24 (p21, data, output);
-    rtsmb_dump_bytes("24 byte outpu", output, 24, DUMPBIN);
+    rtsmb_dump_bytes("output ", output, 24, DUMPBIN);
 
 	return output;
 }

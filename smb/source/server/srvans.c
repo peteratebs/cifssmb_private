@@ -273,7 +273,7 @@ int srv_cmd_fill_echo (PFVOID origin, PFVOID buf, rtsmb_size size,
  * Returns: Size of data on success, -1 if not
  * enough space
  * -------------------------------------------------- */
-#if (HARDWIRED_ENCRYPIOM_KEY_HACK)
+#if (HARDWIRED_ENCRYPION_KEY_HACK)
 byte *glencryptionKey;
 #endif
 
