@@ -29,6 +29,16 @@
  * define MD5_FINAL(key, context) MD5Final(context);  rtp_memcpy(key, (context)->digest, 16)
  */
 
+void md5_hash( unsigned char*  text,         /**< pointer to data stream */
+               int             text_len,     /**< length of data stream */
+               unsigned char   *digest)      /**< caller digest to be filled in by this function (len=16) */
+{
+  MD5_CTX context;
+  MD5_INIT(&context);                   /* init context */
+  MD5_UPDATE(&context, text, (unsigned int)text_len); /* then text of datagram */
+  MD5_FINAL(digest, &context);          /* finish up 1st pass */
+}
+
 /*
  * Function: hmac_md5
  *

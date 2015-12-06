@@ -13,23 +13,24 @@
 // See https://msdn.microsoft.com/en-us/library/cc236699.aspx for good NTLM reference
 #define HARDWIRE_SERVER_SETTINGS           1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares
 #define HARDWIRED_USER_NAME  "ebs"
-#define HARDWIRED_PASSWORD   "password"
+#define HARDWIRED_PASSWORD   "SecREt01" // "password"
 #define HARDWIRED_SHARE_NAME  "share0"
 #define HARDWIRED_SHARE_PATH "/media"
 #define HARDWIRED_TEMP_PATH "/tmp"
 #define HARDWIRED_HOST_NAME  "EBSRTSMB"
 #define HARDWIRED_GROUP_NAME "WORKGROUP"
-#define HARDWIRED_EXTENDED_SECURITY           1     // Use extended security (SPNEO_) if true and client supports it.
-// Must be worked on. Don't set extended security in SPNEGO (force it to use LM) if HARDWIRED_NO_EXTENDED_SECURITY_IN_CHALLENGE ==1
-#define HARDWIRED_NO_EXTENDED_SECURITY_IN_CHALLENGE   1
-#define HARDWIRED_DEBUG_ENCRYPTION_KEY        0  // send 0123456789abcde for an encrypion key for easier debugging of hash functions
+#define HARDWIRED_EXTENDED_SECURITY           1  // Use extended security (SPNEO_) if true and client supports it. Set to zero to authenticate through the NTLM1 method, where the clint sends LM or NTLM1
+                                                 // credentials in the setup request
+#define HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE  1  // Set to zero to force the client to reply with NTLM1 resonse not NTLM2 (not ntlmv2, that's different) response. If HARDWIRED_EXTENDED_SECURITY and client requests exended security.
+#define HARDWIRED_INCLUDE_NTLMV2              0  // Set to 1 to check security blobs for LMV2 or NTLMV2 NOt completed
+#define HARDWIRED_DEBUG_ENCRYPTION_KEY        1  // send 0123456789abcde for an encrypion key for easier debugging of hash functions
 #define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  0  // If one force a successful login even though the password checker failed
 #define HARDWIRED_ENCRYPION_KEY_HACK          1  // Must be fixed. Use a global to pass the encryption key between levels in trans.
 
 
 // Passed with the extended security client challenge. Target configuration strings.
 #define HARDWIRED_TARGET_NAME       "TARGETNAME"
-#define HARDWIRED_NBDOMAIN_NAME     "NETBIOSDOMAINNAME"
+#define HARDWIRED_NBDOMAIN_NAME     "DOMAIN"
 #define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
 #define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
 #define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"

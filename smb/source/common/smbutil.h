@@ -78,10 +78,9 @@ PFCHAR rtsmb_util_unmake_netbios_name (PFCHAR dest, PFBYTE type, PFCHAR name);
 
 #if (INCLUDE_RTSMB_ENCRYPTION)
 PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE output);
-PFBYTE cli_util_encrypt_password_nt (PFCHAR password, PFBYTE data, PFBYTE output);
-
-PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, PFCHAR output,
-									   PFBYTE uni_password, PFRTCHAR name, PFRTCHAR domainname); // _YI_
+PFBYTE cli_util_encrypt_password_ntlm (PFCHAR password, PFBYTE data, PFBYTE output);
+PFBYTE cli_util_encrypt_password_ntlm2 (PFBYTE clientNonce, PFBYTE serverChallenge,PFCHAR password,PFCHAR output);
+PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE uni_password, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output); // _YI_
 #endif
 
 

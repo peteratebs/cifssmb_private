@@ -103,11 +103,154 @@ short getUserIdFromName (PFRTCHAR name)
     return -1;
 }
 
+static PUSERDATA getuserSructureFromName(PFRTCHAR name,short *uid)
+{
+PUSERDATA user=0;
+    *uid = getUserIdFromName (name);
+    if (*uid >= 0)
+    {
+        user = &prtsmb_srv_ctx->userList.users[*uid];
+    }
+    return user;
+}
 
+word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
+{
+    short uid;
+    BYTE output24[24];
+    word rv = AUTH_NOACCESS;
+    PUSERDATA user;
+
+    CLAIM_AUTH ();
+    user = getuserSructureFromName(name, &uid);
+    if (user)
+    {
+        cli_util_encrypt_password_pre_nt (user->password, pCtx->encryptionKey, output24);
+        if (tc_memcmp(lm_response, output24, 24) == 0)
+        {
+          (*authId) = (word)uid;
+           rv = 0;
+        }
+    }
+    RELEASE_AUTH ();
+    return rv;
+}
+
+word Auth_AuthenticateUser_ntlm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
+{
+    short uid;
+    BYTE output24[24];
+    word rv = AUTH_NOACCESS;
+    PUSERDATA user;
+
+    CLAIM_AUTH ();
+    user = getuserSructureFromName(name, &uid);
+    if (user)
+    {
+        cli_util_encrypt_password_ntlm (user->password, pCtx->encryptionKey, output24);
+        if (tc_memcmp(lm_response, output24, 24) == 0)
+        {
+          (*authId) = (word)uid;
+           rv = 0;
+        }
+    }
+    RELEASE_AUTH ();
+    return rv;
+}
 
 // if NT_LM security ansi_password is actually the LM security code
 // domainname and uni_password only matter for lmv2
+word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId)
+{
+    short uid;
+    BYTE output24[24];
+    word rv = AUTH_NOACCESS;
+    PUSERDATA user;
 
+    CLAIM_AUTH ();
+    user = getuserSructureFromName(name, &uid);
+    if (user)
+    {
+        cli_util_encrypt_password_ntlm2 (clientNonce,pCtx->encryptionKey, user->password, output24);
+        if (tc_memcmp(ntlm2_response, output24, 24) == 0)
+        {
+          (*authId) = (word)uid;
+           rv = 0;
+        }
+    }
+    RELEASE_AUTH ();
+    return rv;
+}
+
+
+// The NTLMv2 User Session Key
+//
+// Used when the NTLMv2 response is sent. Calculation of this key is very similar to the LMv2 User Session Key:
+//
+// The NTLMv2 hash is obtained (as calculated previously).
+// The NTLMv2 "blob" is obtained (as used in the NTLMv2 response).
+// The challenge from the Type 2 message is concatenated with the blob. The HMAC-MD5 message authentication code algorithm is applied to this value using the NTLMv2 hash as the key, resulting in a 16-byte output value.
+// The HMAC-MD5 algorithm is applied to this value, again using the NTLMv2 hash as the key. The resulting 16-byte value is the NTLMv2 User Session Key.
+//
+// ntlmnv2 handler - not done yet See http://davenport.sourceforge.net/ntlm.html#theNtlmResponse
+word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, PFRTCHAR name, PFRTCHAR domainname, word *authId)
+{
+    word rv = AUTH_NOACCESS;
+#if (HARDWIRED_INCLUDE_NTLMV2)
+    short uid;
+    BYTE output24[24];
+
+    PUSERDATA user;
+
+
+    CLAIM_AUTH ();
+    user = getuserSructureFromName(name, &uid);
+    if (user)
+    {
+        cli_util_encrypt_password_lmv2 (user->password, pCtx->encryptionKey, clientNonce, name, domainname,output24);
+        if (tc_memcmp(lm_response, output24, 24) == 0)
+        {
+          (*authId) = (word)uid;
+           rv = 0;
+        }
+    }
+    RELEASE_AUTH ();
+#endif
+    return rv;
+}
+
+
+word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYTE lm_response, PFRTCHAR name, PFRTCHAR domainname, word *authId)
+{
+    word rv = AUTH_NOACCESS;
+#if (HARDWIRED_INCLUDE_NTLMV2)
+    short uid;
+    BYTE output24[24];
+    PUSERDATA user;
+
+
+    CLAIM_AUTH ();
+    user = getuserSructureFromName(name, &uid);
+    if (user)
+    {
+        cli_util_encrypt_password_lmv2 (user->password, pCtx->encryptionKey, clientNonce, name, domainname,output24);
+        if (tc_memcmp(lm_response, output24, 24) == 0)
+        {
+          (*authId) = (word)uid;
+           rv = 0;
+        }
+    }
+    RELEASE_AUTH ();
+#endif
+    return rv;
+}
+
+// =================================================================================
+// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
+// =================================================================================
+//
+//
+//
 word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname, PFCHAR ansi_password, PFCHAR uni_password, word *authId)
 {
     short uid;
@@ -236,6 +379,9 @@ byte mergeAccessRights (byte one, byte two)
 // if NT_LM security plaintext is the password from the user structure
 // if NT_LM security ansi_password is actually the LM security code
 // domainname and uni_password only matter for lmv2
+
+// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
+
 BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname,
                              PFCHAR  plaintext, PFBYTE ansi_password, PFBYTE uni_password) /*_YI_ */
 {
@@ -255,18 +401,8 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
             rtp_printf("\n");
         }
 
-
-
-byte passbuf_nt[24];
-byte passbuf_pre_nt[24];
-cli_util_encrypt_password_nt (plaintext, pCtx->encryptionKey, passbuf_nt);
-cli_util_encrypt_password_pre_nt (plaintext, pCtx->encryptionKey, passbuf_pre_nt);
-rtsmb_dump_bytes("compare to                       :", ansi_password, 24, DUMPBIN);
-rtsmb_dump_bytes("cli_util_encrypt_password_nt     :", passbuf_nt, 24, DUMPBIN);
-rtsmb_dump_bytes("cli_util_encrypt_password_pre_nt :", passbuf_pre_nt, 24, DUMPBIN);
-
         if (pCtx->dialect >= NT_LM &&
-            tc_memcmp (cli_util_encrypt_password_nt (plaintext, pCtx->encryptionKey, passbuf), ansi_password, 24)==0)
+            tc_memcmp (cli_util_encrypt_password_ntlm (plaintext, pCtx->encryptionKey, passbuf), ansi_password, 24)==0)
         {
             ret_val = TRUE;
         }
@@ -275,7 +411,7 @@ rtsmb_dump_bytes("cli_util_encrypt_password_pre_nt :", passbuf_pre_nt, 24, DUMPB
             ret_val = TRUE;
         }
         else if (name && domainname && uni_password &&
-                 (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf,uni_password, name, domainname), ansi_password, 24)==0))
+                 (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf,&uni_password[32], name, domainname), ansi_password, 24)==0))
         {
             ret_val = TRUE;
         }

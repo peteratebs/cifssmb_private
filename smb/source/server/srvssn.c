@@ -208,6 +208,9 @@ NextUID:  ;
 
 #if (HARDWIRED_EXTENDED_SECURITY)
 
+
+word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId);
+
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
@@ -246,15 +249,48 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
         rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
         ;
     }
-    // if NT_LM security ansi_password is actually the LM security code
-    // domainname and uni_password only matter for lmv2
+    word Access=AUTH_NOACCESS;
 
-// This is not right for NT_LM
-    //word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->client_challenge->value_at_offset, 0,  extended_authId);
-    // Encrypt the password with the client's key in lm_response and we should get the lm response value
-    rtp_printf("call Auth_AuthenticateUser with user and LM response\n");
-    word Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
-    rtp_printf("Auth_AuthenticateUser returned %X\n", Access);
+    // Try lmv2
+    rtsmb_char default_domainname_buffer[32];
+    PFRTCHAR domainname = 0;
+    if (decoded_targ_token->domain_name)
+      domainname = decoded_targ_token->domain_name->value_at_offset;
+    else
+    {
+      default_domainname_buffer[0] = 0;
+      domainname = default_domainname_buffer;
+    }
+#if (HARDWIRED_INCLUDE_NTLMV2)
+    // Try ntlmv2 - not implemented yet. Not used much because needs registry configuration to use
+    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+    // Try lmv2 - not implemented yet. Not used much because needs registry configuration to use
+    Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+    // Try ntlm2
+#endif
+    if (Access == AUTH_NOACCESS)
+    {
+      Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+      rtp_printf("Auth_AuthenticateUser_ntlm2 returned %X\n", Access);
+    }
+    if (Access == AUTH_NOACCESS)
+    {
+      Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+      rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
+    }
+    if (Access == AUTH_NOACCESS)
+    {
+      // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
+      Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+      rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
+    }
+
+
+
+    if (Access == AUTH_NOACCESS)
+    {
+     Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
+    }
 #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
     if (Access == AUTH_NOACCESS)
     {
@@ -413,101 +449,126 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        }
        else
        {
-          access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
+         access = AUTH_NOACCESS;
+         rtp_printf("ProcSetupAndx Testing code to eliminate Auth_AuthenticateUser \n");
+         if (pCtx->dialect < NT_LM)
+         {
+           access = Auth_AuthenticateUser_lm (pCtx, password_buf, username, &authId);
+         }
+         else
+         {
+//            access = Auth_AuthenticateUser_ntlm2 (pCtx,password_buf, decoded_targ_token->client_challenge->value_at_offset, username, &authId);
+//            rtp_printf("Auth_AuthenticateUser_ntlm2 returned %X\n", Access);
+            if (access == AUTH_NOACCESS)
+            {
+              access = Auth_AuthenticateUser_ntlm (pCtx,password_buf, username, &authId);
+              rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", access);
+            }
+         }
+
+         // Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
+         //
+         //
+
+         if (access == AUTH_NOACCESS)
+         {
+            rtp_printf("ProcSetupAndx fell through to Auth_AuthenticateUser \n");
+            access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
+            rtp_printf("Auth_AuthenticateUser returned %X\n", access);
+         }
        }
+       if (access == AUTH_NOACCESS)
+       {
+           if (response.extended_security)
+           {
+             pOutHdr->status = SMB_NT_STATUS_LOGON_FAILURE;
+           }
+           else
+           {
+             pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+           }
+       }
+       else
+       {
+           for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+           {
+               if (pCtx->uids[i].inUse)
+               {
+                   firstTime = FALSE;
+                   break;
+               }
+           }
 
-        if (access == AUTH_NOACCESS)
-        {
-            if (response.extended_security)
-            {
-              pOutHdr->status = SMB_NT_STATUS_LOGON_FAILURE;
-            }
-            else
-            {
-              pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
-            }
-        }
-        else
-        {
-            for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-            {
-                if (pCtx->uids[i].inUse)
-                {
-                    firstTime = FALSE;
-                    break;
-                }
-            }
+           /* If pInHdr->uid != 0: if we have that UID, use it,                   */
+           /* If pInHdr->uid == 0: if the client already has a UID for that user, */
+           /* reuse it, else allocate new UID                                     */
 
-            /* If pInHdr->uid != 0: if we have that UID, use it,                   */
-            /* If pInHdr->uid == 0: if the client already has a UID for that user, */
-            /* reuse it, else allocate new UID                                     */
+           if (pInHdr->uid != 0) /* reuse existing uid */
+           {
+               for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+               {
+                   if (pCtx->uids[i].inUse && (pInHdr->uid == pCtx->uids[i].uid))
+                   {
+                       user = &pCtx->uids[i];
+                       break;
+                   }
+               }
 
-            if (pInHdr->uid != 0) /* reuse existing uid */
-            {
-                for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-                {
-                    if (pCtx->uids[i].inUse && (pInHdr->uid == pCtx->uids[i].uid))
-                    {
-                        user = &pCtx->uids[i];
-                        break;
-                    }
-                }
+           }
 
-            }
+           /* if this is a guest loging, reuse old guests   */
+           if ((user == (PUSER)0) && (authId == 0))
+           {
 
-            /* if this is a guest loging, reuse old guests   */
-            if ((user == (PUSER)0) && (authId == 0))
-            {
-
-                for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-                {
-                    if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
-                    {
+               for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+               {
+                   if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
+                   {
 /*                      rtp_printf("reuse uid: %i, authid: %i \n", pInHdr->uid, authId);   */
-                        user = &pCtx->uids[i];
-                        break;
-                    }
-                }
-            }
-            /* allocate a new UID   */
-            if (user == (PUSER)0)
-            {
-                for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-                {
-                    if (pCtx->uids[i].inUse == FALSE)
-                    {
-                        user = &pCtx->uids[i];
-                        User_Init(user);
-                        user->uid    = (word) (pInHdr->uid ? pInHdr->uid : NewUID(pCtx->uids, prtsmb_srv_ctx->max_uids_per_session));
-                        user->authId = authId;
-                        user->canonicalized = (BBOOL) (pInHdr->flags & SMB_FLG_CANONICALIZED);
-                        break;
-                    }
-                }
-            }
+                       user = &pCtx->uids[i];
+                       break;
+                   }
+               }
+           }
+           /* allocate a new UID   */
+           if (user == (PUSER)0)
+           {
+               for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+               {
+                   if (pCtx->uids[i].inUse == FALSE)
+                   {
+                       user = &pCtx->uids[i];
+                       User_Init(user);
+                       user->uid    = (word) (pInHdr->uid ? pInHdr->uid : NewUID(pCtx->uids, prtsmb_srv_ctx->max_uids_per_session));
+                       user->authId = authId;
+                       user->canonicalized = (BBOOL) (pInHdr->flags & SMB_FLG_CANONICALIZED);
+                       break;
+                   }
+               }
+           }
 
-            if (user == (PUSER)0)
-            {
-                pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS);
-            }
-            else
-            {
-                pOutHdr->uid = user->uid;
-                pInHdr->uid  = user->uid;
-                pCtx->uid    = user->uid;
+           if (user == (PUSER)0)
+           {
+               pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS);
+           }
+           else
+           {
+               pOutHdr->uid = user->uid;
+               pInHdr->uid  = user->uid;
+               pCtx->uid    = user->uid;
 
-                if (firstTime)
-                {
-                    pCtx->useableBufferSize = (word) MIN (max_buffer_size, pCtx->writeBufferSize);
-                    pCtx->writeBufferSize = pCtx->useableBufferSize;
-                }
+               if (firstTime)
+               {
+                   pCtx->useableBufferSize = (word) MIN (max_buffer_size, pCtx->writeBufferSize);
+                   pCtx->writeBufferSize = pCtx->useableBufferSize;
+               }
 
-                if (access == AUTH_GUEST)
-                {
-                    response.guest_logon = TRUE;
-                }
-            }
-        }
+               if (access == AUTH_GUEST)
+               {
+                   response.guest_logon = TRUE;
+               }
+           }
+       }
     }
     else
     {
@@ -592,6 +653,7 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
         switch (pCtx->accessMode)
         {
             case AUTH_SHARE_MODE:
+// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
                 if (Auth_DoPasswordsMatch (pCtx, 0, 0, pResource->password, (PFBYTE) password, (PFBYTE) password) == TRUE)
                     access = pResource->permission;
                 else
@@ -1681,6 +1743,7 @@ BBOOL ProcTreeConnect (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
         switch (pCtx->accessMode)
         {
         case AUTH_SHARE_MODE:
+// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
             if (Auth_DoPasswordsMatch (pCtx, 0, 0, pResource->password, 0, (PFBYTE) command.password) == TRUE)
             {
                 access = pResource->permission;

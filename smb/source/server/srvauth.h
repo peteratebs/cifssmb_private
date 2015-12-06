@@ -40,9 +40,9 @@ typedef ACCESS_TABLE_T RTSMB_FAR *PACCESS_TABLE;
 typedef struct groups_s
 {
 	byte numGroups;
-	
+
 	ACCESS_TABLE_T *groups;
-	
+
 } GROUPS_T;
 typedef GROUPS_T RTSMB_FAR *PGROUPS;
 
@@ -53,7 +53,7 @@ typedef struct user_data_s
 	PFCHAR password;
 	char password_buf[CFG_RTSMB_MAX_PASSWORD_SIZE + 1];	// password for user
 	BBOOL *groups; 	// whether this user is in each group
-					// using a whole byte for each group is a little wasteful, 
+					// using a whole byte for each group is a little wasteful,
 					// but there shouldn't be many groups, and overhead for groups is large
 					// This way we don't want to require a multiple of 4 number of groups
 
@@ -72,12 +72,12 @@ typedef struct users_s
  * USERS
  *
  * If the smb server is in user-mode, each client machine will have to provide
- * a username and encrypted password pair which will be used to authenticate 
- * their session.  To register a user and assign access rights to them, use 
- * the functions Auth_RegisterUser and Auth_AddUserToGroup.  See below for 
+ * a username and encrypted password pair which will be used to authenticate
+ * their session.  To register a user and assign access rights to them, use
+ * the functions Auth_RegisterUser and Auth_AddUserToGroup.  See below for
  * a discussion on how to use groups.
  *
- * If a user tries to log in and cannot, due to not having a username or not 
+ * If a user tries to log in and cannot, due to not having a username or not
  * knowing the password, you can optionally enable guest privileges and define
  * access rights for guests.
  *
@@ -103,7 +103,7 @@ typedef struct users_s
  *
  * PERMISSION
  *
- * Permission is a concept used to selectively allow access to shares based on a 
+ * Permission is a concept used to selectively allow access to shares based on a
  * username.  If a user has a certain access right to a share, they have that access
  * right to all files and directories in the share.
  *
@@ -111,8 +111,8 @@ typedef struct users_s
  * a user has any permission but 'none', they can browse the files in the share (even if
  * they have only write permission -- they can just not read what the files contain).
  */
- 
- 
+
+
 BBOOL Auth_RegisterGroup (PFRTCHAR name);
 BBOOL Auth_AssignGroupPermission (PFRTCHAR group, PFRTCHAR share, byte mode);
 
@@ -122,12 +122,18 @@ BBOOL Auth_DeleteUser (PFRTCHAR name);
 BBOOL Auth_AddUserToGroup (PFRTCHAR user, PFRTCHAR group);
 BBOOL Auth_RemoveUserFromGroup (PFRTCHAR user, PFRTCHAR group);
 
-word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname, 
+word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname,
 							PFCHAR ansi_password, PFCHAR uni_password, word *authId); //
-
 byte Auth_BestAccess (PSMB_SESSIONCTX pCtx, word tid);
-BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname, 
+BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domainname,
 							 PFCHAR password, PFBYTE ansi_password, PFBYTE uni_password); //
+
+word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId);
+word Auth_AuthenticateUser_ntlm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId);
+word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId);
+word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, PFRTCHAR name, PFRTCHAR domainname, word *authId);
+word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYTE lm_response, PFRTCHAR name, PFRTCHAR domainname, word *authId);
+
 
 void Auth_SetMode (byte mode);
 byte Auth_GetMode (void);

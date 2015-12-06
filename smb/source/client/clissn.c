@@ -4577,7 +4577,7 @@ int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB
             pJob->data.session_setup.password,
             pSession->server_info.challenge,
             ansi_encrypted_password);
-        cli_util_encrypt_password_nt (
+        cli_util_encrypt_password_ntlm (
             pJob->data.session_setup.password,
             pSession->server_info.challenge,
             unicode_encrypted_password);
@@ -4707,7 +4707,7 @@ int rtsmb_cli_session_send_tree_connect_job (
         }
         else
         {
-            cli_util_encrypt_password_nt (
+            cli_util_encrypt_password_ntlm (
                 pJob->data.tree_connect.password,
                 pSession->server_info.challenge,
                 encrypted_password);

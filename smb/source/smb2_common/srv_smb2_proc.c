@@ -1121,6 +1121,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 			switch (pCtx->accessMode)
 			{
 				case AUTH_SHARE_MODE:
+// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
 					if (Auth_DoPasswordsMatch (pCtx, 0, 0, pResource->password, (PFBYTE) password, (PFBYTE) password) == TRUE)
 						access = pResource->permission;
 					else

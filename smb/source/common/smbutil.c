@@ -1160,7 +1160,9 @@ PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE ou
 // Password, data, and output can overlap.
 //
 // this is the nt version for encrypting passwords
-PFBYTE cli_util_encrypt_password_nt (PFCHAR password, PFBYTE data, PFBYTE output)
+// The NTLM Response
+//
+PFBYTE cli_util_encrypt_password_ntlm (PFCHAR password, PFBYTE data, PFBYTE output)
 {
 	byte p21 [21];
 	int dst, src;
@@ -1184,10 +1186,80 @@ PFBYTE cli_util_encrypt_password_nt (PFCHAR password, PFBYTE data, PFBYTE output
 
 	return output;
 }
-
+//=================
 // LMv2 response password encryption
-PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, PFCHAR output,
-									   PFBYTE uni_password, PFRTCHAR name, PFRTCHAR domainname) // _YI_
+// The NTLM2 Response
+// .. A random 8-byte client nonce is created.
+// .. The client nonce is null-padded to 24 bytes. This value is placed in the LM response field of the Type 3 message.
+// .. The challenge from the Type 2 message is concatenated with the 8-byte client nonce to form a session nonce.
+// .. The MD5 message-digest algorithm (described in RFC 1321) is applied to the session nonce, resulting in a 16-byte value.
+// .. This value is truncated to 8 bytes to form the NTLM2 session hash.
+// .. The NTLM password hash is obtained (as discussed, this is the MD4 digest of the Unicode mixed-case password).
+// .. The 16-byte NTLM hash is null-padded to 21 bytes.
+// .. This value is split into three 7-byte thirds.
+// .. These values are used to create three DES keys (one from each 7-byte third).
+// .. Each of these keys is used to DES-encrypt the NTLM2 session hash (resulting in three 8-byte ciphertext values).
+// .. These three ciphertext values are concatenated to form a 24-byte value. This is the NTLM2 session response, which is placed in the NTLM response field of the Type 3 message.
+
+void md5_hash( unsigned char*  text,                   int             text_len,               unsigned char   *digest);
+
+// see http://davenport.sourceforge.net/ntlm.html#theNtlmResponse
+// BYTE testNonce[] = { 0xff,0xff,0xff,0x00,0x11,0x22,0x33,0x44 };
+PFBYTE cli_util_encrypt_password_ntlm2 (
+	PFBYTE clientNonce,                 // comes from lmresponse field
+	PFBYTE serverChallenge,             // Ctx->EncryptionKey
+    PFCHAR password,                  // SecREt01
+    PFCHAR output)
+{
+	BYTE unicode_lendian[(CFG_RTSMB_MAX_PASSWORD_SIZE + 1) * 2];
+	BYTE p21 [21];
+    BYTE NTLMv2_Session_Hash[16];
+	BYTE clientNonce24[24];
+	BYTE sessionNonce16[16];
+	int dst, src, ndLen;
+
+//    clientNonce=testNonce;
+    // .. The client nonce is null-padded to 24 bytes. This value is placed in the LM response field of the Type 3 message.
+	tc_memset (clientNonce24, 0, 24);
+	tc_memcpy(clientNonce24, clientNonce, 8);
+    // .. The challenge from the Type 2 message is concatenated with the 8-byte client nonce to form a session nonce.
+	tc_memcpy(sessionNonce16, serverChallenge, 8);
+	tc_memcpy(&sessionNonce16[8], clientNonce, 8);
+
+//     Set NtChallengeResponse to DESL(MD4(UNICODE(Passwd)), MD5(ConcatenationOf(CHALLENGE_MESSAGE.ServerChallenge, ClientChallenge))[0..7])
+//     Set LmChallengeResponse to ConcatenationOf{ClientChallenge, Z(16)}
+
+    // .. The MD5 message-digest algorithm (described in RFC 1321) is applied to the session nonce,
+    // resulting in a 16-byte value.
+    md5_hash( sessionNonce16, 16, NTLMv2_Session_Hash);
+
+// .. The NTLM password hash is obtained (as discussed, this is the MD4 digest of the Unicode mixed-case password).
+	// Convert the password to unicode
+	for (src=0, dst=0; src<=CFG_RTSMB_MAX_PASSWORD_SIZE && password[src]; src++)
+	{
+		unicode_lendian[dst++] = (BYTE)password[src];
+		unicode_lendian[dst++] = 0;
+	}
+//     Set NtChallengeResponse to DESL(unicode_lendian, MD5(sessionNonce16)[0..7])
+
+	// get md4 of password.  This is the 16-byte NTLM hash
+	RTSMB_MD4 (unicode_lendian, (dword)dst, p21);
+	// p21 is actually p16 with 5 null bytes appended.  we just null it now
+	// and fill it as if it were p16
+	tc_memset (&p21[16], 0, 5);
+// .. This value is split into three 7-byte thirds.
+// .. These values are used to create three DES keys (one from each 7-byte third).
+// .. Each of these keys is used to DES-encrypt the NTLM2 session hash (resulting in three 8-byte ciphertext values).
+// .. These three ciphertext values are concatenated to form a 24-byte value. This is the NTLM2 session response, which is placed in the NTLM response field of the Type 3 message.
+
+    encrypt24 (p21, NTLMv2_Session_Hash, output);
+
+	return (PFBYTE )output;
+}
+
+//=================
+// LMv2 response password encryption
+PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE clientNonce, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output)
 {
 	BYTE unicode_lendian[(CFG_RTSMB_MAX_PASSWORD_SIZE + 1) * 2];
 	BYTE nameDomainname[(CFG_RTSMB_MAX_USERNAME_SIZE + 1) * 4];
@@ -1195,10 +1267,7 @@ PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, 
 	BYTE concatChallenge[16];
 	BYTE p21 [21];
 	BYTE NTLMv2_Hash[16];
-	PFBYTE clientNonce;
 	int dst, src, ndLen;
-
-	clientNonce = &uni_password[32];
 
 	for (src=0, ndLen=0; src<=CFG_RTSMB_MAX_USERNAME_SIZE && name[src]; src++)
 	{
