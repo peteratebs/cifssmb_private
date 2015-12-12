@@ -24,8 +24,13 @@
 #define HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE  1  // Set to zero to force the client to reply with NTLM1 resonse not NTLM2 (not ntlmv2, that's different) response. If HARDWIRED_EXTENDED_SECURITY and client requests exended security.
 #define HARDWIRED_INCLUDE_NTLMV2              0  // Set to 1 to check security blobs for LMV2 or NTLMV2 NOt completed
 #define HARDWIRED_DEBUG_ENCRYPTION_KEY        1  // send 0123456789abcde for an encrypion key for easier debugging of hash functions
-#define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  0  // If one force a successful login even though the password checker failed
+#define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  1  // If one force a successful login even though the password checker failed
 #define HARDWIRED_ENCRYPION_KEY_HACK          1  // Must be fixed. Use a global to pass the encryption key between levels in trans.
+
+
+#define HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF    1  // FILE ALL INFO structure okay for server, seems wrong in client, needs investigation.
+#define HARDWIRED_FAKED_ZERO_VALUE                         0  // Search around for these, must be updated with real values.
+#define HARDWIRED_NTLM_EXTENSIONS                          1  // Fixes for missing extensions, may cause mal;formed issues for earlier than NTLM1.2.
 
 
 // Passed with the extended security client challenge. Target configuration strings.
