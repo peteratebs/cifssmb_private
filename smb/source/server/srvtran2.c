@@ -472,6 +472,41 @@ int fillSMB_QUERY_FILE_STANDARD_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr
 		pOutHdr, &info);
 }
 
+
+int fillSMB_QUERY_FILE_ALL_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf, rtsmb_size size, PFRTCHAR filename,PSMBFSTAT stat)
+{
+	RTSMB_QUERY_FILE_ALL_INFO info;
+
+  info.low_creation_time = stat->f_ctime64.low_time;
+  info.high_creation_time = stat->f_ctime64.high_time;
+  info.low_last_access_time = stat->f_atime64.low_time;
+  info.high_last_access_time = stat->f_atime64.high_time;
+  info.low_last_write_time = stat->f_wtime64.low_time;
+  info.high_last_write_time = stat->f_wtime64.high_time;
+  info.low_change_time = stat->f_htime64.low_time;
+  info.high_change_time = stat->f_htime64.high_time;
+
+   info.ext_file_attributes   =  (dword) rtsmb_util_rtsmb_to_smb_attributes (stat->f_attributes);
+  info.Reserved1              = 0;
+  info.low_allocation_size    = stat->f_size;
+  info.high_allocation_size   = HARDWIRED_FAKED_ZERO_VALUE;
+  info.low_end_of_file        = stat->f_size;
+  info.high_end_of_file       = HARDWIRED_FAKED_ZERO_VALUE;
+
+	info.number_of_links = 1; // we have no way to know
+	info.delete_pending = FALSE; // we have no way to know
+	info.is_directory = (stat->f_attributes & RTP_FILE_ATTRIB_ISDIR) ? 1 : 0;
+
+  info.Reserved2              = 0;
+  info.EaSize                 = 0;
+  info.filename = (PFRTCHAR) filename;
+  info.filename_size = (byte)(rtsmb_len (info.filename) * sizeof (rtsmb_char));
+
+
+  return srv_cmd_fill_query_file_all_info (pCtx->write_origin, pOutBuf, size,	pOutHdr, &info);
+}
+
+
 int fillSMB_QUERY_FILE_EA_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf, rtsmb_size size, PSMBFSTAT stat)
 {
 	RTSMB_QUERY_FILE_EA_INFO info;
@@ -647,8 +682,9 @@ int fillQueryWithInfo (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_HEADER
 			return fillSMB_QUERY_FILE_STREAM_INFO (pCtx, pInHdr, pOutHdr, pByte, size, &stat, filename);
 		case SMB_QUERY_FILE_COMPRESSION_INFO:
 			return fillSMB_QUERY_FILE_COMPRESSION_INFO (pCtx, pInHdr, pOutHdr, pByte, size, &stat);
-
 		case SMB_QUERY_FILE_ALL_INFO:
+			return fillSMB_QUERY_FILE_ALL_INFO (pCtx, pInHdr, pOutHdr, pByte, size, filename, &stat);
+
 		case SMB_INFO_QUERY_EAS_FROM_LIST:
 		case SMB_INFO_QUERY_ALL_EAS:
 			pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);

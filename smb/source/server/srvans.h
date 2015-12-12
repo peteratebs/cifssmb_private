@@ -184,6 +184,7 @@ int srv_cmd_fill_query_file_basic_info (PFVOID origin, PFVOID buf, rtsmb_size si
 	PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_BASIC_INFO pInfo);
 int srv_cmd_fill_query_file_standard_info (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_STANDARD_INFO pInfo);
+int srv_cmd_fill_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size,  PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_ALL_INFO pInfo);
 int srv_cmd_fill_query_file_ea_info (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_EA_INFO pInfo);
 int srv_cmd_fill_query_file_name_info (PFVOID origin, PFVOID buf, rtsmb_size size,

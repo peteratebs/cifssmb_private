@@ -266,6 +266,11 @@ typedef struct
 	word file_type;
 	word device_state;
 	BBOOL directory;
+	byte guid [16];
+	dword fileid_high;
+	dword fileid_low;
+    dword maximal_access_rights;
+    dword guest_maximal_access_rights;
 
 } RTSMB_NT_CREATE_AND_X_R;
 typedef RTSMB_NT_CREATE_AND_X_R RTSMB_FAR *PRTSMB_NT_CREATE_AND_X_R;
@@ -979,6 +984,8 @@ typedef struct
 } RTSMB_QUERY_FILE_STANDARD_INFO;
 typedef RTSMB_QUERY_FILE_STANDARD_INFO RTSMB_FAR *PRTSMB_QUERY_FILE_STANDARD_INFO;
 
+
+
 typedef struct
 {
 	dword ea_size;
@@ -994,6 +1001,7 @@ typedef struct
 } RTSMB_QUERY_FILE_NAME_INFO;
 typedef RTSMB_QUERY_FILE_NAME_INFO RTSMB_FAR *PRTSMB_QUERY_FILE_NAME_INFO;
 
+#if (HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF==0)
 typedef struct
 {
 	dword low_creation_time;
@@ -1037,7 +1045,38 @@ typedef struct
 	PFRTCHAR filename;
 
 } RTSMB_QUERY_FILE_ALL_INFO;
+#endif
+
+
+#if (HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF==1)
+typedef struct
+{
+  dword low_creation_time;
+  dword high_creation_time;
+  dword low_last_access_time;
+  dword high_last_access_time;
+  dword low_last_write_time;
+  dword high_last_write_time;
+  dword low_change_time;
+  dword high_change_time;
+  dword ext_file_attributes;
+  dword Reserved1;
+  dword low_allocation_size;
+  dword high_allocation_size;
+  dword low_end_of_file;
+  dword high_end_of_file;
+  dword number_of_links;
+  BBOOL delete_pending;
+  BBOOL is_directory;
+  word  Reserved2;
+  dword EaSize;
+  dword filename_size;
+  PFRTCHAR filename;
+} RTSMB_QUERY_FILE_ALL_INFO;
+#endif
 typedef RTSMB_QUERY_FILE_ALL_INFO RTSMB_FAR *PRTSMB_QUERY_FILE_ALL_INFO;
+
+
 
 typedef struct
 {

@@ -31,7 +31,8 @@
 #define HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF    1  // FILE ALL INFO structure okay for server, seems wrong in client, needs investigation.
 #define HARDWIRED_FAKED_ZERO_VALUE                         0  // Search around for these, must be updated with real values.
 #define HARDWIRED_NTLM_EXTENSIONS                          1  // Fixes for missing extensions, may cause mal;formed issues for earlier than NTLM1.2.
-
+#define HARDWIRED_NEGOTIATE_CHALLENGE_SIZE                 0  // TBD: MAC does not respond to protocol reponse unless this is 0,
+                                                              // for mac based client, 8 for windows client
 
 // Passed with the extended security client challenge. Target configuration strings.
 #define HARDWIRED_TARGET_NAME       "TARGETNAME"

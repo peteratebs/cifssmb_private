@@ -2090,6 +2090,51 @@ int srv_cmd_fill_query_file_basic_info (PFVOID origin, PFVOID buf, rtsmb_size si
 }
 
 /* --------------------------------------------------- /
+ * Fills SMB Data Section with query file all
+ * info response
+ * ASSOCIATED COMMANDS: TRANS2_QUERY_PATH_INFORMATION,
+ *                      TRANS2_QUERY_FILE_INFORMATION
+ * INFO LEVEL: SMB_QUERY_FILE_ALL_INFO
+ *
+ * Returns: Size of data on success, -1 if not
+ * enough space
+ * -------------------------------------------------- */
+int srv_cmd_fill_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size,
+  PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_ALL_INFO pInfo)
+{
+  PFVOID s, e;
+  s = buf;
+  RTSMB_PACK_DWORD (pInfo->low_creation_time);
+  RTSMB_PACK_DWORD (pInfo->high_creation_time);
+  RTSMB_PACK_DWORD (pInfo->low_last_access_time);
+  RTSMB_PACK_DWORD (pInfo->high_last_access_time);
+  RTSMB_PACK_DWORD (pInfo->low_last_write_time);
+  RTSMB_PACK_DWORD (pInfo->high_last_write_time);
+  RTSMB_PACK_DWORD (pInfo->low_change_time);
+  RTSMB_PACK_DWORD (pInfo->high_change_time);
+
+  RTSMB_PACK_DWORD (pInfo->ext_file_attributes);
+  RTSMB_PACK_DWORD (pInfo->Reserved1);
+
+  RTSMB_PACK_DWORD (pInfo->low_allocation_size);
+  RTSMB_PACK_DWORD (pInfo->high_allocation_size);
+  RTSMB_PACK_DWORD (pInfo->low_end_of_file);
+  RTSMB_PACK_DWORD (pInfo->high_end_of_file);
+  RTSMB_PACK_DWORD (pInfo->number_of_links);
+  RTSMB_PACK_BYTE  (pInfo->delete_pending);
+  RTSMB_PACK_BYTE  (pInfo->is_directory);
+
+  RTSMB_PACK_WORD (pInfo->Reserved2);
+  RTSMB_PACK_DWORD (pInfo->EaSize);
+  RTSMB_PACK_DWORD (pInfo->filename_size);
+  RTSMB_PACK_ITEM(pInfo->filename,pInfo->filename_size);
+  e = buf;  /* measure end of data section */
+
+  return PDIFF (e, s);
+}
+
+
+/* --------------------------------------------------- /
  * Fills SMB Data Section with query file standard
  * info response
  * ASSOCIATED COMMANDS: TRANS2_QUERY_PATH_INFORMATION,
@@ -2839,7 +2884,8 @@ int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 
   s = buf;
 
-  RTSMB_PACK_BYTE (26);  /* word count */
+//   RTSMB_PACK_BYTE (26);  /* word count */
+  RTSMB_PACK_BYTE (34);  /* word count  must be 0x22*/
   RTSMB_PACK_BYTE (pCreateR->next_command);
   RTSMB_PACK_BYTE (0);  /* reserved */
   poffset = buf;
@@ -2847,7 +2893,9 @@ int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 
   RTSMB_PACK_BYTE (pCreateR->oplock_level);
   RTSMB_PACK_WORD (pCreateR->fid);
+
   RTSMB_PACK_DWORD (pCreateR->create_action);
+
   RTSMB_PACK_DWORD (pCreateR->creation_time_low);
   RTSMB_PACK_DWORD (pCreateR->creation_time_high);
   RTSMB_PACK_DWORD (pCreateR->last_access_time_low);
@@ -2856,7 +2904,8 @@ int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
   RTSMB_PACK_DWORD (pCreateR->last_write_time_high);
   RTSMB_PACK_DWORD (pCreateR->change_time_low);
   RTSMB_PACK_DWORD (pCreateR->change_time_high);
-  RTSMB_PACK_DWORD (pCreateR->ext_file_attributes);
+  RTSMB_PACK_WORD  ((word)pCreateR->ext_file_attributes);// ext_attributes low
+  RTSMB_PACK_WORD  (0);                                  // ext_attributes high
   RTSMB_PACK_DWORD (pCreateR->allocation_size_low);
   RTSMB_PACK_DWORD (pCreateR->allocation_size_high);
   RTSMB_PACK_DWORD (pCreateR->end_of_file_low);
@@ -2864,9 +2913,14 @@ int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
   RTSMB_PACK_WORD (pCreateR->file_type);
   RTSMB_PACK_WORD (pCreateR->device_state);
   RTSMB_PACK_BYTE (pCreateR->directory);
-
+#if (HARDWIRED_NTLM_EXTENSIONS)
+  RTSMB_PACK_ITEM  (pCreateR->guid, 16);
+  RTSMB_PACK_DWORD (pCreateR->fileid_high);
+  RTSMB_PACK_DWORD (pCreateR->fileid_low);
+  RTSMB_PACK_DWORD (pCreateR->maximal_access_rights);
+  RTSMB_PACK_DWORD (pCreateR->guest_maximal_access_rights);
+#endif
   RTSMB_PACK_WORD (0);  /* byte count */
-
   e = buf;
 
   if (pCreateR->next_command != SMB_COM_NONE)

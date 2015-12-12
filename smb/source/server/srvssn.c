@@ -1119,7 +1119,6 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
             SMBFIO_Mkdir (pCtx, pCtx->tid, command.filename);
             TURN_OFF (flags, RTP_FILE_O_EXCL);
         }
-
         response.directory = TRUE;
     }
     else
@@ -1139,7 +1138,7 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
     response.oplock_level = 0;
     response.fid = (word) externalFid;
 
-    response.create_action = command.create_disposition;
+    response.create_action = (byte) command.create_disposition;
 
     response.device_state = 0;
     response.file_type = pTree->type == ST_PRINTQ ? SMB_FILE_TYPE_PRINTER : SMB_FILE_TYPE_DISK;
@@ -1156,6 +1155,45 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
     response.last_write_time_high = stat.f_wtime64.high_time;
     response.last_write_time_low = stat.f_wtime64.low_time;
     response.ext_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+
+#if (HARDWIRED_NTLM_EXTENSIONS)
+    tc_memset (response.guid, 0, 16);
+    response.fileid_high = 0;
+    response.fileid_low = 0;
+    response.maximal_access_rights = 0;
+    response.guest_maximal_access_rights = 0;
+    if (response.file_type==SMB_FILE_TYPE_DISK)
+    {
+       if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
+       {
+          response.maximal_access_rights |= SMB_DIR_ACCESS_MASK_DELETE;
+       }
+      if (response.directory)
+      {
+        response.maximal_access_rights |=
+         (SMB_DIR_ACCESS_MASK_FILE_LIST_DIRECTORY  \
+         |SMB_DIR_ACCESS_MASK_FILE_TRAVERSE);
+        if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
+        {
+          response.maximal_access_rights |=
+           (SMB_DIR_ACCESS_MASK_FILE_ADD_FILE        \
+           |SMB_DIR_ACCESS_MASK_FILE_ADD_SUBDIRECTORY\
+           |SMB_DIR_ACCESS_MASK_FILE_DELETE_CHILD);
+        }
+      }
+      else
+      { // A File, not a directory
+        response.maximal_access_rights |= SMB_FPP_ACCESS_MASK_GENERIC_READ|SMB_FPP_ACCESS_MASK_GENERIC_EXECUTE;
+        if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
+          response.maximal_access_rights |= SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
+      }
+    }
+    else
+    { // Printer
+      response.maximal_access_rights = SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
+      response.guest_maximal_access_rights = SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
+    }
+#endif // if (HARDWIRED_NTLM_EXTENSIONS)
 
     WRITE_SMB_AND_X (srv_cmd_fill_nt_create_and_x);
 
@@ -1565,14 +1603,14 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.time_low = 0;
         response.time_zone = 0x00F0;
 #if (HARDWIRED_EXTENDED_SECURITY)
-        if (ON (pInHdr->flags2, SMB_FLG2_EXATTRIB))
+        if (ON (pInHdr->flags2, SMB_FLG2_EXTENDED_SECURITY))
         {
            response.challenge_size = 0;
            response.capabilities |= CAP_EXTENDED_SECURITY;
-           pOutHdr->flags2 |= SMB_FLG2_EXATTRIB;
+           pOutHdr->flags2 |= SMB_FLG2_32BITERROR|SMB_FLG2_EXTENDED_SECURITY|SMB_FLG2_LONGNAME;
            response.valid_guid = TRUE;
 		   spnego_get_Guid(response.guid);
-           response.challenge_size = 8;
+           response.challenge_size = HARDWIRED_NEGOTIATE_CHALLENGE_SIZE;
 #if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
            static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
            tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
