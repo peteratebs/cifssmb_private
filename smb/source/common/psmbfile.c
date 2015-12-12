@@ -244,7 +244,7 @@ BBOOL rtplatform_truncate(int fd, long offset)
 
 BBOOL rtplatform_flush(int fd)
 {
-    return (BBOOL) rtp_file_flush((RTP_HANDLE) fd);
+    return (BBOOL) (rtp_file_flush((RTP_HANDLE) fd)==0);
 }
 
 
@@ -631,5 +631,5 @@ void rtplatform_translate_fstat (PSMBFSTAT fstat, void * rtp_dirobj)
     rtp_file_get_attrib(rtp_dirobj, &fstat->f_attributes);
 
 }
-  
+
 #endif
