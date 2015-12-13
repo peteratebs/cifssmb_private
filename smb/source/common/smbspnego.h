@@ -69,12 +69,29 @@ typedef struct SecurityBuffer_s {
 typedef struct decoded_NegTokenTarg_s {
   dword Flags;
   SecurityBuffer_t *lm_response;
-  SecurityBuffer_t *client_challenge;
+  SecurityBuffer_t *ntlm_response;
   SecurityBuffer_t *user_name;
   SecurityBuffer_t *domain_name;
   SecurityBuffer_t *host_name;
   SecurityBuffer_t *session_key;
 } decoded_NegTokenTarg_t;
+
+typedef struct ntlmv2_blob_s {
+
+  byte  rversion ;             // 1 byte       ntlmssp.ntlmv2_response.rversion
+  byte  hirversion;            // 1 byte       ntlmssp.ntlmv2_response.hirversion
+  dword z1;                    // 4 bytes      ntlmssp.ntlmv2_response.z
+  dword time_high;             // 8 bytes      ntlmssp.ntlmv2_response.time
+  dword time_low;
+  byte client_challenge[8];    // 8 bytes      ntlmssp.ntlmv2_response.chal
+  dword z2;                    // 4 bytes      ntlmssp.ntlmv2_response.z
+} ntlmv2_blob_t;
+
+typedef struct ntlmv2_response_s {
+
+  byte                  ntproofstr[16];         // 16 bytes      ntlmssp.ntlmv2_response.ntproofstr
+  ntlmv2_blob_t         ntlmv2_blob;
+} ntlmv2_response_t;
 
 
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);

@@ -131,7 +131,7 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
 word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId);
 word Auth_AuthenticateUser_ntlm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId);
 word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId);
-word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, PFRTCHAR name, PFRTCHAR domainname, word *authId);
+word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname, word *authId);
 word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYTE lm_response, PFRTCHAR name, PFRTCHAR domainname, word *authId);
 
 

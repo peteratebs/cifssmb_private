@@ -117,8 +117,10 @@ typedef struct decode_token_stream_s {
     NEGOTIATE_NEGOTIATE_UNICODE
 
 //     NEGOTIATE_KEYEX            | removed
+//     NEGOTIATE_NTLM_KEY         | made exclusive of NEGOTIATE_EXTENDED_SECURITY
+
 #if (HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE==1)
-#define DO_NEGOTIATE_EXTENDED_SECURITY NEGOTIATE_EXTENDED_SECURITY
+#define DO_NEGOTIATE_EXTENDED_SECURITY NEGOTIATE_EXTENDED_SECURITY |NEGOTIATE_KEYEX|NEGOTIATE_NTLM_KEY
 #else
 #define DO_NEGOTIATE_EXTENDED_SECURITY 0
 #endif
@@ -128,7 +130,6 @@ typedef struct decode_token_stream_s {
     NEGOTIATE_VERSION          |\
     NEGOTIATE_TARGINFO         |\
     NEGOTIATE_TYPE_SERVER      |\
-    NEGOTIATE_NTLM_KEY         |\
     DO_NEGOTIATE_EXTENDED_SECURITY|\
     NEGOTIATE_REQUEST_TARGET   |\
     NEGOTIATE_NEGOTIATE_UNICODE
@@ -360,7 +361,8 @@ static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *pre
 
 void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_targ_token)
 {
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->client_challenge);
+  decode_token_stream_security_buffer_destructor(decoded_targ_token->lm_response);
+  decode_token_stream_security_buffer_destructor(decoded_targ_token->ntlm_response);
   decode_token_stream_security_buffer_destructor(decoded_targ_token->user_name);
   decode_token_stream_security_buffer_destructor(decoded_targ_token->domain_name);
   decode_token_stream_security_buffer_destructor(decoded_targ_token->host_name);
@@ -493,7 +495,7 @@ int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_targ_token
   //  Get ntlmssp.auth.lmresponse resource object
   r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->lm_response); if (r<0) return r;
   //  Get ntlmssp.ntlmclientchallenge resource object
-  r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->client_challenge); if (r<0) return r;
+  r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->ntlm_response); if (r<0) return r;
   //  Get ntlmssp.auth.domain resource object
   r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->domain_name ); if (r<0) return r;
   // Get ntlmssp.auth.username resource object

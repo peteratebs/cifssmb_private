@@ -24,6 +24,9 @@
 #include "rtpstr.h"
 #include "rtpwcs.h"
 #include "hmac_md5.h"
+#include "smbspnego.h"
+
+extern const byte zeros24[24];
 
 //table of codepage function pointers
 struct CodePageEntry cpTable[2] =
@@ -1222,7 +1225,9 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
     // .. The client nonce is null-padded to 24 bytes. This value is placed in the LM response field of the Type 3 message.
 	tc_memset (clientNonce24, 0, 24);
 	tc_memcpy(clientNonce24, clientNonce, 8);
+    rtsmb_dump_bytes("NTLMv2 input clientNonce: ", clientNonce, 8, DUMPBIN);
     // .. The challenge from the Type 2 message is concatenated with the 8-byte client nonce to form a session nonce.
+    rtsmb_dump_bytes("NTLMv2 input serverChallenge: ", serverChallenge, 8, DUMPBIN);
 	tc_memcpy(sessionNonce16, serverChallenge, 8);
 	tc_memcpy(&sessionNonce16[8], clientNonce, 8);
 
@@ -1235,6 +1240,7 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
 
 // .. The NTLM password hash is obtained (as discussed, this is the MD4 digest of the Unicode mixed-case password).
 	// Convert the password to unicode
+    rtsmb_dump_bytes("NTLMv2 input password: ", password, CFG_RTSMB_MAX_PASSWORD_SIZE, DUMPASCII);
 	for (src=0, dst=0; src<=CFG_RTSMB_MAX_PASSWORD_SIZE && password[src]; src++)
 	{
 		unicode_lendian[dst++] = (BYTE)password[src];
@@ -1253,10 +1259,85 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
 // .. These three ciphertext values are concatenated to form a 24-byte value. This is the NTLM2 session response, which is placed in the NTLM response field of the Type 3 message.
 
     encrypt24 (p21, NTLMv2_Session_Hash, output);
+    rtsmb_dump_bytes("NTLMv2 output: ", output, 24, DUMPBIN);
 
 	return (PFBYTE )output;
 }
 
+
+PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output)
+{
+  BYTE unicode_lendian[(CFG_RTSMB_MAX_PASSWORD_SIZE + 1) * 2];
+  BYTE nameDomainname[(CFG_RTSMB_MAX_USERNAME_SIZE + 1) * 4];
+  BYTE p21 [21];
+  BYTE NTLMv2_Hash[16];
+  int dst, src, ndLen;
+
+  // The 16 byte ntproofstr followed b the blob structure
+  ntlmv2_blob_t *pntlmv2_blob = (ntlmv2_blob_t *) ntlm_response_blob+16;
+	// p21 is actually p16 with 5 null bytes appended.  we just null it now
+	// and fill it as if it were p16
+	tc_memset (&p21[16], 0, 5);
+    // The NTLM password hash is obtained (as discussed previously, this is the MD4 digest of the Unicode mixed-case password).
+	// Convert the password to unicode
+	for (src=0, dst=0; src<=CFG_RTSMB_MAX_PASSWORD_SIZE && password[src]; src++)
+	{
+		unicode_lendian[dst++] = (BYTE)password[src];
+		unicode_lendian[dst++] = 0;
+	}
+	// get md4 of password.  This is the 16-byte NTLM hash
+	RTSMB_MD4 (unicode_lendian, (dword)dst, p21);
+
+    // The Unicode uppercase username is concatenated with the Unicode authentication target
+    // (the domain or server name specified in the Target Name field of the Type 3 message).
+    // Note that this calculation always uses the Unicode representation, even if OEM encoding
+    // has been negotiated; also note that the username is converted to uppercase,
+    // while the authentication target is case-sensitive and must match the case presented in the Target Name field.
+	for (src=0, ndLen=0; src<=CFG_RTSMB_MAX_USERNAME_SIZE && name[src]; src++)
+	{
+#if (INCLUDE_RTSMB_UNICODE)
+		nameDomainname[ndLen++] = (BYTE) rtsmb_util_wtoupper(name[src]);
+#else
+		nameDomainname[ndLen++] = (BYTE) rtsmb_util_latin_toupper(name[src]);
+#endif
+		nameDomainname[ndLen++] = (BYTE) 0;
+	}
+	ndLen = 2*rtsmb_util_wlen((PFWCS)name) + 2*rtsmb_util_wlen((PFWCS)domainname);
+	// concatenate the uppercase username with the domainname
+	tc_memcpy((PFCHAR) &nameDomainname[2*rtsmb_util_wlen((PFWCS)name)], domainname, 2*rtsmb_util_wlen((PFWCS)domainname));
+
+	// The HMAC-MD5 message authentication code algorithm is applied to
+	// the unicode (username,domainname) using the 16-byte NTLM hash as the key.
+	// This results in a 16-byte value - the NTLMv2 hash.
+	hmac_md5(nameDomainname,    /* pointer to data stream */
+               ndLen,				/* length of data stream */
+               p21,             /* pointer to remote authentication key */
+               16,              /* length of authentication key */
+               NTLMv2_Hash);    /* caller digest to be filled in */
+    rtp_printf("Bad for embedded right here !!!\n");
+    BYTE concatChallenge[1024];
+    BYTE output_value[16];
+    // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
+    // (calculated in step 2) as the key. This results in a 16-byte output value.
+  pntlmv2_blob = (ntlmv2_blob_t *) (ntlm_response_blob+16);
+  ntlm_response_blob_length = ntlm_response_blob_length-16;
+
+  tc_memcpy(concatChallenge, serverChallenge, 8);
+  tc_memcpy(&concatChallenge[8], ntlm_response_blob+16, ntlm_response_blob_length);
+    rtsmb_dump_bytes("NTLMv2 concatChallenge: ", concatChallenge, ntlm_response_blob_length+8, DUMPBIN);
+	hmac_md5(concatChallenge,	/* pointer to data stream */
+               ntlm_response_blob_length+8,		/* length of data stream */
+               NTLMv2_Hash,		/* pointer to remote authentication key */
+               16,				/* length of authentication key */
+               (PFBYTE ) output_value);
+    rtsmb_dump_bytes("NTLMv2 real concatChallenge output: ", output_value, 16, DUMPBIN);
+
+    // This value is concatenated with the blob to form the NTLMv2 response.
+	tc_memcpy(&output[0], output_value, 16);
+	tc_memcpy(&output[16], ntlm_response_blob+16, ntlm_response_blob_length-16);
+
+	return (PFBYTE )output;
+}
 //=================
 // LMv2 response password encryption
 PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE clientNonce, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output)

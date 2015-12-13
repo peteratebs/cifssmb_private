@@ -103,6 +103,9 @@ RTSMB_STATIC rtsmb_char srv_dialect_ntlm[] = {'N', 'T', ' ', 'L', 'M', ' ', '0',
 RTSMB_STATIC rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};
 RTSMB_STATIC rtsmb_char srv_dialect_smb2xxx[] = {'S', 'M', 'B', '2', '.', '?', '?', '?', '\0'};
 #endif
+
+const byte zeros24[24] = {0};
+
 struct dialect_entry_s
 {
     SMB_DIALECT_T dialect;
@@ -213,6 +216,7 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
+BBOOL has_lm_field=FALSE;
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
     // Note: pCtx->encryptionKey[] holds the key we sent
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
@@ -224,10 +228,9 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
         rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
         ;
     }
-    if (decoded_targ_token->client_challenge)
+    if (decoded_targ_token->ntlm_response)
     {
-        rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->client_challenge->size, DUMPBIN);
-        ;
+        rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->ntlm_response->size, DUMPBIN);
     }
     if (decoded_targ_token->user_name)
     {
@@ -251,7 +254,11 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
     }
     word Access=AUTH_NOACCESS;
 
-    // Try lmv2
+    // Think of what security to use
+    if (decoded_targ_token->lm_response->value_at_offset && tc_memcmp(decoded_targ_token->lm_response->value_at_offset,zeros24,8)!=0)
+       has_lm_field=TRUE;
+
+    // Make sure we have an nulled domain name buffer if none was passed.
     rtsmb_char default_domainname_buffer[32];
     PFRTCHAR domainname = 0;
     if (decoded_targ_token->domain_name)
@@ -261,17 +268,39 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
       default_domainname_buffer[0] = 0;
       domainname = default_domainname_buffer;
     }
-#if (HARDWIRED_INCLUDE_NTLMV2)
-    // Try ntlmv2 - not implemented yet. Not used much because needs registry configuration to use
-    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
-    // Try lmv2 - not implemented yet. Not used much because needs registry configuration to use
-    Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+#if (HARDWIRED_INCLUDE_NTLMV2) // Can remove this define, the option works
+    // Try ntlmv2
+    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+    rtp_printf("Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    // Try lmv2 - not tested yet.
+    if (Access == AUTH_NOACCESS)
+    {
+      Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+      rtp_printf("Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+    }
     // Try ntlm2
 #endif
     if (Access == AUTH_NOACCESS)
     {
-      Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->client_challenge->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
-      rtp_printf("Auth_AuthenticateUser_ntlm2 returned %X\n", Access);
+      if (has_lm_field)
+      { // The client key is in lm_response
+        Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+        rtp_printf("Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
+      }
+      if (Access == AUTH_NOACCESS)
+      {
+        ntlmv2_response_t *pntlmv2_response = (ntlmv2_response_t *)decoded_targ_token->ntlm_response->value_at_offset;
+        rtp_printf("Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
+        Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, decoded_targ_token->user_name->value_at_offset, extended_authId);
+        rtp_printf("Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
+      }
+//      TBD - Recheck may have broken on windows.
+      if (Access == AUTH_NOACCESS)
+      {
+        if (has_lm_field)
+          Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+        rtp_printf("Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
+      }
     }
     if (Access == AUTH_NOACCESS)
     {
@@ -282,15 +311,14 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
     {
       // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
-      rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
+      rtp_printf("Auth_AuthenticateUser_lm returned %X\n", Access);
     }
-
-
-
-    if (Access == AUTH_NOACCESS)
-    {
-     Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
-    }
+    rtp_printf("Auth_AuthenticateUser should be removed \n");
+    // See if it impacts client first
+//    if (Access == AUTH_NOACCESS)
+//    {
+//     Access=Auth_AuthenticateUser (pCtx, decoded_targ_token->user_name->value_at_offset, 0, decoded_targ_token->lm_response->value_at_offset, 0,  extended_authId);
+//    }
 #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
     if (Access == AUTH_NOACCESS)
     {
@@ -299,7 +327,6 @@ word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *deco
     }
 #endif
     return Access;
-    // word decode (pCtx, decoded_targ_token->user_name, PFRTCHAR domainname, PFCHAR ansi_password, PFCHAR uni_password, word *authId)
 }
 #endif
 
@@ -457,7 +484,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
          }
          else
          {
-//            access = Auth_AuthenticateUser_ntlm2 (pCtx,password_buf, decoded_targ_token->client_challenge->value_at_offset, username, &authId);
+//            access = Auth_AuthenticateUser_ntlm2 (pCtx,password_buf, decoded_targ_token->ntlm_response->value_at_offset, username, &authId);
 //            rtp_printf("Auth_AuthenticateUser_ntlm2 returned %X\n", Access);
             if (access == AUTH_NOACCESS)
             {

@@ -193,12 +193,12 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 // The HMAC-MD5 algorithm is applied to this value, again using the NTLMv2 hash as the key. The resulting 16-byte value is the NTLMv2 User Session Key.
 //
 // ntlmnv2 handler - not done yet See http://davenport.sourceforge.net/ntlm.html#theNtlmResponse
-word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, PFRTCHAR name, PFRTCHAR domainname, word *authId)
+word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname, word *authId)
 {
     word rv = AUTH_NOACCESS;
 #if (HARDWIRED_INCLUDE_NTLMV2)
     short uid;
-    BYTE output24[24];
+    BYTE output[1024];
 
     PUSERDATA user;
 
@@ -207,8 +207,8 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
     user = getuserSructureFromName(name, &uid);
     if (user)
     {
-        cli_util_encrypt_password_lmv2 (user->password, pCtx->encryptionKey, clientNonce, name, domainname,output24);
-        if (tc_memcmp(lm_response, output24, 24) == 0)
+        cli_util_encrypt_password_ntlmv2 (user->password, pCtx->encryptionKey, ntlm_response_blob, ntlm_response_blob_length, name, domainname,output);
+        if (tc_memcmp(ntlm_response_blob, output, 16) == 0)
         {
           (*authId) = (word)uid;
            rv = 0;
