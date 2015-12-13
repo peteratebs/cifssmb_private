@@ -1,0 +1,1 @@
+sudo kdbg ./rtsmbserverapplication.out
