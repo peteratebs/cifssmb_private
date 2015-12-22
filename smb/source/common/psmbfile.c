@@ -373,7 +373,7 @@ void * rtp_dirobj;
        tc_strcat  (name, dotstar);
     }
 
-    rv = rtp_file_gfirst(&rtp_dirobj, name);
+    rv = rtp_file_gfirst_smb(&rtp_dirobj, name);
     if (rv < 0)
     {
         dirobj->rtp_dirobj = (void*)0;

@@ -1,18 +1,18 @@
 /*
 |  RTPDOBJ.H - Runtime Platform Directory Listing functions
-| 
-|  EBS - 
-| 
+|
+|  EBS -
+|
 |   $Author: vmalaiya $
 |   $Date: 2006/07/17 15:29:00 $
 |   $Name:  $
 |   $Revision: 1.3 $
-| 
+|
 |  Copyright EBS Inc. , 2006
 |  All rights reserved.
 |  This code may not be redistributed in source or linkable object form
 |  without the consent of its author.
-*/ 
+*/
 
 #ifndef __RTPDOBJ_H__
 #define __RTPDOBJ_H__
@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 int  rtp_file_gfirst     (void ** dirobj, char * pattern);
+int  rtp_file_gfirst_smb(void ** dirobj, char * pattern);
 int  rtp_file_gnext      (void * dirobj);
 void rtp_file_gdone      (void * dirobj);
 int  rtp_file_get_size   (void * dirobj, unsigned long * size);

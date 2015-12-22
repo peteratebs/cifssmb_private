@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 
 /************************************************************************
@@ -312,6 +313,8 @@ int rtp_file_flush (RTP_HANDLE fd)
 /*----------------------------------------------------------------------*
                              rtp_file_rename
  *----------------------------------------------------------------------*/
+static int move_file(const char *source, const char *dest);
+
 int rtp_file_rename (const char * name, char * newname)
 {
 #ifdef RTP_DEBUG
@@ -324,6 +327,10 @@ int rtp_file_rename (const char * name, char * newname)
 
 	if (rename ((const char *)name, (const char *)newname) != 0)
     {
+      if (errno == EXDEV)
+      {
+        return move_file(name, newname);
+      }
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_rename: error returned ");
         RTP_DEBUG_OUTPUT_INT(errno);
@@ -661,6 +668,48 @@ int result = 0;
     }
 
     return (result);
+}
+
+// #include <sys/sendfile.h> Tried sendfile but didn't seem to work
+#define BUF_SIZE 1048576 // one meg at a time.
+static int copy_file(const char *source, const char *dest)
+{
+   int rval = -1;
+   char *buf = malloc(BUF_SIZE);
+   if (!buf)
+       return -1;
+   struct stat sourceStat;
+   int fdSource = open(source, O_RDONLY);
+   if (fdSource > 0)
+   {
+       int fdDest = open(dest, O_CREAT | O_WRONLY | O_TRUNC,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+       if (fdDest > 0)
+       {
+          rval = 0;
+          ssize_t numRead;
+          while ((numRead = read(fdSource, buf, BUF_SIZE)) > 0)
+          {
+            if (write(fdDest, buf, numRead) != numRead)
+            {
+              rval = -1;
+              break;
+            }
+          }
+          close(fdDest);
+       }
+      close(fdSource);
+   }
+   free (buf);
+   return rval;
+}
+static int move_file(const char *source, const char *dest)
+{
+  if (copy_file(source, dest) == 0)
+  {
+    return rtp_file_delete (source);
+  }
+  else
+    return -1;
 }
 
 /* ----------------------------------- */

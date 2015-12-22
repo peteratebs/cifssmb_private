@@ -174,6 +174,10 @@ RTSMB_STATIC PFRTCHAR expandName (PSR_RESOURCE resource, PFRTCHAR name, PFRTCHAR
 		dest[rtsmb_len (dest) - 1] = '\0';
 	}
 
+    // Translate the ? literal to >
+    // Translate the . literal to " if it is immediately followed by a ? or a *
+    // Translate the * literal to < if it is immediately followed by a .
+
 	/* replace weird smb wildcards (<, ", and >) with ours */
 	/* this algorithm is from the smb draft spec */
 	for (tmp = start; tmp[0]; tmp++)
@@ -182,11 +186,13 @@ RTSMB_STATIC PFRTCHAR expandName (PSR_RESOURCE resource, PFRTCHAR name, PFRTCHAR
 		{
 			tmp[0] = '?';
 		}
-		else if (tmp[0] == '"' && tmp[1] && (tmp[1] == '<' || tmp[1] == '>'))
+		else if (tmp[0] == '"' && tmp[1] && (tmp[1] == '*' || tmp[1] == '?'))
+//		else if (tmp[0] == '"' && tmp[1] && (tmp[1] == '<' || tmp[1] == '>'))
 		{
 			tmp[0] = '.';
 		}
-		else if (tmp[0] == '<' && tmp[1] && tmp[1] == '"')
+		else if (tmp[0] == '<' && tmp[1] && tmp[1] == '.')
+//		else if (tmp[0] == '<' && tmp[1] && tmp[1] == '"')
 		{
 			tmp[0] = '*';
 		}
@@ -958,6 +964,15 @@ BBOOL SMBFIO_GFirstInternal (word tid, PSMBDSTAT dirobj, PFRTCHAR name)
 		rv = FALSE;
 		break;
 	}
+
+#ifdef __linux
+
+#endif
+
+// Rules for globifying
+// if trailing part of path has a wildcard
+// {a,A},{
+
 
 	if (rv && !expandName (pResource, name, fullName, SMBF_FILENAMESIZE + 1)) rv = FALSE;
 	RELEASE_SHARE ();

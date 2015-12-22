@@ -60,15 +60,84 @@ static int _rtp_lindate_to_date (time_t * lindate, RTP_DATE * rtpdate);
 /*----------------------------------------------------------------------*
                              rtp_file_gfirst
  *----------------------------------------------------------------------*/
-int rtp_file_gfirst (void ** dirobj, char * name)
+static void bracify(char *bracified_name,char lower_c)
+{
+  bracified_name[0]='{';
+  bracified_name[1]=lower_c;
+  bracified_name[2]=',';
+  bracified_name[3]= (char) toupper((char)lower_c);
+  bracified_name[4]='}';
+  bracified_name[5]=0;
+}
+
+#define SMB_MAX_NAME_SIZE 512
+// Special case insensitive gfiirst command for smb server.
+// If there is a wildcard after the final slash, then all non wildcard characters in that final section are globbed case insensitive.
+int rtp_file_gfirst_smb(void ** dirobj, char * name)
 {
 FSOBJ* linDirObj;
 int result;
+int hung_up = 512;
+
+    *dirobj = (void*) 0;
+
+    // Try a little precaution, make sure the string is <=512 bytes and null termintate.
+    if (strnlen(name, SMB_MAX_NAME_SIZE) == SMB_MAX_NAME_SIZE)
+      return -1;
 
     linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
     memset(linDirObj, 0, sizeof(FSOBJ));
 
-    result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
+    char *slash = 0;
+    char *nextslash=strstr(name, "/");
+    while (nextslash && hung_up!=0)
+    {
+      slash = nextslash;
+      nextslash = strstr(slash+1, "/");
+      hung_up--;
+    }
+    if (hung_up==0) return -1;
+    if (!slash)   // If no / check if the base contains a wildcard
+       slash = name;
+    if (slash && (strstr(slash, "*") || strstr(slash, "?")))
+    {
+       int i;
+       char *bracified_name = malloc(strlen(name)+1 + strlen(slash)*5);
+       size_t l;
+       if (slash == name)
+           l=0;
+       else
+       {
+           l = (size_t) (slash-name); // up to but not including the brace
+           memcpy(bracified_name, name, l);
+       }
+       bracified_name[l] = 0;
+
+       for (i=0; slash[i] && hung_up>0;i++,hung_up--)
+       {
+         if (slash[i]>='a'&&slash[i]<='z')
+         {
+           bracify(&bracified_name[l],slash[i]);
+           l += 5;
+         }
+         else if (slash[i]>='A'&&slash[i]<='Z')
+         {
+           bracify(&bracified_name[l],(char)tolower((int)slash[i]));
+           l += 5;
+         }
+         else
+         {
+           bracified_name[l] = slash[i];
+           bracified_name[l+1] = 0;
+           l+= 1;
+         }
+       }
+       if (hung_up==0) return -1;
+       result = glob((const char *) bracified_name, GLOB_BRACE, NULL, &(linDirObj->globdata));
+       free(bracified_name);
+    }
+    else
+        result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
     if (result != 0)
     {
         free (linDirObj);
@@ -98,12 +167,54 @@ int result;
 }
 
 
+int rtp_file_gfirst (void ** dirobj, char * name)
+{
+FSOBJ* linDirObj;
+int result;
+
+    linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
+    memset(linDirObj, 0, sizeof(FSOBJ));
+
+    result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
+    if (result != 0)
+    {
+        free (linDirObj);
+#ifdef RTP_DEBUG
+        RTP_DEBUG_OUTPUT_STR("rtp_file_gfirst: error returned ");
+        RTP_DEBUG_OUTPUT_INT(result);
+        RTP_DEBUG_OUTPUT_STR(".\n");
+#endif
+         *dirobj = (void*) 0;
+         return (-1);
+    }
+
+    linDirObj->currentPath = 0;
+    if (stat (linDirObj->globdata.gl_pathv[linDirObj->currentPath], &linDirObj->statdata) == -1)
+    {
+        globfree(&linDirObj->globdata);
+        free (linDirObj);
+#ifdef RTP_DEBUG
+        RTP_DEBUG_OUTPUT_STR("rtp_file_gfirst: error returned ");
+        RTP_DEBUG_OUTPUT_INT(errno);
+        RTP_DEBUG_OUTPUT_STR(".\n");
+#endif
+        *dirobj = (void*) 0;
+        return (-1);
+    }
+
+    *dirobj = (void*) linDirObj;
+    return (0);
+}
+
+
 
 /*----------------------------------------------------------------------*
                              rtp_file_gnext
  *----------------------------------------------------------------------*/
 int rtp_file_gnext (void * dirobj)
 {
+    if (!dirobj)
+      return -1;
     ((FSOBJ *)dirobj)->currentPath++;
     if (((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
     {
@@ -133,8 +244,11 @@ int rtp_file_gnext (void * dirobj)
  *----------------------------------------------------------------------*/
 void rtp_file_gdone (void * dirobj)
 {
-    globfree(&((FSOBJ *)dirobj)->globdata);
-	free(dirobj);
+    if (dirobj)
+    {
+       globfree(&((FSOBJ *)dirobj)->globdata);
+	   free(dirobj);
+    }
 }
 
 

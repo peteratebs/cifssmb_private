@@ -33,6 +33,7 @@
 #define HARDWIRED_NTLM_EXTENSIONS                          1  // Fixes for missing extensions, may cause mal;formed issues for earlier than NTLM1.2.
 #define HARDWIRED_NEGOTIATE_CHALLENGE_SIZE                 0  // TBD: MAC does not respond to protocol reponse unless this is 0,
                                                               // for mac based client, 8 for windows client
+#define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    16384 // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
 
 // Passed with the extended security client challenge. Target configuration strings.
 #define HARDWIRED_TARGET_NAME       "TARGETNAME"
@@ -41,6 +42,8 @@
 #define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
 #define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"
 
+
+#define HARDWIRED_CLIENT_EXTENDED_SECURITY 1                  // Client side Spnego
 
 //============================================================================
 //    INTERFACE REQUIRED HEADERS

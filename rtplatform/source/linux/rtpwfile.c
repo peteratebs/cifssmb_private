@@ -3,7 +3,7 @@
  |
  |   PORTED TO THE LINUX PLATFORM
  |
- | EBS - RT-Platform 
+ | EBS - RT-Platform
  |
  |  $Author: vmalaiya $
  |  $Date: 2006/07/17 15:29:01 $
@@ -123,6 +123,16 @@ int rtp_wfile_pwd (unsigned short * name, long size)
 	return (-1);
 }
 
+
+
+
+/*----------------------------------------------------------------------*
+                             rtp_wfile_gfirst+smb
+ *----------------------------------------------------------------------*/
+int rtp_wfile_gfirst_smb (void ** dirobj, unsigned short * name)
+{
+	return (-1);
+}
 
 /*----------------------------------------------------------------------*
                              rtp_wfile_gfirst

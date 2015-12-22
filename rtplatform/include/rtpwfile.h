@@ -3,7 +3,7 @@
  |
  |   UNIVERSAL CODE - DO NOT CHANGE
  |
- | EBS - RT-Platform 
+ | EBS - RT-Platform
  |
  |  $Author: vmalaiya $
  |  $Date: 2006/07/17 15:29:00 $
@@ -48,9 +48,9 @@ typedef RTP_HANDLE RTP_FILE;
 /* for the mode argument to rtp_file_open */
 #define RTP_FILE_S_IWRITE        0x0001  /* Create a file with write permissions */
 #define RTP_FILE_S_IREAD         0x0002  /* Create a file with read permissions */
-#define RTP_FILE_S_HIDDEN        0x0020  /* Set hidden file attribute on created file */ 
-#define RTP_FILE_S_SYSTEM	     0x0040  /* Set system file attribute on created file */ 
-#define RTP_FILE_S_ARCHIVE       0x0080  /* Set archive file attribute on created file */ 
+#define RTP_FILE_S_HIDDEN        0x0020  /* Set hidden file attribute on created file */
+#define RTP_FILE_S_SYSTEM	     0x0040  /* Set system file attribute on created file */
+#define RTP_FILE_S_ARCHIVE       0x0080  /* Set archive file attribute on created file */
 
 /* for attribute member of RTPFSTAT struct */
 #define RTP_FILE_ATTRIB_ISDIR    0x01
@@ -80,6 +80,7 @@ int  rtp_wfile_rmdir     (unsigned short * name);
 int  rtp_wfile_setcwd    (unsigned short * name);
 int  rtp_wfile_pwd       (unsigned short * name, long size);
 int  rtp_wfile_gfirst    (void ** dirobj, unsigned short * name);
+int  rtp_wfile_gfirst_smb (void ** dirobj, unsigned short * name);
 int  rtp_wfile_gnext     (void * dirobj);
 int  rtp_wfile_get_name  (void * dirobj, unsigned short * name, int size);
 int  rtp_wfile_chmode    (unsigned short * name, unsigned char attributes);
