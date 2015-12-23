@@ -14,15 +14,15 @@ SMB_PATH = ../..
 
 include ../mkgnu.inc
 
-includes = . $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+includes = . $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 ########################################################################
 # SOURCE PATHS
 ########################################################################
 
-vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
+vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_nbserver_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
 
-vpath %.h   .. $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_server_include) $(lib_to_rtsmb_client_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+vpath %.h   .. $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_server_include) $(lib_to_rtsmb_client_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 ########################################################################
 # OPERATING SYSTEM/ENVIRONMENT SPECIFIC MODULES
@@ -54,7 +54,13 @@ endif
 # dirs = $(lib_to_webc_path)
 
 includes += $(lib_to_rtsmb_server_include)
+includes += $(lib_to_rtsmb_nbserver_include)
+
 dirs = $(lib_to_rtsmb_server_path)
+ifeq ($(donbserver),"Y")
+dirs += $(lib_to_rtsmb_nbserver_path)
+defines += donbserver
+endif
 
 cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
 cpmodules := $(patsubst %.cpp,%,$(cpfiles))
@@ -70,8 +76,6 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 # cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
 
 
-
-
 cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/des_enc.c
 cfiles += $(lib_to_rtsmb_common_path)/ecb_enc.c
@@ -85,10 +89,12 @@ cfiles += $(lib_to_rtsmb_common_path)/smbbrbuf.c
 cfiles += $(lib_to_rtsmb_common_path)/smbbrcfg.c
 cfiles += $(lib_to_rtsmb_common_path)/smbdebug.c
 cfiles += $(lib_to_rtsmb_common_path)/smbglue.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnb.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbds.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbns.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbss.c
+ifeq ($(donbserver),"Y")
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbns.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbss.c
+endif
 cfiles += $(lib_to_rtsmb_common_path)/smbnet.c
 cfiles += $(lib_to_rtsmb_common_path)/smbpack.c
 cfiles += $(lib_to_rtsmb_common_path)/smbread.c
