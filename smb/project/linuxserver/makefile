@@ -14,15 +14,15 @@ SMB_PATH = ../..
 
 include ../mkgnu.inc
 
-includes = . $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+includes = . $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 ########################################################################
 # SOURCE PATHS
 ########################################################################
 
-vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_nbserver_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
+vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_nbserver_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
 
-vpath %.h   .. $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_server_include) $(lib_to_rtsmb_client_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+vpath %.h   ..$(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_server_include) $(lib_to_rtsmb_client_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 ########################################################################
 # OPERATING SYSTEM/ENVIRONMENT SPECIFIC MODULES
@@ -76,11 +76,14 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 # cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
 
 
+cfiles += $(lib_to_rtsmb_crypto_path)/des_enc.c
+cfiles += $(lib_to_rtsmb_crypto_path)/ecb_enc.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md4_dgst.c
+cfiles += $(lib_to_rtsmb_crypto_path)/hmac_md5.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md5rsa.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md4_one.c
+
 cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
-cfiles += $(lib_to_rtsmb_common_path)/des_enc.c
-cfiles += $(lib_to_rtsmb_common_path)/ecb_enc.c
-cfiles += $(lib_to_rtsmb_common_path)/md4_dgst.c
-cfiles += $(lib_to_rtsmb_common_path)/md4_one.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbnet.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbos.c
@@ -100,8 +103,6 @@ cfiles += $(lib_to_rtsmb_common_path)/smbpack.c
 cfiles += $(lib_to_rtsmb_common_path)/smbread.c
 cfiles += $(lib_to_rtsmb_common_path)/smbsjis.c
 cfiles += $(lib_to_rtsmb_common_path)/smbutil.c
-cfiles += $(lib_to_rtsmb_common_path)/hmac_md5.c
-cfiles += $(lib_to_rtsmb_common_path)/md5rsa.c
 #RTPLATFORM FILES USED
 cfiles += $(lib_to_rtpgeneric)/rtpchar.c
 cfiles += $(lib_to_rtpgeneric)/rtpmtxdb.c
