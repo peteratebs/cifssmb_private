@@ -12,7 +12,7 @@
 // Parsing functions for SMB share names
 //
 #include "smbdefs.h"
-#include "rtpchar.h" 
+#include "rtpchar.h"
 #include "rtpprint.h"
 #include "smbdebug.h"
 
@@ -777,14 +777,15 @@ int RTSMB_ReadArgsFrom (PFRTCHAR filename)
     tm_puts (buffer);
 #endif
 
+    f = -1;
 #if (INCLUDE_RTSMB_UNICODE)
     if (prtsmb_filesys->fs_wopen)
     {
         /* good -- they support unicode */
         f = prtsmb_filesys->fs_wopen (filename, RTP_FILE_O_RDONLY, 0);
     }
-    else
 #endif
+    if (f == -1)
     {
         char filename_ascii [SMBF_FILENAMESIZE + 1];
 
@@ -798,7 +799,10 @@ int RTSMB_ReadArgsFrom (PFRTCHAR filename)
         return -1;
     }
 
-    while (RTSMB_ParseNextArgSection (f));
+    while (RTSMB_ParseNextArgSection (f))
+    {
+      rtp_printf("parsed\n");
+    }
 
     prtsmb_filesys->fs_close (f);
 
@@ -806,4 +810,3 @@ int RTSMB_ReadArgsFrom (PFRTCHAR filename)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-

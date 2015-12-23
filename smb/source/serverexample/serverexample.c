@@ -68,6 +68,7 @@ int smbserver_runtimeadduser(void);
 int smbserver_runtimeaddshare(void);
 int smbserver_runtimeaddprinter(void);
 #endif
+static void rtsmb_srv_non_file_config(void);
 
 void rtsmb_main (void)
 {
@@ -79,6 +80,10 @@ void rtsmb_main (void)
 
 
 
+
+
+
+
 int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 int smbservermain ()
 {
@@ -87,18 +92,6 @@ int smbservermain ()
 	{
 		return -1;
 	}
-
-#if (HARDWIRE_SERVER_SETTINGS)
-	rtp_printf("\nConfigure Rtsmb server with hard wired values...\n");
-	rtp_printf("Note: The default values can be changed by editing smbdefs.h and rebuilding.\n");
-    rtp_printf("=========================================================\n\n ");
-	rtp_printf("User name   : %s\n", HARDWIRED_USER_NAME  );
-	rtp_printf("Password    : %s\n", HARDWIRED_PASSWORD   );
-	rtp_printf("Share name  : %s\n", HARDWIRED_SHARE_NAME  );
-	rtp_printf("Share path  : %s\n", HARDWIRED_SHARE_PATH );
-	rtp_printf("Host    name: %s\n", HARDWIRED_HOST_NAME  );
-	rtp_printf("Group   name: %s\n", HARDWIRED_GROUP_NAME );
-#endif
 
 #if (HARDWIRED_EXTENDED_SECURITY)
     spnego_init_extended_security();
@@ -127,7 +120,7 @@ int smbservermain ()
 
 		rtp_strcpy(network_name, HARDWIRED_HOST_NAME);
 		rtp_strcpy(network_group, HARDWIRED_GROUP_NAME);
-#if (HARDWIRE_SERVER_SETTINGS==0)
+#if (HARDWIRE_SERVER_SETTINGS==0&&HARDWIRE_USE_CONFIG_FILE==0)
         // Override defaults interactiveky
         in_name(network_name, network_group);
 #endif
@@ -135,9 +128,68 @@ int smbservermain ()
 	}
 
 
-#ifdef USE_CONFIG_FILE  // Config file support is ou of date but should be restored/rewritten (read samba files maybe ?)
+#if (HARDWIRE_USE_CONFIG_FILE==1)
     rtsmb_srv_read_config ("smb_config.txt");
 #else
+    rtsmb_srv_non_file_config();
+#endif //USE_CONFIG_FILE
+#if (HARDWIRE_SERVER_SETTINGS==0)
+#ifdef RTSMB_LINUX
+	pollforcommands = in_pollforcommands();
+#else
+	pollforcommands = 1;
+#endif
+	if (pollforcommands)
+	{
+		rtp_printf("\n\n\n\n\n\n");
+		rtp_printf("Server is running... Press return to enter a command or to quit\n");
+	}
+	else
+	{
+		rtp_printf("\n The Server is running.. Press control C to exit\n");
+	}
+#else
+		rtp_printf("\n The Server is running.. Press control C to exit\n");
+#endif
+
+	//Inside smbservermain
+	/*************************************************************************************/
+	while(go){
+		rtsmb_main ();
+
+#if (HARDWIRE_SERVER_SETTINGS==0)
+		if (rtsmb_server_interactive () < 0)
+          break;
+#endif
+	} // while (go)
+	/************************************************************************************/
+
+	//Shutdown
+	rtp_printf("main: shutting down\n");
+
+	rtsmb_srv_shutdown ();
+	rtp_net_exit ();
+
+	return(0);
+}//smbservermain
+
+
+#if (HARDWIRE_USE_CONFIG_FILE==0)
+static void rtsmb_srv_non_file_config(void)
+{
+
+#if (HARDWIRE_SERVER_SETTINGS)
+	rtp_printf("\nConfigure Rtsmb server with hard wired values...\n");
+	rtp_printf("Note: The default values can be changed by editing smbdefs.h and rebuilding.\n");
+    rtp_printf("=========================================================\n\n ");
+	rtp_printf("User name   : %s\n", HARDWIRED_USER_NAME  );
+	rtp_printf("Password    : %s\n", HARDWIRED_PASSWORD   );
+	rtp_printf("Share name  : %s\n", HARDWIRED_SHARE_NAME  );
+	rtp_printf("Share path  : %s\n", HARDWIRED_SHARE_PATH );
+	rtp_printf("Host    name: %s\n", HARDWIRED_HOST_NAME  );
+	rtp_printf("Group   name: %s\n", HARDWIRED_GROUP_NAME );
+#endif
+
 
 #if (HARDWIRE_SERVER_SETTINGS==0)
 	/* Prompt for printers. */
@@ -264,48 +316,8 @@ char secCode[32];
 		}
 #endif
 	}
-
-#endif //USE_CONFIG_FILE
-#if (HARDWIRE_SERVER_SETTINGS==0)
-#ifdef RTSMB_LINUX
-	pollforcommands = in_pollforcommands();
-#else
-	pollforcommands = 1;
+}
 #endif
-	if (pollforcommands)
-	{
-		rtp_printf("\n\n\n\n\n\n");
-		rtp_printf("Server is running... Press return to enter a command or to quit\n");
-	}
-	else
-	{
-		rtp_printf("\n The Server is running.. Press control C to exit\n");
-	}
-#else
-		rtp_printf("\n The Server is running.. Press control C to exit\n");
-#endif
-
-	//Inside smbservermain
-	/*************************************************************************************/
-	while(go){
-		rtsmb_main ();
-
-#if (HARDWIRE_SERVER_SETTINGS==0)
-		if (rtsmb_server_interactive () < 0)
-          break;
-#endif
-	} // while (go)
-	/************************************************************************************/
-
-	//Shutdown
-	rtp_printf("main: shutting down\n");
-
-	rtsmb_srv_shutdown ();
-	rtp_net_exit ();
-
-	return(0);
-}//smbservermain
-
 
 #ifdef __linux
 #include <stdio.h>
@@ -365,4 +377,3 @@ ioctl_error:
 }
 
 #endif
-

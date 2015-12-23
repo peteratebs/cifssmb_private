@@ -34,6 +34,15 @@
 #define HARDWIRED_NEGOTIATE_CHALLENGE_SIZE                 0  // TBD: MAC does not respond to protocol reponse unless this is 0,
                                                               // for mac based client, 8 for windows client
 #define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    16384 // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
+#define HARDWIRE_USE_CONFIG_FILE                           1  // 1 to read user and share info from "smb_config.txt" in the launch directory.
+                                                              // These values are then used instead of HARDWIRED_USER_NAME, HARDWIRED_PASSWORD, HARDWIRED_SHARE_NAME, HARDWIRED_SHARE_PATH
+                                                              // Note: Should add EXTENDED security, min-dialect, max-dialect, others.
+#ifdef donbserver                                             // Add stubs neede to run without any nbns support functions. depends on the makefile state. see donbserver = "Y" im mkgnu.inc
+#define HARDWIRE_EXCLUDE_NBNS                              0
+#else
+#define HARDWIRE_EXCLUDE_NBNS                              1  // exclude NBNS functionality like group join announcements and responding to NBNS queries.
+                                                              // If this feature is enabled the makefile should be edited to exclude the /servernb and /commonnb directories
+#endif
 
 // Passed with the extended security client challenge. Target configuration strings.
 #define HARDWIRED_TARGET_NAME       "TARGETNAME"
