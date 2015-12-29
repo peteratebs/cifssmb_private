@@ -29,7 +29,7 @@
 #include "smbutil.h"
 #include "smbspnego.h"
 #include "srvnbns.h"
-#include <malloc.h>
+#include "rtpmem.h"
 #include <string.h>
 
 // OIDs
@@ -148,7 +148,7 @@ static const byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x
 
 // ================================================================================================================================
 //
-// Temporary solution for EXTENTED security passwords domain names etc. TBD
+// Temporary solution for EXTENDED security passwords domain names etc. TBD
 //
 typedef struct target_config_unicode_str_s
 {
@@ -213,8 +213,8 @@ void spnego_init_extended_security(void)
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
 {
-  if (decoded_token->mechToken) free(decoded_token->mechToken);
-  if (decoded_token->mechListMic) free(decoded_token->mechListMic);
+  if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);
+  if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);
 }
 
 
@@ -328,14 +328,14 @@ int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token
       case 0xa2: //      mechToken     [2]  OCTET STRING  OPTIONAL,   Security token to use in the challenge if we support the the protocol in mechTypes[0]. This is called optimistic token and is sent in the hope that server will also select the same mechanism as client.
         if (decode_token_stream_fetch_byte  (&decode_context_stream, &b) <=0 || b != 0x4) return SPNEGO_MALFORMED_PACKET; // BER octet string followed by length of mechToken
         if (decode_token_stream_fetch_length(&decode_context_stream, &l)<=0)             return SPNEGO_MALFORMED_PACKET;
-        decoded_init_token->mechToken = malloc(l);
+        decoded_init_token->mechToken = rtp_malloc(l);
         if (!decoded_init_token->mechToken)
           return SPNEGO_SYSTEM_ERROR;
         decoded_init_token->mechTokenSize = l;
         memcpy(decoded_init_token->mechToken, decode_context_stream.stream_pointer, l);
         break;
       case 0xa3: //      mechListMIC   [3]  OCTET STRING  OPTIONAL    probably this for NTLM tbd "not_defined_in_rfc4178@please_ignore"  Mechanism List Message Integrity Code, Used for signing
-        decoded_init_token->mechListMic = malloc(l_current_context);
+        decoded_init_token->mechListMic = rtp_malloc(l_current_context);
         if (!decoded_init_token->mechListMic)
           return SPNEGO_SYSTEM_ERROR;
         memcpy(decoded_init_token->mechListMic, decode_context_stream.stream_pointer, l_current_context);
@@ -354,8 +354,8 @@ static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *pre
 {
   if (presource) {
     if (presource->value_at_offset)
-      free(presource->value_at_offset);
-    free(presource);
+      rtp_free(presource->value_at_offset);
+    rtp_free(presource);
   }
 }
 
@@ -368,6 +368,13 @@ void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_targ
   decode_token_stream_security_buffer_destructor(decoded_targ_token->host_name);
   decode_token_stream_security_buffer_destructor(decoded_targ_token->session_key);
 }
+
+void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token)
+{
+  decode_token_stream_security_buffer_destructor(decoded_targ_token->target_name);
+  decode_token_stream_security_buffer_destructor(decoded_targ_token->target_info);
+}
+
 
 // Extract a resurce object length, max_length and offset from a stream.
 // Allocate and copy in the rest
@@ -388,18 +395,18 @@ word length_w, max_w;
     return SPNEGO_SYSTEM_ERROR;
   if (length_w)
   {
-    SecurityBuffer_t *presource = malloc(sizeof(SecurityBuffer_t));
+    SecurityBuffer_t *presource = rtp_malloc(sizeof(SecurityBuffer_t));
     if (!presource)
       return SPNEGO_SYSTEM_ERROR;
     *_presource = presource;
     presource->size = length_w;
     presource->offset = dw;
     // allocate the buffer, add 2 bytes so we can null terminate in case it's a string since strings are not terminated in the packet
-    presource->value_at_offset = malloc(length_w+2);
+    presource->value_at_offset = rtp_malloc(length_w+2);
     if (!presource->value_at_offset)
     {
       *_presource = 0;
-      free(presource);
+      rtp_free(presource);
       return SPNEGO_SYSTEM_ERROR;
     }
     byte *data_at_offset = blob_base + dw;
@@ -430,7 +437,8 @@ word length_w, max_w;
 //     dword session_key_size;
 //     byte *session_key;
 //   } decoded_NegTokenTarg_t;
-
+//
+// Decodes NTLMSSP_AUTH
 
 int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
@@ -525,6 +533,136 @@ int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_targ_token
 
   return 0;
 }
+
+//  This function is called by ProcSetupAndx when command.capabilities & CAP_EXTENDED_SECURITY is true and it is not an NTLMSSP security request
+//  returns 0 on succes < 0 (SPNEGO_MALFORMED_PACKET, SPNEGO_NOT_INIT_PACKET etc ) for failure.
+//
+//  You must call decoded_NegTokenTarg__challenge_destructor() - to release memory allocated by this function
+//
+//    Populates this structure if all is well.
+//   typedef struct decoded_NegTokenTarg__challenge_s {
+//    dword Flags;
+//    byte *target_name;
+//    byte ntlmserverchallenge[8];
+//    dword target_info_size;
+//    byte *target_info;
+//   } decoded_NegTokenTarg__challenge_t;
+
+
+int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
+{
+  byte b;
+  size_t l;
+  byte   current_context;
+  size_t l_current_context;
+  int r;
+  decode_token_stream_t decode_token_stream;
+  unsigned char OID_buffer[MAX_OID_SIZE];
+  unsigned char *pbuffer=pinbuffer;
+  word  w;
+  dword dw;
+
+
+  rtp_memset(decoded_targ_token,0,sizeof(*decoded_targ_token));
+
+  // Build a stream from the input buffer
+  decode_token_stream_constructor(&decode_token_stream,(void *)decoded_targ_token,pinbuffer, buffer_length);
+
+  // Get the A1 NegTokenTarg Token and length
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0 || b !=0xA1)
+    return SPNEGO_NOT_INIT_PACKET;
+  if (decode_token_stream_fetch_length(&decode_token_stream, &l)<=0)
+    return SPNEGO_MALFORMED_PACKET;
+  // Get the sequence element and length
+  if (decode_token_stream_fetch_byte  (&decode_token_stream, &b) <=0 || b != 0x30)
+     return SPNEGO_MALFORMED_PACKET;
+  if (decode_token_stream_fetch_length(&decode_token_stream, &l)<=0)
+    return SPNEGO_MALFORMED_PACKET;
+  // Rebuild a stream from the length of the object
+  decode_token_stream_constructor(&decode_token_stream,(void *)decoded_targ_token,decode_token_stream.stream_pointer, l);
+
+
+  // TBD Get the A0 application envelope ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0)// || b !=0xA0)
+    return SPNEGO_MALFORMED_PACKET;
+  // TBD Get the 03 application envelope ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0)// || b !=0x03)
+    return SPNEGO_MALFORMED_PACKET;
+  // TBD Get the 0A application envelope ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0)// || b !=0x0A)
+    return SPNEGO_MALFORMED_PACKET;
+  // TBD Get the 10 ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0)// || b !=0x01)
+    return SPNEGO_MALFORMED_PACKET;
+  // TBD Get the 01 ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0)// || b !=0x01)
+    return SPNEGO_MALFORMED_PACKET;
+
+  // TBD Get the A1 application envelope ??
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0 || b !=0xA1)
+    return SPNEGO_MALFORMED_PACKET;
+
+  // TBD Get the length.
+  if (decode_token_stream_fetch_length(&decode_token_stream, &l)<=0)
+    return SPNEGO_MALFORMED_PACKET;
+
+  // TBD Get the ntlm oid
+  r = decode_token_stream_fetch_oid(&decode_token_stream, OID_buffer);
+  if (r < 0)
+    return r;
+  if (oid_string_to_oid_t(OID_buffer) != oid_ntlmssp)
+    return SPNEGO_MALFORMED_PACKET;
+
+  // TBD Get the A2 application envelope and length
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0 || b !=0xA2)
+    return SPNEGO_MALFORMED_PACKET;
+  if (decode_token_stream_fetch_length(&decode_token_stream, &l)<=0)
+    return SPNEGO_MALFORMED_PACKET;
+
+  // Get the 04 envelope and length
+  if (decode_token_stream_fetch_byte(&decode_token_stream, &b) <=0 || b !=0x04)
+    return SPNEGO_MALFORMED_PACKET;
+  if (decode_token_stream_fetch_length(&decode_token_stream, &l)<=0)
+    return SPNEGO_MALFORMED_PACKET;
+
+ // Save this as the base from which resource objecxts are extracted
+  byte *blob_base=decode_token_stream.stream_pointer;
+
+  // Verify NTLMSSP signature
+  byte  ntlm_fetch_buffer[sizeof(ntlmssp_str)];
+  if (decode_token_stream_fetch(&decode_token_stream, ntlm_fetch_buffer, sizeof(ntlmssp_str))!=sizeof(ntlmssp_str))
+    return SPNEGO_MALFORMED_PACKET;
+  if (memcmp(ntlm_fetch_buffer,ntlmssp_str,sizeof(ntlmssp_str)) != 0)
+    return SPNEGO_MALFORMED_PACKET;
+  // Verify NTLM Message Type: NTLMSSP_CHALLENGE (0x00000002)
+  dword ntlm_message_type;
+  if (decode_token_stream_fetch(&decode_token_stream, (byte  *)&ntlm_message_type, 4)!=4)
+    return SPNEGO_MALFORMED_PACKET;
+  if (ntlm_message_type != SMB_HTOID(0x000000002))
+    return SPNEGO_MALFORMED_PACKET;
+
+  //  Get ntlmssp.challenge.target_name
+  r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->target_name); if (r<0) return r;
+  // Get ntlmssp.negotiateflags
+  if (decode_token_stream_fetch_dword(&decode_token_stream, &decoded_targ_token->Flags) <=0)  // offset
+    return SPNEGO_MALFORMED_PACKET;
+  //  Get ntlmssp.ntlmserverchallenge
+
+  r=decode_token_stream_fetch(&decode_token_stream, decoded_targ_token->ntlmserverchallenge, 8); if (r<0) return r;
+  // get ntlmssp.reserved 2 dwords
+  if (decode_token_stream_fetch_dword(&decode_token_stream, &dw) <=0)  return SPNEGO_MALFORMED_PACKET;
+  if (decode_token_stream_fetch_dword(&decode_token_stream, &dw) <=0)  return SPNEGO_MALFORMED_PACKET;
+
+  //  Get ntlmssp.challenge.target_info
+  r=decode_token_stream_fetch_security_buffer(&decode_token_stream, blob_base,&decoded_targ_token->target_info); if (r<0) return r;
+
+
+  return 0;
+}
+
+
+
+
 
 //  decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte b)
 //  if in pass1, (pstream->resolving_widths) adds the witdrh of 1 byte to the object width stack
@@ -781,7 +919,7 @@ static word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string)
 word *p;
 size_t w;
   w=rtp_strlen(ascii_string)*2+2;
-  p=malloc(w);
+  p=rtp_malloc(w);
   rtsmb_util_ascii_to_unicode (ascii_string ,p , CFG_RTSMB_USER_CODEPAGE);
   return (p);
 }
@@ -815,7 +953,6 @@ target_config_unicode_str_t *pinfo=&target_config_unicode;
   buffer_pointer = decode_token_stream_fill_target_information_item(0x0004, pinfo->dns_domain_name, buffer_pointer);         // Target Info Item Type: DNS domain name (0x0004)
   buffer_pointer = decode_token_stream_fill_target_information_item(0x0003, pinfo->dns_computer_name, buffer_pointer);       // Target Info Item Type: DNS computer name (0x0003)
   buffer_pointer = decode_token_stream_fill_target_information_item(0x0000, 0, buffer_pointer);                              // Target Info Item Type: DNS computer name (0x0003)
-printf("done int l == %d\n",PDIFF(buffer_pointer,target_information_buffer));
   return PDIFF(buffer_pointer,target_information_buffer);
 }
 
@@ -840,6 +977,176 @@ int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t b
 }
 
 
+static const byte spnego_client_ntlmssp_response_blob[] = {0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00}; // 0x0101000 00000000
+
+//0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00}; // 0x0101000 00000000
+//rtsmb_util_get_current_filetime();       // timestamp
+//spnego_get_Guid(response.guid);          // 8 bytes random
+//0000000                                  // zero
+byte mystamp[] = {0x11,0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+byte mynonce[] = {0x88,0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
+int spnego_get_client_ntlmv2_response_blob(byte *pblob)
+{
+    tc_memcpy(pblob, spnego_client_ntlmssp_response_blob, sizeof (spnego_client_ntlmssp_response_blob) );
+    ddword *pddw= (ddword *)(pblob+8);
+    *pddw = rtsmb_util_get_current_filetime();
+    tc_memcpy(pddw, mystamp, 8); // Overwrite stamp
+    spnego_get_Guid(pblob+16);
+    tc_memcpy(pblob+16, mynonce, 8); // Overwrite random nonce
+    dword *pdw= (dword *)(pblob+24);
+    *pdw= 0;
+    return 28;
+}
+
+// Send a type 3 NTLM response in response to to a server's challenge
+int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
+{
+// DATA                    // Challenge data
+BBOOL doing_size = TRUE;
+spnego_output_stream_t outstream;
+int i;
+int r;
+
+  for(i=0; i < 2; i++, doing_size = !doing_size)
+  {
+    int saved_object_count=0;
+    int fixups = 0;
+    int wire_length=0;
+    int i;
+    dword dw;
+    word  w,iw;
+    rtsmb_char server_name[16];
+    resource_strings_t resource_strings[32];
+    byte target_information_buffer[TARGET_INFORMATION_SIZE];
+    byte *security_base=0;
+
+    // On the second pass remember the object count so we can enumerate the size place holders
+    spnego_output_stream_stream_constructor(&outstream,0, outbuffer, buffer_length,doing_size);
+    // On the second pass fixup the place holders
+    if (!doing_size)
+      decode_token_stream_encode_fixup_lengths(&outstream);
+  // 0xA1, len NegTokenTarg
+    r = decode_token_stream_encode_app_container(&outstream, 0xA1); if (r < 0) return r;
+    // The length returned for the outer capsule is the wire length
+  // 0x30 len  Sequence length
+    r = decode_token_stream_encode_app_container(&outstream, 0x30);  if (r < 0) return r;
+  // 0xA2, Seq. Element 2 response token and length
+    r = decode_token_stream_encode_app_container(&outstream, 0xA2); if (r < 0) return r;
+  // 0x04, length            Octet string length
+    r = decode_token_stream_encode_app_container(&outstream, 0x04);  if (r < 0) return r;
+   // NTLMSSP\0
+    // Save the starting point for fixing up resource
+    security_base = outstream.stream_pointer;
+    r = decode_token_stream_encode_bytes(&outstream, ntlmssp_str, sizeof(ntlmssp_str));  if (r < 0) return r;
+   // NTLM Message Type: NTLMSSP_AUTH (0x00000003)
+    dw = SMB_HTOID((dword) 3);
+    r = decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;
+
+    // Lan Manager Response: 000000000000000000000000000000000000000000000000
+    byte lan_man_response_buffer[24];
+    w = 24;
+    tc_memset(lan_man_response_buffer, 0, 24);
+   // Encode our target information
+   // Set length and allocated length the same.
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = lan_man_response_buffer;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+//    r = decode_token_stream_encode_bytes(&outstream, ntlm_reserved,  8);  if (r < 0) return r;  // client challenge, 8 Zeros.
+
+    // NTLM Response: bcd3406e8f2e835fc2d235e11deb06370101000000000000...
+    w = ntlm_response_buffer_size;
+   // Encode our target information
+   // Set length and allocated length the same.
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = ntlm_response_buffer;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+
+    //   resource_string Domain name: UBUNTU14-VIRTUALBOX  unicode
+    w = rtsmb_util_unicode_strlen(domain_name)*2+2;  // item_string null is terminator record
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = domain_name;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+
+    //   resource_string User name: peter                  unicode
+    w = rtsmb_util_unicode_strlen(user_name)*2+2;  // item_string null is terminator record
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = user_name;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+    //   resource_string Host name: workstation            unicode
+    w = rtsmb_util_unicode_strlen(workstation_name)*2+2;  // item_string null is terminator record
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = workstation_name;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+
+    //   resource_string Session Key: 0520e5ff12dee6acfabfd0e78b5842ec
+    w = 16;
+    iw = SMB_HTOIW((word) w);
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
+    r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
+    resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
+    resource_strings[fixups].content = session_key;
+    resource_strings[fixups++].content_width = w;
+    dw = 0;
+    decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+
+
+    // Negotiate Flags: 0x62880205
+    dw = SMB_HTOID((dword) 0x62880205);
+    r = decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;
+
+    // Version 6.1 (Build 7600); NTLM Current Revision 0
+    decode_token_stream_encode_bytes(&outstream, ntlm_version,  sizeof(ntlm_version));  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
+//    r = decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;
+
+    // Now the after copy in the resources
+    {
+    int fixup;
+    for (fixup=0; fixup<fixups; fixup++)
+    {
+      if (!doing_size)
+      {
+        dw =  SMB_HTOID((dword) PDIFF (outstream.stream_pointer, security_base));  // ofsset
+        memcpy(resource_strings[fixup].offset_fixup_location,&dw, 4);
+      }
+      // Do this in either case because when doing_size we need the length
+      decode_token_stream_encode_bytes(&outstream, resource_strings[fixup].content,resource_strings[fixup].content_width);  if (r < 0) return r;
+    }
+    }
+  }
+  return (int) PDIFF (outstream.stream_pointer, outstream.stream_base);
+
+}
+
 // Send a type 2 NTLM response to a client's initial type request
 int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length, byte *challenge)
 {
@@ -862,8 +1169,6 @@ int i;
     resource_strings_t resource_strings[32];
     byte target_information_buffer[TARGET_INFORMATION_SIZE];
     byte *security_base=0;
-
-printf("OKAY 1\n");
 
     // On the second pass remember the object count so we can enumerate the size place holders
     spnego_output_stream_stream_constructor(&outstream,0, outbuffer, buffer_length,doing_size);
@@ -909,9 +1214,9 @@ printf("OKAY 1\n");
     dw = 0;
     decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
 
-    printf("Flags == %X %X  \n", spnego_flags, DEFAULT_NTLM_RESP_FLAGS);
-    printf("ND Flags == %X \n", SMB_HTOND(spnego_flags));
-    printf("ID Flags == %X \n", SMB_HTOID(spnego_flags));
+    //printf("Flags == %X %X  \n", spnego_flags, DEFAULT_NTLM_RESP_FLAGS);
+    //printf("ND Flags == %X \n", SMB_HTOND(spnego_flags));
+    //printf("ID Flags == %X \n", SMB_HTOID(spnego_flags));
     dw =  SMB_HTOID(spnego_flags);  // flags
     // dw =  0x15828ae2;  // flags
     decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;
@@ -1248,6 +1553,7 @@ byte node_address[6];
 }
 
 
+
 // Send this in NTLM reponse to evoke an NTLMSSP_NEGOTIATE response from the client.
 // Contents:
 // OID: 1.3.6.1.5.5.2 (SPNEGO - Simple Protected Negotiation)
@@ -1263,3 +1569,43 @@ int spnego_get_negotiate_ntlmssp_blob(byte **pblob)
     *pblob = spnego_ntlmssp_blob;
     return sizeof(spnego_ntlmssp_blob);
 }
+
+
+
+// Send this in NTLM client Setup andx request to evoke a more processing reqiured response with a key from the server.
+// Contents:
+// OID: 1.3.6.1.5.5.2 (SPNEGO - Simple Protected Negotiation)
+// MechType: 1.3.6.1.4.1.311.2.2.10 (NTLMSSP - Microsoft NTLM Security Support Provider)
+// NTLM Secure Service Provider
+// Evoke SPNEGO
+static const byte bad_spnego_client_ntlmssp_negotiate_blob[] = {
+  0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,
+  0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,
+  0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,  // NTLM Secure Service Provider
+  0x01,0x00,0x00,0x00,                      // NTLM Message Type: NTLMSSP_NEGOTIATE (0x00000001)
+  0x97,0x82,0x08,0xe2,                      // Flags (TBD)
+  // The rest
+  // Calling workstation domain: NULL
+  // Calling workstation name: NULL
+  // Version 6.1 (Build 7601); NTLM Current Revision 15
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x06,0x01,0xb1,0x1d,0x00,0x00,0x00,0x0f};
+
+
+// Captured from mac login
+static const byte spnego_client_ntlmssp_negotiate_blob[] = {
+0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,
+0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x05,0x02,0x88,0x62,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x06,0x01,0xb0,0x1d,0x0f,0x00,0x00,0x00,
+0x00,0x4d,0x00,0x61,0x00,0x63,0x00,0x20,0x00,0x4f,0x00,0x53,0x00,0x20,0x00,0x58,0x00,0x20,0x00,0x31,0x00,0x30,0x00,0x2e,0x00,0x31,0x00,0x30,0x00,0x00,0x00,
+0x53,0x00,0x4d,0x00,0x42,0x00,0x46,0x00,0x53,0x00,0x20,0x00,0x33,0x00,0x2e,0x00,0x30,0x00,0x2e,0x00,0x32,0x00,0x00,0x00};
+
+// Callback to send reponse in NTLMSSP_NEGOTIATE response when the client accepts CAP_EXTENDED_SECURITY and the server is configured for NTLM security.
+int spnego_get_client_ntlmssp_negotiate_blob(byte **pblob)
+{
+    *pblob = (byte *) spnego_client_ntlmssp_negotiate_blob;
+    return sizeof(spnego_client_ntlmssp_negotiate_blob);
+}
+
+
+
+

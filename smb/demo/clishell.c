@@ -1,5 +1,6 @@
 #define USE_HTTP_INTERFACE 0
 
+
 // --------------------------------------------------------
 #include "cliapi.h"
 #include "smbutil.h"
@@ -14,6 +15,9 @@
 #include "rtpexit.h"
 #include "rtpchar.h"
 #include "wchar.h"
+#include "smbdebug.h"
+#include "smbspnego.h"
+#include "rtpmem.h"
 #if (USE_HTTP_INTERFACE)
 #include "httpsrv.h"
 #include "htmlutils.h"
@@ -91,6 +95,7 @@ char *quit_cmd        = "QUIT";
 char *net_cmd         = "NET";
 char *logoff_cmd      = "LOGOFF";
 char *dump_cmd        = "SHOWSTATE";
+char *help_cmd        = "HELP";
 
 static char *file_cmds[][2] = {
     {"FOPEN", "FOPEN filename {W|T|E}       ((W)rite,(T)runcate,(E)xclusive - select one or more.)"},
@@ -186,7 +191,8 @@ static void smbcli_prompt(char *promptstr, char *buffer, int length)
     }
     else
 #endif
-        rtp_term_gets(buffer);
+//        rtp_term_gets(buffer);
+        fgets(buffer, 80, stdin);
      /* strip trailing newline */
         for (i = 0; i < (int)rtp_strlen(buffer); i++)
         {
@@ -197,8 +203,7 @@ static void smbcli_prompt(char *promptstr, char *buffer, int length)
 static int exit_shell;
 
 
-// --------------------------------------------------------
-void smb_cli_term_get_command(char *command_buffer)
+static int do_help_command(void)
 {
 #if (HISTORY_MODE)
     smb_cli_term_printf(CLI_PROMPT,"%s\n","History mode is on you will be prompted for server, login  and  share names");
@@ -238,9 +243,15 @@ void smb_cli_term_get_command(char *command_buffer)
         for (i =0; file_cmds[i][0]; i++)
             smb_cli_term_printf(CLI_PROMPT,"%s\n",file_cmds[i][1]);
     }
+    smb_cli_term_printf(CLI_PROMPT,"%s\n",help_cmd);
     smb_cli_term_printf(CLI_PROMPT,"%s\n",quit_cmd);
+}
 
-    smbcli_prompt("Type command : ", command_buffer, COMMAND_BUFFER_SIZE);
+// --------------------------------------------------------
+void smb_cli_term_get_command(char *command_buffer)
+{
+    smb_cli_term_printf(CLI_PROMPT,"Hi Pete\n");
+    smbcli_prompt("Type yeah command : ", command_buffer, COMMAND_BUFFER_SIZE);
 }
 
 
@@ -375,6 +386,9 @@ static void smb_cli_shell_proc(char *command_buffer)
    }
    if(Done)
        ;
+
+   else if (rtp_strcmp(command_buffer, help_cmd) == 0)
+        do_help_command();
    else if (rtp_strcmp(command_buffer, quit_cmd) == 0)
         do_quit_command();
    else if (rtp_strcmp(command_buffer, enum_cmd) == 0)
@@ -495,6 +509,7 @@ int idNo=-1;
 }
 
 // --------------------------------------------------------
+// NET USE d: \\192.168.1.7\share0 /user:ebs /password:password /dialect:1
 static int do_net_command(char *command)
 {
 int doHelp=0;
@@ -503,6 +518,7 @@ int ConnectionNo=0;
 BBOOL DoOpenConnection=FALSE;
 char dialectString[20];
 dialectString[0]=0;
+    strcpy(command, "USE d: \\\\192.168.1.7\\share0 /user:ebs /password:password /dialect:1");
     smb_cli_term_printf(CLI_ALERT,"Inside with command == %s\n", command);
 //    command += STRCONSTLENGTH("NET ");
     smb_cli_term_printf(CLI_ALERT,"Inside 2 with command == %s STRCONSTLENGTH{\"USE\") == %d\n", command,(int)STRCONSTLENGTH("USE"));
@@ -555,6 +571,7 @@ dialectString[0]=0;
                     /* Parse url strng and optional user and password */
 
                     command += STRCONSTLENGTH("\\\\");
+                    smb_cli_term_printf(CLI_ALERT,"Inside 5 with command == %s \n", command);
                     nextSlash=rtp_strstr(command,"\\");
                     nextSpace=rtp_strstr(command," ");
 
@@ -699,7 +716,7 @@ dialectString[0]=0;
             return -1;
         }
         smb_cli_term_printf(CLI_ALERT,"Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
-        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "Domain") < 0)
+        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "domain") < 0)
         {
             smb_cli_term_printf(CLI_ALERT,"Failed Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
             return -1;
@@ -1321,7 +1338,7 @@ NVPair *Command;
             return -1;
         }
         smb_cli_term_printf(CLI_ALERT,"Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
-        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "Domain") < 0)
+        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "domain") < 0)
         {
             smb_cli_term_printf(CLI_ALERT,"Failed Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
             return -1;
@@ -1861,7 +1878,8 @@ static int do_connect_server(int *sid)
     return do_connect_server_worker(sid, server_name, dialect);
 }
 
-
+#include "clicfg.h"
+#include "clissn.h"
 /* Tools for loging on to server and connecting to shares, these work with
    with do_setuser_command() et al to reduce typing */
 static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain)
@@ -1873,17 +1891,52 @@ static int do_logon_server_worker(int sid,  char *user_name, char *password, cha
     smb_cli_term_printf(CLI_ALERT,"\ndomain = %s\n",domain);
 
     r = rtsmb_cli_session_logon_user(sid, user_name, password, domain);
+
     if(r < 0)
     {
         smb_cli_term_printf(CLI_PROMPT,"\n Error during user logon");
         return 0;
     }
+    smb_cli_term_printf(CLI_PROMPT,"\n Wait for login\n");
     r = wait_on_job(sid, r);
     if(r < 0)
     {
         smb_cli_term_printf(CLI_PROMPT,"\n Error during logon response");
         return 0;
     }
+// if (prtsmb_cli_ctx->sessions[sid].state == CSSN_USER_STATE_CHALLENGED)
+    smb_cli_term_printf(CLI_PROMPT,"\n Got login check state %d\n", prtsmb_cli_ctx->sessions[sid].state);
+    if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
+    {
+       decoded_NegTokenTarg_challenge_t decoded_targ_token;
+       smb_cli_term_printf(CLI_PROMPT,"\n Got a challenge at shell layer\n");
+
+       rtsmb_dump_bytes("shell recved blob", prtsmb_cli_ctx->sessions[sid].user.spnego_blob, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size, DUMPBIN);
+       smb_cli_term_printf(CLI_PROMPT,"shell recved domain[0] ==  %x\n", prtsmb_cli_ctx->sessions[sid].user.domain_name[0]);
+       r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size);
+       if (r == 0)
+       {
+           r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
+               decoded_targ_token.ntlmserverchallenge,
+               decoded_targ_token.target_info->value_at_offset,
+               decoded_targ_token.target_info->size);
+       }
+       rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob);
+       spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
+
+       if(r < 0)
+       {
+          smb_cli_term_printf(CLI_PROMPT,"\n Error sending rtsmb_cli_session_ntlm_auth\n");
+          return 0;
+       }
+       r = wait_on_job(sid, r);
+       if(r < 0)
+       {
+          smb_cli_term_printf(CLI_PROMPT,"\n Error process rtsmb_cli_session_ntlm_auth\n");
+          return 0;
+       }
+    }
+
     return(1);
 }
 
@@ -1896,6 +1949,7 @@ static int do_logon_server(int sid)
     password = do_getpassword();
     domain = do_getdomain_name();
     return do_logon_server_worker(sid,  user_name, password, domain);
+
 }
 
 static int do_connect_share(int sid, char *sharename)
@@ -2029,18 +2083,28 @@ static void in_ipaddress(byte *pip, byte *pmask_ip)
     for (counter=0;counter<4;counter++)
     {
     char inbuffer[32];
+    char inbuffer2[32];
         rtp_itoa(pip[counter], inbuffer, 10);
-        smb_cli_term_printf(CLI_PROMPT,"Byte %d IP Address: ",counter);
-        rtp_term_promptstring (inbuffer, 0);
-        pip[counter] = (unsigned char)rtp_atoi(inbuffer);
+        smb_cli_term_printf(CLI_PROMPT,"Byte %d IP Address %s :",counter,inbuffer);
+        smbcli_prompt("return to keep or new value:", inbuffer2, 0);
+//        rtp_term_promptstring (inbuffer, 0);
+        if (inbuffer2[0])
+         pip[counter] = (unsigned char)rtp_atoi(inbuffer2);
+        else
+         pip[counter] = (unsigned char)rtp_atoi(inbuffer);
     }
     for (counter=0; counter<4; counter++)
     {
     char inbuffer[32];
+    char inbuffer2[32];
         rtp_itoa(pmask_ip[counter], inbuffer, 10);
-        smb_cli_term_printf(CLI_PROMPT,"Byte %d IP Mask: ",counter);
-        rtp_term_promptstring (inbuffer, 0);
-        pmask_ip[counter] = (unsigned char)rtp_atoi(inbuffer);
+        smb_cli_term_printf(CLI_PROMPT,"Byte %d IP Mask %s :",counter,inbuffer);
+//        rtp_term_promptstring (inbuffer, 0);
+        smbcli_prompt("return to keep or new value:", inbuffer2, 0);
+        if (inbuffer2[0])
+         pmask_ip[counter] = (unsigned char)rtp_atoi(inbuffer2);
+        else
+         pmask_ip[counter] = (unsigned char)rtp_atoi(inbuffer);
     }
     smb_cli_term_printf(CLI_PROMPT,"IP Address: %d.%d.%d.%d\n",pip[0],pip[1],pip[2],pip[3]);
     smb_cli_term_printf(CLI_PROMPT,"IP Mask   : %d.%d.%d.%d\n",pmask_ip[0],pmask_ip[1],pmask_ip[2],pmask_ip[3]);

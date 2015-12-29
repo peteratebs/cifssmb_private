@@ -277,6 +277,7 @@ typedef enum
 {
     CSSN_USER_STATE_UNUSED, /* no user */
     CSSN_USER_STATE_LOGGING_ON, /* user is trying to log on */
+    CSSN_USER_STATE_CHALLENGED, /* user is trying to log on but recieved a challenge */
     CSSN_USER_STATE_LOGGED_ON,  /* user is logged on */
     CSSN_USER_STATE_DIRTY       /* user needs to be reconnected */
 } RTSMB_CLI_SESSION_USER_STATE;
@@ -292,10 +293,8 @@ typedef struct
     rtsmb_char name [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
     char password [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
     rtsmb_char domain_name [CFG_RTSMB_MAX_DOMAIN_NAME_SIZE + 1];
-#ifdef SUPPORT_SMB2
     byte spnego_blob_size;
     byte *spnego_blob;
-#endif
 
 } RTSMB_CLI_SESSION_USER;
 typedef RTSMB_CLI_SESSION_USER RTSMB_FAR *PRTSMB_CLI_SESSION_USER;
@@ -479,6 +478,16 @@ struct RTSMB_CLI_SESSION_JOB_T
             char password [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
             rtsmb_char domain_name [CFG_RTSMB_MAX_DOMAIN_NAME_SIZE + 1];
         } session_setup;
+
+        struct {
+            PRTSMB_CLI_SESSION_USER user_struct;
+            int ntlm_response_blob_size;
+            byte ntlm_response_blob[1024];
+//            byte server_challenge[8];
+//            rtsmb_char account_name [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
+//            char password [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
+//            rtsmb_char domain_name [CFG_RTSMB_MAX_DOMAIN_NAME_SIZE + 1];
+        } ntlm_auth;
 
         RTSMB_CLI_TREE_CONNECT_JOB_DATA tree_connect;
 

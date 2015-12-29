@@ -33,6 +33,7 @@
 #include "smbglue.h"
 #include "smbconf.h"
 #include "smbdebug.h"
+#include "smbspnego.h"
 
 #include "rtptime.h"
 #include "rtpnet.h"
@@ -53,11 +54,11 @@
 
 #define DEBUG_SID              1
 #define DEBUG_ENUM_SERVER      0
-#define DEBUG_SESSION_ON_WIRE  0
-#define DEBUG_LOGON            0
-#define DEBUG_LOGON_JOB_HELPER 0
-#define DEBUG_AUTH_JOB         0
-#define DEBUG_AUTH             0
+#define DEBUG_SESSION_ON_WIRE  1
+#define DEBUG_LOGON            1
+#define DEBUG_LOGON_JOB_HELPER 1
+#define DEBUG_AUTH_JOB         1
+#define DEBUG_AUTH             1
 #define DEBUG_JOB              0
 
 
@@ -67,6 +68,13 @@ int           rtsmb_cli_wire_smb2_stream_flush(PRTSMB_CLI_WIRE_SESSION pSession,
 smb2_stream  *rtsmb_cli_wire_smb2_stream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_stream  *rtsmb_cli_wire_smb2_stream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 #endif
+
+static const byte zero[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
+  // Native OS: Mac OS X 10.10
+const byte native_os[] = {0x4d,0x00,0x61,0x00,0x63,0x00,0x20,0x00,0x4f,0x00,0x53,0x00,0x20,0x00,0x58,0x00,0x20,0x00,0x31,0x00,0x30,0x00,0x2e,0x00,0x31,0x00,0x30,0x00,0x00,0x00};
+  // Native LAN Manager: SMBFS 3.0.2
+const byte native_lanman[] = { 0x53,0x00,0x4d,0x00,0x42,0x00,0x46,0x00,0x53,0x00,0x20,0x00,0x33,0x00,0x2e,0x00,0x30,0x00,0x2e,0x00,0x32,0x00,0x00,0x00};
+
 
 /****************************************************************************  */
 /* Macros
@@ -306,12 +314,18 @@ RTSMB_STATIC int rtsmb_cli_session_send_session_setup_pre_nt (PRTSMB_CLI_SESSION
 RTSMB_STATIC int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 RTSMB_STATIC int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 
+RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+RTSMB_STATIC int rtsmb_cli_session_receive_session_extended_logon (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+
 RTSMB_STATIC int  rtsmb_cli_session_receive_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 
 
 RTSMB_STATIC int rtsmb_cli_session_send_tree_connect (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 RTSMB_STATIC int rtsmb_cli_session_send_tree_connect_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 RTSMB_STATIC int rtsmb_cli_session_receive_tree_connect (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+
+
 
 RTSMB_STATIC int rtsmb_cli_session_send_tree_disconnect (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 RTSMB_STATIC int rtsmb_cli_session_receive_tree_disconnect (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
@@ -1704,9 +1718,10 @@ int rtsmb_cli_session_connect_anon (PRTSMB_CLI_SESSION pSession)
     case CSSN_DIALECT_NT:
         if (ON (pSession->server_info.capabilities, CAP_EXTENDED_SECURITY))
         {
-            SMB_ERROR("rtsmb_cli_session_connect_anon: extended security on -> DEAD");
+//            SMB_ERROR("rtsmb_cli_session_connect_anon: extended security on -> DEAD");
             /* we currently don't do extended security */
-            return RTSMB_CLI_SSN_RV_DEAD;
+            pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
+//            return RTSMB_CLI_SSN_RV_DEAD;
         }
         else
         {
@@ -1810,10 +1825,16 @@ int rtsmb_cli_session_logon_user_rt (int sid, PFRTCHAR user, PFCHAR password, PF
         break;
 
     case CSSN_DIALECT_NT:
+    rtp_printf("PVO - DIALECT NT !!\n");
         if (ON (pSession->server_info.capabilities, CAP_EXTENDED_SECURITY))
         {
+#if (DEBUG_LOGON)
+    rtp_printf("PVO - rtsmb_cli_session_logon_user_rt extended !!\n");
+#endif
+
             /* we currently don't do extended security */
-            return RTSMB_CLI_SSN_RV_DEAD;
+            pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
+//            return RTSMB_CLI_SSN_RV_DEAD;
         }
         else
         {
@@ -1839,6 +1860,8 @@ int rtsmb_cli_session_logon_user_rt (int sid, PFRTCHAR user, PFCHAR password, PF
 
     rtsmb_cli_session_send_stalled_jobs (pSession);
 
+
+
     if (pSession->blocking_mode)
     {
         int r;
@@ -1852,6 +1875,7 @@ rtp_printf("USER LOGON: DONE WAIT returned %d\n", r);
         return INDEX_OF (pSession->jobs, pJob);
     }
 }
+
 
 int rtsmb_cli_session_logoff_user (int sid)
 {
@@ -1897,6 +1921,144 @@ int rtsmb_cli_session_logoff_user (int sid)
         return INDEX_OF (pSession->jobs, pJob);
     }
 }
+
+PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, PFRTCHAR domainname, PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFCHAR output);
+
+
+// Need to call this
+// int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
+
+
+byte ntlm_response_buffer[] = {0xbc,0xd3,0x40,0x6e,0x8f,0x2e,0x83,0x5f,0xc2,0xd2,0x35,0xe1,0x1d,0xeb,0x06,0x37,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0b,0xf4,0xcb,0xd2,0x34,0xd1,0x01,0x36,0xc3,0x0c,0x2d,0xfc,0x9b,0x47,0xe5,0x00,0x00,0x00,0x00,0x01,0x00,
+0x26,0x00,0x55,0x00,0x42,0x00,0x55,0x00,0x4e,0x00,0x54,0x00,0x55,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x56,0x00,0x49,0x00,0x52,0x00,0x54,0x00,0x55,0x00,0x41,0x00,0x4c,0x00,0x42,0x00,0x4f,0x00,0x58,0x00,0x02,0x00,0x26,0x00,0x55,0x00,
+0x42,0x00,0x55,0x00,0x4e,0x00,0x54,0x00,0x55,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x56,0x00,0x49,0x00,0x52,0x00,0x54,0x00,0x55,0x00,0x41,0x00,0x4c,0x00,0x42,0x00,0x4f,0x00,0x58,0x00,0x03,0x00,0x26,0x00,0x75,0x00,0x62,0x00,0x75,0x00,
+0x6e,0x00,0x74,0x00,0x75,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x76,0x00,0x69,0x00,0x72,0x00,0x74,0x00,0x75,0x00,0x61,0x00,0x6c,0x00,0x62,0x00,0x6f,0x00,0x78,0x00,0x04,0x00,0x00,0x00,0x06,0x00,0x04,0x00,0x02,0x00,0x00,0x00,0x09,0x00,
+0x20,0x00,0x63,0x00,0x69,0x00,0x66,0x00,0x73,0x00,0x2f,0x00,0x31,0x00,0x39,0x00,0x32,0x00,0x2e,0x00,0x31,0x00,0x36,0x00,0x38,0x00,0x2e,0x00,0x31,0x00,0x2e,0x00,0x37,0x00,0x0a,0x00,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+
+int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain, PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
+{
+    PRTSMB_CLI_SESSION_JOB pJob;
+    PRTSMB_CLI_SESSION pSession;
+
+    byte ntlm_response_buffer_ram[1024];
+
+#if (DEBUG_LOGON)
+    rtp_printf("PVO - rtsmb_cli_session_ntlm_auth \n");
+#endif
+
+    pSession = rtsmb_cli_session_get_session (sid);
+    ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+    ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+    rtsmb_cli_session_update_timestamp (pSession);
+
+    pJob = rtsmb_cli_session_get_free_job (pSession);
+    ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
+    pJob->data.ntlm_auth.user_struct = &pSession->user;
+
+    byte session_key[16];
+    spnego_get_Guid(&session_key[0]);
+    spnego_get_Guid(&session_key[8]);
+    byte workstation_name[32];
+    rtsmb_util_ascii_to_unicode ("workstation" ,workstation_name , CFG_RTSMB_USER_CODEPAGE);
+    byte user_name[32];
+    rtsmb_util_ascii_to_unicode (user, user_name, CFG_RTSMB_USER_CODEPAGE);
+    byte domain_name[32];
+    rtsmb_util_ascii_to_unicode (domain, domain_name, CFG_RTSMB_USER_CODEPAGE);
+    byte *pclient_blob;
+
+    pclient_blob = &ntlm_response_buffer_ram[8];
+
+    // The structure is 8 bytes unused, 8 bytes server challenge, followed by the blob which contains the signature, timestamp, and nonce
+    // Prepend the 8 byte server challenge
+    tc_memcpy(pclient_blob, serverChallenge,8);
+    pclient_blob += 8;
+    // Append the 28 byte blob containing the client nonce
+    spnego_get_client_ntlmv2_response_blob(pclient_blob);
+    pclient_blob += 28;
+    // Append the target information block pqassed from the server
+    tc_memcpy(pclient_blob, serverInfoblock,serverInfoblock_length);
+
+    pclient_blob += serverInfoblock_length;
+
+    tc_memcpy(pclient_blob,zero,4);
+    pclient_blob += 4;
+
+    pclient_blob = &ntlm_response_buffer_ram[8];
+    // The size of the blob to run the digest on
+    int client_blob_size = 8 + 28 + serverInfoblock_length + 4;
+    // The size of the blob plus digest
+    int ntlm_response_buffer_size = 16 + 28 + serverInfoblock_length + 4;
+#if (DEBUG_LOGON)
+    rtp_printf("PVO - call cli_util_client_encrypt_password_ntlmv2 !! \n");
+#endif
+    byte output[16];
+    cli_util_client_encrypt_password_ntlmv2 (user_name, password, domain_name, serverChallenge, pclient_blob, client_blob_size, output);
+    tc_memcpy(&ntlm_response_buffer_ram[0],output,16);
+#if (DEBUG_LOGON)
+    rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2: ", output, 16, DUMPBIN);
+#endif
+
+    pJob->data.ntlm_auth.ntlm_response_blob_size = spnego_encode_ntlm2_type3_packet(&pJob->data.ntlm_auth.ntlm_response_blob[0], sizeof(pJob->data.ntlm_auth.ntlm_response_blob), ntlm_response_buffer_ram, ntlm_response_buffer_size, domain_name, user_name, workstation_name, session_key);
+
+    rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", pJob->data.ntlm_auth.ntlm_response_blob, pJob->data.ntlm_auth.ntlm_response_blob_size, DUMPBIN);
+
+#if 0
+    //0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00}; // 0x0101000 00000000
+    //rtsmb_util_get_current_filetime();       // timestamp
+    //spnego_get_Guid(response.guid);          // 8 bytes random
+    //0000000                                  // zero
+
+    int ntlm_response_blob_length = spnego_get_client_ntlmv2_response_blob(&pJob->data.ntlm_auth.ntlm_response_blob[16]);
+
+    // Concatenate the target information block from the server.
+    tc_memcpy(&pJob->data.ntlm_auth.ntlm_response_blob[16+ntlm_response_blob_length],serverInfoblock,serverInfoblock_length);
+    // 4 bytes zeros at the end
+    tc_memcpy(&pJob->data.ntlm_auth.ntlm_response_blob[16+ntlm_response_blob_length+serverInfoblock_length],zero,4);
+    // We then concatenate the Type 2 challenge with our blob (in front)
+    tc_memcpy(&pJob->data.ntlm_auth.ntlm_response_blob[8],serverChallenge,8);
+
+    PFBYTE pblob = &pJob->data.ntlm_auth.ntlm_response_blob[8];
+    size_t blob_length = ntlm_response_blob_length+8+serverInfoblock_length;
+    // Applying HMAC-MD5 to this value using the NTLMv2 hash from step 2 as the key gives us the 16-byte value "0xcbabbca713eb795d04c97abc01ee4983".
+    byte output[16];
+    cli_util_client_encrypt_password_ntlmv2 (user, password, domain, serverChallenge, pblob, blob_length, output);
+
+
+    // This value is concatenated with the blob to obtain the NTLMv2 response
+    tc_memcpy(&pJob->data.ntlm_auth.ntlm_response_blob[0],output,16);
+    blob_length = ntlm_response_blob_length+8+serverInfoblock_length;
+// BUG !!!    pJob->data.ntlm_auth.ntlm_response_blob_size = ntlm_response_blob_length+16;
+    pJob->data.ntlm_auth.ntlm_response_blob_size = blob_length+16;
+#endif
+
+#if (DEBUG_LOGON)
+    rtp_printf("PVO - rtsmb_cli_session_ntlm_auth go !! \n");
+#endif
+
+    pJob->error_handler    = rtsmb_cli_session_send_session_extended_setup_error_handler;
+    pJob->receive_handler  = rtsmb_cli_session_receive_session_extended_logon;
+    pJob->send_handler     = rtsmb_cli_session_send_session_extended_setup;
+
+    rtsmb_cli_session_send_stalled_jobs (pSession);
+
+    if (pSession->blocking_mode)
+    {
+        int r;
+rtp_printf("USER LOGON: WAIT\n");
+        r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
+rtp_printf("USER LOGON: DONE WAIT returned %d\n", r);
+        return(r);
+    }
+    else
+    {
+        return INDEX_OF (pSession->jobs, pJob);
+    }
+}
+
+
+
+
 
 int rtsmb_cli_session_connect_share (int sid, PFCHAR share, PFCHAR password)
 {
@@ -3657,8 +3819,7 @@ int rtsmb_cli_session_examine_wire (PRTSMB_CLI_SESSION pSession, int wire_respon
     {
     case 1:     /* a job is done */
 #if (DEBUG_AUTH_JOB)
-        rtp_printf("rtsmb_cli_session_examine_wire: pSession = %x\n",
-            pSession);
+        rtp_printf("rtsmb_cli_session_examine_wire: pSession = %x resp == %d \n",  pSession, wire_response);
 #endif
         return rtsmb_cli_session_process_smbs_on_wire (pSession);
     case 0:     /* nothing for us to do */
@@ -4039,8 +4200,8 @@ int rtsmb_cli_session_handle_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSIO
         rtsmb_cli_wire_smb_read_end (&pSession->wire, pJob->mid);
         return RTSMB_CLI_SSN_RV_MALICE;
     }
-
-    if (h.status)
+                                // Special case, if SMB_NT_STATUS_MORE_PROCESSING_REQUIRED), fall through
+    if (h.status && h.status != SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
     {
         /* an error occurred */
         pJob->error = h.status;
@@ -4448,6 +4609,9 @@ int rtsmb_cli_session_send_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SE
     h.command = SMB_COM_NEGOTIATE;
     h.flags = 0;
     h.flags2 = 0;
+#if (HARDWIRED_CLIENT_EXTENDED_SECURITY)
+    h.flags2 |= SMB_FLG2_EXTENDED_SECURITY;
+#endif
     h.status = 0;
     h.tid = INVALID_TID;
     h.uid = INVALID_UID;
@@ -4532,11 +4696,16 @@ int rtsmb_cli_session_send_session_setup_pre_nt (PRTSMB_CLI_SESSION pSession, PR
     return RTSMB_CLI_SSN_RV_OK;
 }
 
-RTSMB_STATIC
-int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+// extern dword HEREHERE;
+
+RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
+rtp_printf("send\n");
+
     RTSMB_HEADER h;
     RTSMB_SESSION_SETUP_AND_X_NT s;
+//    PRTSMB_SESSION_SETUP_AND_X_EXT_SEC
+
 #if (INCLUDE_RTSMB_ENCRYPTION)
     byte ansi_encrypted_password [24];
     byte unicode_encrypted_password [24];
@@ -4565,50 +4734,170 @@ int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB
     s.capabilities |= CAP_NT_SMBS;
     s.capabilities |= CAP_STATUS32;
 
-#if (INCLUDE_RTSMB_ENCRYPTION)
-    /* only do encrypted stuff if we negotiated it, or if this is an anonymous
-       connect (checked by seeing if the password is empty) */
-    if (pSession->server_info.encrypted && tc_strcmp (pJob->data.session_setup.password, ""))
+    s.capabilities |= CAP_EXTENDED_SECURITY;
+
+    s.ansi_password_size = 0;
+    s.ansi_password = 0;
+    s.unicode_password_size = 0;
+    s.unicode_password = 0;
+    s.security_blob_size = (word) pJob->data.ntlm_auth.ntlm_response_blob_size;
+    s.security_blob = &pJob->data.ntlm_auth.ntlm_response_blob[0];
+
+//    spnego_get_client_ntlmssp_negotiate_blob(&pJob->data.ntlm_auth.ntlm_response_blob[0]);
+//    s.security_blob = &pJob->data.ntlm_auth.ntlm_response_blob[0];
+
+    s.account_name = 0;
+    s.primary_domain = 0;
+
+    s.native_os = native_os;
+    s.native_lan_man = native_lanman;
+
+    r = rtsmb_cli_wire_smb_add_start (&pSession->wire, pJob->mid);
+    ASSURE (r >= 0, RTSMB_CLI_SSN_RV_LATER);
+    pJob->mid = (word) r;
+    pJob->data.session_setup.user_struct->logon_mid = pJob->mid;
+    rtsmb_cli_wire_smb_add_header (&pSession->wire, pJob->mid, &h);
+
+    if (s.capabilities & CAP_EXTENDED_SECURITY)
     {
-        s.ansi_password_size = 24;
-        s.unicode_password_size = 24;
-
-        cli_util_encrypt_password_pre_nt (
-            pJob->data.session_setup.password,
-            pSession->server_info.challenge,
-            ansi_encrypted_password);
-        cli_util_encrypt_password_ntlm (
-            pJob->data.session_setup.password,
-            pSession->server_info.challenge,
-            unicode_encrypted_password);
-#if (DEBUG_AUTH)
-        {
-        int i;
-        rtp_printf("rtsmb_cli_session_send_session_setup_nt password %s\n",
-            pJob->data.session_setup.password);
-        for(i=0; i < s.ansi_password_size; i++)
-        {
-            rtp_printf("%x ", ansi_encrypted_password[i]);
-        }
-        rtp_printf("\n");
-        for (i=0; i < s.unicode_password_size; i++)
-        {
-            rtp_printf("%x ", unicode_encrypted_password[i]);
-        }
-        rtp_printf("\n");
-        }
-#endif
-
-        s.ansi_password = ansi_encrypted_password;
-        s.unicode_password = unicode_encrypted_password;
+//      rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_x_nt_ext_sec, &s, r);
+      rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_extended_setup, &s, r);
     }
     else
+      rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_x_nt, &s, r);
+    rtsmb_cli_wire_smb_add_end (&pSession->wire, pJob->mid);
+
+    return RTSMB_CLI_SSN_RV_OK;
+}
+
+RTSMB_STATIC int rtsmb_cli_session_receive_session_extended_logon (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+{
+    pJob->data.ntlm_auth.user_struct->uid = pHeader->uid;
+rtp_printf("PVO session_extended_logon set LOG_ON\n");
+    pJob->data.ntlm_auth.user_struct->state = CSSN_USER_STATE_LOGGED_ON;
+#ifdef STATE_DIAGNOSTICS
+RTSMB_GET_SESSION_USER_STATE (CSSN_USER_STATE_LOGGED_ON);
 #endif
+//    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->name, pJob->data.ntlm_auth.account_name);
+//    tc_strcpy (pJob->data.ntlm_auth.user_struct->password, pJob->data.ntlm_auth.password);
+//    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->domain_name, pJob->data.ntlm_auth.domain_name);
+
+    if (pSession->state == CSSN_STATE_RECOVERY_LOGGING_ON)
     {
-        s.ansi_password_size = (word) rtp_strlen (pJob->data.session_setup.password);
-        s.ansi_password = (PFBYTE) pJob->data.session_setup.password;
+        pSession->state = CSSN_STATE_RECOVERY_LOGGED_ON;
+#ifdef STATE_DIAGNOSTICS
+RTSMB_GET_SESSION_STATE (CSSN_STATE_RECOVERY_LOGGED_ON);
+#endif
+    }
+    return RTSMB_CLI_SSN_RV_OK;
+}
+
+RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+{
+    rtsmb_cli_session_user_close (pJob->data.ntlm_auth.user_struct);
+    return RTSMB_CLI_SSN_RV_INVALID_RV;
+}
+
+RTSMB_STATIC
+int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+{
+    RTSMB_HEADER h;
+    RTSMB_SESSION_SETUP_AND_X_NT s;
+//    PRTSMB_SESSION_SETUP_AND_X_EXT_SEC
+
+#if (INCLUDE_RTSMB_ENCRYPTION)
+    byte ansi_encrypted_password [24];
+    byte unicode_encrypted_password [24];
+#endif
+    int r;
+
+#if (DEBUG_AUTH)
+    rtp_printf("rtsmb_cli_session_send_session_setup_nt called pSession = %x encrypt = %d pwd = %s\n",
+        pSession, pSession->server_info.encrypted, pJob->data.session_setup.password);
+#endif
+    /* set up header */
+    rtsmb_cli_session_fill_header (pSession, &h);
+    h.command = SMB_COM_SESSION_SETUP_ANDX;
+
+
+
+    h.uid = pJob->data.session_setup.user_struct->uid;
+
+    /* set up session setup */
+    s.next_command = SMB_COM_NONE;
+    s.max_buffer_size = (word) RTSMB_CLI_WIRE_MAX_BUFFER_SIZE;
+    s.max_mpx_count = pSession->server_info.mpx_count;
+    s.vc_number = 1;
+    s.session_id = pSession->server_info.session_id;
+    s.capabilities = 0;
+#if INCLUDE_RTSMB_UNICODE
+    s.capabilities |= CAP_UNICODE;
+#endif
+    s.capabilities |= CAP_NT_SMBS;
+    s.capabilities |= CAP_STATUS32;
+
+#if (HARDWIRED_CLIENT_EXTENDED_SECURITY)
+    s.capabilities |= CAP_EXTENDED_SECURITY;
+#endif
+
+    if (s.capabilities & CAP_EXTENDED_SECURITY)
+    {
+        s.ansi_password_size = 0;
+        s.ansi_password = 0;
         s.unicode_password_size = 0;
         s.unicode_password = 0;
+        s.security_blob_size = (word) spnego_get_client_ntlmssp_negotiate_blob(&s.security_blob);
+    }
+
+// =============================================
+    if ((s.capabilities & CAP_EXTENDED_SECURITY)==0)
+    {
+    #if (INCLUDE_RTSMB_ENCRYPTION)
+      /* only do encrypted stuff if we negotiated it, or if this is an anonymous
+         connect (checked by seeing if the password is empty) */
+      if (pSession->server_info.encrypted && tc_strcmp (pJob->data.session_setup.password, ""))
+      {
+          s.ansi_password_size = 24;
+          s.unicode_password_size = 24;
+
+          cli_util_encrypt_password_pre_nt (
+              pJob->data.session_setup.password,
+              pSession->server_info.challenge,
+              ansi_encrypted_password);
+          cli_util_encrypt_password_ntlm (
+              pJob->data.session_setup.password,
+              pSession->server_info.challenge,
+              unicode_encrypted_password);
+    #if (DEBUG_AUTH)
+          {
+          int i;
+          rtp_printf("rtsmb_cli_session_send_session_setup_nt password %s\n",
+              pJob->data.session_setup.password);
+          for(i=0; i < s.ansi_password_size; i++)
+          {
+              rtp_printf("%x ", ansi_encrypted_password[i]);
+          }
+          rtp_printf("\n");
+          for (i=0; i < s.unicode_password_size; i++)
+          {
+              rtp_printf("%x ", unicode_encrypted_password[i]);
+          }
+          rtp_printf("\n");
+          }
+    #endif
+
+          s.ansi_password = ansi_encrypted_password;
+          s.unicode_password = unicode_encrypted_password;
+      }
+      else
+    #endif
+      {
+          s.ansi_password_size = (word) rtp_strlen (pJob->data.session_setup.password);
+          s.ansi_password = (PFBYTE) pJob->data.session_setup.password;
+          s.unicode_password_size = 0;
+          s.unicode_password = 0;
+      }
+    // =============================================
     }
 
     s.account_name = pJob->data.session_setup.account_name;
@@ -4621,7 +4910,13 @@ int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB
     pJob->mid = (word) r;
     pJob->data.session_setup.user_struct->logon_mid = pJob->mid;
     rtsmb_cli_wire_smb_add_header (&pSession->wire, pJob->mid, &h);
-    rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_x_nt, &s, r);
+
+    if (s.capabilities & CAP_EXTENDED_SECURITY)
+    {
+      rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_x_nt_ext_sec, &s, r);
+    }
+    else
+      rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_session_setup_and_x_nt, &s, r);
     rtsmb_cli_wire_smb_add_end (&pSession->wire, pJob->mid);
 
     return RTSMB_CLI_SSN_RV_OK;
@@ -5841,6 +6136,7 @@ int rtsmb_cli_session_receive_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI
 
 #if (DEBUG_AUTH)
     rtp_printf("rtsmb_cli_session_receive_negotiate: pJob = %x\n", pJob);
+    rtp_printf("rtsmb_cli_session_receive_negotiate: Status == %X\n", pHeader->status);
 #endif
     nr.challenge_size = 8;
     nr.challenge = pSession->server_info.challenge;
@@ -5853,6 +6149,8 @@ int rtsmb_cli_session_receive_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI
     nr.max_vcs = 0;
     nr.session_id = 0;
     nr.max_mpx_count = 0;
+    nr.spnego_blob_size = 0; /* Used if capabilities & CAP_EXTENDED_SECURITY to hold security blob*/
+	nr.spnego_blob = 0;
 
     rtsmb_cli_wire_smb_read (&pSession->wire, pHeader->mid, cli_cmd_read_negotiate, &nr, r);
     ASSURE (r == 0, RTSMB_CLI_SSN_RV_MALFORMED);
@@ -5866,6 +6164,7 @@ int rtsmb_cli_session_receive_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI
     pSession->server_info.capabilities = nr.capabilities;
     pSession->server_info.encrypted = ON (nr.security_mode, 0x2);
 #if (DEBUG_AUTH)
+    rtsmb_dump_bytes("spnego_blob", nr.spnego_blob, nr.spnego_blob_size, DUMPBIN);
     rtp_printf("rtsmb_cli_session_receive_negotiate: pSession = %x, encrypt = %d\n",
         pSession, pSession->server_info.encrypted);
 #endif
@@ -5875,31 +6174,27 @@ int rtsmb_cli_session_receive_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI
     pSession->server_info.session_id = nr.session_id;
     pSession->server_info.mpx_count = (word) MIN (nr.max_mpx_count, prtsmb_cli_ctx->max_jobs_per_session);
 
-    if (pSession->server_info.encrypted)
+    if (pHeader->flags2 & SMB_FLG2_EXTENDED_SECURITY)
+      ;
+    else if (pSession->server_info.encrypted)
     {
+#if (DEBUG_AUTH)
+    rtp_printf("rtsmb_cli_session_receive_negotiate: challange size == %d\n",nr.challenge_size);
+#endif
         /* we currently only support 8-bytes */
         ASSURE (nr.challenge_size == 8, RTSMB_CLI_SSN_RV_DEAD);
     }
-
+#if (DEBUG_AUTH)
+    rtp_printf("rtsmb_cli_session_receive_negotiate: Okay \n");
+#endif
     return RTSMB_CLI_SSN_RV_OK;
 }
 
-RTSMB_STATIC
-int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+
+
+RTSMB_STATIC void rtsmb_cli_session_set_logged_on(PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
 {
-    RTSMB_SESSION_SETUP_AND_X_R s;
-    int r = 0;
-
-    s.srv_native_os = 0;
-    s.srv_native_lan_man = 0;
-    s.srv_primary_domain = 0;
-
-    rtsmb_cli_wire_smb_read (&pSession->wire, pHeader->mid, cli_cmd_read_session_setup_and_x, &s, r);
-    ASSURE (r == 0, RTSMB_CLI_SSN_RV_MALFORMED);
-
-    /* make sure we have a valid user */
-    ASSURE (pJob->data.session_setup.user_struct->state == CSSN_USER_STATE_LOGGING_ON, RTSMB_CLI_SSN_RV_BAD_UID);
-
+rtp_printf("PVO rtsmb_cli_session_set_logged_on set LOG_ON\n");
     pJob->data.session_setup.user_struct->uid = pHeader->uid;
     pJob->data.session_setup.user_struct->state = CSSN_USER_STATE_LOGGED_ON;
 #ifdef STATE_DIAGNOSTICS
@@ -5916,6 +6211,105 @@ RTSMB_GET_SESSION_USER_STATE (CSSN_USER_STATE_LOGGED_ON);
 RTSMB_GET_SESSION_STATE (CSSN_STATE_RECOVERY_LOGGED_ON);
 #endif
     }
+}
+
+
+RTSMB_STATIC int rtsmb_cli_session_receive_session_extended_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+{
+    RTSMB_SESSION_SETUP_AND_X_EXT_SEC_R s;
+    int r = 0;
+
+    s.srv_native_os = 0;
+    s.srv_native_lan_man = 0;
+    s.srv_primary_domain = 0;
+
+    rtsmb_cli_wire_smb_read (&pSession->wire, pHeader->mid, cli_cmd_read_session_setup_and_x_ext_sec, &s, r);
+    rtp_printf("recieved setup wih extended security r == %d \n", r);
+    ASSURE (r == 0, RTSMB_CLI_SSN_RV_MALFORMED);
+    /* make sure we have a valid user */
+    ASSURE (pJob->data.session_setup.user_struct->state == CSSN_USER_STATE_LOGGING_ON, RTSMB_CLI_SSN_RV_BAD_UID);
+
+//    if (ON (pSession->server_info.capabilities, CAP_EXTENDED_SECURITY))
+    if (pHeader->flags2 & SMB_FLG2_EXTENDED_SECURITY)
+    {
+      rtp_printf("Yeah setup wih extended security \n");
+      pJob->data.session_setup.user_struct->spnego_blob_size = s.blob_size;
+      pJob->data.session_setup.user_struct->spnego_blob      = s.blob;
+      rtp_printf("Yeah blobsize ==  %d \n",pJob->data.session_setup.user_struct->spnego_blob);
+      pJob->data.session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
+    }
+#if 0
+typedef struct
+{
+	byte next_command;
+	word max_buffer_size;
+	word max_mpx_count;
+	word vc_number;
+	dword session_id;
+	dword capabilities;
+
+	s.blob_size;
+	s.blob;
+	s.native_os_size;
+	s.native_os;	/* in unicode */
+	s.native_lan_man_size;
+	s.native_lan_man;	/* in unicode */
+
+    sid
+    pJob->data.session_setup.account_name;
+    pJob->data.session_setup.domain_name;
+    pJob->data.session_setup.password;
+
+    s.blob contains  serverChallenge and  serverInfoblock
+
+    pJob->data.session_setup.account_name;
+
+
+if (s.blob)
+{
+    (INDEX_OF (prtsmb_cli_ctx->sessions, pSession)
+    int rtsmb_cli_session_ntlm_auth (INDEX_OF(prtsmb_cli_ctx->sessions, pSession), pJob->data.session_setup.account_name, pJob->data.session_setup.password, pJob->data.session_setup.domain_name, PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
+    rtp_free(s.blob);
+}
+int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain,PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
+    pJob->data.session_setup.user_struct->
+
+    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->name, pJob->data.ntlm_auth.account_name);
+    tc_strcpy (pJob->data.ntlm_auth.user_struct->password, pJob->data.ntlm_auth.password);
+    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->domain_name, pJob->data.ntlm_auth.domain_name);
+
+
+    //    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->name, pJob->data.ntlm_auth.account_name);
+//    tc_strcpy (pJob->data.ntlm_auth.user_struct->password, pJob->data.ntlm_auth.password);
+//    rtsmb_cpy (pJob->data.ntlm_auth.user_struct->domain_name, pJob->data.ntlm_auth.domain_name);
+int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain,PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
+    }
+#endif
+    return RTSMB_CLI_SSN_RV_OK;
+}
+
+
+RTSMB_STATIC int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+{
+    RTSMB_SESSION_SETUP_AND_X_R s;
+    int r = 0;
+
+    if (pHeader->flags2 & SMB_FLG2_EXTENDED_SECURITY)
+      return rtsmb_cli_session_receive_session_extended_setup ( pSession, pJob,  pHeader);
+
+
+    s.srv_native_os = 0;
+    s.srv_native_lan_man = 0;
+    s.srv_primary_domain = 0;
+
+    rtsmb_cli_wire_smb_read (&pSession->wire, pHeader->mid, cli_cmd_read_session_setup_and_x, &s, r);
+    ASSURE (r == 0, RTSMB_CLI_SSN_RV_MALFORMED);
+
+    /* make sure we have a valid user */
+    ASSURE (pJob->data.session_setup.user_struct->state == CSSN_USER_STATE_LOGGING_ON, RTSMB_CLI_SSN_RV_BAD_UID);
+
+//    if (ON (pSession->server_info.capabilities, CAP_EXTENDED_SECURITY))
+   rtsmb_cli_session_set_logged_on(pSession, pJob, pHeader);
 
     return RTSMB_CLI_SSN_RV_OK;
 }

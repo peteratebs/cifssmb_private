@@ -76,6 +76,7 @@ typedef struct decoded_NegTokenTarg_s {
   SecurityBuffer_t *session_key;
 } decoded_NegTokenTarg_t;
 
+
 typedef struct ntlmv2_blob_s {
 
   byte  rversion ;             // 1 byte       ntlmssp.ntlmv2_response.rversion
@@ -93,13 +94,25 @@ typedef struct ntlmv2_response_s {
   ntlmv2_blob_t         ntlmv2_blob;
 } ntlmv2_response_t;
 
+typedef struct decoded_NegTokenTarg_challenge_s {
+    dword Flags;
+    byte ntlmserverchallenge[8];
+    SecurityBuffer_t *target_name;
+    SecurityBuffer_t *target_info;
+} decoded_NegTokenTarg_challenge_t;
+
+
 
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
+int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
+void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
 int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
 void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
 int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
 int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
 void spnego_get_Guid(byte *pGuid);
 int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
-int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
 void spnego_init_extended_security(void);
+
+int spnego_get_client_ntlmssp_negotiate_blob(byte **pblob);

@@ -169,8 +169,16 @@ int cli_cmd_fill_session_setup_and_x_pre_nt (PFVOID origin, PFVOID buf, rtsmb_si
 	return (int) PDIFF (e, s);
 }
 
+int cli_cmd_fill_session_setup_and_extended_setup (PFVOID origin, PFVOID buf, rtsmb_size size,
+	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_NT pSetup)
+{
+ // Actually is the same packet format as nt_ext_sec
+ return cli_cmd_fill_session_setup_and_x_nt_ext_sec (origin, buf, size, pHeader, pSetup);
+}
+
+
 int cli_cmd_fill_session_setup_and_x_nt_ext_sec (PFVOID origin, PFVOID buf, rtsmb_size size,
-	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_EXT_SEC pSetup)
+	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_NT pSetup)
 {
 	PFVOID s, e;
 	PFVOID bs;	/* byte start */
@@ -188,7 +196,7 @@ int cli_cmd_fill_session_setup_and_x_nt_ext_sec (PFVOID origin, PFVOID buf, rtsm
 	RTSMB_PACK_WORD (pSetup->max_mpx_count);
 	RTSMB_PACK_WORD (pSetup->vc_number);
 	RTSMB_PACK_DWORD (pSetup->session_id);
-	RTSMB_PACK_WORD ((word) (pSetup->blob_size & 0xFFFF));
+	RTSMB_PACK_WORD ((word) (pSetup->security_blob_size & 0xFFFF));
 	RTSMB_PACK_DWORD (0); /* reserved */
 	RTSMB_PACK_DWORD (pSetup->capabilities);
 
@@ -197,7 +205,7 @@ int cli_cmd_fill_session_setup_and_x_nt_ext_sec (PFVOID origin, PFVOID buf, rtsm
 
 	bs = buf;	/* measure start of data section */
 
-	RTSMB_PACK_ITEM (pSetup->blob, pSetup->blob_size);
+	RTSMB_PACK_ITEM (pSetup->security_blob, pSetup->security_blob_size);
 	RTSMB_PACK_STRING (pSetup->native_os, RTSMB_PACK_ANY);
 	RTSMB_PACK_STRING (pSetup->native_lan_man, RTSMB_PACK_ANY);
 

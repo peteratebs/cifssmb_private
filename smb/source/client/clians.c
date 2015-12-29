@@ -19,6 +19,7 @@
 #include "smbread.h"
 #include "smbpack.h"
 #include "smbutil.h"
+#include "rtpmem.h"
 
 
 RTSMB_STATIC
@@ -175,12 +176,21 @@ int cli_cmd_read_negotiate_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 	RTSMB_READ_BYTE (&b);	/* challenge key length */
 	RTSMB_READ_WORD (&w); /* byte count */
 
+    //
+    rtp_printf("cli_cmd_read_negotiate_nt: flags == %X\n",pHeader->flags2);
+    if (pHeader->flags2 & SMB_FLG2_EXTENDED_SECURITY)
+    {
+      rtp_printf("cli_cmd_read_negotiate_nt: extended, yes\n");
+    }
+
 	/* guid is only present if extended security is on */
 	if (ON (pNegotiateR->capabilities, CAP_EXTENDED_SECURITY))
 	{
 		RTSMB_READ_ITEM (&pNegotiateR->guid, 16);
 		pNegotiateR->valid_guid = TRUE;
 		w = (word) (w - 16);
+        pNegotiateR->spnego_blob_size = w;
+        pNegotiateR->spnego_blob = buf;
 	}
 	else
 	{
@@ -276,7 +286,7 @@ int cli_cmd_read_session_setup_and_x_ext_sec (PFVOID origin, PFVOID buf, rtsmb_s
 	s = buf;
 
 	RTSMB_READ_BYTE (&b);	/* word count */
-	if (b != 3)
+	if (b != 4)
 		return -1;
 
 	RTSMB_READ_BYTE (&pSetupR->next_command);
@@ -289,16 +299,18 @@ int cli_cmd_read_session_setup_and_x_ext_sec (PFVOID origin, PFVOID buf, rtsmb_s
 	RTSMB_READ_WORD (&w);	/* blob size */
 	pSetupR->blob_size = w;
 	RTSMB_READ_WORD (&w); /* byte count */
-	RTSMB_READ_STRING (pSetupR->srv_native_os, pSetupR->srv_native_os_size, 0);
-	RTSMB_READ_STRING (pSetupR->srv_native_lan_man, pSetupR->srv_native_lan_man_size, 0);
-	RTSMB_READ_STRING (pSetupR->srv_primary_domain, pSetupR->srv_primary_domain_size, 0);
 
-	diff = PDIFF (PADD (origin, offset), buf);
-	if (diff >= 0)	{RTSMB_READ_SKIP ((rtsmb_size)diff);}
-	else			{return -1;}
+	pSetupR->blob = rtp_malloc(pSetupR->blob_size);
 
+	RTSMB_READ_ITEM (pSetupR->blob, pSetupR->blob_size);
+    // Not sure if this is right.
+    if (offset)
+    {
+	  diff = PDIFF (PADD (origin, offset), buf);
+	  if (diff >= 0)	{RTSMB_READ_SKIP ((rtsmb_size)diff);}
+	  else			{return -1;}
+    }
 	e = buf;
-
 	return (int) PDIFF (e, s);
 }
 
@@ -912,6 +924,31 @@ int cli_cmd_read_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size
 	size = (rtsmb_size) PDIFF (allowed_end, s);
 	buf = s;
 
+
+
+#if (HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF==1)
+  RTSMB_READ_DWORD (&pInfo->low_creation_time);
+  RTSMB_READ_DWORD (&pInfo->high_creation_time);
+  RTSMB_READ_DWORD (&pInfo->low_last_access_time);
+  RTSMB_READ_DWORD (&pInfo->high_last_access_time);
+  RTSMB_READ_DWORD (&pInfo->low_last_write_time);
+  RTSMB_READ_DWORD (&pInfo->high_last_write_time);
+  RTSMB_READ_DWORD (&pInfo->low_change_time);
+  RTSMB_READ_DWORD (&pInfo->high_change_time);
+  RTSMB_READ_DWORD (&pInfo->ext_file_attributes);
+  RTSMB_READ_DWORD (&pInfo->Reserved1);
+  RTSMB_READ_DWORD (&pInfo->low_allocation_size);
+  RTSMB_READ_DWORD (&pInfo->high_allocation_size);
+  RTSMB_READ_DWORD (&pInfo->low_end_of_file);
+  RTSMB_READ_DWORD (&pInfo->high_end_of_file);
+  RTSMB_READ_DWORD (&pInfo->number_of_links);
+  RTSMB_READ_BYTE (&pInfo->delete_pending);
+  RTSMB_READ_BYTE (&pInfo->is_directory);
+  RTSMB_READ_WORD (&pInfo-> Reserved2);
+  RTSMB_READ_DWORD (&pInfo->EaSize);
+  RTSMB_READ_DWORD (&pInfo->filename_size);
+  RTSMB_READ_STRING_BYTES (pInfo->filename, pInfo->filename_size, ((BYTE)pInfo->filename_size), FALSE, RTSMB_READ_ANY);
+#else
 	RTSMB_READ_DWORD (&pInfo->low_creation_time);
 	RTSMB_READ_DWORD (&pInfo->high_creation_time);
 	RTSMB_READ_DWORD (&pInfo->low_last_access_time);
@@ -920,7 +957,7 @@ int cli_cmd_read_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size
 	RTSMB_READ_DWORD (&pInfo->high_last_write_time);
 	RTSMB_READ_DWORD (&pInfo->low_change_time);
 	RTSMB_READ_DWORD (&pInfo->high_change_time);
-	RTSMB_READ_WORD (&pInfo->attributes);
+ 	RTSMB_READ_WORD (&pInfo->attributes);
 	RTSMB_READ_DWORD (&pInfo->low_allocation_size);
 	RTSMB_READ_DWORD (&pInfo->high_allocation_size);
 	RTSMB_READ_DWORD (&pInfo->low_end_of_file);
@@ -940,6 +977,8 @@ int cli_cmd_read_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size
 	RTSMB_READ_DWORD (&pInfo->alignment_requirement);
 	RTSMB_READ_SKIP (4); /* file name size */
 	RTSMB_READ_STRING (pInfo->filename, pInfo->filename_size, RTSMB_READ_ANY);
+#endif
+
 
 	e = buf;
 

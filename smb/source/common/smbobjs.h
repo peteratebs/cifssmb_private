@@ -62,7 +62,7 @@ typedef struct
 	byte challenge_size;
 	PFBYTE challenge;
 
-	byte spnego_blob_size; /* Used if capabilities & CAP_EXTENDED_SECURITY to hold security blob*/
+	word spnego_blob_size; /* Used if capabilities & CAP_EXTENDED_SECURITY to hold security blob*/
 	PFBYTE spnego_blob;
 
 	BBOOL valid_domain;	/* true if |domain| has useful data */

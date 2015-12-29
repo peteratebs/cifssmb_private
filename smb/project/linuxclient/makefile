@@ -16,7 +16,7 @@ SMB_PATH  = ../../../smb
 
 include ../mkgnu.inc
 
-includes = . $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+includes = . $(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 lib_to_http_common_path      = $(HTTP_PATH)/source
 lib_to_http_example_path     = $(HTTP_PATH)/examples
@@ -27,9 +27,9 @@ lib_to_http_include_path     = $(HTTP_PATH)/include
 # SOURCE PATHS
 ########################################################################
 
-vpath %.c   . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
+vpath %.c   . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path)  $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
 
-vpath %.h   .. $(lib_to_rtsmb_common_include) $(lib_to_rtsmb_client_include) $(lib_to_rtsmb2_common_include)$(lib_to_http_include_path) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+vpath %.h   .. $(lib_to_rtsmb_common_include) $(lib_to_rtsmb_client_include) $(lib_to_rtsmb2_common_include)$(lib_to_http_include_path)  $(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 vpathXXX = . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
 ########################################################################
@@ -62,8 +62,8 @@ endif
 # dirs = $(lib_to_webc_path)
 
 # rtsmb client build
-includes += $(lib_to_rtsmb_client_include) $(lib_to_http_include_path)
-dirs = $(lib_to_rtsmb_client_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_client_demo_path)
+includes += $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_client_include) $(lib_to_http_include_path) $(lib_to_rtsmb_commonnb_include)
+dirs = $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_client_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_client_demo_path)
 
 ## Note: debug dynamic allocation for client
 #defines += ALLOC_FROM_HEAP
@@ -79,24 +79,25 @@ dirs = $(lib_to_rtsmb_client_path) $(lib_to_http_common_path) $(lib_to_http_exam
 # cfiles += $(lib_to_rtsmb2_common_path)/cli_smb2_proc.c
 # cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
 
-cfiles += $(lib_to_rtsmb_common_path)/des_enc.c
-cfiles += $(lib_to_rtsmb_common_path)/ecb_enc.c
-cfiles += $(lib_to_rtsmb_common_path)/hmac_md5.c
-cfiles += $(lib_to_rtsmb_common_path)/md5rsa.c
-cfiles += $(lib_to_rtsmb_common_path)/md4_dgst.c
-cfiles += $(lib_to_rtsmb_common_path)/md4_one.c
+cfiles += $(lib_to_rtsmb_crypto_path)/des_enc.c
+cfiles += $(lib_to_rtsmb_crypto_path)/ecb_enc.c
+cfiles += $(lib_to_rtsmb_crypto_path)/hmac_md5.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md5rsa.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md4_dgst.c
+cfiles += $(lib_to_rtsmb_crypto_path)/md4_one.c
+cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbnet.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbos.c
-cfiles += $(lib_to_rtsmb_common_path)/set_key.c
+cfiles += $(lib_to_rtsmb_crypto_path)/set_key.c
 cfiles += $(lib_to_rtsmb_common_path)/smbbrbuf.c
 cfiles += $(lib_to_rtsmb_common_path)/smbbrcfg.c
 cfiles += $(lib_to_rtsmb_common_path)/smbdebug.c
 cfiles += $(lib_to_rtsmb_common_path)/smbglue.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnb.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbds.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbns.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnbss.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbns.c
+cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbss.c
 cfiles += $(lib_to_rtsmb_common_path)/smbnet.c
 cfiles += $(lib_to_rtsmb_common_path)/smbpack.c
 cfiles += $(lib_to_rtsmb_common_path)/smbread.c

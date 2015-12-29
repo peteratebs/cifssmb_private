@@ -233,8 +233,8 @@ int rtsmb_cli_wire_start_connect (PRTSMB_CLI_WIRE_SESSION pSession)
     else
     {
         rtp_net_setblocking(pSession->nbssAttempt, 0);
-
-        if (rtp_net_connect(pSession->nbssAttempt, pSession->server_ip, rtsmb_nbss_port, 4) == -1)
+//        if (rtp_net_connect(pSession->nbssAttempt, pSession->server_ip, rtsmb_nbss_port, 4) == -1)
+        if (rtp_net_connect(pSession->nbssAttempt, pSession->server_ip, rtsmb_nbss_direct_port, 4) == -1)
         {
             rtp_net_setlinger(pSession->nbssAttempt, 1, 0);
             rtp_net_closesocket(pSession->nbssAttempt);
@@ -434,7 +434,9 @@ int rtsmb_cli_wire_connect (PRTSMB_CLI_WIRE_SESSION pSession)
     }
 
 
-    if (rtp_net_connect (nbssAttempt, pSession->server_ip, rtsmb_nbss_port, 4) == -1)
+
+    if (rtp_net_connect (nbssAttempt, pSession->server_ip, rtsmb_nbss_direct_port, 4) == -1)
+//    if (rtp_net_connect (nbssAttempt, pSession->server_ip, rtsmb_nbss_port, 4) == -1)
     {
         rtp_net_setlinger(nbssAttempt, 1, 0);
         rtp_net_closesocket(nbssAttempt);

@@ -16,7 +16,9 @@ int cli_cmd_fill_negotiate (PFVOID origin, PFVOID buf, rtsmb_size size,
 int cli_cmd_fill_session_setup_and_x_pre_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_PRE_NT pSetup);
 int cli_cmd_fill_session_setup_and_x_nt_ext_sec (PFVOID origin, PFVOID buf, rtsmb_size size,
-	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_EXT_SEC pSetup);
+	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_NT pSetup);
+int cli_cmd_fill_session_setup_and_extended_setup (PFVOID origin, PFVOID buf, rtsmb_size size,
+	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_NT pSetup);
 int cli_cmd_fill_session_setup_and_x_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_NT pSetup);
 
