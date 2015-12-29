@@ -464,7 +464,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        {
          if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
          {
-           printf("Got extended !!!  phase 1\n");
+           rtp_printf("Got extended !!!  phase 1\n");
            access = 0;
            authId = 0;
          }
@@ -2205,6 +2205,10 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
 
     pInBuf = PADD (pInBuf, size);
 
+#warning "HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)"
+//HEREHERE  - echo replies don't seem right
+
+
     /* now write a dummy response so we know where the buffer will be and sub
         functions can write to the correct place.  We will do this again later */
     size = srv_cmd_fill_header (pCtx->write_origin, buf,
@@ -2322,7 +2326,7 @@ BBOOL ProcTransaction2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBu
             (rtsmb_size)(SMB_BUFFER_SIZE - PDIFF (buf, pCtx->write_origin)));
         break;
     default:
-#ifdef RTP_DEBUG
+#if 1 // def RTP_DEBUG
         {
             char* tmpbuf;
             tmpbuf = trans2Commandname(command.setup[0]);
@@ -4741,6 +4745,8 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
          * pOutSmbHdr.  Most return a BBOOL, indicating whether we should
          * send a response or not.
          */
+//HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)
+//HEREHERE  - echo replies don't seem right
         switch (inCliHdr.command)
         {
         case SMB_COM_NEGOTIATE:

@@ -267,7 +267,7 @@ RTSMB_STATIC RTSMB_BROWSE_SERVER_INFO    enum_results                 [CFG_RTSMB
 static void * safemalloc(rtsmb_size bytes)
 {
    void * Result;
-   Result = malloc(bytes);
+   Result = rtp_malloc(bytes);
 
    if (bytes && !Result)
    {

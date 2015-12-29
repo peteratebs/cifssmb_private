@@ -2943,15 +2943,18 @@ int srv_cmd_fill_locking_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
   RTSMB_PACK_BYTE (pLockingR->next_command);
   RTSMB_PACK_BYTE (0);  /* reserved */
   poffset = buf;
-  RTSMB_PACK_WORD (0);  /* offset to next and_x */
+//  RTSMB_PACK_WORD (0);  /* offset to next and_x */
+  RTSMB_PACK_BYTE (0);  /* offset to next and_x */
   RTSMB_PACK_WORD (0);  /* byte count */
+
 
   e = buf;
 
   if (pLockingR->next_command != SMB_COM_NONE)
   {
     /* fill in offset */
-    rtsmb_pack_add_word_unsafe (poffset, (word) PDIFF (e, origin), FALSE);
+//    rtsmb_pack_add_word_unsafe (poffset, (word) PDIFF (e, origin), FALSE);
+    rtsmb_pack_add_byte_unsafe (poffset, (byte) PDIFF (e, origin));
   }
 
   return PDIFF (e, s);
