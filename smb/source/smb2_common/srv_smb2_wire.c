@@ -78,7 +78,8 @@ int rv = -1;
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 36, RtsmbWireVarDecodeNegotiateCommandCb);
             break;
         case SMB2_SESSION_SETUP  :
-            rv = RtsmbWireDecodeSmb2(pStream, pItem, 25, RtsmbWireVarDecodeSessionSetupCommandCb);
+            // The packetsize is 25 but that include the first byte of the buffer
+            rv = RtsmbWireDecodeSmb2(pStream, pItem, 25-1, RtsmbWireVarDecodeSessionSetupCommandCb);
             break;
         case SMB2_LOGOFF         :
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 4, 0);

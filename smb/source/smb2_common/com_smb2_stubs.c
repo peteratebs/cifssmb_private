@@ -52,14 +52,12 @@ dword RTSmb2_Encryption_Get_Spnego_New_SessionGlobalId(void)
 {
     return 99;
 }
-void  RTSmb2_Encryption_Spnego_Clear_SessionGlobalId(dword SessionId)
-{
-
-}
+int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
 byte *RTSmb2_Encryption_Get_Spnego_Default(rtsmb_size *buffer_size)
 {
-    *buffer_size = sizeof("HELOOFROMSPEGO");
-    return (byte *) "HELOOFROMSPEGO";
+byte *b;
+    *buffer_size = spnego_get_negotiate_ntlmssp_blob(&b);
+    return (byte *) b;
 }
 void RTSmb2_Encryption_Release_Spnego_Default(byte *pBuffer){}
 static char *algs[] = {"Algorithm1", "Algorith2","Algorithm3", 0};
@@ -88,7 +86,7 @@ byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size)
 }
 byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size  buffer_size)
 {
-    return (byte *)rtp_malloc(buffer_size*2, 0);  /* SPR - added who paramter */
+    return (byte *)rtp_malloc(buffer_size*2);
 }
 void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
 {

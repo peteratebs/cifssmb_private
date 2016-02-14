@@ -188,7 +188,7 @@ READ_PROLOG_TEMPLATE
     consumed = cmd_read_header_raw_smb2 (origin, buf, size, &pStream->InHdr);
     if (consumed > 0)
     {
-        ((PFBYTE)pStream->pInBuf) += consumed;  /* SPR - added casting to fix compile error */
+        pStream->pInBuf = PADD(pStream->pInBuf, consumed);
         pStream->read_buffer_remaining -= (rtsmb_size)consumed;
     }
 	return consumed;
@@ -323,7 +323,7 @@ int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize
 	e = buf;
     if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);
     consumed = (rtsmb_size)PDIFF (e, s);
-    ((PFBYTE)pStream->pOutBuf) += consumed;  /* SPR - added casting to fix compile error */
+    pStream->pInBuf = PADD(pStream->pInBuf, consumed);
     pStream->write_buffer_remaining-=consumed;
     pStream->OutBodySize+=consumed;
     if (pStream->SigningKey)
@@ -354,7 +354,7 @@ int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize
     int consumed;
 	e = buf;
         consumed = PDIFF (e, s);
-        ((PFBYTE)pStream->pInBuf) += consumed;  /* SPR - added cast to fix compile error */
+        pStream->pInBuf = PADD(pStream->pInBuf, consumed);
         pStream->read_buffer_remaining-=(rtsmb_size)consumed;
 //        if (pStream->SigningKey)
 //            RTSmb2_Encryption_Sign_message(pStream->OutHdr.Signature,pStream->SigningKey, pStream->SigningRule, pStream->read_origin,consumed);

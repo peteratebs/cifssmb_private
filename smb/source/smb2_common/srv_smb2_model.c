@@ -150,10 +150,7 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
 
     if (pSmbCtx->pCtxtsmb2Session)
     {
-        if (pSmbCtx->pCtxtsmb2Session)
-        {
-            pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
-        }
+      pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
     }
     if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
     {
@@ -188,6 +185,7 @@ pSmb2SrvModel_Session r=0;
     RELEASE_SEMAPHORE
     return r;
 }
+
 
 /* Add a session to the global session table. */
 BBOOL Smb2SrvModel_Global_Set_SessionInSessionList(pSmb2SrvModel_Session pSession)
@@ -224,6 +222,20 @@ int i;
     RELEASE_SEMAPHORE
 }
 
+/* Find a session in the global table based on Session ID and release it */
+void  RTSmb2_Encryption_Spnego_Clear_SessionGlobalId(dword SessionId)
+{
+pSmb2SrvModel_Session p;
+   do
+   {
+      p = Smb2SrvModel_Global_Get_SessionById(SessionId);
+      if (p)
+      {
+         Smb2SrvModel_Global_Remove_SessionFromSessionList(p);
+      }
+   }  while (p);
+}
+
 /* Find a session in the global table based on connection and Session ID */
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId)
 {
@@ -254,14 +266,17 @@ BBOOL is3XXDIALECT = (BBOOL)SMB2IS3XXDIALECT(pConnection->NegotiateDialect);
         global_caps |= SMB2_GLOBAL_CAP_LEASING;
     if (pConnection->SupportsMultiCredit)
         global_caps |= SMB2_GLOBAL_CAP_LARGE_MTU;
-    if (pSmb2SrvGlobal->IsMultiChannelCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_MULTI_CHANNEL)!=0 )
-        global_caps |= SMB2_GLOBAL_CAP_MULTI_CHANNEL;
-    if (pSmb2SrvGlobal->RTSMBIsLeaseDirectoriesCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_DIRECTORY_LEASING)!=0)
-        global_caps |= SMB2_GLOBAL_CAP_DIRECTORY_LEASING;
-    if (pSmb2SrvGlobal->RTSMBIsPersistentHandlesCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_PERSISTENT_HANDLES)!=0)
-        global_caps |= SMB2_GLOBAL_CAP_PERSISTENT_HANDLES;
-    if (pSmb2SrvGlobal->RTSMBIsEncryptionCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_ENCRYPTION)!=0)
-        global_caps |= SMB2_GLOBAL_CAP_ENCRYPTION;
+    if (pRequest)
+    {
+      if (pSmb2SrvGlobal->IsMultiChannelCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_MULTI_CHANNEL)!=0 )
+          global_caps |= SMB2_GLOBAL_CAP_MULTI_CHANNEL;
+      if (pSmb2SrvGlobal->RTSMBIsLeaseDirectoriesCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_DIRECTORY_LEASING)!=0)
+          global_caps |= SMB2_GLOBAL_CAP_DIRECTORY_LEASING;
+      if (pSmb2SrvGlobal->RTSMBIsPersistentHandlesCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_PERSISTENT_HANDLES)!=0)
+          global_caps |= SMB2_GLOBAL_CAP_PERSISTENT_HANDLES;
+      if (pSmb2SrvGlobal->RTSMBIsEncryptionCapable && is3XXDIALECT && (pRequest->Capabilities & SMB2_GLOBAL_CAP_ENCRYPTION)!=0)
+          global_caps |= SMB2_GLOBAL_CAP_ENCRYPTION;
+    }
     return global_caps;
 }
 

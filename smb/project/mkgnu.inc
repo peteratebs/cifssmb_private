@@ -18,7 +18,7 @@ root    = ..
 kernel  = c:
 
 #source path
-#lib_to_rtsmb2_common_path      = $(SMB_PATH)/source/smb2_common
+lib_to_rtsmb2_common_path      = $(SMB_PATH)/source/smb2_common
 lib_to_rtsmb_crypto_path      = $(SMB_PATH)/source/crypto
 lib_to_rtsmb_common_path      = $(SMB_PATH)/source/common
 lib_to_rtsmb_commonnb_path    = $(SMB_PATH)/source/commonnb
@@ -32,9 +32,9 @@ lib_to_rtptarget              = $(SMB_PATH)/../rtplatform/source/linux
 lib_to_rtpgeneric             = $(SMB_PATH)/../rtplatform/source/generic
 
 #include path
-#lib_to_rtsmb2_common_include   = $(SMB_PATH)/source/smb2_common
-#lib_to_rtsmb2_server_include   = $(SMB_PATH)/source/smb2_server
-#lib_to_rtsmb2_client_include   = $(SMB_PATH)/source/smb2_client
+lib_to_rtsmb2_common_include   = $(SMB_PATH)/source/smb2_common
+lib_to_rtsmb2_server_include   = $(SMB_PATH)/source/smb2_server
+lib_to_rtsmb2_client_include   = $(SMB_PATH)/source/smb2_client
 lib_to_rtsmb_crypto_include      = $(SMB_PATH)/source/crypto
 lib_to_rtsmb_common_include   = $(SMB_PATH)/source/common
 lib_to_rtsmb_commonnb_include = $(SMB_PATH)/source/commonnb

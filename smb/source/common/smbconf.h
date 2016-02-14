@@ -3,7 +3,7 @@
 
 #define INCLUDE_RTIP_RTPLATFORM 0
 /* define the following for SMBv2 support */
-//#define SUPPORT_SMB2
+#define SUPPORT_SMB2
 
 
 /* set this appropriately if you need far pointers */

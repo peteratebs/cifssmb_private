@@ -22,7 +22,7 @@
 //============================================================================
 
 /* Configs, none well thought out yet */
-#define RTSMB2_CFG_MAX_SESSIONS                         1
+#define RTSMB2_CFG_MAX_SESSIONS                         2
 #define RTSMB2_CFG_MAX_CONNECTIONS                      1
 #define RTSMB2_CFG_MAX_LOCK_SEQUENCES                 128
 #define RTSMB2_CFG_MAX_SHARES                          32
@@ -48,6 +48,8 @@
 #define RTSMB2_MAX_COMMENT_SIZE                42 // ??
 /* Client name or IP4/IPV6 string address string */
 #define RTSMB2_MAX_QUALIFIED_CLIENTNAME_SIZE   66 // ??
+
+#define RTSMB2_MAX_FILENAME_SIZE               512 // ??
 
 /* Transport name and bit flags stored in connect Connect.TransportName */
 #define RTSMB2_TRANSPORT_SMB_OVER_NBSS 1
@@ -248,6 +250,8 @@ typedef struct s_Smb2SrvModel_Connection
                                             on this connection, in a form that MUST follow the syntax as specified in
                                             section 2.2.4. */
 } Smb2SrvModel_Connection;
+
+
 
 /* 3.3.1.8 Per Session ............................................................................................. 226 */
 typedef struct s_Smb2SrvModel_Session

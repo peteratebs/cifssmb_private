@@ -45,7 +45,6 @@ typedef struct smb2_stream_s {
 //    struct Rtsmb2ClientSession_s   *psmb2Session;   // For a client. points to smb2 session structure
     struct RTSMB_CLI_SESSION_JOB_T *pJob;           // For a client points to the controlling SMBV1 job structure.
 
-
     int      PadValue;                              // If the stream contains a compound message, set to the proper pad value between commands.
     BBOOL    EncryptMessage;                        // For write operations, encryption is required. For reads decryption is required.
     BBOOL    Success;                               // Indicates the current state of read or write operation is succesful.
@@ -69,6 +68,7 @@ typedef struct smb2_stream_s {
 
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
+
 
 
 
@@ -118,15 +118,24 @@ extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
     size    = (rtsmb_size)pStream->write_buffer_remaining; \
     s = buf;
 
+//#define FILL_EPILOG_TEMPLATE \
+//	e = buf;\
+//    if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);\
+//    consumed = (rtsmb_size)PDIFF (e, s);\
+//    ((PFBYTE)pStream->pOutBuf) += consumed;\
+//    pStream->write_buffer_remaining-=consumed;\
+//    pStream->OutBodySize+=consumed;\
+//	return (int) consumed;
 
 #define FILL_EPILOG_TEMPLATE \
 	e = buf;\
     if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);\
     consumed = (rtsmb_size)PDIFF (e, s);\
-    ((PFBYTE)pStream->pOutBuf) += consumed;\
+    pStream->pOutBuf = PADD(pStream->pOutBuf,consumed);\
     pStream->write_buffer_remaining-=consumed;\
     pStream->OutBodySize+=consumed;\
 	return (int) consumed;
+
 
 #define READ_PROLOG_TEMPLATE \
 PFVOID origin,buf;\

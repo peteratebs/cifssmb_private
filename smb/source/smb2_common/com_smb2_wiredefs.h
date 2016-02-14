@@ -117,6 +117,7 @@
 #define SMB2_STATUS_NETWORK_NAME_DELETED        0xC00000C9 /* The network name specified by the client has been deleted on the server. This error is returned if the client specifies an incorrect TID or the share on the server represented by the TID was deleted. */
 #define SMB2_STATUS_BAD_NETWORK_NAME            0xC00000CC /* The network or file name in a tree connect request was not found.  */
 #define SMB2_STATUS_USER_SESSION_DELETED        0xC0000203 /* The user session specified by the client has been deleted on the server. This error is returned by the server if the client sends an incorrect UID. */
+#define SMB2_STATUS_NOT_FOUND                   0xC0000225 /* Experimental. Send in response to a DFS_GET_REFERRALS query */
 #define SMB2_STATUS_NETWORK_SESSION_EXPIRED     0xC000035C /* The client's session has expired; therefore, the client MUST re-authenticate to continue accessing remote resources. */
 #define SMB2_STATUS_SMB_TOO_MANY_UIDS           0xC000205A /*  */
 
@@ -708,6 +709,8 @@ PACK_PRAGMA_POP
 typedef RTSMB2_CANCEL_C RTSMB_FAR *PRTSMB2_CANCEL_C;
 
 
+
+#define FSCTL_DFS_GET_REFERRALS 0x00060194
 /* Note: 2.2.31.1 contains formats for IOCTL requests */
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_IOCTL_C

@@ -43,6 +43,10 @@
 
 #include "rtptime.h"
 
+#ifdef SUPPORT_SMB2
+#include "com_smb2_wiredefs.h"
+extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
+#endif
 /*============================================================================   */
 /*    SERVER STATE DIAGNOSTICS (COMPILE TIME)                                    */
 /*============================================================================   */
@@ -1561,9 +1565,16 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
             if (dialectList[i].name == srv_dialect_smb2002 || dialectList[i].name == srv_dialect_smb2xxx)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Temporarilly Ignoring client COM_NEGOTIATE request with 2.002 option. !!!!!!!!!!!!!!\n",0);
-                continue;
-            }
+               if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
+               {
+// rtp_printf("IGNORE smb dialect !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+//                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Temporarilly Ignoring client COM_NEGOTIATE request with 2.002 option. !!!!!!!!!!!!!!\n",0);
+//                continue;
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Responding to 2.002 option. !!!!!!!!!!!!!!\n",0);
+                dialect = dialectList[i].dialect;
+                bestEntry = entry;
+               }
+            } else
 #endif
             if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
             {
@@ -1578,6 +1589,14 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
     }
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
     authmode = pCtx->accessMode;
+
+#ifdef SUPPORT_SMB2
+    if (dialect >= SMB2_2002) /* PVO */
+    {
+        /* Create an SMB2 Negotiate response reply in our output stream */
+        return SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (pCtx);
+    }
+#endif
 
     if ((dialect <= PC_NETWORK) || (dialectList[dialect].priority < 1))
     {
@@ -1672,42 +1691,8 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.valid_guid = FALSE;
         response.valid_domain = FALSE;
         }
-#ifdef SUPPORT_SMB2
-#if (0)
-THIS IS WRONG
-        if (dialect >= SMB2_2002) /* PVO */
-        {
-            RTSMB2_NEGOTIATE_R response;
-
-            response.StructureSize      = 65;
-            response.SecurityMode       = SMB2_NEGOTIATE_SIGNING_ENABLED;
-            response.DialectRevision    = dialect;
-            response.Reserved = 0;
-            response.MaxTransactSize    =  pCtx->readBufferSize;
-            response.MaxReadSize        =  pCtx->readBufferSize;
-            response.MaxWriteSize       =  pCtx->readBufferSize;
-
-            /* These may be wrong. Check with sniffer   */
-            response.SystemTime_low        = 0;
-            response.SystemTime_high       = 0;
-            response.ServerStartTime_low   = 0;
-            response.ServerStartTime_high  = 0;
-            /* Set to zero. This should cause the client to revert to security non   */
-            response.SecurityBufferOffset = 0;
-            response.SecurityBufferLength = 0;
-            response.pSecurityBuffer = 0;
-            response.Reserved2 = 0;
-
-            /* Passes srv_cmd_fill_negotiate_smb2 pOutHdr, and &response   */
-            WRITE_SMB2 (cmd_fill_negotiate_response_smb2);
-        }
-        else
-#endif
-#endif
-        {
-            /* and copy to buffer   */
-            WRITE_SMB (srv_cmd_fill_negotiate_nt);
-        }
+        /* and copy to buffer   */
+        WRITE_SMB (srv_cmd_fill_negotiate_nt);
     }
     else
     {
@@ -4509,7 +4494,10 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         if (pSctx->state == NOTCONNECTED)
         {
             if (pInBuf[0] == 0xFE)
+            {
+    printf("call SMBS_InitSessionCtx_smb2 from SMBS_ProcSMBPacket\n");
                 SMBS_InitSessionCtx_smb2(pSctx);
+            }
             else
                 SMBS_InitSessionCtx_smb1(pSctx);
 #ifdef STATE_DIAGNOSTICS

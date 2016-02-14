@@ -129,6 +129,7 @@ int smbservermain ()
 
 
 #if (HARDWIRE_USE_CONFIG_FILE==1)
+    rtsmb_srv_share_add_ipc ((PFCHAR)0);
     rtsmb_srv_read_config ("smb_config.txt");
 #else
     rtsmb_srv_non_file_config();

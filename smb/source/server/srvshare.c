@@ -147,6 +147,28 @@ PSR_RESOURCE SR_NextResource( PSR_RESOURCE pPrev )
 	return rv;
 } // End SR_NextResource
 
+
+
+static PFRTCHAR GetNameRoot( PFRTCHAR name)
+{
+  int i;
+  if(name[0] == '\\')
+  {
+  // get past obligatory slashes
+      for(i=0; i < 3; name++)
+      {
+          if(name[0] == '\0')
+          {
+              return 0;
+          }
+          if(name[0] == '\\')
+          {
+              i++;
+          }
+      }
+  }
+  return name;
+}
 /*
 ================
 	PFCHAR path - x
@@ -208,6 +230,7 @@ int SR_GetTreeIdFromName ( PFRTCHAR name )
 {
 	int i;
 
+    name = GetNameRoot( name); // Strip off \\netaddrss\ part of name
 	CLAIM_SHARE ();
 	for (i = 0; i < prtsmb_srv_ctx->max_shares; i++)
 	{

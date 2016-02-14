@@ -69,11 +69,13 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 #RTSMB COMMON FILES USED
 
 
-# cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_model.c
-# cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
-# cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc.c
-# cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_wire.c
-# cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_model.c
+cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_ioctl.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_create.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_wire.c
+cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
 
 
 cfiles += $(lib_to_rtsmb_crypto_path)/des_enc.c
@@ -92,6 +94,9 @@ cfiles += $(lib_to_rtsmb_common_path)/smbbrbuf.c
 cfiles += $(lib_to_rtsmb_common_path)/smbbrcfg.c
 cfiles += $(lib_to_rtsmb_common_path)/smbdebug.c
 cfiles += $(lib_to_rtsmb_common_path)/smbglue.c
+
+
+
 ifeq ($(donbserver),"Y")
 cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
 cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c

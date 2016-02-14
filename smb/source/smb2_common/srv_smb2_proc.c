@@ -46,6 +46,12 @@
 #include "smbnbss.h"
 #include "srvcfg.h"
 #include "smbnet.h"
+#include "smbspnego.h"
+
+#include "wchar.h"
+
+
+extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
 
 
 #include "rtptime.h"
@@ -60,6 +66,9 @@ extern int RtsmbWriteSrvError(smb2_stream *pStream, byte errorClass, word errorC
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
+extern BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_Create(smb2_stream  *pStream);
+
 static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[]);
 
 
@@ -70,13 +79,11 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream);
 static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream);
 static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
 
-static BBOOL Proc_smb2_Create(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Close(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Flush(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Read(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Write(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Lock(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Echo(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream){return FALSE;}
@@ -151,11 +158,14 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	BBOOL doFinalize = FALSE;
     smb2_stream  smb2stream;
     smb2_stream * pStream;
+    PRTSMB2_HEADER pHeaderInBuffer;
 
     pStream = &smb2stream;
 
-    /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
+    /* Initialize memory stream pointers from the v1 contect structure
+       set pStream->psmb2Session from the smb2 value saved in the session context structure  */
     Smb1SrvCtxtToStream(&smb2stream, pSctx);
+
 	/* read header and advance the stream pointer */
 	if ((header_size = cmd_read_header_raw_smb2 (smb2stream.read_origin, smb2stream.read_origin, smb2stream.InBodySize, &smb2stream.InHdr)) == -1)
 	{
@@ -172,6 +182,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
     smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
     smb2stream.OutHdr.StructureSize = 64;
 
+	/* Save the location of the header in the output buffer, we will copy over this with contents from smb2stream.OutHdr that is built up by the procs. */
+    pHeaderInBuffer = (PRTSMB2_HEADER) smb2stream.pOutBuf;
 	/* fill it in once, just so we have something reasonable in place */
 	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
 
@@ -301,6 +313,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	}
     if (doSend)
     {
+        tc_memcpy(pHeaderInBuffer,&smb2stream.OutHdr,sizeof(smb2stream.OutHdr));
 	    if (doFinalize)
         {
             if (RtsmbWriteFinalizeSmb2(&smb2stream,smb2stream.InHdr.MessageId)<0)
@@ -313,6 +326,102 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
     Smb1SrvCtxtFromStream(pSctx, &smb2stream);
 	return doSend;
 }
+
+
+
+/* Called from ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
+BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
+{
+    int header_size;
+    int length;
+    BBOOL doSend = FALSE;
+    BBOOL doFinalize = FALSE;
+    smb2_stream  smb2stream;
+    smb2_stream * pStream;
+
+    // Add in SMBV2 session stuff
+    printf("call SMBS_InitSessionCtx_smb2 from SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB\n");
+
+    SMBS_InitSessionCtx_smb2(pSctx);
+
+    pStream = &smb2stream;
+
+
+    /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
+    Smb1SrvCtxtToStream(pStream, pSctx);
+
+    pStream->psmb2Session->Connection->ShouldSign = FALSE;
+    pStream->psmb2Session->Connection->Dialect = SMB2_DIALECT_2002;
+    pStream->psmb2Session->Connection->NegotiateDialect = SMB2_DIALECT_2002;
+    pStream->psmb2Session->Connection->MaxTransactSize = pSctx->readBufferSize;
+    pStream->psmb2Session->Connection->MaxWriteSize = pSctx->writeBufferSize;
+    pStream->psmb2Session->Connection->MaxReadSize = pSctx->readBufferSize;
+	/**
+	 * Set up outgoing header.
+	 */
+    tc_memset(&smb2stream.OutHdr,0, sizeof(smb2stream.OutHdr));
+//    tc_memset(smb2stream.OutHdr.Signature,0, sizeof(smb2stream.OutHdr.Signature));
+
+
+    smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
+    smb2stream.OutHdr.StructureSize = 64;
+
+	/* fill it in once, just so we have something reasonable in place */
+	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
+
+    /* Reset the stream */
+	smb2stream.pOutBuf = smb2stream.write_origin;
+	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
+	smb2stream.OutBodySize = 0;
+
+    RTSMB2_NEGOTIATE_R response;
+    MEMCLEAROBJ(response);
+    response.StructureSize      = 65;
+    /* SecurityMode MUST have the SMB2_NEGOTIATE_SIGNING_ENABLED bit set. */
+    response.SecurityMode       = SMB2_NEGOTIATE_SIGNING_ENABLED;
+    /* If RequireMessageSigning is TRUE, the server MUST also set SMB2_NEGOTIATE_SIGNING_REQUIRED in the SecurityMode field. */
+    if (pSmb2SrvGlobal->RequireMessageSigning)
+    {
+        response.SecurityMode   |= SMB2_NEGOTIATE_SIGNING_REQUIRED;
+        pStream->psmb2Session->SigningRequired = TRUE;
+    }
+    /* DialectRevision MUST be set to the common dialect. */
+    response.DialectRevision    = pStream->psmb2Session->Connection->Dialect;
+    response.Reserved = 0;
+    /* ServerGuid is set to the global ServerGuid value. */
+    tc_memcpy(response.ServerGuid,pSmb2SrvGlobal->ServerGuid,16);
+    /* The Capabilities field MUST be set to a combination of zero or more of the following bit values, as specified in section 2.2.4 */
+    response.Capabilities       = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, 0); // command==0 , no SMB3
+
+    /* MaxTransactSize is set to the maximum buffer size<221>,in bytes, that the server will accept on this connection for QUERY_INFO,
+       QUERY_DIRECTORY, SET_INFO and CHANGE_NOTIFY operations. */
+    response.MaxTransactSize    =  pStream->psmb2Session->Connection->MaxTransactSize;
+    /* MaxReadSize is set to the maximum size,<222> in bytes, of the Length in an SMB2 READ Request */
+    response.MaxReadSize        =  pStream->psmb2Session->Connection->MaxReadSize;
+
+    /* MaxWriteSize is set to the maximum size,<223> in bytes, of the Length in an SMB2 WRITE Request */
+    response.MaxWriteSize       =  pStream->psmb2Session->Connection->MaxWriteSize;
+    /* SystemTime is set to the current time */
+    response.SystemTime         =  rtsmb_util_get_current_filetime();
+    /* ServerStartTime is set to the global ServerStartTime value */
+    response.ServerStartTime    =  pSmb2SrvGlobal->ServerStartTime;
+
+    /* SecurityBufferOffset is set to the offset to the Buffer field in the response, in bytes, from the beginning of the SMB2 header.
+        SecurityBufferLength is set to the length of the data being returned in the Buffer field. */
+    response.SecurityBufferLength = 0;
+    pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Default(&pStream->WriteBufferParms[0].byte_count);
+    response.SecurityBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
+    if (response.SecurityBufferLength)
+    {
+        response.SecurityBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
+    }
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+    if (response.SecurityBufferLength)
+        RTSmb2_Encryption_Release_Spnego_Default(pStream->WriteBufferParms[0].pBuffer);
+    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
+    return TRUE;
+} // End ProcNegotiateProtocol
+
 
 /*
 Proccess Negotiate protocol requests.  This function figures out what the highest supported dialog on both machines can be used for the remainder of the session.
@@ -415,6 +524,11 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
     /* The Capabilities field MUST be set to a combination of zero or more of the following bit values, as specified in section 2.2.4 */
     response.Capabilities       = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, &command);
 
+
+    pStream->psmb2Session->Connection->MaxTransactSize = pStream->read_buffer_size;
+    pStream->psmb2Session->Connection->MaxWriteSize = pStream->write_buffer_size;
+    pStream->psmb2Session->Connection->MaxReadSize = pStream->read_buffer_size;
+
     /* MaxTransactSize is set to the maximum buffer size<221>,in bytes, that the server will accept on this connection for QUERY_INFO,
        QUERY_DIRECTORY, SET_INFO and CHANGE_NOTIFY operations. */
     response.MaxTransactSize    =  pStream->psmb2Session->Connection->MaxTransactSize;
@@ -430,15 +544,14 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
     /* SecurityBufferOffset is set to the offset to the Buffer field in the response, in bytes, from the beginning of the SMB2 header.
         SecurityBufferLength is set to the length of the data being returned in the Buffer field. */
     response.SecurityBufferLength = 0;
-    pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Default(&pStream->WriteBufferParms[0].byte_count);
-    response.SecurityBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
-    if (response.SecurityBufferLength)
-    {
-        response.SecurityBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-    }
+    response.SecurityBufferOffset = 0;
+
+    // Don't return a security buffer allow the client to initaiat security
+//    pStream->WriteBufferParms[0].pBuffer =  RTSmb2_Encryption_Get_Spnego_Default(&pStream->WriteBufferParms[0].byte_count);
+//    response.SecurityBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
+
+
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    if (response.SecurityBufferLength)
-        RTSmb2_Encryption_Release_Spnego_Default(pStream->WriteBufferParms[0].pBuffer);
     return TRUE;
 } // End ProcNegotiateProtocol
 
@@ -483,7 +596,24 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
     if (!pStream->Success)
         return TRUE;
 
+    /* Pg 260 3. If SessionId in the SMB2 header of the request is zero, the server MUST process the authentication request as specified in section 3.3.5.5.1. */
     pStreamSession = pStream->psmb2Session;
+    if (pStream->InHdr.SessionId!=0)
+    { // We have a sessionid retrieve the session and go to process the next GSSAPI token
+	  pSmb2SrvModel_Session pSmb2Session;
+      pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
+      if (!pSmb2Session)
+      {
+        reject_status = SMB2_STATUS_INVALID_SMB;
+        reject=TRUE;
+      }
+      else
+      {
+        pStreamSession = pStream->psmb2Session = pSmb2Session;
+        printf("Force send_next_token\n");
+        finish=send_next_token=TRUE;
+      }
+    }
     if (pSmb2SrvGlobal->EncryptData && pSmb2SrvGlobal->RejectUnencryptedAccess)
     {
         /* 1. If the server implements the SMB 3.x dialect family, Connection.Dialect does not belong to the SMB 3.x dialect
@@ -499,7 +629,6 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         }
     }
     finish=reject;
-    /* Pg 260 3. If SessionId in the SMB2 header of the request is zero, the server MUST process the authentication request as specified in section 3.3.5.5.1. */
     if (!finish && pStream->InHdr.SessionId==0)
     {
         /* Section 3.3.5.5.1 .. pg 262 */
@@ -546,13 +675,12 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         {
             finish=send_next_token=TRUE;
         }
-
     }
 
     /* 4. If Connection.Dialect belongs to the SMB 3.x dialect family, IsMultiChannelCapable is TRUE, and the SMB2_SESSION_FLAG_BINDING bit is set in the
           Flags field of the request, the server MUST perform the following:
     */
-    if (finish==FALSE&&pStream->InHdr.SessionId!=0&&Connection3XXDIALECT && pSmb2SrvGlobal->IsMultiChannelCapable && (command.Flags & SMB2_SESSION_FLAG_BINDING)!=0)
+    if (Connection3XXDIALECT&&finish==FALSE&&pStream->InHdr.SessionId!=0&&pSmb2SrvGlobal->IsMultiChannelCapable && (command.Flags & SMB2_SESSION_FLAG_BINDING)!=0)
     {
         /* The server MUST look up the session in GlobalSessionTable using the SessionId from the SMB2 header. If the session is not found, the server MUST
            fail the session setup request with STATUS_USER_SESSION_DELETED. */
@@ -659,16 +787,71 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
     {
         dword status = 0;
         int Spnego_isLast_token = 1;
+        decoded_NegTokenInit_t decoded_init_token;
+        decoded_NegTokenTarg_t decoded_targ_token;
+        int isNegTokenInitNOT;
+int spnego_blob_size;
+static byte spnego_blob_buffer[512];
+
         finish=FALSE; /* We may have set finished up above, so clear it now */
         /* Pg 262 - 3.3.5.5.3 Handling GSS-API Authentication */
         /* The server SHOULD use the configured authentication protocol to obtain the next GSS output token for the authentication exchange.<226> */
-        pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Next_token(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext, &pStream->WriteBufferParms[0].byte_count, &Spnego_isLast_token, &status, pStream->ReadBufferParms[0].pBuffer, command.SecurityBufferLength);
+        isNegTokenInitNOT = spnego_decode_NegTokenInit_packet(&decoded_init_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
+        spnego_decoded_NegTokenInit_destructor(&decoded_init_token);
+
+        if (isNegTokenInitNOT == 0)
+        { // We got neg token init packet, send a challenge
+#if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
+            static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
+//           tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
+            tc_memcpy (&pStream->psmb2Session->pSmbCtx->encryptionKey[0], b, 8);
+#else
+            for (i = 0; i < 4; i++)
+            {
+             word randnum = (word) tc_rand();    /* returns 15 bits of random data */
+             tc_memcpy (&(pStream->psmb2Session->pSmbCtx->encryptionKey[i * 2]), &randnum, 2);
+            }
+#endif
+            spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->psmb2Session->pSmbCtx->encryptionKey);
+            printf("Sending spnego type 2 challenge \n");
+            pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
+            pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
+            Spnego_isLast_token = 0;
+        }
+        else
+        { // Check log- in credentials
+           word  extended_authId=0;
+           word  extended_access=AUTH_NOACCESS;
+
+          int NegTokenTargDecodeResult =  spnego_decode_NegTokenTarg_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
+          if (NegTokenTargDecodeResult == 0)
+          {
+            extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
+            printf("Tested response, access == %u \n",extended_access);
+          }
+          spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
+
+          if (extended_access==AUTH_NOACCESS)
+          {
+            // Force the buffer to zero this will close the session and shut down the socket
+            printf("!!!! Auth failed, No access !!!! \n");
+            pStream->WriteBufferParms[0].pBuffer = 0;
+            status=SMB2_STATUS_ACCESS_DENIED;
+          }
+          else
+          {
+            spnego_blob_size=spnego_encode_ntlm2_type3_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer));
+            printf("Sending spnego type 3 response size == %d \n",spnego_blob_size);
+            pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
+            pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
+            Spnego_isLast_token = 1;
+          }
+        }
+//        pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Next_token(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext, &pStream->WriteBufferParms[0].byte_count, &Spnego_isLast_token, &status, pStream->ReadBufferParms[0].pBuffer, command.SecurityBufferLength);
         if (!pStream->WriteBufferParms[0].pBuffer)
         {
            /* If the authentication protocol indicates an error, the server MUST fail the session setup request with the error received by placing the 32-bit NTSTATUS code received into the
               Status field of the SMB2 header. */
-
-
            /* and deregister the session by invoking the event
               specified in [MS-SRVS] section 3.1.6.3, providing Session.SessionGlobalId as an input parameter.*/
             RTSmb2_Encryption_Spnego_Clear_SessionGlobalId(pStreamSession->SessionGlobalId);
@@ -691,7 +874,7 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         else
         {
             if (!Spnego_isLast_token)
-                more_processing_required = TRUE;
+                more_processing_required = TRUE; // Force more processing required status so we send more processing to get the client to authenticate
             /*
                 The output token received from the GSS mechanism MUST be returned in the response. SecurityBufferLength indicates the length of the output token,
                 and SecurityBufferOffset indicates its offset, in bytes, from the beginning of the SMB2 header.
@@ -700,7 +883,7 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
             {
                 response.SecurityBufferOffset = (word)(pStream->OutHdr.StructureSize + response.StructureSize-1);
                 response.SecurityBufferLength = (word)(pStream->WriteBufferParms[0].byte_count);
-            }
+           }
             /* Session.SessionId MUST be placed in the SessionId field of the SMB2 header.
                 pStreamSession->SessionId was established when SMBS_InitSessionCtx_smb2 was called
             */
@@ -832,8 +1015,8 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 */
                 if (Connection3XXDIALECT)
                 {
+                    byte RTSMB_FAR *pKey;
                     RTSmb2_Encryption_Get_Session_SigningKeyFromSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SigningKey,pStreamSession->SessionKey);
-                }
                 /* 8. If Connection.Dialect belongs to the SMB 3.x dialect family, Session.ApplicationKey MUST be generated as specified in section 3.1.4.2 and passing the
                     following inputs:
                         Session.SessionKey as the key derivation key.
@@ -842,7 +1025,6 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                         The case-sensitive ASCII string "SmbRpc" as context for the algorithm.
                             The context buffer size in bytes, including the terminating null character. The size of "SmbRpc" is 7.
                 */
-                if (Connection3XXDIALECT)
                     RTSmb2_Encryption_Get_Session_ApplicationKeyFromSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->ApplicationKey,pStreamSession->SessionKey);
 
                 /*
@@ -856,16 +1038,12 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                         The case-sensitive ASCII string "SmbSign" as context for the algorithm.
                         The context buffer size in bytes, including the terminating null character. The size of "SmbSign" is 8.
                 */
-                if (Connection3XXDIALECT)
-                {
-                    byte RTSMB_FAR *pKey;
                     if ((command.Flags & SMB2_SESSION_FLAG_BINDING)==0)
                         pKey = pStreamSession->SessionKey;
                     else
                         pKey = pStreamSession->SessionKey;  // TBD - Not sure about this
 
                     RTSmb2_Encryption_Get_Session_ChannelKeyFromSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SigningKey,pKey);
-                }
                 /* 10.If Connection.Dialect belongs to the SMB 3.x dialect family, global EncryptData is TRUE, and Connection.ClientCapabilities includes
                    the SMB2_GLOBAL_CAP_ENCRYPTION bit, the server MUST do the following:
                    Set the SMB2_SESSION_FLAG_ENCRYPT_DATA flag in the SessionFlags field of the SMB2 SESSION_SETUP Response.
@@ -879,13 +1057,14 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                       The context buffer size in bytes, including the terminating null character. For generating both the encryption key and decryption key,
                       the string size is 10.
                 */
-                if (Connection3XXDIALECT && pSmb2SrvGlobal->EncryptData && (Connection->ClientCapabilities&SMB2_GLOBAL_CAP_ENCRYPTION)!=0)
-                {
-                    response.SessionFlags |= SMB2_SESSION_FLAG_ENCRYPT_DATA;
-                    pStreamSession->SigningRequired = FALSE;
-                    RTSmb2_Encryption_Get_Session_EncryptionKeyFromSessionKey( pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->EncryptionKey, pStreamSession->SessionKey);
-                    RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey( pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->DecryptionKey, pStreamSession->SessionKey);
-                }
+                    if (pSmb2SrvGlobal->EncryptData && (Connection->ClientCapabilities&SMB2_GLOBAL_CAP_ENCRYPTION)!=0)
+                    {
+                        response.SessionFlags |= SMB2_SESSION_FLAG_ENCRYPT_DATA;
+                        pStreamSession->SigningRequired = FALSE;
+                        RTSmb2_Encryption_Get_Session_EncryptionKeyFromSessionKey( pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->EncryptionKey, pStreamSession->SessionKey);
+                        RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey( pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->DecryptionKey, pStreamSession->SessionKey);
+                    }
+                } // if (Connection3XXDIALECT)
                 /*
                     11.If Session.SigningRequired is TRUE, the server MUST sign the final session setup response before sending it to the client.
                     Otherwise, if Connection.Dialect belongs to the SMB 3.x dialect family, and if the SMB2_SESSION_FLAG_BINDING is set in the Flags
@@ -927,33 +1106,29 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                    return an expiration time, the Session.ExpirationTime should be set to infinity.
                 */
                 HEREHERE
-
-                /*
-                    The GSS-API can indicate that this is not the final message in authentication exchange using the GSS_S_CONTINUE_NEEDED semantics as specified in
-                    [MS-SPNG] section 3.3.1. If the GSS mechanism indicates that this is not the final message of the authentication exchange, the following additional
-                    step MUST be taken:
-                        The status code in the SMB2 header of the response MUST be set to STATUS_MORE_PROCESSING_REQUIRED.
-                        If Connection.Dialect belongs to the SMB 3.x dialect family, and if the SMB2_SESSION_FLAG_BINDING is set in the Flags field of the request,
-                        the server MUST sign the response by using Session.SessionKey
-                */
-                if (more_processing_required)
-                {
-                    pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_MORE_PROCESSING_REQUIRED;
-                    if (Connection3XXDIALECT)
-                    {
-                        RTSmb2_Encryption_SignMessage(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey,pStream->InHdr.Signature);
-                    }
-                }
-
             }
-        }
-    }
-    if (pStream->WriteBufferParms[0].pBuffer)
-        RTSmb2_Encryption_Release_Spnego_Next_token(pStream->WriteBufferParms[0].pBuffer);
-    if (pStream->ReadBufferParms[0].pBuffer)
-        RTSmb2_Encryption_Release_Spnego_InBuffer(pStream->ReadBufferParms[0].pBuffer);
+            /*
+                The GSS-API can indicate that this is not the final message in authentication exchange using the GSS_S_CONTINUE_NEEDED semantics as specified in
+                [MS-SPNG] section 3.3.1. If the GSS mechanism indicates that this is not the final message of the authentication exchange, the following additional
+                step MUST be taken:
+                    The status code in the SMB2 header of the response MUST be set to STATUS_MORE_PROCESSING_REQUIRED.
+                    If Connection.Dialect belongs to the SMB 3.x dialect family, and if the SMB2_SESSION_FLAG_BINDING is set in the Flags field of the request,
+                    the server MUST sign the response by using Session.SessionKey
+            */
+            if (more_processing_required)
+            {
+                printf("Set more processing in staruct at %X\n", &pStream->OutHdr);
+                pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_MORE_PROCESSING_REQUIRED;
+                if (Connection3XXDIALECT)
+                {
+                    RTSmb2_Encryption_SignMessage(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey,pStream->InHdr.Signature);
+                }
+            }
+        } // if (!pStream->WriteBufferParms[0].pBuffer) else ..
+    } // if (send_next_token==TRUE)
     if (reject)
     {
+        printf("!!!! Auth setting recect status !!!! \n");
 		RtsmbWriteSrvStatus (pStream, reject_status);
         pStream->doSessionClose = TRUE;
     }
@@ -963,12 +1138,17 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
         RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }
+//    TBD - releaing / leaks
+    if (pStream->WriteBufferParms[0].pBuffer)
+        RTSmb2_Encryption_Release_Spnego_Next_token(pStream->WriteBufferParms[0].pBuffer);
+    if (pStream->ReadBufferParms[0].pBuffer)
+        RTSmb2_Encryption_Release_Spnego_InBuffer(pStream->ReadBufferParms[0].pBuffer);
     return TRUE;
 } // End Proc_smb2_SessionSetup
 
 
 /* --------------------------------------------------- /
- * Proc_smb2_LogOff Command			           /
+ * Proc_smb2_LogOff command			           /
  *	                                                   /
  *                                                     /
  * smb2_stream  *pStream                               /
@@ -1006,7 +1186,6 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream)
     RTSmb2_SessionShutDown(pStream->psmb2Session);
 
 
-
     response.StructureSize          = 4;
     response.Reserved               = 0;
     pStream->OutHdr.SessionId       = pStream->psmb2Session->SessionId;
@@ -1020,7 +1199,7 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream)
 }
 
 /* --------------------------------------------------- /
- * Proc_smb2_TreeConnect Command			           /
+ * Proc_smb2_TreeConnect command			           /
  *	                                                   /
  *                                                     /
  * smb2_stream  *pStream                               /
@@ -1069,6 +1248,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 	rtsmb_char share_name [RTSMB_NB_NAME_SIZE + RTSMB_MAX_SHARENAME_SIZE + 4]; /* 3 for '\\'s and 1 for null */
 	dword error_status = 0;
 	pSmb2SrvModel_Session pSmb2Session;
+    tc_memset(share_name,0, sizeof(share_name));
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
@@ -1084,7 +1264,12 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
    		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
         return TRUE;
     }
-
+    rtp_printf("Got share name:");
+    {int i;
+    for (i=0;share_name[i]!=0;i++)
+      rtp_printf("%c", (char )share_name[i]);
+    rtp_printf(":\n");
+    }
     rtp_printf("Trying to find session from session id in header %d\n", (int) pStream->InHdr.SessionId);
     pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
 
@@ -1092,7 +1277,6 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 
     rtp_printf("Got v == %X by stream pointer == %X\n", (unsigned int)pSmb2Session,(unsigned int)pStream->psmb2Session);
 
-    rtp_printf("Got share name == [%c %c %c %c]\n", (char )share_name[0], (char )share_name[1],(char )share_name[2],(char )share_name[3],(char )share_name[4]);
 
     /* Tie into the V1 share mechanism for now */
     {
@@ -1197,6 +1381,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
     return TRUE;
 } // Proc_smb2_TreeConnect
 
+
 /*
 ================
 	PSMB_SESSIONCTX pSmbCtx - x
@@ -1249,8 +1434,6 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
     }
     return TRUE;
 } // Proc_smb2_TreeDisConnect
-
-// BBOOL ProcTreeDisconnect (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf)
 
 
 
