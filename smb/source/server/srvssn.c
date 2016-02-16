@@ -779,7 +779,8 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             ERROR_CODE                                 /
  * -------------------------------------------------- */
 
-RTSMB_STATIC dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid)
+// Not RTSMB_STATIC a friend of code in proc_create
+dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid)
 {
     SMBFSTAT stat;
     int fid;

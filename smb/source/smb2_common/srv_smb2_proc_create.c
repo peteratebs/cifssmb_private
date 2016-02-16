@@ -25,17 +25,20 @@
 
 #include "rtptime.h"
 
-#define CRDISP_FILE_SUPERSEDE    0x00000000 //If the file already exists, supersede it. Otherwise, create the file. This value SHOULD NOT be used for a printer object.<32>
-#define CRDISP_FILE_OPEN         0x00000001 //If the file already exists, return success; otherwise, fail the operation. MUST NOT be used for a printer object.
-#define CRDISP_FILE_CREATE       0x00000002 //If the file already exists, fail the operation; otherwise, create the file.
-#define CRDISP_FILE_OPEN_IF      0x00000003 //Open the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<33>
-#define CRDISP_FILE_OVERWRITE    0x00000004 //Overwrite the file if it already exists; otherwise, fail the operation. MUST NOT be used for a printer object.
+#define CRDISP_FILE_SUPERSEDE    0x00000000 // If the file already exists, supersede it. Otherwise, create the file. This value SHOULD NOT be used for a printer object.<32>
+#define CRDISP_FILE_OPEN         0x00000001 // If the file already exists, return success; otherwise, fail the operation. MUST NOT be used for a printer object.
+#define CRDISP_FILE_CREATE       0x00000002 // If the file already exists, fail the operation; otherwise, create the file.
+#define CRDISP_FILE_OPEN_IF      0x00000003 // Open the file if it already exists; otherwise, create the file. This value SHOULD NOT be used for a printer object.<33>
+#define CRDISP_FILE_OVERWRITE    0x00000004 // Overwrite the file if it already exists; otherwise, fail the operation. MUST NOT be used for a printer object.
 #define CRDISP_FILE_OVERWRITE_IF 0x00000005 //
 
 #include "srvssn.h"
 #include "srvutil.h"
 #include "srvauth.h"
 #include "smbdebug.h"
+
+extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid);
+
 BBOOL assert_smb2_uid(smb2_stream  *pStream)
 {
 	PUSER user;
@@ -109,12 +112,18 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
 	RTSMB2_CREATE_C command;
 	RTSMB2_CREATE_R response;
-	dword error_status = 0;
     byte file_name[RTSMB2_MAX_FILENAME_SIZE+MAX_CREATE_CONTEXT_LENGTH_TOTAL];
+    int fid;
+    dword r;
+    word externalFid;
     BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
+    dword CreateAction = 1; // 1== FILE_OPEN, 0 = SUPER_SEDED, 2=CREATED, 3=OVERWRITTEN
     int flags = 0, mode;
+    SMBFSTAT stat;
     byte permissions = 5; /* HAD TO SET IT TO A USELESS VALUE _YI_ */
+	PTREE pTree;
 
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA !!...\n",0);
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -129,15 +138,29 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
 
+
+
     if (!pStream->Success)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  RtsmbStreamDecodeCommand failed...\n",0);
    		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
         return TRUE;
     }
+    // If no name length then it's requesting persistent handles et al via CREATE_CONTEXT requests.
+    // Return SMB2_STATUS_OBJECT_NAME_NOT_FOUND and the client continues
+    if (command.NameLength==0)
+    {
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
+        return TRUE;
+    }
+
 
     if (command.StructureSize != 57)
-      ;
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n",0);
+   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+        return TRUE;
+    }
     if (ON (command.DesiredAccess, 0x1) ||
         ON (command.DesiredAccess, 0x20) ||
         ON (command.DesiredAccess, 0x20000) ||
@@ -190,6 +213,67 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     ASSERT_SMB2_PERMISSION(pStream, permissions);  // Checks permission on pCtx->tid
 
+//=====
+    /* do we make the file if it doesn't exist?   */
+    switch (command.CreateDisposition)
+    {
+        case NT_CREATE_NEW:
+            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_EXCL;
+            break;
+        case NT_CREATE_ALWAYS:
+            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_TRUNC;
+            break;
+        default:
+        case NT_OPEN_EXISTING:
+            break;
+        case NT_OPEN_ALWAYS:
+            flags |= RTP_FILE_O_CREAT;
+            break;
+        case NT_TRUNCATE:
+            flags |= RTP_FILE_O_TRUNC;
+            break;
+    }
+
+    if (command.FileAttributes & 0x80)
+    {
+            mode = RTP_FILE_S_IWRITE | RTP_FILE_S_IREAD |
+                   RTP_FILE_ATTRIB_ARCHIVE; /* VM */
+    }
+    else
+    {
+        mode =  command.FileAttributes & 0x01 ? RTP_FILE_S_IREAD   : 0;
+        mode |= command.FileAttributes & 0x02 ? RTP_FILE_S_HIDDEN  : 0;
+        mode |= command.FileAttributes & 0x04 ? RTP_FILE_S_SYSTEM  : 0;
+        mode |= command.FileAttributes & 0x20 ? RTP_FILE_S_ARCHIVE : 0;
+    }
+
+    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+
+    // NULL terminate the file name, this clobbers the CREATE_CONTEXTs if there are any
+    file_name[command.NameLength] = 0;
+    file_name[command.NameLength+1] = 0;
+
+    /* We check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
+    if (ON (command.FileAttributes, 0x80) | ON (command.CreateOptions, 0x1))
+    {
+        if (ON (flags, RTP_FILE_O_CREAT))
+        {
+            ASSERT_SMB2_PERMISSION (pStream->psmb2Session->pSmbCtx, SECURITY_READWRITE);
+            SMBFIO_Mkdir (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+            TURN_OFF (flags, RTP_FILE_O_EXCL);
+            CreateAction = 2; // File created
+        }
+    }
+
+    r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
+    if (r != 0)
+    {
+        RtsmbWriteSrvStatus(pStream, r);
+        return TRUE;
+    }
+
+    SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
+//=====
 
 	// byte  SecurityFlags;              // reserved
 	// command.RequestedOplockLevel;
@@ -215,48 +299,23 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     printf("Input Tree Id = %ld\n", pStream->InHdr.TreeId);
 
-#define CROPT_FILE_DIRECTORY_FILE 0x00000001
+    response.StructureSize = 89;
+    response.OplockLevel = 0; // command.RequestedOplockLevel;
+    response.Flags = 0; // SMB3 only
+    response.CreateAction = CreateAction;
 
-    // Only deal with simple files and direcories
-    if (command.NameLength==0)
-       error_status = SMB2_STATUS_OBJECT_NAME_NOT_FOUND;
-    else
-    {
-       error_status = SMB2_STATUS_OBJECT_NAME_NOT_FOUND;
-    }
-#if (0)
-    if ((command.CreateDisposition & CRDISP_FILE_CREATE)==0 && command.NameLength==0)
-    {
-      if (command.CreateOptions & CROPT_FILE_DIRECTORY_FILE)
-        error_status = SMB2_STATUS_FILE_IS_A_DIRECTORY;
-    }
-#endif
-    if (error_status)
-    {
-        RtsmbWriteSrvStatus(pStream, error_status);
-    }
-    else
-    {
-      response.StructureSize = 89;
-	  response.OplockLevel = command.RequestedOplockLevel;
-	  response.Flags = 0;
-	  response.CreateAction = 1; // Say existing fiel opened for now
-      response.CreationTime   = rtsmb_util_get_current_filetime();
-	  response.LastAccessTime = rtsmb_util_get_current_filetime();
-	  response.LastWriteTime  = rtsmb_util_get_current_filetime();
-	  response.ChangeTime     = rtsmb_util_get_current_filetime();
-	  response.AllocationSize  = 0;
-	  response.EndofFile       = 0;
-	  response.FileAttributes  = command.FileAttributes;
-      response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
-	  response.CreateContextsOffset = 0;
-	  response.CreateContextsLength = 0;
-
-
-
-        /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
-       RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    }
+    response.CreationTime   =  *((ddword *) &stat.f_ctime64);
+    response.LastAccessTime =  *((ddword *) &stat.f_atime64);
+    response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
+    response.ChangeTime     =  *((ddword *) &stat.f_htime64);
+    response.AllocationSize  = stat.f_size;
+    response.EndofFile       = stat.f_size;
+    response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+    // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
+    *((word *) &response.FileId[0]) = (word) externalFid;
+    response.CreateContextsOffset = 0;
+    response.CreateContextsLength = 0;
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
 } // Proc_smb2_Ioctl
 
