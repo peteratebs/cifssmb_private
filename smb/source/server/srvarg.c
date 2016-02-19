@@ -329,6 +329,11 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
     int gIndex;
     int index;
 
+    tc_memset(groups,0,RTSMB_ARG_MAX_SECTION_SIZE);
+    tc_memset(passbuf, 0,CFG_RTSMB_MAX_PASSWORD_SIZE + 1);
+    tc_memset(name, 0, CFG_RTSMB_MAX_USERNAME_SIZE + 1);
+    tc_memset(g, 0, RTSMB_ARG_MAX_SECTION_SIZE);
+
     /* First, grab name and password */
     if (!RTSMB_GetStringValue (section, "name", name,
             CFG_RTSMB_MAX_USERNAME_SIZE + 1))
