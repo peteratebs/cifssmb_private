@@ -38,6 +38,9 @@ extern void Smb2SrvModel_Global_Init(void);
 
 #define TYPELESS int /* Types currently unresolved design */
 #define HEREHERE
+#define CLAIM_SEMAPHORE
+#define RELEASE_SEMAPHORE
+
 
 //============================================================================
 //    INTERFACE TRAILING HEADERS

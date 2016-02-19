@@ -19,6 +19,7 @@
 #include <stdio.h>
 #if (INCLUDE_RTSMB_SERVER)
 #include "com_smb2.h"
+#include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
 
@@ -38,73 +39,6 @@
 #include "smbdebug.h"
 
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid);
-
-BBOOL assert_smb2_uid(smb2_stream  *pStream)
-{
-	PUSER user;
-
-	// no need to authenticate when in share mode
-	if (pStream->psmb2Session->pSmbCtx->accessMode == AUTH_SHARE_MODE)
-	{
-		return FALSE;
-	}
-	user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
-
-	if (user == (PUSER)0)
-	{
-        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_SMB_BAD_UID);
-		return TRUE;
-	}
-	else
-	{
-		return FALSE;
-	}
-    return TRUE;   //
-}
-// undefined behavior if uid doesn't exist
-BBOOL assertThissmb2Tid (smb2_stream  *pStream)
-{
-	if (SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid))
-	{  // Ok the tree exists
-		return FALSE;
-	}
-
-    RtsmbWriteSrvStatus(pStream, SMB2_STATUS_SMB_BAD_TID);
-	return TRUE;
-}
-BBOOL assert_smb2_tid(smb2_stream  *pStream)
-{
-  return assertThissmb2Tid (pStream);
-}
-
-BBOOL assert_smb2_permission(smb2_stream  *pStream,byte permission)
-{
-	PTREE tree;
-
-	tree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
-
-	if (!tree || tree->access == SECURITY_NONE ||
-		(tree->access != SECURITY_READWRITE && tree->access != permission))
-	{
-		RTSMB_DEBUG_OUTPUT_STR ("failed permissions check with permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (permission);
-		RTSMB_DEBUG_OUTPUT_STR (" against permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tree->access);
-		RTSMB_DEBUG_OUTPUT_STR (" on tid ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (pStream->psmb2Session->pSmbCtx->tid);
-		RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
-        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-
-
-#define ASSERT_SMB2_UID(S) if(assert_smb2_uid(S)) return TRUE;   //
-#define ASSERT_SMB2_TID(S) if(assert_smb2_tid(S)) return TRUE;  //
-#define ASSERT_SMB2_PERMISSION(S,P) if(assert_smb2_permission(S,P)) return TRUE;  //  // Checks permission on pCtx->tid
 
 
 #define MAX_CREATE_CONTEXT_LENGTH_TOTAL 64 // Don't need much, mostly 4 byte values
@@ -128,8 +62,11 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 1!!...\n",0);
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 2!!...\n",0);
     ASSERT_SMB2_TID (pStream)  // Returns if the TID is not valid
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 3!!...\n",0);
 
      /* Set up a temporary buffer to hold incoming share name */
     pStream->ReadBufferParms[0].pBuffer = file_name;
@@ -150,6 +87,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     // Return SMB2_STATUS_OBJECT_NAME_NOT_FOUND and the client continues
     if (command.NameLength==0)
     {
+     printf("call RtsmbWriteSrvStatus(SMB2_STATUS_OBJECT_NAME_NOT_FOUND)== %X\n", SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
+
         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
         return TRUE;
     }
@@ -187,6 +126,33 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
         wants_attr_write = TRUE;
     }
+
+//=====
+    /* do we make the file if it doesn't exist?   */
+    switch (command.CreateDisposition)
+    {
+        case NT_CREATE_NEW:
+            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_EXCL;
+            wants_write = TRUE;
+            break;
+        case NT_CREATE_ALWAYS:
+            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_TRUNC;
+            wants_write = TRUE;
+            break;
+        default:
+        case NT_OPEN_EXISTING:
+            wants_read = TRUE;
+            break;
+        case NT_OPEN_ALWAYS:
+            flags |= RTP_FILE_O_CREAT;
+            wants_write = TRUE;
+            break;
+        case NT_TRUNCATE:
+            flags |= RTP_FILE_O_TRUNC;
+            wants_write = TRUE;
+            break;
+    }
+
     if (wants_read && wants_write)
     {
         /* reading and writing   */
@@ -213,27 +179,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     ASSERT_SMB2_PERMISSION(pStream, permissions);  // Checks permission on pCtx->tid
 
-//=====
-    /* do we make the file if it doesn't exist?   */
-    switch (command.CreateDisposition)
-    {
-        case NT_CREATE_NEW:
-            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_EXCL;
-            break;
-        case NT_CREATE_ALWAYS:
-            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_TRUNC;
-            break;
-        default:
-        case NT_OPEN_EXISTING:
-            break;
-        case NT_OPEN_ALWAYS:
-            flags |= RTP_FILE_O_CREAT;
-            break;
-        case NT_TRUNCATE:
-            flags |= RTP_FILE_O_TRUNC;
-            break;
-    }
-
     if (command.FileAttributes & 0x80)
     {
             mode = RTP_FILE_S_IWRITE | RTP_FILE_S_IREAD |
@@ -258,7 +203,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
         if (ON (flags, RTP_FILE_O_CREAT))
         {
-            ASSERT_SMB2_PERMISSION (pStream->psmb2Session->pSmbCtx, SECURITY_READWRITE);
+            ASSERT_SMB2_PERMISSION (pStream, SECURITY_READWRITE);
             SMBFIO_Mkdir (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
             TURN_OFF (flags, RTP_FILE_O_EXCL);
             CreateAction = 2; // File created

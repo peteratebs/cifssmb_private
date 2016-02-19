@@ -141,7 +141,8 @@ struct dialect_entry_s
 /*    IMPLEMENTATION PRIVATE FUNCTION PROTOTYPES                                 */
 /*============================================================================   */
 
-RTSMB_STATIC void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
+// Shared with srv_smb2_model.c
+void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
 
 BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pCtx);
 BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
@@ -197,7 +198,8 @@ void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
  *                                                     /
  * Returns: returns the next available uid             /
  * -------------------------------------------------- */
-static word NewUID(const PUSER u, int Max)
+// also referenced from srv_smb2_proc_setup.c
+word NewUID(const PUSER u, int Max)
 {
     int i, uid;
 
@@ -4174,7 +4176,8 @@ void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
     return: Nothing.
 ================
 */
-RTSMB_STATIC void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
+// Shared with srv_smb2_model.c
+void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
 {
     word i;
     /**

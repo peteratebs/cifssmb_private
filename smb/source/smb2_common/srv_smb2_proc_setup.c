@@ -49,516 +49,15 @@
 #include "smbspnego.h"
 
 #include "wchar.h"
-
-
-extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
-
-
 #include "rtptime.h"
 
 
-extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
-extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
-extern int RtsmbWriteSrvError(smb2_stream *pStream, byte errorClass, word errorCode, word ErrorByteCount, byte *ErrorBytes);
-extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
+extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
+extern void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
+extern word NewUID(const PUSER u, int Max);
+static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream);
 
-extern BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream);
-extern BBOOL Proc_smb2_Create(smb2_stream  *pStream);
-extern BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream);
-extern BBOOL Proc_smb2_Close(smb2_stream  *pStream);
-
-static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[]);
-
-
-static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream);
-static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream);
-
-static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream);
-static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
-
-static BBOOL Proc_smb2_Flush(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Read(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Write(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Lock(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_Echo(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream){return FALSE;}
-static void DebugOutputSMB2Command(int command);
-
-static void Smb1SrvCtxtToStream(smb2_stream * pStream, PSMB_SESSIONCTX pSctx)
-{
-    tc_memset(pStream, 0, sizeof(*pStream));
-    pStream->doSessionClose         =  FALSE;
-    pStream->doSocketClose          =  FALSE;
-	pStream->Success                =  TRUE;
-	pStream->read_origin            = (PFVOID) SMB_INBUF (pSctx);
-	pStream->pInBuf                 =  pStream->read_origin;
-
-	pStream->InBodySize             =  pSctx->current_body_size;
-	pStream->read_buffer_size       =  pSctx->readBufferSize;                /* read buffer_size is the buffer size minus NBSS header */
-	pStream->read_buffer_remaining  = (pStream->read_buffer_size - pStream->InBodySize);
-
-    pStream->write_origin = (PFVOID) SMB_OUTBUF (pSctx);                      /* write_buffer_size is the buffer size minus NBSS header */
-    pStream->write_buffer_size = pSctx->writeBufferSize;
-	pStream->pOutBuf = pStream->write_origin;
-	pStream->write_buffer_remaining = pStream->write_buffer_size;
-    pStream->psmb2Session = pSctx->pCtxtsmb2Session;
-}
-
-// shared with srv_smb2_proc_setup.c
-void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession)
-{
-    /* The server MUST remove the session object from GlobalSessionTable and Connection.SessionTable */
-    Smb2SrvModel_Global_Remove_SessionFromSessionList(pStreamSession);
-    /*  3.3.4.12 ?? */
-    /* The server MUST close every Open in Session.OpenTable as specified in section 3.3.4.17. */
-    /* The server MUST deregister every TreeConnect in Session.TreeConnectTable by providing
-       the tuple <TreeConnect.Share.ServerName, TreeConnect.Share.Name> and TreeConnect.TreeGlobalId as the input parameters
-       and invoking the event specified in [MS-SRVS] section 3.1.6.7. */
-    /* For each deregistered TreeConnect, TreeConnect.Share.CurrentUses MUST be decreased by 1. */
-    /* All the tree connects in Session.TreeConnectTable MUST be removed and freed. */
-//    RTSmb2_SessionShutDown(pStreamSession);
-    Smb2SrvModel_Free_Session(pStreamSession);
-}
-static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
-{
-    pSctx->outBodySize      = pStream->OutBodySize;
-    pSctx->pCtxtsmb2Session = pStream->psmb2Session;
-    pSctx->doSocketClose    = pStream->doSocketClose;
-    if (pStream->doSessionClose && pStream->psmb2Session)
-    {
-        RTSmb2_SessionShutDown(pStream->psmb2Session);
-        pStream->psmb2Session = 0;
-        pStream->doSessionClose = FALSE;
-    }
-}
-
-/**
-    Called from SMBS_ProcSMBPacket when it receives an SMB2 packet.
-
-    Dispatches to the appropriate SMB2 handler and returns TRUE if a response must be sent back over the NBSS link.
-
-    Response information is placed in the buffer at pCtx->write_origin, and the length is placed in pCtx->outBodySize.
-
-
-*/
-
-BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
-{
-	int header_size;
-	int length;
-	BBOOL doSend = FALSE;
-	BBOOL doFinalize = FALSE;
-    smb2_stream  smb2stream;
-    smb2_stream * pStream;
-    PRTSMB2_HEADER pHeaderInBuffer;
-
-    pStream = &smb2stream;
-
-    /* Initialize memory stream pointers from the v1 contect structure
-       set pStream->psmb2Session from the smb2 value saved in the session context structure  */
-    Smb1SrvCtxtToStream(&smb2stream, pSctx);
-
-	/* read header and advance the stream pointer */
-	if ((header_size = cmd_read_header_raw_smb2 (smb2stream.read_origin, smb2stream.read_origin, smb2stream.InBodySize, &smb2stream.InHdr)) == -1)
-	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: Badly formed header", RTSMB_DEBUG_TYPE_ASCII);
-		return FALSE;
-	}
-	smb2stream.pInBuf               = PADD (smb2stream.read_origin, header_size);
-
-    // NEWNEW Use session id in place of UID in SMBV1 lookups
-    // pSCtx->uid = (word) smb2stream.InHdr.SessionId;
-
-	/**
-	 * Set up outgoing header.
-	 */
-	smb2stream.OutHdr = smb2stream.InHdr;
-    tc_memset(smb2stream.OutHdr.Signature,0, sizeof(smb2stream.OutHdr.Signature));
-    smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
-    smb2stream.OutHdr.StructureSize = 64;
-
-	/* Save the location of the header in the output buffer, we will copy over this with contents from smb2stream.OutHdr that is built up by the procs. */
-    pHeaderInBuffer = (PRTSMB2_HEADER) smb2stream.pOutBuf;
-	/* fill it in once, just so we have something reasonable in place */
-	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
-
-    /* Reset the stream */
-	smb2stream.pOutBuf = smb2stream.write_origin;
-	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
-	smb2stream.OutBodySize = 0;
-
-
-#if (0)
-// HEREHERE -- todo/uid pid stuff
-	/**
-	 * Set up some helper variables.
-	 */
-	if (pSctx->accessMode == AUTH_SHARE_MODE)
-	{
-		pSctx->uid = 0;
-	}
-	else
-	{
-		pSctx->uid = outCliHdr.uid;
-	}
-	pSctx->pid = outCliHdr.pid;
-	pSctx->tid = outCliHdr.tid;
-// HEREHERE
-#endif
-	/**
-	 * Do a quick check here that the first command we receive is a negotiate.
-	 */
-
-	if (!smb2stream.psmb2Session)
-    {
-	    RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
-		doSend = TRUE;
-    }
-	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
-	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
-		doSend = TRUE;
-	}
-	else
-	{
-	    DebugOutputSMB2Command(smb2stream.InHdr.Command);
-        doFinalize = TRUE;
-
-        if (smb2stream.InHdr.Command != SMB2_NEGOTIATE)
-        {
-            /* Decide here if we should encrypt  */
-            BBOOL EncryptMessage = FALSE;
-            if (EncryptMessage)
-                smb2_stream_start_encryption(&smb2stream);
-        }
-
-		/**
-		 * Ok, we now see what kind of command has been requested, and
-		 * call an appropriate helper function to fill out details of
-		 * pOutSmbHdr.  Most return a BBOOL, indicating whether we should
-		 * send a response or not.
-		 */
-		switch (smb2stream.InHdr.Command)
-		{
-            case SMB2_NEGOTIATE:
-    			doSend = Proc_smb2_NegotiateProtocol (&smb2stream);
-    			break;
-            case SMB2_SESSION_SETUP  :
-    			doSend = Proc_smb2_SessionSetup(&smb2stream);
-    			break;
-            case SMB2_LOGOFF         :
-    			doSend = Proc_smb2_LogOff(&smb2stream);
-    			break;
-            case SMB2_TREE_CONNECT   :
-    			doSend = Proc_smb2_TreeConnect(&smb2stream);
-    			break;
-            case SMB2_TREE_DISCONNECT:
-    			doSend = Proc_smb2_TreeDisConnect(&smb2stream);
-    			break;
-            case SMB2_CREATE         :
-    			doSend = Proc_smb2_Create(&smb2stream);
-    			break;
-            case SMB2_CLOSE          :
-    			doSend = Proc_smb2_Close(&smb2stream);
-    			break;
-            case SMB2_FLUSH          :
-    			doSend = Proc_smb2_Flush(&smb2stream);
-    			break;
-            case SMB2_READ           :
-    			doSend = Proc_smb2_Read(&smb2stream);
-    			break;
-            case SMB2_WRITE          :
-    			doSend = Proc_smb2_Write(&smb2stream);
-    			break;
-            case SMB2_LOCK           :
-    			doSend = Proc_smb2_Lock(&smb2stream);
-    			break;
-            case SMB2_IOCTL          :
-    			doSend = Proc_smb2_Ioctl(&smb2stream);
-    			break;
-            case SMB2_CANCEL         :
-    			doSend = Proc_smb2_Cancel(&smb2stream);
-    			break;
-            case SMB2_ECHO           :
-    			doSend = Proc_smb2_Echo(&smb2stream);
-    			break;
-            case SMB2_QUERY_DIRECTORY:
-    			doSend = Proc_smb2_QueryDirectory(&smb2stream);
-    			break;
-            case SMB2_CHANGE_NOTIFY  :
-    			doSend = Proc_smb2_ChangeNotify(&smb2stream);
-    			break;
-            case SMB2_QUERY_INFO     :
-    			doSend = Proc_smb2_QueryInfo(&smb2stream);
-    			break;
-            case SMB2_SET_INFO       :
-    			doSend = Proc_smb2_SetInfo(&smb2stream);
-    			break;
-            case SMB2_OPLOCK_BREAK   :
-    			doSend = Proc_smb2_OplockBreak(&smb2stream);
-    			break;
-    		default:
-    		    RtsmbWriteSrvError(&smb2stream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
-    		    doFinalize = FALSE;
-    		    doSend = TRUE;
-    		break;
-		}
-	}
-    if (doSend)
-    {
-        printf("Setting status in header before send to %X\n", smb2stream.OutHdr.Status_ChannelSequenceReserved);
-        tc_memcpy(pHeaderInBuffer,&smb2stream.OutHdr,sizeof(smb2stream.OutHdr));
-	    if (doFinalize)
-        {
-            if (RtsmbWriteFinalizeSmb2(&smb2stream,smb2stream.InHdr.MessageId)<0)
-            {
-                RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR,0,0);
-            }
-        }
-        Smb2SrvModel_Global_Stats_Send_Update(smb2stream.OutBodySize);
-    }
-    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
-	return doSend;
-}
-
-
-
-/* Called from ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
-BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
-{
-    int header_size;
-    int length;
-    BBOOL doSend = FALSE;
-    BBOOL doFinalize = FALSE;
-    smb2_stream  smb2stream;
-    smb2_stream * pStream;
-
-    // Add in SMBV2 session stuff
-    printf("call SMBS_InitSessionCtx_smb2 from SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB\n");
-
-    SMBS_InitSessionCtx_smb2(pSctx);
-
-    pStream = &smb2stream;
-
-
-    /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
-    Smb1SrvCtxtToStream(pStream, pSctx);
-
-    pStream->psmb2Session->Connection->ShouldSign = FALSE;
-    pStream->psmb2Session->Connection->Dialect = SMB2_DIALECT_2002;
-    pStream->psmb2Session->Connection->NegotiateDialect = SMB2_DIALECT_2002;
-    pStream->psmb2Session->Connection->MaxTransactSize = pSctx->readBufferSize;
-    pStream->psmb2Session->Connection->MaxWriteSize = pSctx->writeBufferSize;
-    pStream->psmb2Session->Connection->MaxReadSize = pSctx->readBufferSize;
-	/**
-	 * Set up outgoing header.
-	 */
-    tc_memset(&smb2stream.OutHdr,0, sizeof(smb2stream.OutHdr));
-//    tc_memset(smb2stream.OutHdr.Signature,0, sizeof(smb2stream.OutHdr.Signature));
-
-
-    smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
-    smb2stream.OutHdr.StructureSize = 64;
-
-	/* fill it in once, just so we have something reasonable in place */
-	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
-
-    /* Reset the stream */
-	smb2stream.pOutBuf = smb2stream.write_origin;
-	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
-	smb2stream.OutBodySize = 0;
-
-    RTSMB2_NEGOTIATE_R response;
-    MEMCLEAROBJ(response);
-    response.StructureSize      = 65;
-    /* SecurityMode MUST have the SMB2_NEGOTIATE_SIGNING_ENABLED bit set. */
-    response.SecurityMode       = SMB2_NEGOTIATE_SIGNING_ENABLED;
-    /* If RequireMessageSigning is TRUE, the server MUST also set SMB2_NEGOTIATE_SIGNING_REQUIRED in the SecurityMode field. */
-    if (pSmb2SrvGlobal->RequireMessageSigning)
-    {
-        response.SecurityMode   |= SMB2_NEGOTIATE_SIGNING_REQUIRED;
-        pStream->psmb2Session->SigningRequired = TRUE;
-    }
-    /* DialectRevision MUST be set to the common dialect. */
-    response.DialectRevision    = pStream->psmb2Session->Connection->Dialect;
-    response.Reserved = 0;
-    /* ServerGuid is set to the global ServerGuid value. */
-    tc_memcpy(response.ServerGuid,pSmb2SrvGlobal->ServerGuid,16);
-    /* The Capabilities field MUST be set to a combination of zero or more of the following bit values, as specified in section 2.2.4 */
-    response.Capabilities       = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, 0); // command==0 , no SMB3
-
-    /* MaxTransactSize is set to the maximum buffer size<221>,in bytes, that the server will accept on this connection for QUERY_INFO,
-       QUERY_DIRECTORY, SET_INFO and CHANGE_NOTIFY operations. */
-    response.MaxTransactSize    =  pStream->psmb2Session->Connection->MaxTransactSize;
-    /* MaxReadSize is set to the maximum size,<222> in bytes, of the Length in an SMB2 READ Request */
-    response.MaxReadSize        =  pStream->psmb2Session->Connection->MaxReadSize;
-
-    /* MaxWriteSize is set to the maximum size,<223> in bytes, of the Length in an SMB2 WRITE Request */
-    response.MaxWriteSize       =  pStream->psmb2Session->Connection->MaxWriteSize;
-    /* SystemTime is set to the current time */
-    response.SystemTime         =  rtsmb_util_get_current_filetime();
-    /* ServerStartTime is set to the global ServerStartTime value */
-    response.ServerStartTime    =  pSmb2SrvGlobal->ServerStartTime;
-
-    /* SecurityBufferOffset is set to the offset to the Buffer field in the response, in bytes, from the beginning of the SMB2 header.
-        SecurityBufferLength is set to the length of the data being returned in the Buffer field. */
-    response.SecurityBufferLength = 0;
-    pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Default(&pStream->WriteBufferParms[0].byte_count);
-    response.SecurityBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
-    if (response.SecurityBufferLength)
-    {
-        response.SecurityBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-    }
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    if (response.SecurityBufferLength)
-        RTSmb2_Encryption_Release_Spnego_Default(pStream->WriteBufferParms[0].pBuffer);
-    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
-    return TRUE;
-} // End ProcNegotiateProtocol
-
-
-/*
-Proccess Negotiate protocol requests.  This function figures out what the highest supported dialog on both machines can be used for the remainder of the session.
-
-    3.3.5.4 Receiving an SMB2 NEGOTIATE Request   ................ 258
-
-    pStream->psmb2Session and pStream->psmb2Session->Connection are already partially initialized.
-
-    Process the incoming negotiate command and complete setup commands.
-
-*/
-
-static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
-{
-	RTSMB2_NEGOTIATE_C command;
-	RTSMB2_NEGOTIATE_R response;
-    BBOOL select_3x_only  = FALSE;
-    struct smb2_dialect_entry_s *pEntry=0;
-
-    if (pSmb2SrvGlobal->EncryptData && pSmb2SrvGlobal->RejectUnencryptedAccess)
-    {
-        select_3x_only = TRUE;
-    }
-
-    RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
-    if (!pStream->Success)
-        return TRUE;
-    /*
-        If Connection.NegotiateDialect is 0x0202, 0x0210, 0x0300, or 0x0302 the server MUST disconnect the connection,
-        as specified in section 3.3.7.1, and not reply.
-    */
-    if (pStream->psmb2Session->Connection->NegotiateDialect)
-    {
-        pStream->doSocketClose = TRUE;
-		return FALSE;
-    }
-
-    /* The server MUST set Connection.ClientCapabilities to the capabilities received in the SMB2 NEGOTIATE request. */
-    pStream->psmb2Session->Connection->ClientCapabilities = command.Capabilities;
-
-    /* If the server implements the SMB 3.x dialect family, the server MUST set Connection.ClientSecurityMode to the SecurityMode field of the SMB2 NEGOTIATE Request. */
-    pStream->psmb2Session->Connection->ClientSecurityMode = command.SecurityMode;
-
-    /* If the server implements the SMB2.1 or 3.x dialect family, the server MUST set Connection.ClientGuid to the ClientGuid field of the SMB2 NEGOTIATE Request. */
-    tc_memcpy(pStream->psmb2Session->Connection->ClientGuid, command.guid, 16);
-
-    /* If SMB2_NEGOTIATE_SIGNING_REQUIRED is set in SecurityMode, the server MUST set Connection.ShouldSign to TRUE. */
-    if (command.SecurityMode & SMB2_NEGOTIATE_SIGNING_REQUIRED)
-        pStream->psmb2Session->Connection->ShouldSign = TRUE;
-
-    /*  If the DialectCount of the SMB2 NEGOTIATE Request is 0, the server MUST fail the request with STATUS_INVALID_PARAMETER. */
-    if (command.DialectCount == 0)
-    {
-		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
-		return TRUE;
-    }
-    pEntry = RTSMB_FindBestDialect(command.DialectCount, command.Dialects);
-    /* If a common dialect is not found, the server MUST fail the request with STATUS_NOT_SUPPORTED. */
-    if (pEntry == 0)
-    {
-		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_NOT_SUPPORTED);
-		return TRUE;
-    }
-    /*
-        If a common dialect is found, the server MUST set Connection.Dialect to "2.002", "2.100", "3.000", or "3.002", and Connection.NegotiateDialect to
-        0x0202, 0x0210, 0x0300, or 0x0302 accordingly, to reflect the dialect selected.
-    */
-    pStream->psmb2Session->Connection->NegotiateDialect = pEntry->dialect;
-    pStream->psmb2Session->Connection->Dialect = pEntry->dialect;
-
-    if (select_3x_only && !SMB2IS3XXDIALECT(pEntry->dialect))
-    {
-        RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS,0,0);
-		return TRUE;
-    }
-
-    /* If the common dialect is SMB 2.1 or 3.x dialect family and the underlying connection is either TCP port 445 or RDMA,
-       Connection.SupportsMultiCredit MUST be set to TRUE; otherwise, it MUST be set to FALSE.
-    */
-    if (pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
-    {
-        if (pStream->psmb2Session->Connection->TransportName & (RTSMB2_TRANSPORT_SMB_OVER_RDMA|RTSMB2_TRANSPORT_SMB_OVER_TCP) )
-            pStream->psmb2Session->Connection->SupportsMultiCredit = TRUE;
-    }
-    MEMCLEAROBJ(response);
-    response.StructureSize      = 65;
-    /* SecurityMode MUST have the SMB2_NEGOTIATE_SIGNING_ENABLED bit set. */
-    response.SecurityMode       = SMB2_NEGOTIATE_SIGNING_ENABLED;
-    /* If RequireMessageSigning is TRUE, the server MUST also set SMB2_NEGOTIATE_SIGNING_REQUIRED in the SecurityMode field. */
-    if (pSmb2SrvGlobal->RequireMessageSigning)
-    {
-        response.SecurityMode   |= SMB2_NEGOTIATE_SIGNING_REQUIRED;
-        pStream->psmb2Session->SigningRequired = TRUE;
-    }
-    /* DialectRevision MUST be set to the common dialect. */
-    response.DialectRevision    = pStream->psmb2Session->Connection->Dialect;
-    response.Reserved = 0;
-    /* ServerGuid is set to the global ServerGuid value. */
-    tc_memcpy(response.ServerGuid,pSmb2SrvGlobal->ServerGuid,16);
-    /* The Capabilities field MUST be set to a combination of zero or more of the following bit values, as specified in section 2.2.4 */
-    response.Capabilities       = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, &command);
-
-
-    pStream->psmb2Session->Connection->MaxTransactSize = pStream->read_buffer_size;
-    pStream->psmb2Session->Connection->MaxWriteSize = pStream->write_buffer_size;
-    pStream->psmb2Session->Connection->MaxReadSize = pStream->read_buffer_size;
-
-    /* MaxTransactSize is set to the maximum buffer size<221>,in bytes, that the server will accept on this connection for QUERY_INFO,
-       QUERY_DIRECTORY, SET_INFO and CHANGE_NOTIFY operations. */
-    response.MaxTransactSize    =  pStream->psmb2Session->Connection->MaxTransactSize;
-    /* MaxReadSize is set to the maximum size,<222> in bytes, of the Length in an SMB2 READ Request */
-    response.MaxReadSize        =  pStream->psmb2Session->Connection->MaxReadSize;
-    /* MaxWriteSize is set to the maximum size,<223> in bytes, of the Length in an SMB2 WRITE Request */
-    response.MaxWriteSize       =  pStream->psmb2Session->Connection->MaxWriteSize;
-    /* SystemTime is set to the current time */
-    response.SystemTime         =  rtsmb_util_get_current_filetime();
-    /* ServerStartTime is set to the global ServerStartTime value */
-    response.ServerStartTime    =  pSmb2SrvGlobal->ServerStartTime;
-
-    /* SecurityBufferOffset is set to the offset to the Buffer field in the response, in bytes, from the beginning of the SMB2 header.
-        SecurityBufferLength is set to the length of the data being returned in the Buffer field. */
-    response.SecurityBufferLength = 0;
-    response.SecurityBufferOffset = 0;
-
-    // Don't return a security buffer allow the client to initaiat security
-//    pStream->WriteBufferParms[0].pBuffer =  RTSmb2_Encryption_Get_Spnego_Default(&pStream->WriteBufferParms[0].byte_count);
-//    response.SecurityBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
-
-
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    return TRUE;
-} // End ProcNegotiateProtocol
-
-
-#if (0)
 /*
 Proccess SESSION_SETUP requests.
 
@@ -568,7 +67,7 @@ Proccess SESSION_SETUP requests.
 
 */
 
-static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
+BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
 {
 	int i;
 	RTSMB2_SESSION_SETUP_C command;
@@ -1138,8 +637,14 @@ static byte spnego_blob_buffer[512];
     else
     {
         pStream->OutHdr.SessionId       = pStreamSession->SessionId;
-        /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
-        RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+        // Allocate a UID structure for this session and populate pStream->psmb2Session->pSmbCtx->uid
+        if (!Smb1SrvUidForStream (pStream))
+           pStream->doSessionClose = TRUE;
+        else
+        {
+          /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
+          RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+        }
     }
 //    TBD - releaing / leaks
     if (pStream->WriteBufferParms[0].pBuffer)
@@ -1149,348 +654,67 @@ static byte spnego_blob_buffer[512];
     return TRUE;
 } // End Proc_smb2_SessionSetup
 
-#endif
-/* --------------------------------------------------- /
- * Proc_smb2_LogOff command			           /
- *	                                                   /
- *                                                     /
- * smb2_stream  *pStream                               /
- *  Has inbuffer and outbuffer stream pointers         /
- *  Has links to SMB2 session and SMB1 session info    /
- *  PSMB_HEADER InHdr - the incoming smb header        /
- *  PSMB_HEADER OutHdr - the outgoing smb header       /
- *													   /
- * This command logs the user off, and frees resource   /
- *                                                     /
- * Returns: TRUE if there is data to write.            /
- *          FALSE otherwise.                           /
- *          If a communication error occurs the command/
- *          The may instruct the session to shut down  /
- *          and/or the socket to be closed.            /
- * -------------------------------------------------- */
-static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream)
+
+
+static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
 {
-	RTSMB2_LOGOFF_C command;
-	RTSMB2_LOGOFF_R response;
-	dword error_status = 0;
-	pSmb2SrvModel_Session pSmb2Session;
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
-
-    rtp_printf("In logoff handler \n");
-    /* Read into command */
-    RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
-    if (!pStream->Success)
+  PSMB_SESSIONCTX pCtx =  pStream->psmb2Session->pSmbCtx;
+    pCtx->uid = 0;
+    pCtx->accessMode = AUTH_USER_MODE;
+    if (pCtx->accessMode == AUTH_USER_MODE)
     {
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
-        return TRUE;
-    }
+        int i;
+        word access, authId;
+        PUSER user = (PUSER)0;
 
-    RTSmb2_SessionShutDown(pStream->psmb2Session);
+       authId = 0;
+       access = AUTH_USER_MODE;
+       {
+           /* if this is a guest loging, reuse old guests   */
+           if ((user == (PUSER)0) && (authId == 0))
+           {
 
+               for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+               {
+                   if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
+                   {
+/*                      rtp_printf("reuse uid: %i, authid: %i \n", pInHdr->uid, authId);   */
+                       user = &pCtx->uids[i];
+                       break;
+                   }
+               }
+           }
+           /* allocate a new UID   */
+           if (user == (PUSER)0)
+           {
+               for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+               {
+                   if (pCtx->uids[i].inUse == FALSE)
+                   {
+                       user = &pCtx->uids[i];
+                       User_Init(user);
+                       user->uid    = (word) NewUID(pCtx->uids, prtsmb_srv_ctx->max_uids_per_session);
+                       user->authId = user->uid; // Not sure
+                       user->canonicalized = (BBOOL) FALSE; // Not sure
+                       break;
+                   }
+               }
+           }
 
-    response.StructureSize          = 4;
-    response.Reserved               = 0;
-    pStream->OutHdr.SessionId       = pStream->psmb2Session->SessionId;
-    /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+           if (user == (PUSER)0)
+           {
+               RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS,0,0);
+               return FALSE;
+           }
+           else
+           {
+               pCtx->uid    = user->uid;
 
-    pStream->psmb2Session = 0;
-
-    return TRUE;
-
-}
-
-/* --------------------------------------------------- /
- * Proc_smb2_TreeConnect command			           /
- *	                                                   /
- *                                                     /
- * smb2_stream  *pStream                               /
- *  Has inbuffer and outbuffer stream pointers         /
- *  Has links to SMB2 session and SMB1 session info    /
- *  PSMB_HEADER InHdr - the incoming smb header        /
- *  PSMB_HEADER OutHdr - the outgoing smb header       /
- *													   /
- * This command connects the client to a given share.  /
- * The spec says that every Session Setup command      /
- * must be followed by a tree connect, but that rule   /
- * is sometimes broken.                                /
- *
- * Formats the output buffer with either a positive or /
- * response message.                                   /
- *                                                     /
- * Returns: TRUE if there is data to write.            /
- *          FALSE otherwise.                           /
- *          If a communication error occurs the command/
- *          The may instruct the session to shut down  /
- *          and/or the socket to be closed.            /
- * -------------------------------------------------- */
-
-static byte MapRTSMB_To_Smb2_ShareType(enum RTSMB_SHARE_TYPE inType)
-{
-byte b=0;
- switch (inType){
- case RTSMB_SHARE_TYPE_DISK:
-     b = 1;
-     break;
- case RTSMB_SHARE_TYPE_PRINTER:
-     b = 3;
-     break;
- case RTSMB_SHARE_TYPE_DEVICE:
- case RTSMB_SHARE_TYPE_IPC:
-     b = 2;
-     break;
- }
- return b;
-};
-
-static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
-{
-	RTSMB2_TREE_CONNECT_C command;
-	RTSMB2_TREE_CONNECT_R response;
-	rtsmb_char share_name [RTSMB_NB_NAME_SIZE + RTSMB_MAX_SHARENAME_SIZE + 4]; /* 3 for '\\'s and 1 for null */
-	dword error_status = 0;
-	pSmb2SrvModel_Session pSmb2Session;
-    tc_memset(share_name,0, sizeof(share_name));
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
-
-    rtp_printf("In tree connect handler \n");
-
-     /* Set up a temporary buffer to hold incoming share name */
-    pStream->ReadBufferParms[0].pBuffer = share_name;
-    pStream->ReadBufferParms[0].byte_count = sizeof(share_name);
-    /* Read into command, share name will be placed in command_args.pBuffer which came from RTSmb2_Encryption_Get_Spnego_InBuffer */
-    RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
-    if (!pStream->Success)
-    {
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
-        return TRUE;
-    }
-    rtp_printf("Got share name:");
-    {int i;
-    for (i=0;share_name[i]!=0;i++)
-      rtp_printf("%c", (char )share_name[i]);
-    rtp_printf(":\n");
-    }
-    rtp_printf("Trying to find session from session id in header %d\n", (int) pStream->InHdr.SessionId);
-    pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
-
-
-
-    rtp_printf("Got v == %X by stream pointer == %X\n", (unsigned int)pSmb2Session,(unsigned int)pStream->psmb2Session);
-
-
-    /* Tie into the V1 share mechanism for now */
-    {
-        int tid;
-
-        CLAIM_SHARE ();
-        tid = SR_GetTreeIdFromName ( share_name );
-        if (tid <0)
-        {
-           error_status = SMB2_STATUS_BAD_NETWORK_NAME;
-        }
-        else
-        {
-			byte access;
-			PSR_RESOURCE pResource;
-
-			pResource = SR_ResourceById ((word) tid);
-
-#if (1)
-printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
-            access = SECURITY_READWRITE;
-#else
-			/**
-			 * We first see what mode the server was in when the user logged in.
-			 * This will let us know how to get access info.
-			 */
-			switch (pCtx->accessMode)
-			{
-				case AUTH_SHARE_MODE:
-// Auth_AuthenticateUser and DoPasswordsMatch() are really ugly, should be able to remove but not just yet
-					if (Auth_DoPasswordsMatch (pCtx, 0, 0, pResource->password, (PFBYTE) password, (PFBYTE) password) == TRUE)
-						access = pResource->permission;
-					else
-					{
-						pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
-					}
-					break;
-				case AUTH_USER_MODE:
-				default:
-					access = Auth_BestAccess (pCtx, (word) tid);
-					break;
-			}
-#endif
-			/**
-			 * If they have *some* access, let them connect and browse the share.
-			 */
-			if (access != SECURITY_NONE)
-			{
-				PTREE tree;
-
-                // Allocates a free tree structure from the context
-				tree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, -1);
-
-				if (!tree)
-				{
-					/* no free tree structs */
-					error_status = SMB2_STATUS_INSUFFICIENT_RESOURCES;
-				}
-                else
-                {
-				word externaltid;
-
-				    error_status = 0;
-
-				    response.StructureSize = 16;
-				    response.ShareType              = MapRTSMB_To_Smb2_ShareType(pResource->stype);
-				    response.ShareFlags             = SMB2_SHAREFLAG_NO_CACHING|SMB2_SHAREFLAG_RESTRICT_EXCLUSIVE_OPENS;
-				    response.Capabilities           = 0; // SMB2_SHARE_CAP_CONTINUOUS_AVAILABILITY;
-				    if (access == SECURITY_READ)
-				        response.MaximalAccess          = SMB2_FPP_ACCESS_MASK_FILE_READ_DATA;
-				    else
-				        response.MaximalAccess          =   SMB2_FPP_ACCESS_MASK_FILE_READ_DATA|
-				                                            SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA|
-				                                            SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA;
-				    externaltid = (word) (((int) (tree)) & 0xFFFF);
-				    pStream->OutHdr.TreeId = (dword) externaltid;
-
-				    tree->external = externaltid;
-				    tree->internal = (word) tid;
-                    // Zero the file id structures
-				    Tree_Init (tree);
-				    tree->access = access;
-				    tree->type = pResource->stype;
-                    pStream->psmb2Session->pSmbCtx->tid = externaltid;
-				}
-			}
-			else
-			{
-				error_status = SMB2_STATUS_ACCESS_DENIED;
-			}
+           }
        }
-       RELEASE_SHARE ();
-    }
-
-
-    if (error_status)
-    {
-		RtsmbWriteSrvStatus (pStream, error_status);
-    }
-    else
-    {
-        /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
-        RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }
     return TRUE;
-} // Proc_smb2_TreeConnect
-
-
-/*
-================
-	PSMB_SESSIONCTX pSmbCtx - x
-	PSMB_HEADER1 pInHdr1 - x
-	PSMB_HEADER2 pInHdr2 - x
-================
-*/
-static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
-{
-	RTSMB2_TREE_DISCONNECT_C command;
-	RTSMB2_TREE_DISCONNECT_R response;
-	dword error_status = 0;
-
-	pSmb2SrvModel_Session pSmb2Session;
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  called\n",0);
-    /* Read into command, TreeId will be present in the input header */
-    RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
-    if (!pStream->Success)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand failed...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
-        return TRUE;
-    }
-    else
-    {
-        PTREE tree;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand succeded Tree = %d\n",(int)pStream->InHdr.TreeId);
-        tree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, (word) pStream->InHdr.TreeId);
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  SMBU_GetTree returned %X\n",(int)tree);
-        if (tree)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session == %X\n",(int)pStream->psmb2Session);
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session->pSmbCtx == %X\n",(int)pStream->psmb2Session->pSmbCtx);
-            Tree_Shutdown (pStream->psmb2Session->pSmbCtx, tree);
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  back Tree_Shutdown X\n",0);
-        }
-    }
-	response.StructureSize = 4;
-    if (error_status)
-    {
-		RtsmbWriteSrvStatus (pStream, error_status);
-    }
-    else
-    {
-        /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
-        RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    }
-    return TRUE;
-} // Proc_smb2_TreeDisConnect
-
-
-
-
-static  rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};
-static struct smb2_dialect_entry_s smb2_dialectList[] =
-{
-	{SMB2_DIALECT_2002, srv_dialect_smb2002, 1},
-};
-#define NUM_SMB2_DIALECTS (int)(sizeof(smb2_dialectList)/sizeof(smb2_dialectList[0]))
-static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[])
-{
-int i,entry;
-word dialect = 0;
-struct smb2_dialect_entry_s *pEntry = 0;
-
-   for (entry = 0; entry < inDialectCount; entry++)
-   {//check dialect field against dialect list
-        for (i = 0; i < NUM_SMB2_DIALECTS; i++)
-        {
-	        if (inDialects[entry] == smb2_dialectList[i].dialect)
-	        {
-	            if ((dialect == 0)	|| (smb2_dialectList[dialect].priority < smb2_dialectList[i].priority))
-	            {
-				    dialect = smb2_dialectList[i].dialect;
-				    pEntry = &smb2_dialectList[i];
-	            }
-	        }
-        }
-   }
-   return pEntry;
 }
-
-
-
-const char *DebugSMB2CommandToString(int command);
-
-
-static void DebugOutputSMB2Command(int command)
-{
-#ifdef RTSMB_DEBUG
-char tmpBuffer[32];
-    char* buffer = tmpBuffer;
-    tmpBuffer[0] = '\0';
-    RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMB2_Body:  Processing a packet with command: ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR((char *)DebugSMB2CommandToString(command), RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
-
-#endif // RTSMB_DEBUG
-}
-
-
 #endif /* INCLUDE_RTSMB_SERVER */
-#endif
+#endif /* #ifdef SUPPORT_SMB2   exclude rest of file */
+

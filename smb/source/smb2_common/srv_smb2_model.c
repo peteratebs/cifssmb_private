@@ -49,10 +49,9 @@
 #include "smbnet.h"
 
 #include "rtptime.h"
-#define HEREHERE
-#define CLAIM_SEMAPHORE
-#define RELEASE_SEMAPHORE
 
+// Shared with srvssn.c
+extern void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
 
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
@@ -144,7 +143,9 @@ void Smb2SrvModel_Global_Init(void)
 */
 BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
 {
-    /* Allocate the sessions */
+    /* NEWNEW Initialize the SMB1 pSmbCtx->uids[i] and pSmbCtx->tree[i] and fid structures */
+    SMBS_InitSessionCtx_smb1(pSmbCtx);
+    /* Allocate the smb2 session stuff */
     pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_InitSessionCtx_smb2 created session:  pSession == %X \n",(int)pSmbCtx->pCtxtsmb2Session);
 
@@ -165,6 +166,18 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
     /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
    pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
    pSmbCtx->isSMB2 = TRUE;
+
+
+    /**
+     * Set some flags to let processing functions know what's going on without
+     * having to pass a lot of info on around on the stack.
+     *
+     * These are the values for the smb being processed.
+     */
+//    pSmbCtx->uid = (word) pSmbCtx->pCtxtsmb2Session.SessionId;  //   ?? is this right ?
+//    dword pid;
+//    word tid;
+
    return TRUE;
 }
 
