@@ -40,6 +40,7 @@
 typedef struct NativeFileSystemObj
 {
     int currentPath;
+    int glob_data_valid;
 	glob_t globdata;
     struct stat statdata;
 } FSOBJ;
@@ -162,6 +163,7 @@ int hung_up = 512;
         return (-1);
     }
 
+    linDirObj->glob_data_valid = 1;
     *dirobj = (void*) linDirObj;
     return (0);
 }
@@ -171,12 +173,17 @@ int rtp_file_gfirst (void ** dirobj, char * name)
 {
 FSOBJ* linDirObj;
 int result;
-
+char *stat_name=0;
     linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
     memset(linDirObj, 0, sizeof(FSOBJ));
 
     result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
-    if (result != 0)
+    if (result == GLOB_NOMATCH)
+    {
+      printf("GLOB_NOMATCH go straight to stat\n");
+      stat_name = name;
+    }
+    else if (result != 0)
     {
         free (linDirObj);
 #ifdef RTP_DEBUG
@@ -187,9 +194,12 @@ int result;
          *dirobj = (void*) 0;
          return (-1);
     }
-
-    linDirObj->currentPath = 0;
-    if (stat (linDirObj->globdata.gl_pathv[linDirObj->currentPath], &linDirObj->statdata) == -1)
+    else
+    {
+       linDirObj->currentPath = 0;
+       stat_name = linDirObj->globdata.gl_pathv[linDirObj->currentPath];
+    }
+    if (stat(stat_name, &linDirObj->statdata) == -1)
     {
         globfree(&linDirObj->globdata);
         free (linDirObj);
@@ -202,6 +212,7 @@ int result;
         return (-1);
     }
 
+    linDirObj->glob_data_valid = 1;
     *dirobj = (void*) linDirObj;
     return (0);
 }
@@ -246,7 +257,10 @@ void rtp_file_gdone (void * dirobj)
 {
     if (dirobj)
     {
-       globfree(&((FSOBJ *)dirobj)->globdata);
+       if (((FSOBJ *)dirobj)->glob_data_valid)
+       {
+         globfree(&((FSOBJ *)dirobj)->globdata);
+       }
 	   free(dirobj);
     }
 }

@@ -121,6 +121,12 @@ RTSMB_STATIC PFRTCHAR expandName (PSR_RESOURCE resource, PFRTCHAR name, PFRTCHAR
 
 	if (nameSize == 0 || (nameSize == 1 && name[0] == '\\')) return dest;
 
+	if (nameSize == 2 && name[0] == '\\' && name[1] == '.')
+	{
+	  printf("expandName: Faking fake return of maont name \n");
+	  return dest;
+    }
+
 	// add separator if needed
 	if (dest[pathSize - 1] != DEVICE_separator)
 	{
