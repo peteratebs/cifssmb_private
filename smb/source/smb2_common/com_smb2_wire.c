@@ -323,7 +323,7 @@ int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize
 	e = buf;
     if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);
     consumed = (rtsmb_size)PDIFF (e, s);
-    pStream->pInBuf = PADD(pStream->pInBuf, consumed);
+    pStream->pOutBuf = PADD(pStream->pOutBuf, consumed);
     pStream->write_buffer_remaining-=consumed;
     pStream->OutBodySize+=consumed;
     if (pStream->SigningKey)
