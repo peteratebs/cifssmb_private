@@ -77,7 +77,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
-    externalFid = *((word *) &command.FileId[0]);
+    externalFid = *((word *) &command.FileId[1]);
     ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
     fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags);
 
@@ -97,7 +97,9 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         {
             if (command.Flags & 0x01) // Asking for stats
             {
-#ifdef FUCK
+// We either need to implement SMBFIO_Fstat or cheat and add a file name store to SMBFIO_OpenInternal and use that in stat, being sure to delete it in SMBFIO_Close()
+printf("Close asked for stat but we can not give them yet\n");
+#ifdef TBD
                 SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
                 response.Flags          = 0; // ??? SMB3 only
                 response.Reserved       = 0; // ??? SMB3 only

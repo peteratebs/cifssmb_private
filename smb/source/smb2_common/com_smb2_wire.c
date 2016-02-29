@@ -267,6 +267,30 @@ PFVOID s=buf;
 	return PDIFF (buf, s);
 }
 
+int RtsmbWireVarDecodePartTwo (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize)
+{
+PFVOID s=buf;
+	if (BufferLength)
+    {
+        dword OffsetToBuffer = BufferOffset- (dword)(StructureSize+pStream->InHdr.StructureSize-1);
+	    if (OffsetToBuffer)
+	    {
+        dword i;
+        byte b;
+	        for(i = 0; i < OffsetToBuffer; i++)
+            {
+                RTSMB_READ_BYTE(&b);
+            }
+	    }
+        if (!pStream->ReadBufferParms[1].pBuffer || BufferLength > pStream->ReadBufferParms[1].byte_count)
+            return -1;
+        pStream->ReadBufferParms[1].byte_count = BufferLength;
+        RTSMB_READ_ITEM  (pStream->ReadBufferParms[1].pBuffer, pStream->ReadBufferParms[1].byte_count);
+    }
+	return PDIFF (buf, s);
+}
+
+
 int RtsmbWireVarEncode(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, word StructureSize)
 {
 PFVOID s=buf;

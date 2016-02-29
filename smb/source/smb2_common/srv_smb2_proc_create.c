@@ -24,10 +24,10 @@
 #include "srv_smb2_model.h"
 
 
-const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,0x01,
-0x1f,0x00,0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,0x9e,0x3b,0x06,0x00
+const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0xff,0x01,0x1f, // Access mask
+0x00,0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,0x9e,0x3b,0x06,0x00
 ,0x00,0x00,0x00,0x00,0x00,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-
 
 
 #include "rtptime.h"
@@ -47,12 +47,61 @@ const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid);
 
 
-#define MAX_CREATE_CONTEXT_LENGTH_TOTAL 64 // Don't need much, mostly 4 byte values
+#define MAX_CREATE_CONTEXT_LENGTH_TOTAL 512 // Don't need much, mostly 4 byte values
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_CREATE_CONTEXT_WIRE {
+  dword Next;
+  word NameOffset;
+  dword NameLength;
+  word  DataOffset;
+  dword DataLength;
+  byte Buffer[1];
+} PACK_ATTRIBUTE RTSMB2_CREATE_CONTEXT_WIRE;
+PACK_PRAGMA_POP
+
+typedef RTSMB2_CREATE_CONTEXT_WIRE RTSMB_FAR *PRTSMB2_CREATE_CONTEXT_WIRE;
+
+#define MAX_CREATE_CONTEXTS_ON_WIRE 16 // Should be plenty
+typedef struct s_RTSMB2_CREATE_CONTEXT_INTERNAL {
+  PRTSMB2_CREATE_CONTEXT_WIRE p_context_entry_wire; // Pointer to raw wire record
+  dword NameDw;                                     // 4 byte name from p_context_entry_wire->NameOffset (will be a problem for 3.X names. Will need to encode those larger names into internale handle names
+  word  Reserved;                                   // Nul terminates name so we can print it as a string
+  PFVOID p_payload;                                 // pointer to data of length p_context_entry_wire->DataLength
+} RTSMB2_CREATE_CONTEXT_INTERNAL;
+typedef RTSMB2_CREATE_CONTEXT_INTERNAL RTSMB_FAR *PRTSMB2_CREATE_CONTEXT_INTERNAL;
+
+typedef struct s_RTSMB2_CREATE_DECODED_CREATE_CONTEXTS {
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pExtA;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pSecD;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pDHnQ;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pDHnC;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pAISi;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pMxAc;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pTWrp;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pQFid;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pRqLs;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pRq2s;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pDH2Q;
+  PRTSMB2_CREATE_CONTEXT_INTERNAL pDH2C;
+  int n_create_context_request_values;                         // Return value, number of valid create contexts decoded
+  dword error_code;                                            // Return value, error code if any problems were detected
+  RTSMB2_CREATE_CONTEXT_INTERNAL context_values[MAX_CREATE_CONTEXTS_ON_WIRE];
+} RTSMB2_CREATE_DECODED_CREATE_CONTEXTS;
+typedef RTSMB2_CREATE_DECODED_CREATE_CONTEXTS RTSMB_FAR *PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS;
+
+#define RTSMB2_CREATE_CONTEXT_WIRE_SIZE (sizeof(RTSMB2_CREATE_CONTEXT_WIRE)-1) // -1 because buffer is optional
+
+
+
+
+
+
 BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
 	RTSMB2_CREATE_C command;
 	RTSMB2_CREATE_R response;
-    byte file_name[RTSMB2_MAX_FILENAME_SIZE+MAX_CREATE_CONTEXT_LENGTH_TOTAL];
+    byte file_name[RTSMB2_MAX_FILENAME_SIZE];
+    byte create_content[MAX_CREATE_CONTEXT_LENGTH_TOTAL];
     int fid;
     dword r;
     word externalFid;
@@ -63,6 +112,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     SMBFSTAT stat;
     byte permissions = 5; /* HAD TO SET IT TO A USELESS VALUE _YI_ */
 	PTREE pTree;
+    RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
 
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA !!...\n",0);
 
@@ -78,6 +128,9 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
      /* Set up a temporary buffer to hold incoming share name */
     pStream->ReadBufferParms[0].pBuffer = file_name;
     pStream->ReadBufferParms[0].byte_count = sizeof(file_name);
+    pStream->ReadBufferParms[1].pBuffer = create_content;
+    pStream->ReadBufferParms[1].byte_count = sizeof(create_content);
+
 
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
@@ -95,6 +148,18 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
    		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
         return TRUE;
     }
+
+    if (command.NameLength!=0)
+    {
+      PFRTCHAR p = (PFRTCHAR) file_name;
+      rtsmb_char s = '\\';               // Return INVALID_PARAMETER If the first character is a path separator.
+      if (*p==s)
+      {
+         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_INVALID_PARAMETER);
+         return TRUE;
+      }
+    }
+
     if (ON (command.DesiredAccess, 0x1) ||
         ON (command.DesiredAccess, 0x20) ||
         ON (command.DesiredAccess, 0x20000) ||
@@ -171,20 +236,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
         permissions = SECURITY_READWRITE;
     }
-
     ASSERT_SMB2_PERMISSION(pStream, permissions);  // Checks permission on pCtx->tid
 
-    // If no name length then it's requesting persistent handles et al via CREATE_CONTEXT requests.
-    // Return SMB2_STATUS_OBJECT_NAME_NOT_FOUND and the client continues
-    if (command.NameLength==0)
-    { // An error if trying to create the root
-      if (flags & RTP_FILE_O_CREAT)
-      {
-       printf("call RtsmbWriteSrvStatus(SMB2_STATUS_OBJECT_NAME_NOT_FOUND)== %X\n", SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
-         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
-         return TRUE;
-      }
-    }
 
 
     if (command.FileAttributes & 0x80)
@@ -202,43 +255,33 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
-    // NULL terminate the file name, this clobbers the CREATE_CONTEXTs if there are any
-    if (command.NameLength==0)
+
+    if (pTree->type == ST_PRINTQ || pTree->type == ST_IPC)
+    { // Don't open IPCs or printers yet.
+      RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
+      return TRUE;
+    }
+    // Decode CreateContexts into decoded_create_context structure
+    if (command.CreateContextsOffset)
     {
+       int decode_r;
+       printf("Processing command.CreateContextsOffset == %d\n",  command.CreateContextsOffset);
+       decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
+    }
+
+    if (command.NameLength==0)
+    { // opening the root of the share
       PFRTCHAR p = (PFRTCHAR) file_name;
       rtsmb_char s = '\\';     // pass file_name[0] = \. so it stats the root.
       rtsmb_char d = '.';     // pass file_name[0] = \\ so it stats the root.
       *p++ = s; *p++ = d; *p = 0;
       flags = RTP_FILE_O_RDONLY;
       TURN_ON(command.FileAttributes, 0x80);
-      // This will fall through and stat the root
-      if (pTree->type == ST_IPC || pTree->type == ST_PRINTQ)
-      {
-      /* The correct behavior for non-supported pipe files is that they      */
-      /* are not-found files.  However, 2K at least, will die if we do that. */
-      /* This way (denying access) makes them think we support it, but they  */
-      /* just don't have the right priviledges, and they fall back to normal */
-      /* packets.                                                            */
-         r = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
-      }
-      else
-      {
-       // Hack, include extra info in stream if no file
-       wants_extra_info = TRUE;
-       printf ("Creae options == %X\n", command.CreateOptions);
-       if (!(ON(command.CreateOptions, 0x1)))
-       {
-         r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
-         printf ("Open on root no create options returned : %x\n", r);
-//         r = SMB2_STATUS_FILE_IS_A_DIRECTORY;
-//         printf ("Set is directory error %x\n", r);
-       }
-       else
-       {
-         r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
-         printf ("Open on root returned : %x\n", r);
-       }
-      }
+      // Hack, include extra info in stream if no file
+      wants_extra_info = TRUE;
+      printf ("Cretae options == %X\n", command.CreateOptions);
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, &externalFid, &fid);
+      printf ("Open on root returned : %x, external fileid == %d \n", r, externalFid);
     }
     else
     {
@@ -254,12 +297,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
               TURN_OFF (flags, RTP_FILE_O_EXCL);
               CreateAction = 2; // File created
           }
-         r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
+          r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
       }
     }
     if (r != 0)
     {
-//        printf("OpenOrCreate failed r == %x fixed r == %x\n", r, SMB_NT_STATUS_NO_SUCH_FILE);
+        printf("OpenOrCreate failed r == %x\n", r);
 //        r = SMB_NT_STATUS_NO_SUCH_FILE;
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
@@ -305,7 +348,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     response.EndofFile       = stat.f_size;
     response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
     // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
-    *((word *) &response.FileId[0]) = (word) externalFid;
+    *((word *) &response.FileId[0]) = (word) 0xABCD;
+    *((word *) &response.FileId[1]) = (word) externalFid;
     response.CreateContextsOffset = 0;
     response.CreateContextsLength = 0;
 
@@ -320,278 +364,196 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     return TRUE;
 } // Proc_smb2_Ioctl
 
+// Windows starts with "DHnQ","MxAc","QFid" on the root of the tree
+
+
+#define SMB2_CREATE_EA_BUFFER                    0x45787441   // "ExtA"  The data contains the extended attributes that MUST be stored on the created file. This value MUST NOT be set for named pipes and print files.
+#define SMB2_CREATE_SD_BUFFER                    0x53656344   // "SecD"  The data contains a security descriptor that MUST be stored on the created file.   This value MUST NOT be set for named pipes and print files.
+#define SMB2_CREATE_DURABLE_HANDLE_REQUEST       0x44486e51   // "DHnQ"  The client is requesting the open to be durable (see section 3.3.5.9.6).
+#define SMB2_CREATE_DURABLE_HANDLE_RECONNECT     0x44486e43   // "DHnC"  The client is requesting to reconnect to a durable open after being disconnected (see section 3.3.5.9.7).
+#define SMB2_CREATE_ALLOCATION_SIZE              0x416c5369   // "AISi"  The data contains the required allocation size of the newly created file.
+#define SMB2_CREATE_QUERY_MAXIMAL_ACCESS_REQUEST 0x4d784163   // "MxAc"  The client is requesting that the server return maximal access information.
+#define SMB2_CREATE_TIMEWARP_TOKEN               0x54577270   // "TWrp"  The client is requesting that the server open an earlier version of the file identified by the provided time stamp.
+#define SMB2_CREATE_QUERY_ON_DISK_ID             0x51466964   // "QFid"  The client is requesting that the server return a 32-byte opaque BLOB that uniquely identifies the file being opened on disk. No data is passed to the server by the client.
+#define SMB2_CREATE_REQUEST_LEASE                0x52714c73   // "RqLs"  SMB2.1 and above
+#define SMB2_CREATE_REQUEST_LEASE_V2             0x52713273   // "Rq2s"  may be a typo In SMB2 spec as 0x52714c73
+#define SMB2_CREATE_DURABLE_HANDLE_REQUEST_V2    0x44483251   // "DH2Q"  SMB3.X
+#define SMB2_CREATE_DURABLE_HANDLE_RECONNECT_V2  0x44483243   // "DH2C"  SMB3.X
+#define SMB2_CREATE_APP_INSTANCE_ID              0x45BCA66A   // EFA7F74A9008FA462E144D74 SMB3.X
+#define SMB2_CREATE_APP_INSTANCE_VERSION         0xB982D0B7   // 3B56074FA07B524A8116A010 SMB3.X
+#define SVHDX_OPEN_DEVICE_CONTEXT                0x9CCBCF9E   // 04C1E643980E158DA1F6EC83 SMB3.X
+
+#if 0
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_CREATE_CONTEXT_WIRE {
+  dword Next;
+  word NameOffset;
+  word NameLength;
+  word Reserved;
+  word  DataOffset;
+  word DataLength;
+  byte Buffer[1];
+} PACK_ATTRIBUTE RTSMB2_CREATE_CONTEXT_WIRE;
+PACK_PRAGMA_POP
 #endif
-#endif
 
-#if (0)
+static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values);
 
-BBOOL assertUid (PSMB_SESSIONCTX pCtx)
+int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length);
+
+
+int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length)
 {
-	PUSER user;
+PRTSMB2_CREATE_CONTEXT_INTERNAL p_current_value=&pdecoded_create_context->context_values[0];
+PRTSMB2_CREATE_CONTEXT_WIRE p_current_context_onwire = (PRTSMB2_CREATE_CONTEXT_WIRE)pcreate_context_buffer;
+PFVOID p_current_create_context_buffer=pcreate_context_buffer;
+int current_create_context_buffer_length = create_context_buffer_length;
+PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_length);
 
-	// no need to authenticate when in share mode
-	if (pCtx->accessMode == AUTH_SHARE_MODE)
-	{
-		return FALSE;
-	}
-	user = SMBU_GetUser (pCtx, pCtx->uid);
+  tc_memset(pdecoded_create_context,0,sizeof(*pdecoded_create_context));
+  printf("decode_create_context_request_values: length : %d\n", create_context_buffer_length);
+  while (current_create_context_buffer_length>=RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
+  {
+    BBOOL is_error_record = FALSE;
+    BBOOL take_next_record = TRUE;
+    p_current_value=&pdecoded_create_context->context_values[pdecoded_create_context->n_create_context_request_values];
 
-	if (user == (PUSER)0)
-	{
-		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_BADUID);
-		return TRUE;
-	}
-	else
-	{
-		return FALSE;
-	}
-}
+    tc_memset(p_current_value, 0, sizeof(*p_current_value));
 
-// undefined behavior if uid doesn't exist
-BBOOL assertTid (PSMB_SESSIONCTX pCtx)
-{
-	return assertThisTid (pCtx, pCtx->tid);
-}
-
-// undefined behavior if uid doesn't exist
-BBOOL assertThisTid (PSMB_SESSIONCTX pCtx, word tid)
-{
-	if (SMBU_GetTree (pCtx, tid))
-	{
-		return FALSE;
-	}
-
-	SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_INVNID);
-	return TRUE;
-}
-// undefined behavior if uid or tid isn't valid
-BBOOL assertPermission (PSMB_SESSIONCTX pCtx, byte permission)
-{
-	return assertPermissionForTid (pCtx, permission, pCtx->tid);
-}
-
-// undefined behavior if uid or tid isn't valid
-BBOOL assertPermissionForTid (PSMB_SESSIONCTX pCtx, byte permission, word tid)
-{
-	PTREE tree;
-
-	tree = SMBU_GetTree (pCtx, pCtx->tid);
-
-	if (tree->access == SECURITY_NONE ||
-		(tree->access != SECURITY_READWRITE && tree->access != permission))
-	{
-		RTSMB_DEBUG_OUTPUT_STR ("failed permissions check with permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (permission);
-		RTSMB_DEBUG_OUTPUT_STR (" against permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tree->access);
-		RTSMB_DEBUG_OUTPUT_STR (" on tid ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tid);
-		RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
-		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-
-int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PRTSMB_HEADER pOutHdr, PFVOID *pOutBuf)
-{
-    RTSMB_NT_CREATE_AND_X command;
-    PTREE pTree;
-    int flags = 0, mode;
-    byte permissions = 5; /* HAD TO SET IT TO A USELESS VALUE _YI_ */
-    int fid;
-    dword r;
-    word externalFid;
-    RTSMB_NT_CREATE_AND_X_R response;
-    SMBFSTAT stat;
-    BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
-
-
-    ASSERT_UID (pCtx);  // see above pCtx->uid
-    ASSERT_TID (pCtx);  // see above pCtx->tid
-
-    command.filename_size = (word) (pCtx->tmpSize & 0xFFFF);
-    command.filename = (PFRTCHAR) pCtx->tmpBuffer;
-    READ_SMB_AND_X (srv_cmd_read_nt_create_and_x);
-
-
-    if (ON (command.desired_access, 0x1) ||
-        ON (command.desired_access, 0x20) ||
-        ON (command.desired_access, 0x20000) ||
-        ON (command.desired_access, 0x10000000) ||
-        ON (command.desired_access, 0x20000000) ||
-        ON (command.desired_access, 0x80000000))
-    {
-        wants_read = TRUE;
-    }
-    if (ON (command.desired_access, 0x2) ||
-        ON (command.desired_access, 0x4) ||
-        ON (command.desired_access, 0x40) ||
-        ON (command.desired_access, 0x10000) ||
-        ON (command.desired_access, 0x10000000) ||
-        ON (command.desired_access, 0x40000000))
-    {
-        wants_write = TRUE;
-    }
-    if (ON (command.desired_access, 0x10) ||
-        ON (command.desired_access, 0x100) ||
-        ON (command.desired_access, 0x4000) ||
-        ON (command.desired_access, 0x8000) ||
-        ON (command.desired_access, 0x2000000))
-    {
-        wants_attr_write = TRUE;
-    }
-    if (wants_read && wants_write)
-    {
-        /* reading and writing   */
-        flags |= RTP_FILE_O_RDWR;
-        permissions = SECURITY_READWRITE;
-    }
-    else if (wants_read)
-    {
-        /* reading only   */
-        flags |= RTP_FILE_O_RDONLY;
-        permissions = SECURITY_READ;
-    }
-    else if (wants_write)
-    {
-        /* writing only   */
-        flags |= RTP_FILE_O_WRONLY; /* was RTP_FILE_O_RDWR _YI_ */
-        permissions = SECURITY_WRITE;
-    }
-
-    if (wants_attr_write)
-    {
-        permissions = SECURITY_READWRITE;
-    }
-
-    ASSERT_PERMISSION (pCtx, permissions);  // Checks permission on pCtx->tid
-
-    /* do we make the file if it doesn't exist?   */
-    switch (command.create_disposition)
-    {
-        case NT_CREATE_NEW:
-            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_EXCL;
-            break;
-        case NT_CREATE_ALWAYS:
-            flags |= RTP_FILE_O_CREAT | RTP_FILE_O_TRUNC;
-            break;
-        default:
-        case NT_OPEN_EXISTING:
-            break;
-        case NT_OPEN_ALWAYS:
-            flags |= RTP_FILE_O_CREAT;
-            break;
-        case NT_TRUNCATE:
-            flags |= RTP_FILE_O_TRUNC;
-            break;
-    }
-
-    if (command.ext_file_attributes & 0x80)
-    {
-            mode = RTP_FILE_S_IWRITE | RTP_FILE_S_IREAD |
-                   RTP_FILE_ATTRIB_ARCHIVE; /* VM */
-    }
-    else
-    {
-        mode =  command.ext_file_attributes & 0x01 ? RTP_FILE_S_IREAD   : 0;
-        mode |= command.ext_file_attributes & 0x02 ? RTP_FILE_S_HIDDEN  : 0;
-        mode |= command.ext_file_attributes & 0x04 ? RTP_FILE_S_SYSTEM  : 0;
-        mode |= command.ext_file_attributes & 0x20 ? RTP_FILE_S_ARCHIVE : 0;
-    }
-
-    pTree = SMBU_GetTree (pCtx, pCtx->tid);
-
-    /* We check if the client is trying to make a directory.  If so, make it   */
-    if (ON (command.flags, 0x80) | ON (command.create_options, 0x1))
-    {
-        if (ON (flags, RTP_FILE_O_CREAT))
-        {
-            ASSERT_PERMISSION (pCtx, SECURITY_READWRITE);
-            SMBFIO_Mkdir (pCtx, pCtx->tid, command.filename);
-            TURN_OFF (flags, RTP_FILE_O_EXCL);
-        }
-        response.directory = TRUE;
-    }
-    else
-    {
-        response.directory = FALSE;
-    }
-    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &externalFid, &fid);
-    if (r != 0)
-    {
-        pOutHdr->status = r;
-        return 0;
-    }
-
-    SMBFIO_Stat (pCtx, pCtx->tid, command.filename, &stat);
-
-    response.next_command = command.next_command;
-    response.oplock_level = 0;
-    response.fid = (word) externalFid;
-
-    response.create_action = (byte) command.create_disposition;
-
-    response.device_state = 0;
-    response.file_type = pTree->type == ST_PRINTQ ? SMB_FILE_TYPE_PRINTER : SMB_FILE_TYPE_DISK;
-    response.creation_time_high = stat.f_ctime64.high_time;
-    response.creation_time_low = stat.f_ctime64.low_time;
-    response.allocation_size_high = 0;
-    response.allocation_size_low = stat.f_size;
-    response.end_of_file_high = 0;
-    response.end_of_file_low = stat.f_size;
-    response.change_time_high = stat.f_htime64.high_time;
-    response.change_time_low = stat.f_htime64.low_time;
-    response.last_access_time_high = stat.f_atime64.high_time;
-    response.last_access_time_low = stat.f_atime64.low_time;
-    response.last_write_time_high = stat.f_wtime64.high_time;
-    response.last_write_time_low = stat.f_wtime64.low_time;
-    response.ext_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
-
-#if (HARDWIRED_NTLM_EXTENSIONS)
-    tc_memset (response.guid, 0, 16);
-    response.fileid_high = 0;
-    response.fileid_low = 0;
-    response.maximal_access_rights = 0;
-    response.guest_maximal_access_rights = 0;
-    if (response.file_type==SMB_FILE_TYPE_DISK)
-    {
-       if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
-       {
-          response.maximal_access_rights |= SMB_DIR_ACCESS_MASK_DELETE;
-       }
-      if (response.directory)
+      if (p_current_context_onwire->NameOffset < RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
       {
-        response.maximal_access_rights |=
-         (SMB_DIR_ACCESS_MASK_FILE_LIST_DIRECTORY  \
-         |SMB_DIR_ACCESS_MASK_FILE_TRAVERSE);
-        if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
-        {
-          response.maximal_access_rights |=
-           (SMB_DIR_ACCESS_MASK_FILE_ADD_FILE        \
-           |SMB_DIR_ACCESS_MASK_FILE_ADD_SUBDIRECTORY\
-           |SMB_DIR_ACCESS_MASK_FILE_DELETE_CHILD);
-        }
+         // Error condition
+         is_error_record = TRUE;
+         take_next_record = FALSE;
+      }
+      else if (p_current_context_onwire->NameLength != 4)
+      {
+         take_next_record = FALSE;
       }
       else
-      { // A File, not a directory
-        response.maximal_access_rights |= SMB_FPP_ACCESS_MASK_GENERIC_READ|SMB_FPP_ACCESS_MASK_GENERIC_EXECUTE;
-        if ((stat.f_attributes & RTP_FILE_ATTRIB_RDONLY)==0)
-          response.maximal_access_rights |= SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
+      {
+         PFVOID pName;
+         pName=PADD((PFVOID)p_current_context_onwire,p_current_context_onwire->NameOffset);
+
+         p_current_value->NameDw = *((dword *)pName); // TBD Byte order issue
+         p_current_value->p_context_entry_wire=p_current_context_onwire;
+
+         switch (SMB_NTOHD(p_current_value->NameDw))
+         {
+            case SMB2_CREATE_EA_BUFFER                    :   // "ExtA"  The data contains the extended attributes that MUST be stored on the created file. This value MUST NOT be set for named pipes and print files.
+              pdecoded_create_context->pExtA = p_current_value;
+            break;
+            case SMB2_CREATE_SD_BUFFER                    :   // "SecD"  The data contains a security descriptor that MUST be stored on the created file.   This value MUST NOT be set for named pipes and print files.
+              pdecoded_create_context->pSecD = p_current_value;
+            break;
+            case SMB2_CREATE_DURABLE_HANDLE_REQUEST       :   // "DHnQ"  The client is requesting the open to be durable (see section 3.3.5.9.6).
+              pdecoded_create_context->pDHnQ = p_current_value;
+            break;
+            case SMB2_CREATE_DURABLE_HANDLE_RECONNECT     :   // "DHnC"  The client is requesting to reconnect to a durable open after being disconnected (see section 3.3.5.9.7).
+              pdecoded_create_context->pDHnC = p_current_value;
+            break;
+            case SMB2_CREATE_ALLOCATION_SIZE              :   // "AISi"  The data contains the required allocation size of the newly created file.
+              pdecoded_create_context->pAISi = p_current_value;
+            break;
+            case SMB2_CREATE_QUERY_MAXIMAL_ACCESS_REQUEST :   // "MxAc"  The client is requesting that the server return maximal access information.
+              pdecoded_create_context->pMxAc = p_current_value;
+            break;
+            case SMB2_CREATE_TIMEWARP_TOKEN               :   // "TWrp"  The client is requesting that the server open an earlier version of the file identified by the provided time stamp.
+              pdecoded_create_context->pTWrp = p_current_value;
+            break;
+            case SMB2_CREATE_QUERY_ON_DISK_ID             :   // "QFid"  The client is requesting that the server return a 32-byte opaque BLOB that uniquely identifies the file being opened on disk. No data is passed to the server by the client.
+              pdecoded_create_context->pQFid = p_current_value;
+            break;
+            case SMB2_CREATE_REQUEST_LEASE                :   // "RqLs"  SMB2.1 and above
+              pdecoded_create_context->pRqLs = p_current_value;
+            case SMB2_CREATE_REQUEST_LEASE_V2             :   // "Rq2s"  may be a typo In SMB2 spec as 0x52714c73
+              pdecoded_create_context->pRq2s = p_current_value;
+            break;
+            case SMB2_CREATE_DURABLE_HANDLE_REQUEST_V2    :   // "DH2Q"  SMB3.X
+              pdecoded_create_context->pDH2Q = p_current_value;
+            break;
+            case SMB2_CREATE_DURABLE_HANDLE_RECONNECT_V2  :   // "DH2C"  SMB3.X
+              pdecoded_create_context->pDH2C = p_current_value;
+            break;
+            case SMB2_CREATE_APP_INSTANCE_ID              :   // EFA7F74A9008FA462E144D74 SMB3.X
+            case SMB2_CREATE_APP_INSTANCE_VERSION         :   // 3B56074FA07B524A8116A010 SMB3.X
+            case SVHDX_OPEN_DEVICE_CONTEXT                :   // 04C1E643980E158DA1F6EC83 SMB3.X
+            default:
+              take_next_record = FALSE;
+            break;
+         }
+         if (take_next_record)
+         {
+           if (p_current_context_onwire->DataLength)
+           {
+             p_current_value->p_payload = PADD((PFVOID)p_current_context_onwire,p_current_context_onwire->DataOffset);
+             if (p_current_value->p_payload >= p_data_buffer_end)
+             {
+               // Error condition
+               is_error_record = TRUE;
+             }
+           }
+           pdecoded_create_context->n_create_context_request_values += 1;
+           if (pdecoded_create_context->n_create_context_request_values == MAX_CREATE_CONTEXTS_ON_WIRE)
+             goto error_return;
+         }
+         if (p_current_context_onwire->Next==0)
+            break;
+         else
+         {
+         PFVOID pv;
+         int delta;
+            pv=PADD((PFVOID)p_current_context_onwire,p_current_context_onwire->Next);
+            delta = (int)PDIFF(pv,(PFVOID)p_current_context_onwire);
+            if (current_create_context_buffer_length>=delta)
+            {
+              current_create_context_buffer_length -= delta;
+              p_current_context_onwire = (PRTSMB2_CREATE_CONTEXT_WIRE) pv;
+            }
+            else
+            {
+              is_error_record = TRUE;
+              current_create_context_buffer_length = 0;
+            }
+         }
       }
-    }
-    else
-    { // Printer
-      response.maximal_access_rights = SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
-      response.guest_maximal_access_rights = SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
-    }
-#endif // if (HARDWIRED_NTLM_EXTENSIONS)
+      if (is_error_record)
+        goto error_return;
+  } //   while (current_create_context_buffer_length>=RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
 
-    WRITE_SMB_AND_X (srv_cmd_fill_nt_create_and_x);
 
-    return command.next_command;
-} /* End ProcTreeConAndx */
+  dump_decoded_create_context_request_values(pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
 
+//  if (pdecoded_create_context->pDHnQ)
+//  if (pdecoded_create_context->pQfid)
+  if (pdecoded_create_context->pMxAc)
+  {
+    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->DataLength: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->DataLength);
+    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->NameOffset: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->NameOffset);
+    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->NameLength: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->NameLength);
+    printf("pdecoded_create_context->pMxAc->p_payload: %X\n", pdecoded_create_context->pMxAc->p_payload);
+  }
+
+  return pdecoded_create_context->n_create_context_request_values;
+error_return:
+  printf("decode_create_context_request_values: erro return\n");
+  dump_decoded_create_context_request_values(&pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
+  return -1;
+}
+static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values)
+{
+int i;
+  printf("dump_decoded_create_context_request_values NValues == : %d\n", n_create_context_request_values);
+  for (i = 0; i < n_create_context_request_values; i++)
+  {
+    printf("Name: %X, \"%s\"\n", p_decoded_create_context_request_values[i].NameDw, (char *) &p_decoded_create_context_request_values[i].NameDw);
+    printf("p_decoded_create_context_request_values[i].p_context_entry_wire->NameOffset: %x\n",  p_decoded_create_context_request_values[i].p_context_entry_wire->NameOffset);
+    printf("p_decoded_create_context_request_values[i].p_context_entry_wire->NameLength: %d\n",  p_decoded_create_context_request_values[i].p_context_entry_wire->NameLength);
+    printf("p_decoded_create_context_request_values[i].p_context_entry_wire->DataOffset: %x\n",  p_decoded_create_context_request_values[i].p_context_entry_wire->DataOffset);
+    printf("p_decoded_create_context_request_values[i].p_context_entry_wire->DataLength: %d\n", p_decoded_create_context_request_values[i].p_context_entry_wire->DataLength);
+    printf("p_decoded_create_context_request_values[i].p_context_entry_wire->p_payload: %X\n", p_decoded_create_context_request_values[i].p_payload);
+  }
+}
+
+#endif
 #endif

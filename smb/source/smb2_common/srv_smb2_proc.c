@@ -68,6 +68,7 @@ extern BBOOL Proc_smb2_Create(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Close(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream);
 
 static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[]);
 
@@ -84,7 +85,6 @@ static BBOOL Proc_smb2_Write(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Lock(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_Echo(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream){return FALSE;}
@@ -161,7 +161,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
     PRTSMB2_HEADER pHeaderInBuffer;
     BBOOL isCompoundRequest=FALSE;
     pStream = &smb2stream;
-
+    word AddtoFinalCreditRequest_CreditResponse = 0;
     /* Initialize memory stream pointers from the v1 contect structure
        set pStream->psmb2Session from the smb2 value saved in the session context structure  */
     Smb1SrvCtxtToStream(&smb2stream, pSctx);
@@ -209,6 +209,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	   }
        // Set up outgoing header.
        smb2stream.OutHdr = smb2stream.InHdr;
+       smb2stream.OutHdr.NextCommand = 0;
        // Check if it's a compound field
        if (smb2stream.InHdr.NextCommand == 0)
        {
@@ -219,7 +220,6 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        {
 	     printf("SMBS_ProcSMB2_Body: Compound request: NextCommand == :%X\n", smb2stream.InHdr.NextCommand);
          NextCommandOffset = smb2stream.InHdr.NextCommand;
-	     smb2stream.OutHdr.NextCommand = 0;
        }
 
        // Process this one smb packet
@@ -228,6 +228,9 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        printf("Hacking out process id to input \n");
        // Actually process id to input
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
+       pOutHeader->NextCommand = 0; // We'll override this if needed
+       if (NextCommandOffset == 0 && AddtoFinalCreditRequest_CreditResponse)
+          pOutHeader->CreditRequest_CreditResponse += AddtoFinalCreditRequest_CreditResponse;
 
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request
        if (NextCommandOffset != 0)
@@ -243,12 +246,17 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
           }
           else
           {
+             AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
+             pOutHeader->CreditRequest_CreditResponse = 0;
+
              pStream->pInBuf+=SkipCount;
              pStream->read_buffer_remaining-=SkipCount;
              isCompoundRequest = TRUE;
              // Now see if we have to pad the output to get to an 8 byte boundary
              SkipCount = (unsigned int) PDIFF (smb2stream.pOutBuf, pOutBufStart);
-             SkipCount &= 0x7;
+             printf("SMBS_ProcSMB2_Body: Skip %X\n",SkipCount);
+             SkipCount = ((SkipCount+7)&~0x7)-SkipCount;
+             printf("SMBS_ProcSMB2_Body: Skip2: %X\n",SkipCount);
              if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
              {
                printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
@@ -257,180 +265,21 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
              else
              {
                PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
+               // Now insert the offset to the next command into the prior header
+               pOutHeader->NextCommand = (dword)PDIFF (smb2stream.pOutBuf, pOutBufStart)+SkipCount;
                if (SkipCount)
                {
                  tc_memset(smb2stream.pOutBuf,0,SkipCount);
-                 pStream->write_buffer_remaining -= SkipCount;
-                 PADD (smb2stream.pOutBuf, SkipCount);
+                 smb2stream.write_buffer_remaining -= SkipCount;
+                 smb2stream.pOutBuf = PADD (smb2stream.pOutBuf, SkipCount);
 	             smb2stream.OutBodySize += SkipCount;
                }
-               // Now insert the offset to the next command into the prior header
-               pOutHeader->NextCommand = (dword)PDIFF (smb2stream.pOutBuf, pOutBufStart);
              }
           }
        }
     }  while (isCompoundRequest);
-
     Smb1SrvCtxtFromStream(pSctx, pStream);
-    printf("SMBS_ProcSMB2_Body: DoSend == %d size == %d \n", doSend,  pSctx->outBodySize);
     return doSend;
-#if (0)
-
-	if (cmd_read_header_smb2(&smb2stream) != 64)
-	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed", RTSMB_DEBUG_TYPE_ASCII);
-		return FALSE;
-	}
-    //	smb2stream.pInBuf               = PADD (smb2stream.read_origin, header_size);
-
-    // NEWNEW Use session id in place of UID in SMBV1 lookups
-    // pSCtx->uid = (word) smb2stream.InHdr.SessionId;
-
-	/**
-	 * Set up outgoing header.
-	 */
-	smb2stream.OutHdr = smb2stream.InHdr;
-
-	if (smb2stream.InHdr.NextCommand != 0)
-    {
-	  printf("SMBS_ProcSMB2_Body: Compound request: NextCommand == :%X\n", smb2stream.InHdr.NextCommand);
-      // Clear the compound value in the reply field
-      NextCommandOffset = smb2stream.InHdr.NextCommand;
-	  smb2stream.OutHdr.NextCommand = 0;
-    }
-
-    tc_memset(smb2stream.OutHdr.Signature,0, sizeof(smb2stream.OutHdr.Signature));
-    smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
-    smb2stream.OutHdr.StructureSize = 64;
-
-	/* Save the location of the header in the output buffer, we will copy over this with contents from smb2stream.OutHdr that is built up by the procs. */
-    pHeaderInBuffer = (PRTSMB2_HEADER) smb2stream.pOutBuf;
-	/* fill it in once, just so we have something reasonable in place */
-	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
-
-
-    /* Reset the stream */
-	smb2stream.pOutBuf = smb2stream.write_origin;
-	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
-	smb2stream.OutBodySize = 0;
-
-	/**
-	 * Do a quick check here that the first command we receive is a negotiate.
-	 */
-
-	if (!smb2stream.psmb2Session)
-    {
-	    RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
-		doSend = TRUE;
-    }
-	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
-	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
-		doSend = TRUE;
-	}
-	else
-	{
-	    DebugOutputSMB2Command(smb2stream.InHdr.Command);
-        doFinalize = TRUE;
-        if (smb2stream.InHdr.Command != SMB2_NEGOTIATE)
-        {
-            /* Decide here if we should encrypt  */
-            BBOOL EncryptMessage = FALSE;
-            if (EncryptMessage)
-                smb2_stream_start_encryption(&smb2stream);
-        }
-
-		/**
-		 * Ok, we now see what kind of command has been requested, and
-		 * call an appropriate helper function to fill out details of
-		 * pOutSmbHdr.  Most return a BBOOL, indicating whether we should
-		 * send a response or not.
-		 */
-		switch (smb2stream.InHdr.Command)
-		{
-            case SMB2_NEGOTIATE:
-    			doSend = Proc_smb2_NegotiateProtocol (&smb2stream);
-    			break;
-            case SMB2_SESSION_SETUP  :
-    			doSend = Proc_smb2_SessionSetup(&smb2stream);
-    			break;
-            case SMB2_LOGOFF         :
-    			doSend = Proc_smb2_LogOff(&smb2stream);
-    			break;
-            case SMB2_TREE_CONNECT   :
-    			doSend = Proc_smb2_TreeConnect(&smb2stream);
-    			break;
-            case SMB2_TREE_DISCONNECT:
-    			doSend = Proc_smb2_TreeDisConnect(&smb2stream);
-    			break;
-            case SMB2_CREATE         :
-    			doSend = Proc_smb2_Create(&smb2stream);
-    			break;
-            case SMB2_CLOSE          :
-    			doSend = Proc_smb2_Close(&smb2stream);
-    			break;
-            case SMB2_FLUSH          :
-    			doSend = Proc_smb2_Flush(&smb2stream);
-    			break;
-            case SMB2_READ           :
-    			doSend = Proc_smb2_Read(&smb2stream);
-    			break;
-            case SMB2_WRITE          :
-    			doSend = Proc_smb2_Write(&smb2stream);
-    			break;
-            case SMB2_LOCK           :
-    			doSend = Proc_smb2_Lock(&smb2stream);
-    			break;
-            case SMB2_IOCTL          :
-    			doSend = Proc_smb2_Ioctl(&smb2stream);
-    			break;
-            case SMB2_CANCEL         :
-    			doSend = Proc_smb2_Cancel(&smb2stream);
-    			break;
-            case SMB2_ECHO           :
-    			doSend = Proc_smb2_Echo(&smb2stream);
-    			break;
-            case SMB2_QUERY_DIRECTORY:
-    			doSend = Proc_smb2_QueryDirectory(&smb2stream);
-    			break;
-            case SMB2_CHANGE_NOTIFY  :
-    			doSend = Proc_smb2_ChangeNotify(&smb2stream);
-    			break;
-            case SMB2_QUERY_INFO     :
-    			doSend = Proc_smb2_QueryInfo(&smb2stream);
-    			break;
-            case SMB2_SET_INFO       :
-    			doSend = Proc_smb2_SetInfo(&smb2stream);
-    			break;
-            case SMB2_OPLOCK_BREAK   :
-    			doSend = Proc_smb2_OplockBreak(&smb2stream);
-    			break;
-    		default:
-    		    RtsmbWriteSrvError(&smb2stream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
-    		    doFinalize = FALSE;
-    		    doSend = TRUE;
-    		break;
-		}
-	}
-    if (doSend)
-    {
-        printf("Setting status in header before send to %X\n", smb2stream.OutHdr.Status_ChannelSequenceReserved);
-        tc_memcpy(pHeaderInBuffer,&smb2stream.OutHdr,sizeof(smb2stream.OutHdr));
-	    if (doFinalize)
-        {
-            if (RtsmbWriteFinalizeSmb2(&smb2stream,smb2stream.InHdr.MessageId)<0)
-            {
-                RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR,0,0);
-            }
-        }
-        Smb2SrvModel_Global_Stats_Send_Update(smb2stream.OutBodySize);
-    }
-
-    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
-	return doSend;
-#endif
 }
 
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
@@ -543,6 +392,8 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     if (doSend)
     {
         printf("Setting status in header before send to %X\n", pStream->OutHdr.Status_ChannelSequenceReserved);
+        printf("Setting CreditCharge=0 assume 2.02\n");
+        pStream->OutHdr.CreditCharge=0;
         tc_memcpy(pHeaderInBuffer,&pStream->OutHdr,sizeof(pStream->OutHdr));
 	    if (doFinalize)
         {
@@ -594,6 +445,7 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
 
     smb2stream.OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
     smb2stream.OutHdr.StructureSize = 64;
+    smb2stream.OutHdr.CreditRequest_CreditResponse=1;
 
 	/* fill it in once, just so we have something reasonable in place */
 	cmd_fill_header_smb2 (&smb2stream, &smb2stream.OutHdr);
@@ -630,6 +482,7 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
 
     /* MaxWriteSize is set to the maximum size,<223> in bytes, of the Length in an SMB2 WRITE Request */
     response.MaxWriteSize       =  pStream->psmb2Session->Connection->MaxWriteSize;
+
     /* SystemTime is set to the current time */
     response.SystemTime         =  rtsmb_util_get_current_filetime();
     /* ServerStartTime is set to the global ServerStartTime value */
@@ -687,14 +540,9 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
         pStream->doSocketClose = TRUE;
 		return FALSE;
     }
-    printf("Proc_smb2_NegotiateProtocol Ctx,CtxReadbuffer ==%X %d\n", pStream->psmb2Session->pSmbCtx,pStream->psmb2Session->pSmbCtx->readBufferSize);
     pStream->psmb2Session->Connection->MaxTransactSize = pStream->psmb2Session->pSmbCtx->readBufferSize;
     pStream->psmb2Session->Connection->MaxWriteSize    = pStream->psmb2Session->pSmbCtx->writeBufferSize;
     pStream->psmb2Session->Connection->MaxReadSize     = pStream->psmb2Session->pSmbCtx->readBufferSize;
-
-//    pStream->psmb2Session->Connection->MaxTransactSize = pStream->read_buffer_size;
-//    pStream->psmb2Session->Connection->MaxWriteSize = pStream->write_buffer_size;
-//    pStream->psmb2Session->Connection->MaxReadSize = pStream->read_buffer_size;
 
 
     /* The server MUST set Connection.ClientCapabilities to the capabilities received in the SMB2 NEGOTIATE request. */
@@ -845,7 +693,6 @@ static BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
       else
       {
         pStreamSession = pStream->psmb2Session = pSmb2Session;
-        printf("Force send_next_token\n");
         finish=send_next_token=TRUE;
       }
     }
@@ -1363,7 +1210,7 @@ static byte spnego_blob_buffer[512];
     } // if (send_next_token==TRUE)
     if (reject)
     {
-        printf("!!!! Auth setting recect status !!!! \n");
+        printf("!!!! Auth setting reject status !!!! \n");
 		RtsmbWriteSrvStatus (pStream, reject_status);
         pStream->doSessionClose = TRUE;
     }
@@ -1578,9 +1425,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 
 				    response.StructureSize = 16;
 				    response.ShareType              = MapRTSMB_To_Smb2_ShareType(pResource->stype);
-				    response.ShareFlags             = SMB2_SHAREFLAG_NO_CACHING|SMB2_SHAREFLAG_RESTRICT_EXCLUSIVE_OPENS;
-				    response.ShareFlags             = 0;
-                    printf("Proc_smb2_TreeConnect Hack ShareFlags to %X\n", response.ShareFlags);
+				    response.ShareFlags             = 0; // These are okay SMB2_SHAREFLAG_NO_CACHING|SMB2_SHAREFLAG_RESTRICT_EXCLUSIVE_OPENS;
 				    response.Capabilities           = 0; // SMB2_SHARE_CAP_CONTINUOUS_AVAILABILITY;
 				    if (access == SECURITY_READ)
 				        response.MaximalAccess          = SMB2_FPP_ACCESS_MASK_FILE_READ_DATA;
@@ -1589,8 +1434,8 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				        response.MaximalAccess          =   SMB2_FPP_ACCESS_MASK_FILE_READ_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA;
-                        response.MaximalAccess          =   0x001f01ff;
-                        printf("Proc_smb2_TreeConnect Hax max acess to %X\n", response.MaximalAccess);
+                        //response.MaximalAccess          =   0x001f01ff;
+                        //printf("Proc_smb2_TreeConnect Hax max acess to %X\n", response.MaximalAccess);
                     }
 				    externaltid = (word) (((int) (tree)) & 0xFFFF);
 				    pStream->OutHdr.TreeId = (dword) externaltid;

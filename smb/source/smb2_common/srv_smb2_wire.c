@@ -304,12 +304,10 @@ int rv;
 
     if (rv >= 0)
     {
-        if (pCommand->CreateContextsLength)
-        {
-           HEREHERE  // - Have to decode Context and pass it up. Might need additional inbuff to do so
-           ; //  rv = RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->CreateContextsOffset, pCommand->CreateContextsLength, pCommand->StructureSize);
-        }
-
+      if (pCommand->CreateContextsLength)
+      {
+         rv = RtsmbWireVarDecodePartTwo (pStream, origin, buf, size, pCommand->CreateContextsOffset,pCommand->CreateContextsLength, pCommand->StructureSize);
+      }
     }
     return rv;
 }
