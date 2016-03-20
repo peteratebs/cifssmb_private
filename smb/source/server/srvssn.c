@@ -40,6 +40,7 @@
 #include "srvcfg.h"
 #include "smbnet.h"
 #include "smbspnego.h"
+#include "rtpmem.h"
 
 #include "rtptime.h"
 
@@ -50,6 +51,11 @@ extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
 /*============================================================================   */
 /*    SERVER STATE DIAGNOSTICS (COMPILE TIME)                                    */
 /*============================================================================   */
+rtsmb_char pipe_lanman[13]   = {'\\','P','I','P','E','\\','L', 'A', 'N', 'M', 'A', 'N','\0'}; // shared with srvcmds.c
+#if (HARDWIRED_INCLUDE_DCE)
+rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
+rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
+#endif
 
 #ifdef STATE_DIAGNOSTICS
 #include <stdio.h>
@@ -742,7 +748,20 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             }
             else
             {
+#if (HARDWIRED_INCLUDE_DCE)
+                if (command.flags & 0x08)
+                {
+                   response.optional_support = 1;
+                   WRITE_SMB_AND_X (srv_cmd_fill_tree_connect_options_and_x_lanman);
+                }
+                else
+                {
+                   WRITE_SMB_AND_X (srv_cmd_fill_tree_connect_and_x_lanman);
+                }
+#else
+
                 WRITE_SMB_AND_X (srv_cmd_fill_tree_connect_and_x_lanman);
+#endif
             }
         }
         else
@@ -790,6 +809,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     /**
      * Here we handle pipes.
      */
+#if (HARDWIRED_INCLUDE_DCE == 0)
     if (pTree->type == ST_IPC)
     {
         /* The correct behavior for non-supported pipe files is that they      */
@@ -799,8 +819,9 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
         /* packets.                                                            */
         return SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
         /*return -1 * SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);   */
-    }
-    else if (pTree->type == ST_PRINTQ)
+    } else
+#endif
+    if (pTree->type == ST_PRINTQ)
     {
         rtsmb_char empty[] = {'\0'};
 
@@ -825,6 +846,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     {
         if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
         {
+            printf("Error excl\n");
             return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
         }
 
@@ -835,10 +857,9 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
         {
             /* We create a dummy file entry that can only be opened and closed.   */
             int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY);
-
-
             if (externalFid < 0)
             {
+            printf("Error Not enough file handles\n");
                 RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around for dummy directory!\n", RTSMB_DEBUG_TYPE_ASCII);
                 return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
             }
@@ -856,7 +877,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
      * The Samba client at least, and probably others, expects that if the create
      * flag is set, we will make the whole directory tree too.  So, here we go.
     */
-    if (ON (flags, RTP_FILE_O_CREAT))
+    if (pTree->type == ST_DISKTREE && (ON(flags, RTP_FILE_O_CREAT)))
     {
         SMBU_MakePath (pCtx, filename);
     }
@@ -1005,6 +1026,11 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
             response.action = 1;
 
         response.device_state = 0;
+#if (HARDWIRED_INCLUDE_DCE)
+        if (pTree->type == ST_IPC)
+           response.file_type = SMB_FILE_TYPE_MESSAGE_MODE_PIPE;
+        else
+#endif
         response.file_type = pTree->type == ST_PRINTQ ? SMB_FILE_TYPE_PRINTER : SMB_FILE_TYPE_DISK;
         response.granted_access = 0;
         SMB_ACCESS_MODE_SET_SHARING (response.granted_access, 4);   /* deny none.  VFILE limitation */
@@ -1174,8 +1200,18 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
 
     response.create_action = (byte) command.create_disposition;
 
-    response.device_state = 0;
+#if (HARDWIRED_INCLUDE_DCE)
+    if (pTree->type == ST_IPC)
+    {
+       response.file_type = SMB_FILE_TYPE_MESSAGE_MODE_PIPE;
+       response.device_state = 0x05ff;  //  Captured value not sure of details
+    }
+    else
+#endif
+     {
     response.file_type = pTree->type == ST_PRINTQ ? SMB_FILE_TYPE_PRINTER : SMB_FILE_TYPE_DISK;
+       response.device_state = 0;
+     }
     response.creation_time_high = stat.f_ctime64.high_time;
     response.creation_time_low = stat.f_ctime64.low_time;
     response.allocation_size_high = 0;
@@ -1222,6 +1258,12 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
           response.maximal_access_rights |= SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
       }
     }
+#if (HARDWIRED_INCLUDE_DCE)
+    else if (response.file_type == SMB_FILE_TYPE_MESSAGE_MODE_PIPE)
+    {
+      response.maximal_access_rights = 0x001f01ff; //  Captured value not sure of details
+    }
+#endif
     else
     { // Printer
       response.maximal_access_rights = SMB_FPP_ACCESS_MASK_GENERIC_WRITE;
@@ -1259,13 +1301,13 @@ int ProcReadAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     RTSMB_READ_AND_X command;
     RTSMB_READ_AND_X_R response;
 
-    ASSURE (!assertUid (pCtx), 0);
     ASSURE (!assertTid (pCtx), 0);
-    ASSURE (!assertDisk (pCtx), 0);
     ASSURE (!assertPermission (pCtx, SECURITY_READ), 0);
 
     READ_SMB_AND_X (srv_cmd_read_read_and_x);
 
+    ASSURE (!assertUid (pCtx), 0);
+    ASSURE (!assertDiskOrIpc (pCtx), 0);
     ASSURE (!assertFid (pCtx, command.fid, 0), 0);
 
     fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
@@ -1648,6 +1690,10 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
          */
         response.capabilities |= CAP_NT_SMBS;
 
+#if (HARDWIRED_INCLUDE_DCE)
+        printf("Enable DCE in response\n");
+        response.capabilities |= CAP_RPC_REMOTE_APIS;
+#endif
         response.time_high = 0;
         response.time_low = 0;
         response.time_zone = 0x00F0;
@@ -2178,13 +2224,17 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
     RTSMB_TRANSACTION_R response;
     int size;
     word setups[5];
+    word response_setups[5];
+    BBOOL rval=FALSE;
     PFVOID buf = pOutBuf;
-    rtsmb_char name [75];
+    rtsmb_char data_buffer[256];
 
-    command.name = name;
-    command.name_size = 74;
+    command.name = data_buffer;               // This contains name like \PIPE\ followed by data
+    command.name_size = sizeof(data_buffer);  // This contains total length
     command.setup = setups;
     command.setup_size = 5;
+    command.data_size = 0;                    // This contains data left after the name.
+	command.data = 0;                         // This contains pointer into data_buffer data_offset points (DCE data)
     size = srv_cmd_read_transaction (pCtx->read_origin, pInBuf,
         (rtsmb_size)(pCtx->current_body_size - (rtsmb_size)(PDIFF (pInBuf, pCtx->read_origin))), pInHdr, &command);
 
@@ -2207,32 +2257,50 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
     response.parameter = (PFBYTE)0;
     response.data_count = 0;
     response.data = (PFBYTE)0;
+    response.heap_data = (PFBYTE)0;
     response.setup_size = 0;
-    response.setup = (PFWORD)0;
+    response.setup = response_setups;
     size = srv_cmd_fill_transaction (pCtx->write_origin, buf,
         (rtsmb_size)(SMB_BUFFER_SIZE - size), pOutHdr, &response);
     if (size == -1) return FALSE;
     buf = PADD (buf, size);
 
-    if (RAP_Proc (pCtx, pInHdr, &command, pInBuf, pOutHdr, &response,
-            (rtsmb_size)(SMB_BUFFER_SIZE - PDIFF (buf, pCtx->write_origin))) < 0)
+    rval = TRUE;
+    if (tc_memcmp(command.name, pipe_lanman, sizeof(pipe_lanman))==0)
     {
+      if (RAP_Proc (pCtx, pInHdr, &command, pInBuf, pOutHdr, &response,(rtsmb_size)(SMB_BUFFER_SIZE - PDIFF (buf, pCtx->write_origin))) < 0)
+    {
+        // This is okay because RAP doesn;t use heap.
         return FALSE;
+      }
     }
-
+#if (HARDWIRED_INCLUDE_DCE)
+    if (tc_memcmp(command.name, pipe_protocol, sizeof(pipe_protocol))==0)
+    { // command.setup,command.setup_size contain sub
+      if (SRVSVC_ProcTransaction (pCtx, pInHdr, &command, pInBuf, pOutHdr, &response,(rtsmb_size)(SMB_BUFFER_SIZE - PDIFF (buf, pCtx->write_origin))) < 0)
+      {
+        rval = FALSE;
+      }
+    }
+#endif
+    if (rval)
+    {
+      rval = FALSE;   // set true if all goes well
     buf = pOutBuf;
-    size = srv_cmd_fill_header (pCtx->write_origin, buf,
-        (rtsmb_size)SMB_BUFFER_SIZE, pOutHdr);
-    if (size == -1) return FALSE;
+      size = srv_cmd_fill_header (pCtx->write_origin, buf, (rtsmb_size)SMB_BUFFER_SIZE, pOutHdr);
+      if (size == -1)  goto release_and_return;
     pCtx->outBodySize += (rtsmb_size)size;
 
     buf = PADD (buf, size);
-    size = srv_cmd_fill_transaction (pCtx->write_origin, buf,
-        (rtsmb_size)(SMB_BUFFER_SIZE - size), pOutHdr, &response);
-    if (size == -1) return FALSE;
+      size = srv_cmd_fill_transaction (pCtx->write_origin, buf, (rtsmb_size)(SMB_BUFFER_SIZE - size), pOutHdr, &response);
+      if (size == -1)  goto release_and_return;
     pCtx->outBodySize += (rtsmb_size)size;
-
-    return TRUE;
+      rval = TRUE;
+    }
+release_and_return:
+    if (response.heap_data)
+       rtp_free(response.heap_data);
+    return rval;
 } /* End ProcTransaction */
 
 /*
@@ -2250,6 +2318,7 @@ BBOOL ProcTransaction2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBu
     PFVOID buf = pOutBuf;
 
     command.name = (PFRTCHAR)0; /* name doesn't matter for trans2's */
+    command.name_size = 0;
     command.setup = setups;
     command.setup_size = 5;
     size = srv_cmd_read_transaction (pCtx->read_origin, pInBuf,
@@ -2896,7 +2965,10 @@ BBOOL ProcEcho (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     word i;
 
     ASSERT_UID (pCtx)
+    if (pCtx->tid != 0xffff)
+    { // bug fix 2016 was not accepting 0xffff
     ASSERT_TID (pCtx)
+    }
 
     command.data = pCtx->tmpBuffer;
     command.data_size = (word) (pCtx->tmpSize & 0xFFFF); /* only use what protocol can handle */
@@ -4498,10 +4570,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         if (pSctx->state == NOTCONNECTED)
         {
             if (pInBuf[0] == 0xFE)
-            {
-    printf("call SMBS_InitSessionCtx_smb2 from SMBS_ProcSMBPacket\n");
                 SMBS_InitSessionCtx_smb2(pSctx);
-            }
             else
                 SMBS_InitSessionCtx_smb1(pSctx);
 #ifdef STATE_DIAGNOSTICS

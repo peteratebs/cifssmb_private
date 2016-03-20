@@ -24,6 +24,7 @@
 #include "srvshare.h"
 #include "srvauth.h"
 #include "srvrsrcs.h"
+#include "srvipcfile.h"
 #include "smbutil.h"
 
 //============================================================================
@@ -463,6 +464,7 @@ int SR_AddIPC (PFCHAR password)
 		{
 			prtsmb_srv_ctx->shareTable[i].password = (PFCHAR)0;
 		}
+		prtsmb_srv_ctx->shareTable[i].u.ipctree.api = prtsmb_ipcrpc_filesys;
 	}
 	else
 		rv = -1;

@@ -1455,6 +1455,8 @@ int srv_cmd_read_write_raw (PFVOID origin, PFVOID buf, rtsmb_size size,
 	return PDIFF (e, s);
 }
 
+extern rtsmb_char pipe_lanman[13];
+
 int srv_cmd_read_process_exit (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PFVOID none)
 {
@@ -1466,7 +1468,6 @@ int srv_cmd_read_transaction (PFVOID origin, PFVOID buf, rtsmb_size size,
 {
 	PFVOID s, e;
 	byte b;
-	word w;
 	word possible_setups;
 	int i;
 
@@ -1498,9 +1499,51 @@ int srv_cmd_read_transaction (PFVOID origin, PFVOID buf, rtsmb_size size,
 		RTSMB_READ_WORD (&pTransaction->setup[i]);
 	}
 
-	RTSMB_READ_WORD (&w);	/* byte count */
+	RTSMB_READ_WORD (&pTransaction->byte_count);	/* byte count */
 
+    // Remember the end here . If it's a lan type we'll leave it here
 	e = buf;
+
+//    tc_memcmp(command.name, pipe_protocol, sizeof(pipe_protocol)
+#if(HARDWIRED_INCLUDE_DCE)
+    { // Shared with TRANS2. name_size == 0 for trans2
+      if (pTransaction->byte_count && pTransaction->byte_count < pTransaction->name_size)
+      {
+        PFVOID  pname;
+        PFVOID  pdata;
+        int namelength;
+        pTransaction->name_size = pTransaction->byte_count;
+
+        // Name should be on 2 byte boundary so skip if we have to
+		if (PDIFF (buf, s) & 0x01)
+        {
+          RTSMB_READ_SKIP (1);
+          pTransaction->name_size -= 1;
+        }
+		pdata = PADD(origin, pTransaction->data_offset);       // This contains pointer into the packet where data_offset points (DCE data)
+        pname = buf;
+        RTSMB_READ_ITEM(pTransaction->name, pTransaction->name_size);
+		namelength = PDIFF(pdata, pname);
+
+        if (namelength>0&&pTransaction->name_size>namelength)
+        {
+          pTransaction->data_size = pTransaction->name_size-namelength;    // This contains data left after the name.
+          pTransaction->data = PADD(pTransaction->name, namelength);       // This contains data left after the name.
+
+        }
+      }
+      else
+      {
+        pTransaction->data_size = 0;  // This contains data left after the name.
+        pTransaction->data = 0;       // This contains data left after the name.
+      }
+    }
+#endif
+
+   if (pTransaction->name_size >= sizeof(pipe_lanman) && tc_memcmp(pTransaction->name, pipe_lanman, sizeof(pipe_lanman))==0)
+     ; // The lanman implementation relies on the offset from the buffer origin lining up with the pipe name so roll it back for lanman
+   else
+	 e = buf;
 
 	return PDIFF (e, s);
 }

@@ -77,6 +77,7 @@ cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_ioctl.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_create.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_close.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_query_info.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_query_directory.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_wire.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_assert.c
 cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c

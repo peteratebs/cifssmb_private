@@ -53,6 +53,7 @@
 
 
 #define HARDWIRED_CLIENT_EXTENDED_SECURITY 1                  // Client side Spnego
+#define HARDWIRED_INCLUDE_DCE                             1       // Experimental DCE support for NetShareEnumAll
 
 //============================================================================
 //    INTERFACE REQUIRED HEADERS
@@ -249,4 +250,8 @@ extern ddword swapdword(const ddword i);
 //**    END HEADER SMBDEFS.H
 //**
 //****************************************************************************
+#if (HARDWIRED_INCLUDE_DCE)
+extern rtsmb_char _rtsmb_srvsvc_pipe_name[8];  // '\\','s','r','v','s','v','c',0 File name HARDWIRED_SRVSVC_FID maps to this name
+extern rtsmb_char pipe_protocol[7];            // '\\','P','I','P','E','\\','\0'
+#endif
 #endif /* __SMB_DEFS_H__ */

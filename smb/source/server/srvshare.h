@@ -92,6 +92,12 @@ typedef struct sr_resource_s
 			PSMBFILEAPI api;	// API for accessing files on this share 
 			int flags;
 			rtsmb_char separator;
+		} ipctree;
+		struct {
+			rtsmb_char path[MAX_PATH_PREFIX_SIZE + 1];	// path to local resource
+			PSMBFILEAPI api;	// API for accessing files on this share
+			int flags;
+			rtsmb_char separator;
 			int num;
 			
 			/* printer file is used right now to store the driver name for the printer */

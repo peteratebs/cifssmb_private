@@ -32,7 +32,8 @@ int srv_cmd_fill_tree_connect_and_x_pre_lanman (PFVOID origin, PFVOID buf, rtsmb
 	PRTSMB_HEADER pHeader, PRTSMB_TREE_CONNECT_AND_X_R pTreeR);
 int srv_cmd_fill_tree_connect_and_x_lanman (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_TREE_CONNECT_AND_X_R pTreeR);
-
+int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, rtsmb_size size,
+	PRTSMB_HEADER pHeader, PRTSMB_TREE_CONNECT_AND_X_R pTreeR);
 int srv_cmd_fill_read_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_READ_AND_X_R pReadR);
 

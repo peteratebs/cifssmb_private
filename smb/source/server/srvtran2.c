@@ -978,21 +978,25 @@ BBOOL ST2_QueryFileInfo (PSMB_SESSIONCTX pCtx,
 
 	ASSERT_UID (pCtx)
 	ASSERT_TID (pCtx)
-	ASSERT_DISK (pCtx)
+//	ASSERT_DISK (pCtx)                        Not just disks anymore
 	ASSERT_PERMISSION (pCtx, SECURITY_READ)
 
 	command.parent = pTransaction;
 	size = srv_cmd_read_query_file_information (pCtx->read_origin, pInBuf,
 		pCtx->current_body_size - (rtsmb_size)(PDIFF (pInBuf, pCtx->read_origin)), pInHdr, &command);
 	if (size == -1) return FALSE;
-
-	ASSERT_FID (pCtx, command.fid, FID_FLAG_DIRECTORY);
+    {
+        ASSERT_DISKORIPC(pCtx)
+//	    ASSERT_DISK (pCtx)
+	    ASSERT_PERMISSION (pCtx, SECURITY_READ)
+	    ASSERT_FID (pCtx, command.fid, FID_FLAG_DIRECTORY);
 
 	size = fillQueryWithInfo (pCtx, pInHdr, pOutHdr,
 		pCtx->tmpBuffer, size_left, SMBU_GetFileNameFromFid (pCtx, command.fid),
 		command.information_level);
 	if (size == -1)
 		return FALSE;
+	}
 	pCtx->outBodySize += (rtsmb_size)size;
 
 	pTransactionR->data_count = (word)size;

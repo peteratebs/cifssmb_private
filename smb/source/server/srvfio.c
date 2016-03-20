@@ -87,16 +87,23 @@ RTSMB_STATIC PFRTCHAR expandName (PSR_RESOURCE resource, PFRTCHAR name, PFRTCHAR
 	rtsmb_char stardotstar[] = {'*', '.', '*', '\0'};
 
 	if (resource->stype != ST_DISKTREE &&
+		resource->stype != ST_IPC &&
 		resource->stype != ST_PRINTQ)
 		return (PFRTCHAR)0;
 
-	if (resource->stype == ST_PRINTQ)
+	if  (resource->stype == ST_IPC)
+    {
+      tc_memset (dest, '\0', size);
+      rtsmb_cpy (dest, name);
+      return dest;
+    }
+	else if (resource->stype == ST_PRINTQ)
 	{
         DEVICE_path         = resource->u.printer.path;
         DEVICE_separator    = resource->u.printer.separator;
         DEVICE_flags        = resource->u.printer.flags;
 	}
-	else
+	else if (resource->stype == ST_DISKTREE)
 	{
         DEVICE_path         = resource->u.disktree.path;
         DEVICE_separator    = resource->u.disktree.separator;
@@ -530,6 +537,9 @@ int SMBFIO_OpenInternal (word tid, PFRTCHAR name, word flags, word mode)
 		api = pResource->u.printer.api;
 		name = pResource->u.printer.printerfileBuf; //Overriding name to printerfile value.
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -574,6 +584,9 @@ long SMBFIO_ReadInternal (word tid, int fd, PFBYTE buf, dword count)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -604,6 +617,9 @@ long SMBFIO_WriteInternal (word tid, int fd, PFBYTE buf, dword count)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -633,6 +649,9 @@ long SMBFIO_SeekInternal (word tid, int fd, long offset, int origin)
 	{
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -668,6 +687,9 @@ BBOOL SMBFIO_SetTimeInternal (word tid, int fd, const TIME * atime, const TIME *
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -697,6 +719,9 @@ BBOOL SMBFIO_TruncateInternal (word tid, int fd, dword offset)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -724,6 +749,9 @@ BBOOL SMBFIO_FlushInternal (word tid, int fd)
 	{
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -753,11 +781,11 @@ int SMBFIO_CloseInternal (word tid, int fd)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
-		break;
-	case ST_IPC:
-		rv = -2;
 		break;
 	default:
 		rv = -1;
@@ -765,14 +793,13 @@ int SMBFIO_CloseInternal (word tid, int fd)
 	}
 	RELEASE_SHARE ();
 
-	// always return safely for ipc file closes
-	if (rv == -2)
-		return 0;
 
 	if (rv) return rv;
 
 	rv = api->fs_close(fd);
-
+	// always return safely for ipc file closes
+	if (pResource->stype == ST_IPC)
+        rv = 0;
 	return rv;
 }
 
@@ -791,6 +818,9 @@ BBOOL SMBFIO_RenameInternal (word tid, PFRTCHAR oldname, PFRTCHAR newname)
 	{
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -839,6 +869,9 @@ BBOOL SMBFIO_DeleteInternal (word tid, PFRTCHAR name)
 		api = pResource->u.printer.api;
 		name = pResource->u.printer.printerfileBuf; //Overriding name value to printerfile value.
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -879,6 +912,9 @@ BBOOL SMBFIO_MkdirInternal (word tid, PFRTCHAR name)
 	{
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -921,6 +957,9 @@ BBOOL SMBFIO_RmdirInternal (word tid, PFRTCHAR name)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -962,6 +1001,9 @@ BBOOL SMBFIO_GFirstInternal (word tid, PSMBDSTAT dirobj, PFRTCHAR name)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		name = pResource->u.printer.printerfileBuf; //Overriding name value to printerfile value.
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -1021,6 +1063,9 @@ BBOOL SMBFIO_GNextInternal (word tid, PSMBDSTAT dirobj)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -1068,6 +1113,9 @@ void SMBFIO_GDoneInternal (word tid, PSMBDSTAT dirobj)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -1097,6 +1145,9 @@ BBOOL SMBFIO_StatInternal (word tid, PFRTCHAR name, PSMBFSTAT stat)
 	case ST_PRINTQ:
 		api = pResource->u.printer.api;
 		name = pResource->u.printer.printerfileBuf; //Overriding name value to printerfile value.
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
 		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
@@ -1137,6 +1188,9 @@ BBOOL SMBFIO_ChmodeInternal (word tid, PFRTCHAR name, byte attributes)
 
 	switch (pResource->stype)
 	{
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;
@@ -1176,6 +1230,9 @@ BBOOL SMBFIO_GetFreeInternal (word tid, PFDWORD blocks, PFDWORD bfree, PFDWORD s
 
 	switch (pResource->stype)
 	{
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
 	case ST_DISKTREE:
 		api = pResource->u.disktree.api;
 		break;

@@ -260,6 +260,7 @@ void rtp_file_gdone (void * dirobj)
        if (((FSOBJ *)dirobj)->glob_data_valid)
        {
          globfree(&((FSOBJ *)dirobj)->globdata);
+         ((FSOBJ *)dirobj)->glob_data_valid=0;
        }
 	   free(dirobj);
     }

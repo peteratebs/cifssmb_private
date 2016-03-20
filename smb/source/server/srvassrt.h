@@ -21,6 +21,7 @@
 #define ASSERT_PERMISSION_FOR_TID(A, B, C)	if (assertPermissionForTid (A, B, C) == TRUE)	return TRUE;
 #define ASSERT_FID(A, B, C)					if (assertFid (A, B, C) == TRUE)				return TRUE;
 #define ASSERT_DISK(A)						if (assertDisk (A) == TRUE)						return TRUE;
+#define ASSERT_DISKORIPC(A)					if (assertDiskOrIpc (A) == TRUE)				return TRUE;
 #define ASSERT_SID(A, B)					if (assertSid (A, B) == TRUE)					return TRUE;
 #define ASSERT_PATH(A, B)					if (assertPath (A, B) == TRUE)					return TRUE;
 
@@ -31,6 +32,7 @@ BBOOL assertPermission (PSMB_SESSIONCTX pCtx, byte permission);
 BBOOL assertPermissionForTid (PSMB_SESSIONCTX pCtx, byte permission, word tid);
 BBOOL assertFid (PSMB_SESSIONCTX pCtx, word external, word flag);
 BBOOL assertDisk (PSMB_SESSIONCTX pCtx);
+BBOOL assertDiskOrIpc (PSMB_SESSIONCTX pCtx);
 BBOOL assertSid (PSMB_SESSIONCTX pCtx, word sid);
 BBOOL assertPath (PSMB_SESSIONCTX pCtx, PFRTCHAR filename);
 

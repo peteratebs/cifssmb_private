@@ -139,6 +139,15 @@ BBOOL assertDisk (PSMB_SESSIONCTX pCtx)
 }
 
 // undefined behavior if uid or tid isn't valid
+BBOOL assertDiskOrIpc (PSMB_SESSIONCTX pCtx)
+{
+	if (SMBU_GetTree (pCtx, pCtx->tid)->type != ST_DISKTREE && SMBU_GetTree (pCtx, pCtx->tid)->type != ST_IPC)
+	{
+		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_INVDEVICE);
+		return TRUE;
+	}
+	return FALSE;
+}
 BBOOL assertSid (PSMB_SESSIONCTX pCtx, word sid)
 {
 	if (sid >= prtsmb_srv_ctx->max_searches_per_uid ||

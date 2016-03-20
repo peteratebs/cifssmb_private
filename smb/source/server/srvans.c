@@ -527,6 +527,55 @@ int srv_cmd_fill_tree_connect_and_x_lanman (PFVOID origin, PFVOID buf, rtsmb_siz
   return PDIFF (e, s);
 }
 
+#if (HARDWIRED_INCLUDE_DCE)
+int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, rtsmb_size size,
+  PRTSMB_HEADER pHeader, PRTSMB_TREE_CONNECT_AND_X_R pTreeR)
+{
+  PFVOID s, bs, e, poffset, pbytecount;
+
+  s = buf;
+
+  RTSMB_PACK_BYTE (7);  /* word count */
+  RTSMB_PACK_BYTE (pTreeR->next_command);
+  RTSMB_PACK_BYTE (0);  /* reserved */
+  poffset = buf;
+  RTSMB_PACK_WORD (0);  /* offset to next and_x */
+  RTSMB_PACK_WORD (pTreeR->optional_support);
+
+#define AccessMask 0x000001ff
+  RTSMB_PACK_DWORD (AccessMask); // Maximal Share Access Rights
+  RTSMB_PACK_DWORD (AccessMask); // Guest Maximal Share Access Rights
+  pbytecount = buf;
+  RTSMB_PACK_WORD (7);  /* byte count */
+
+  bs = buf;  /* measure start of data section */
+
+  RTSMB_PACK_STRING (pTreeR->service, RTSMB_PACK_ASCII);
+  if (pTreeR->native_fs)
+  {
+    RTSMB_PACK_STRING (pTreeR->native_fs, RTSMB_PACK_ANY);
+  }
+  RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
+  RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
+  RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
+
+  e = buf;  /* measure end of data section */
+
+  /* will succeed, since we already passed this segment */
+  rtsmb_pack_add_word_unsafe (pbytecount, (word) PDIFF (e, bs), FALSE);
+
+  if (pTreeR->next_command != SMB_COM_NONE)
+  {
+    /* fill in offset */
+    rtsmb_pack_add_word_unsafe (poffset, (word) PDIFF (e, origin), FALSE);
+  }
+  printf("srv_cmd_fill_tree_connect_options_and_x_lanman hacking flags\n");
+  pHeader->flags=0x88;
+  pHeader->flags2=0xc801;
+  return PDIFF (e, s);
+}
+#endif
+
 /* --------------------------------------------------- /
  * Fills SMB Data Section with read andx response
  * ASSOCIATED COMMANDS: SMB_COM_READ_ANDX

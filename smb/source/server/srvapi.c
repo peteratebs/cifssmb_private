@@ -14,7 +14,6 @@
 //
 
 #include "smbdefs.h"
-#include "smbdefs.h"
 #ifdef SUPPORT_SMB2
 #include "com_smb2.h"
 #endif
@@ -34,6 +33,7 @@
 
 #include "smbutil.h"
 #include "smbnbds.h"
+#include "srvipcfile.h"
 
 
 /******************************************************************************
@@ -819,6 +819,7 @@ void rtsmb_srv_init (PFBYTE ip, PFBYTE mask_ip, PFCHAR net_name, PFCHAR group_na
 
     rtsmb_server_config ();
     rtsmb_fileport_init ();
+    rtsmb_ipcrpc_filesys_init();
     rtsmb_srv_nbns_init (net_name, group_name); /* srv_net uses this info */
     rtsmb_srv_net_init ();
     rtsmb_srv_net_set_ip (ip, mask_ip);

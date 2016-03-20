@@ -875,6 +875,8 @@ typedef struct
 	dword name_size;
 	PFRTCHAR name;
 
+	dword data_size;
+	PFRTCHAR data;
 	/* temporary variable until this struct get cleaned up
 	   from client work */
 	word byte_count;	/* not used in cli */
@@ -890,7 +892,7 @@ typedef struct
 
 	word data_count;		/* not used in cli */
 	PFBYTE data;			/* not used in cli */
-
+    PFBYTE heap_data;       /* When DCE allocates heap the pointer goes here for later freeing. */
 	byte setup_size;
 	PFWORD setup;
 
