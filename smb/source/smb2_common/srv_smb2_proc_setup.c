@@ -386,6 +386,7 @@ static byte spnego_blob_buffer[512];
                 response.SecurityBufferOffset = (word)(pStream->OutHdr.StructureSize + response.StructureSize-1);
                 response.SecurityBufferLength = (word)(pStream->WriteBufferParms[0].byte_count);
            }
+
             /* Session.SessionId MUST be placed in the SessionId field of the SMB2 header.
                 pStreamSession->SessionId was established when SMBS_InitSessionCtx_smb2 was called
             */
@@ -619,7 +620,6 @@ static byte spnego_blob_buffer[512];
             */
             if (more_processing_required)
             {
-                printf("Set more processing in staruct at %X\n", &pStream->OutHdr);
                 pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_MORE_PROCESSING_REQUIRED;
                 if (Connection3XXDIALECT)
                 {
@@ -630,16 +630,19 @@ static byte spnego_blob_buffer[512];
     } // if (send_next_token==TRUE)
     if (reject)
     {
-        printf("!!!! Auth setting recect status !!!! \n");
+        printf("!!!! Auth setting reject status !!!! \n");
 		RtsmbWriteSrvStatus (pStream, reject_status);
         pStream->doSessionClose = TRUE;
     }
     else
     {
+        printf("setup succeed\n");
         pStream->OutHdr.SessionId       = pStreamSession->SessionId;
         // Allocate a UID structure for this session and populate pStream->psmb2Session->pSmbCtx->uid
         if (!Smb1SrvUidForStream (pStream))
+        {
            pStream->doSessionClose = TRUE;
+        }
         else
         {
           /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
@@ -673,7 +676,6 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
            /* if this is a guest loging, reuse old guests   */
            if ((user == (PUSER)0) && (authId == 0))
            {
-
                for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
                {
                    if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
@@ -717,4 +719,3 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
 }
 #endif /* INCLUDE_RTSMB_SERVER */
 #endif /* #ifdef SUPPORT_SMB2   exclude rest of file */
-

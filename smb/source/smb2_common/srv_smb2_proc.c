@@ -149,6 +149,7 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 */
 
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream);
+static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
 
 BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
@@ -156,10 +157,11 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	int length;
 	BBOOL doSend = FALSE;
 	BBOOL doFinalize = FALSE;
+	BBOOL doFirstPacket = TRUE;
     smb2_stream  smb2stream;
     smb2_stream * pStream;
     PRTSMB2_HEADER pHeaderInBuffer;
-    BBOOL isCompoundRequest=FALSE;
+    BBOOL isCompoundReply=FALSE;
     pStream = &smb2stream;
     word AddtoFinalCreditRequest_CreditResponse = 0;
     /* Initialize memory stream pointers from the v1 contect structure
@@ -192,7 +194,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 		return TRUE;
 	}
 
-    // Process on or more SMB2 packates
+    // Process one or more SMB2 packets
+    smb2stream.compound_output = FALSE;
     do
     {
       PFVOID   pInBufStart;
@@ -201,45 +204,72 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 
        pInBufStart = smb2stream.pInBuf;
        pOutBufStart = smb2stream.pOutBuf;
-       // Read the header into smb2stream.inHdr
-	   if (cmd_read_header_smb2(&smb2stream) != 64)
-	   {
-		  RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed\n", RTSMB_DEBUG_TYPE_ASCII);
-		  return FALSE;
-	   }
+
+       if (smb2stream.compound_output == FALSE)
+       {
+           // Read the header into smb2stream.inHdr
+           if (cmd_read_header_smb2(&smb2stream) != 64)
+           {
+              RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed\n", RTSMB_DEBUG_TYPE_ASCII);
+             return FALSE;
+           }
+       }
        // Set up outgoing header.
        smb2stream.OutHdr = smb2stream.InHdr;
        smb2stream.OutHdr.NextCommand = 0;
        // Check if it's a compound field
-       if (smb2stream.InHdr.NextCommand == 0)
+	   if (doFirstPacket)
        {
-          isCompoundRequest = FALSE; // Process this packet and then drop out of the do loop.
+          isCompoundReply = FALSE; // Process this packet and then drop out of the do loop.
+          NextCommandOffset = 0;
+          doFirstPacket = FALSE;
+       }
+       else if (smb2stream.compound_output)
+       {
+          isCompoundReply = TRUE; // Process this packet and then drop out of the do loop.
           NextCommandOffset = 0;
        }
        else
        {
-	     printf("SMBS_ProcSMB2_Body: Compound request: NextCommand == :%X\n", smb2stream.InHdr.NextCommand);
-         NextCommandOffset = smb2stream.InHdr.NextCommand;
+         if (smb2stream.InHdr.NextCommand == 0)
+         {
+            isCompoundReply = FALSE; // Process this packet and then drop out of the do loop.
+            NextCommandOffset = 0;
+         }
+         else
+         {
+		     printf("SMBS_ProcSMB2_Body: Compound request: NextCommand == :%X\n", smb2stream.InHdr.NextCommand);
+           NextCommandOffset = smb2stream.InHdr.NextCommand;
+         }
        }
-
        // Process this one smb packet
        doSend = SMBS_ProcSMB2_Packet (&smb2stream);
+       // See if there are more input commands to process if the packet doesn't require compound_output
+       if (!smb2stream.compound_output)
+         NextCommandOffset = smb2stream.InHdr.NextCommand;
+       printf("!!!!!Okay compound_output=%d NextCommandOffset==%d\n",smb2stream.compound_output,NextCommandOffset);
+
        PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
        printf("Hacking out process id to input \n");
        // Actually process id to input
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
        if (NextCommandOffset == 0 && AddtoFinalCreditRequest_CreditResponse)
-          pOutHeader->CreditRequest_CreditResponse += AddtoFinalCreditRequest_CreditResponse;
+          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
 
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request
-       if (NextCommandOffset != 0)
+       if (smb2stream.compound_output || NextCommandOffset != 0)
        {
-          // First advance the input request
-          unsigned int consumed = (unsigned int) PDIFF (smb2stream.pInBuf, pInBufStart);
           unsigned int SkipCount = 0;
-          if (NextCommandOffset > consumed)
-            SkipCount = NextCommandOffset - consumed;
+          // First advance the input request
+          if (smb2stream.compound_output)
+            SkipCount = 0;
+          else
+          {
+            unsigned int consumed = (unsigned int) PDIFF (smb2stream.pInBuf, pInBufStart);
+            if (NextCommandOffset > consumed)
+              SkipCount = NextCommandOffset - consumed;
+          }
           if (SkipCount > smb2stream.read_buffer_remaining)
           {
              printf("SMBS_ProcSMB2_Body: Bad Compound request:\n");
@@ -248,39 +278,52 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
           {
              AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
              pOutHeader->CreditRequest_CreditResponse = 0;
-
              pStream->pInBuf+=SkipCount;
              pStream->read_buffer_remaining-=SkipCount;
-             isCompoundRequest = TRUE;
+             isCompoundReply = TRUE;
              // Now see if we have to pad the output to get to an 8 byte boundary
-             SkipCount = (unsigned int) PDIFF (smb2stream.pOutBuf, pOutBufStart);
-             printf("SMBS_ProcSMB2_Body: Skip %X\n",SkipCount);
-             SkipCount = ((SkipCount+7)&~0x7)-SkipCount;
-             printf("SMBS_ProcSMB2_Body: Skip2: %X\n",SkipCount);
-             if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
-             {
-               printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
-               isCompoundRequest = FALSE;
-             }
-             else
-             {
-               PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
-               // Now insert the offset to the next command into the prior header
-               pOutHeader->NextCommand = (dword)PDIFF (smb2stream.pOutBuf, pOutBufStart)+SkipCount;
-               if (SkipCount)
-               {
-                 tc_memset(smb2stream.pOutBuf,0,SkipCount);
-                 smb2stream.write_buffer_remaining -= SkipCount;
-                 smb2stream.pOutBuf = PADD (smb2stream.pOutBuf, SkipCount);
-	             smb2stream.OutBodySize += SkipCount;
-               }
-             }
+             if (!SMBS_Frame_Compound_Output(pStream, pOutBufStart))
+               isCompoundReply = FALSE;
           }
        }
-    }  while (isCompoundRequest);
+
+    }  while (isCompoundReply);
     Smb1SrvCtxtFromStream(pSctx, pStream);
     return doSend;
 }
+
+static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart)
+{
+unsigned int PrevLength;
+unsigned int SkipCount;
+    // Now see if we have to pad the output to get to an 8 byte boundary
+    PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
+    printf("SMBS_ProcSMB2_Body: PrevLength: %X %u\n",PrevLength,PrevLength);
+    SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
+    printf("SMBS_ProcSMB2_Body: Skip2: %X\n",SkipCount);
+    if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
+    {
+      printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
+      return FALSE;
+    }
+    else
+    {
+      PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
+      // Now insert the offset to the next command into the prior header
+      // This is only used for input ????
+      pOutHeader->NextCommand = (dword)PDIFF (pStream->pOutBuf, pOutBufStart)+SkipCount;
+      if (SkipCount)
+      {
+        tc_memset(pStream->pOutBuf,0,SkipCount);
+        pStream->write_buffer_remaining -= SkipCount;
+        pStream->pOutBuf = PADD (pStream->pOutBuf, SkipCount);
+        pStream->OutBodySize += SkipCount;
+      }
+    }
+    return TRUE;
+}
+
+
 
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
 {
@@ -1352,6 +1395,10 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
       rtp_printf("%c", (char )share_name[i]);
     rtp_printf(":\n");
     }
+    RTSMB_DEBUG_OUTPUT_STR ("\nShare name:", RTSMB_DEBUG_TYPE_ASCII);
+    RTSMB_DEBUG_OUTPUT_STR (share_name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
+    RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+
     rtp_printf("Trying to find session from session id in header %d\n", (int) pStream->InHdr.SessionId);
     pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
 
@@ -1464,6 +1511,19 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
     }
     else
     {
+#if (0&&HARDWIRED_INCLUDE_DCE)
+HEREHERE Need to get IPC out of string
+       if (command.flags & 0x08)
+       {
+          response.optional_support = 1;
+          WRITE_SMB_AND_X (srv_cmd_fill_tree_connect_options_and_x_lanman);
+       }
+       else
+       {
+          RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+       }
+
+#endif
         /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
         RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }

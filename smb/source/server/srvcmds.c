@@ -1504,6 +1504,16 @@ int srv_cmd_read_transaction (PFVOID origin, PFVOID buf, rtsmb_size size,
     // Remember the end here . If it's a lan type we'll leave it here
 	e = buf;
 
+	if (pTransaction->setup[0] == TRANS_TRANSACT_NOTIFY)
+    {
+      printf("srv_cmd_read_transaction Got a notify\n");
+      printf("Got a notify size == : %d\n", pTransaction->setup_size);
+      printf("Got a notify filter : high %X low %X\n", pTransaction->setup[1],pTransaction->setup[0]);
+      printf("Got a notify FID    :  %d\n", pTransaction->setup[2]);
+      printf("Got a notify TREE   :  %d\n", pTransaction->setup[3]>>4);
+      e = buf;
+      return PDIFF (e, s);
+    }
 //    tc_memcmp(command.name, pipe_protocol, sizeof(pipe_protocol)
 #if(HARDWIRED_INCLUDE_DCE)
     { // Shared with TRANS2. name_size == 0 for trans2

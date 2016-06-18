@@ -72,9 +72,9 @@ static void rtsmb_srv_non_file_config(void);
 
 void rtsmb_main (void)
 {
-	spinState += 1;
-	spinState = spinState%4;
-	rtp_printf("\b%c",spinner[spinState]);
+	//spinState += 1;
+	//spinState = spinState%4;
+	//rtp_printf("\b%c",spinner[spinState]);
 	rtsmb_srv_cycle (1000);
 }
 

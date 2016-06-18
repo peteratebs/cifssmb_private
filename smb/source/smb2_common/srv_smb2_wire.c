@@ -147,6 +147,7 @@ int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem)
 {
 int rv = -1;
     pStream->Success = FALSE;
+    // printf("RtsmbStreamEncodeResponse cmd: %d\n", pStream->OutHdr.Command);
     switch (pStream->OutHdr.Command)
     {
         case SMB2_NEGOTIATE:
@@ -399,36 +400,38 @@ int write_header_size;
         RTSmb2_Encryption_Release_Encrypt_Buffer(pStream->write_origin);
         pStream->write_origin = pStream->saved_write_origin;
     }
-    pStream->OutBodySize = 0;
 	pStream->OutHdr.Status_ChannelSequenceReserved = statusCode;
     pStream->write_buffer_remaining  = pStream->write_buffer_size;
 	write_header_size = cmd_fill_header_smb2 (pStream, &pStream->OutHdr);
 	if (write_header_size >= 0)
     {
     rtsmb_size size;
+    rtsmb_size consumed;
 	PFVOID buf, s;
     RTSMB2_ERROR_R reply;
-        buf     = pStream->pOutBuf;
-        size    = pStream->write_buffer_remaining;
-        s = buf;
-        reply.StructureSize = 9; // 9
-        reply.Reserved      = 0;
-        reply.ByteCount     = ErrorByteCount;
-        if (ErrorByteCount)
-        {
-            reply.Buffer         =  *ErrorBytes++;
-            ErrorByteCount--;
-        }
-        else
-            reply.Buffer         = 0;
+      buf     = pStream->pOutBuf;
+      size    = pStream->write_buffer_remaining;
+      s = buf;
+      reply.StructureSize = 9; // 9
+      reply.Reserved      = 0;
+      reply.ByteCount     = ErrorByteCount;
+      if (ErrorByteCount)
+      {
+          reply.Buffer         =  *ErrorBytes++;
+          ErrorByteCount--;
+      }
+      else
+          reply.Buffer         = 0;
 
-        PACK_STRUCT_TO_WIRE(&reply,RTSMB2_ERROR_R,9);
-        if ( ErrorBytes )
-        {
-            PACK_STRUCT_TO_WIRE(ErrorBytes,BLOB,ErrorByteCount);
-        }
-
-        pStream->OutBodySize = (rtsmb_size) (write_header_size + PDIFF (buf, s));
+      PACK_STRUCT_TO_WIRE(&reply,RTSMB2_ERROR_R,9);
+      if ( ErrorBytes )
+      {
+          PACK_STRUCT_TO_WIRE(ErrorBytes,BLOB,ErrorByteCount);
+      }
+      consumed = (rtsmb_size)(PDIFF(buf, s));
+      pStream->pOutBuf = PADD(pStream->pOutBuf,consumed);
+      pStream->write_buffer_remaining-=consumed;
+      pStream->OutBodySize += (rtsmb_size) (write_header_size + consumed);
     }
 	pStream->Success=FALSE;
     return 0;

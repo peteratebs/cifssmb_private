@@ -80,7 +80,7 @@
  * to have many simultaneously open files.
  */
 #ifndef CFG_RTSMB_MAX_FIDS_PER_SESSION
-#define CFG_RTSMB_MAX_FIDS_PER_SESSION      5
+#define CFG_RTSMB_MAX_FIDS_PER_SESSION      16
 #endif
 
 /**

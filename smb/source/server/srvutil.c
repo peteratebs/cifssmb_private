@@ -76,6 +76,21 @@ PFRTCHAR SMBU_ShortenSMBPath (PFRTCHAR path)
 	return path;
 }
 
+void SMBU_FillNtError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, dword errorCode)
+{
+	int size;
+
+	pOutHdr->status = errorCode;
+
+	size = srv_cmd_fill_header (pCtx->write_origin, pCtx->write_origin,
+		prtsmb_srv_ctx->small_buffer_size, pOutHdr);
+	if (size != -1)
+	{
+		tc_memset (PADD (pCtx->write_origin, size), 0, 3);
+		pCtx->outBodySize = (rtsmb_size) (size + 3);
+	}
+}
+
 dword SMBU_MakeError (byte errorClass, word errorCode)
 {
 	dword error = 0;

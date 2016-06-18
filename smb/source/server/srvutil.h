@@ -35,6 +35,7 @@
 
 
 dword SMBU_MakeError (byte errorClass, word errorCode);
+void SMBU_FillNtError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, dword errorCode);
 void SMBU_FillError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, byte errorClass, word errorCode);
 void SMBU_AddError (PRTSMB_HEADER pHdr, PFVOID buf, byte errorClass, word errorCode);
 

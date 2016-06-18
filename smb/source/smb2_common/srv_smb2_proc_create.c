@@ -256,7 +256,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
 
-    if (pTree->type == ST_PRINTQ || pTree->type == ST_IPC)
+    if (pTree->type == ST_PRINTQ)
     { // Don't open IPCs or printers yet.
       RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
       return TRUE;
@@ -268,7 +268,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
        printf("Processing command.CreateContextsOffset == %d\n",  command.CreateContextsOffset);
        decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
     }
-
+#if (HARDWIRED_INCLUDE_DCE)
+    if (pTree->type == ST_IPC)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 4 IPC!!...\n",0);
+    }
+#endif
     if (command.NameLength==0)
     { // opening the root of the share
       PFRTCHAR p = (PFRTCHAR) file_name;
@@ -300,6 +305,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
           r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
       }
     }
+#if (HARDWIRED_INCLUDE_DCE)
+    if (pTree->type == ST_IPC)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 5 IPC!!...\n",0);
+    }
+#endif
     if (r != 0)
     {
         printf("OpenOrCreate failed r == %x\n", r);
@@ -308,6 +319,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         return TRUE;
     }
 
+#if (HARDWIRED_INCLUDE_DCE)
+    if (pTree->type == ST_IPC)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 6 IPC!!...\n",0);
+    }
+#endif
     SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
 //=====
 
@@ -352,6 +369,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     *((word *) &response.FileId[1]) = (word) externalFid;
     response.CreateContextsOffset = 0;
     response.CreateContextsLength = 0;
+
+
 
     if (wants_extra_info)
     {

@@ -542,6 +542,7 @@ int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, r
   RTSMB_PACK_WORD (0);  /* offset to next and_x */
   RTSMB_PACK_WORD (pTreeR->optional_support);
 
+// #define AccessMask 0x001001e7 // Turn on synchronous turn off EA
 #define AccessMask 0x000001ff
   RTSMB_PACK_DWORD (AccessMask); // Maximal Share Access Rights
   RTSMB_PACK_DWORD (AccessMask); // Guest Maximal Share Access Rights
@@ -555,9 +556,12 @@ int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, r
   {
     RTSMB_PACK_STRING (pTreeR->native_fs, RTSMB_PACK_ANY);
   }
+  else
+  {
   RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
   RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
   RTSMB_PACK_BYTE (0);       // 3 Extra byte parameters
+  }
 
   e = buf;  /* measure end of data section */
 
@@ -2926,6 +2930,52 @@ int srv_cmd_fill_transaction_cmd (PFVOID origin, PFVOID buf, rtsmb_size size,
   return PDIFF (e, s);
 }
 
+int srv_cmd_fill_nt_transaction_cmd (PFVOID origin, PFVOID buf, rtsmb_size size,
+  PRTSMB_HEADER pHeader, PRTSMB_NT_TRANSACTION_R pTransaction)
+{
+  PFVOID s, e,psmb_header;
+  int i;
+  psmb_header = pHeader;
+  s = buf;
+  RTSMB_PACK_BYTE (pTransaction->SetupCount+0x12);  /* word count */
+  RTSMB_PACK_BYTE (pTransaction->MaxSetupCount);  /* word count */
+  RTSMB_PACK_BYTE (0);  /* reserved */
+  RTSMB_PACK_BYTE (0);  /* reserved */
+  RTSMB_PACK_BYTE (0);  /* reserved */
+  RTSMB_PACK_DWORD (pTransaction->TotalParameterCount);
+  RTSMB_PACK_DWORD (pTransaction->TotalDataCount     );
+  RTSMB_PACK_DWORD (pTransaction->MaxParameterCount  );
+  RTSMB_PACK_DWORD (pTransaction->MaxDataCount       );
+  RTSMB_PACK_DWORD (pTransaction->ParameterCount     );
+  RTSMB_PACK_DWORD (pTransaction->ParameterOffset     );
+  RTSMB_PACK_DWORD (pTransaction->DataCount           );
+  RTSMB_PACK_DWORD (pTransaction->DataOffset          );
+  RTSMB_PACK_DWORD (pTransaction->DataDisplacement          );
+  RTSMB_PACK_BYTE  (pTransaction->SetupCount);
+  for (i = 0; i < pTransaction->SetupCount; i++)
+  {
+    RTSMB_PACK_WORD (pTransaction->Setup[i]);
+  }
+  RTSMB_PACK_WORD  (pTransaction->ByteCount);
+  while(PDIFF (buf, psmb_header) & 0x03)
+  {
+    RTSMB_PACK_BYTE  (0); //  byte Pad1[];
+  }
+  for (i = 0; i < pTransaction->SetupCount; i++)
+  {
+     RTSMB_PACK_BYTE(pTransaction->NT_Trans_Parameters[i]);
+  }
+  while(PDIFF (buf, psmb_header) & 0x03)
+  {
+    RTSMB_PACK_BYTE  (0); //  byte Pad2[];
+  }
+  for (i = 0; i < pTransaction->DataCount; i++)
+  {
+     RTSMB_PACK_BYTE(pTransaction->NT_Trans_Data[i]);
+  }
+  e = buf;  /* measure end of data section */
+  return PDIFF (e, s);
+}
 int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
   PRTSMB_HEADER pHeader, PRTSMB_NT_CREATE_AND_X_R pCreateR)
 {

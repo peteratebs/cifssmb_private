@@ -101,6 +101,7 @@
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
 #define SMB2_STATUS_STOPPED_ON_SYMLINK          0x8000002D /* The create operation stopped after reaching a symbolic link. */
 #define SMB2_STATUS_NOT_IMPLEMENTED             0xC0000002 /* The requested operation is not implemented. */
+#define SMB2_STATUS_INVALID_INFO_CLASS          0xC0000003 /*  */
 #define SMB2_STATUS_INVALID_PARAMETER           0xC000000D /* The parameter specified in the request is not valid. */
 #define SMB2_STATUS_NO_SUCH_DEVICE              0xC000000E /* A device that does not exist was specified. */
 #define SMB2_STATUS_INVALID_DEVICE_REQUEST      0xC0000010 /* The specified request is not a valid operation for the target device. */

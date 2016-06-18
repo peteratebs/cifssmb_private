@@ -38,20 +38,20 @@
 typedef enum
 {
 #ifdef SUPPORT_SMB2
-    NOTCONNECTED,       /* -> IDLE                             - ready and waiting for input, protocol V1 or V2 not yet identified */ 
+    NOTCONNECTED,       /* -> IDLE                             - ready and waiting for input, protocol V1 or V2 not yet identified */
 #endif
-    IDLE,               /* -> anything                         - ready and waiting for input */ 
-    READING,            /* -> IDLE                             - in the middle of reading a packet */ 
-    BROWSE_MUTEX,       /* -> BROWSE_SENT, BROWSE_FAIL         - waiting for resources to clear so we can netenum2 */ 
-    BROWSE_SENT,        /* -> BROWSE_FINISH, BROWSE_FAIL       - waiting on response to our netenum2 */ 
-    BROWSE_FINISH,      /* -> IDLE                             - data is here (or error occured), send answer to netenum2 */ 
-    BROWSE_FAIL,        /* -> IDLE                             - something bad happened during enum (no domain) */ 
-    WAIT_ON_PDC_NAME,   /* -> FINISH_NEGOTIATE, FAIL_NEGOTIATE - waiting to discover primary domain controller's name */ 
-    WAIT_ON_PDC_IP,     /* -> FINISH_NEGOTIATE, FAIL_NEGOTIATE - waiting to discover primary domain controller's ip */ 
-    FAIL_NEGOTIATE,     /* -> IDLE                             - negotiation failed -- send error message back */ 
-    FINISH_NEGOTIATE,   /* -> IDLE                             - authentication succeeded, continue with negotiate */ 
-    WRITING_RAW,        /* -> IDLE, WRITING_RAW_READING        - awaiting a large packet as part of a write raw request */ 
-    WRITING_RAW_READING /* -> IDLE                             - in the middle of reading a large packet for write raw */ 
+    IDLE,               /* -> anything                         - ready and waiting for input */
+    READING,            /* -> IDLE                             - in the middle of reading a packet */
+    BROWSE_MUTEX,       /* -> BROWSE_SENT, BROWSE_FAIL         - waiting for resources to clear so we can netenum2 */
+    BROWSE_SENT,        /* -> BROWSE_FINISH, BROWSE_FAIL       - waiting on response to our netenum2 */
+    BROWSE_FINISH,      /* -> IDLE                             - data is here (or error occured), send answer to netenum2 */
+    BROWSE_FAIL,        /* -> IDLE                             - something bad happened during enum (no domain) */
+    WAIT_ON_PDC_NAME,   /* -> FINISH_NEGOTIATE, FAIL_NEGOTIATE - waiting to discover primary domain controller's name */
+    WAIT_ON_PDC_IP,     /* -> FINISH_NEGOTIATE, FAIL_NEGOTIATE - waiting to discover primary domain controller's ip */
+    FAIL_NEGOTIATE,     /* -> IDLE                             - negotiation failed -- send error message back */
+    FINISH_NEGOTIATE,   /* -> IDLE                             - authentication succeeded, continue with negotiate */
+    WRITING_RAW,        /* -> IDLE, WRITING_RAW_READING        - awaiting a large packet as part of a write raw request */
+    WRITING_RAW_READING /* -> IDLE                             - in the middle of reading a large packet for write raw */
 } SMBS_SESSION_STATE;
 
 /*============================================================================   */
@@ -107,9 +107,14 @@ typedef struct search_s
 
     unsigned long lastUse;
     word tid; /* tid this belongs to.  struct maybe should be put in TREE_T */
-    dword pid; /* pid this belongs to. */
+#ifdef SUPPORT_SMB2
+    rtsmb_char name[SMBF_FILENAMESIZE + 1]; // SMB2 may restart the search with the original pattern
+    byte    FileId[16];                     // There's no sid instead use file id
+    ddword pid64; /* pid this belongs to. */
+#else
+    ddword pid; /* pid this belongs to. */
+#endif
     SMBDSTAT stat;
-
 } SEARCH_T;
 typedef SEARCH_T RTSMB_FAR *PSEARCH;
 

@@ -770,7 +770,11 @@ BBOOL ST2_FindFirst2 (PSMB_SESSIONCTX pCtx,
 	user->searches[sid].lastUse = rtp_get_system_msec ();
 	user->searches[sid].inUse = TRUE;
 	user->searches[sid].tid = pOutHdr->tid;
+#ifdef SUPPORT_SMB2
+	user->searches[sid].pid64 = (ddword)pOutHdr->pid;
+#else
 	user->searches[sid].pid = pOutHdr->pid;
+#endif
 
 	space = size_left;
 
@@ -1045,6 +1049,24 @@ BBOOL ST2_QueryPathInfo (PSMB_SESSIONCTX pCtx,
 
 	return TRUE;
 } // End ST2_QueryPathInfo
+
+BBOOL ST2_GetDfsReferal (PSMB_SESSIONCTX pCtx,
+	PRTSMB_HEADER pInHdr, PRTSMB_TRANSACTION pTransaction, PFVOID pInBuf,
+	PRTSMB_HEADER pOutHdr, PRTSMB_TRANSACTION_R pTransactionR, rtsmb_size size_left)
+{
+	pTransactionR->data_count = 0;
+	pTransactionR->data = pCtx->tmpBuffer;
+//	pTransactionR->parameter_count = 2;
+//	pTransactionR->parameter = PADD("\0",2);
+	pTransactionR->parameter_count = 0; // Changed to 0 from 2;
+	pTransactionR->parameter = 0;
+
+	pTransactionR->setup_size = 0;
+	pTransactionR->setup = (PFWORD)0;
+	// 0xc000, 0x0225 // STATUS_NOT_FOUND
+	pOutHdr->status = 0xc0000225; //  SMBU_MakeError (0xc000, 0x0225);
+	return TRUE;
+}
 
 
 

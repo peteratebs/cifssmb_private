@@ -46,6 +46,7 @@ typedef struct smb2_stream_s {
     struct RTSMB_CLI_SESSION_JOB_T *pJob;           // For a client points to the controlling SMBV1 job structure.
 
     int      PadValue;                              // If the stream contains a compound message, set to the proper pad value between commands.
+    BBOOL    compound_output;                       // Set by output routines if the response should be sent and the processing routine called again.
     BBOOL    EncryptMessage;                        // For write operations, encryption is required. For reads decryption is required.
     BBOOL    Success;                               // Indicates the current state of read or write operation is succesful.
     BBOOL    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.

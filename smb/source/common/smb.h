@@ -155,6 +155,9 @@ enum CodePageType
 
 #define SMB_COM_NONE 0xFF
 
+// Subcommands for SMB_COM_TRANSACTION
+#define TRANS_TRANSACT_NOTIFY   0x04  // See section 2.2.2.2 - TRANS_TRANSACT_NMPIPE is all that's supported, provides enough to enumerate shares.
+#define TRANS_TRANSACT_NMPIPE   0x26  // See section 2.2.2.2 - TRANS_TRANSACT_NMPIPE is all that's supported, provides enough to enumerate shares.
 
 
 //------------------
@@ -361,6 +364,7 @@ enum CodePageType
 #define TRANS2_FIND_NEXT2				0x02
 #define TRANS2_FIND_CLOSE2				0x02
 #define TRANS2_QUERY_FS_INFORMATION		0x03
+#define TRANS2_SET_FS_INFORMATION		0x04
 #define TRANS2_QUERY_PATH_INFORMATION	0x05
 #define TRANS2_SET_PATH_INFORMATION		0x06
 #define TRANS2_QUERY_FILE_INFORMATION	0x07
@@ -373,6 +377,17 @@ enum CodePageType
 #define TRANS2_SESSION_SETUP			0x0E
 #define TRANS2_GET_DFS_REFERRAL			0x10
 #define TRANS2_REPORT_DFS_INCONSISTENCY	0x11
+
+// Notify file action bits
+#define FILE_ACTION_ADDED 0x00000001               // The file was added to the directory.
+#define FILE_ACTION_REMOVED 0x00000002             // The file was removed from the directory.
+#define FILE_ACTION_MODIFIED 0x00000003            // The file was modified. This may be a change to the data or attributes of the file.
+#define FILE_ACTION_RENAMED_OLD_NAME  0x00000004   // The file was renamed, and this is the old name. If the new name resides within the directory being monitored, the client will also receive the FILE_ACTION_RENAMED_NEW_NAME bit value as described in the next list item. If the new name resides outside of the directory being monitored, the client will not receive the FILE_ACTION_RENAMED_NEW_NAME bit value.
+#define FILE_ACTION_RENAMED_NEW_NAME 0x00000005    // The file was renamed, and this is the new name. If the old name resides within the directory being monitored, the client will also receive the FILE_ACTION_RENAME_OLD_NAME bit value. If the old name resides outside of the directory being monitored, the client will not receive the FILE_ACTION_RENAME_OLD_NAME bit value.
+#define FILE_ACTION_ADDED_STREAM 0x00000006        // The file was added to a named stream.
+#define FILE_ACTION_REMOVED_STREAM 0x00000007      // The file was removed from the named stream.
+#define FILE_ACTION_MODIFIED_STREAM 0x00000008     // The file was modified. This may be a change to the data or attributes of the file.
+#define FILE_ACTION_REMOVED_BY_DELETE  0x00000009  // The file was removed by delete.
 
 
 /* This is dictated by the protocol.  A share name can

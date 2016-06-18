@@ -855,6 +855,59 @@ typedef struct
 typedef RTSMB_WRITE_RAW_R2 RTSMB_FAR *PRTSMB_WRITE_RAW_R2;
 
 
+
+typedef struct
+{
+    byte WordCount;
+    // Words{
+    byte MaxSetupCount;
+    dword TotalParameterCount;
+    dword TotalDataCount;
+    dword MaxParameterCount;
+    dword MaxDataCount;
+    dword ParameterCount;
+    dword ParameterOffset;
+    dword DataCount;
+    dword DataOffset;
+    dword DataDisplacement;
+    byte SetupCount;
+    word Function;
+    word *Setup;                // [SetupCount]
+    // SMB_Data
+    word ByteCount;
+    //  Bytes {
+    byte *NT_Trans_Parameters; // [ParameterCount]
+    byte *NT_Trans_Data;       // [DataCount];
+} RTSMB_NT_TRANSACTION;
+typedef RTSMB_NT_TRANSACTION RTSMB_FAR *PRTSMB_NT_TRANSACTION;
+
+
+typedef struct
+{
+    byte WordCount;
+    // Words{
+    byte MaxSetupCount;
+    byte  Reserved1[3];
+    dword TotalParameterCount;
+    dword TotalDataCount;
+    dword MaxParameterCount;
+    dword MaxDataCount;
+    dword ParameterCount;
+    dword ParameterOffset;
+    dword DataCount;
+    dword DataOffset;
+    dword DataDisplacement;
+    byte SetupCount;
+    word Function;
+    word *Setup;                // [SetupCount]
+    // SMB_Data
+    word ByteCount;
+    //  Bytes {
+    byte *NT_Trans_Parameters; // [ParameterCount]
+    byte *NT_Trans_Data;       // [DataCount];
+} RTSMB_NT_TRANSACTION_R;
+typedef RTSMB_NT_TRANSACTION_R RTSMB_FAR *PRTSMB_NT_TRANSACTION_R;
+
 typedef struct
 {
 	word flags;
@@ -883,6 +936,9 @@ typedef struct
 
 } RTSMB_TRANSACTION;
 typedef RTSMB_TRANSACTION RTSMB_FAR *PRTSMB_TRANSACTION;
+
+
+
 
 
 typedef struct
