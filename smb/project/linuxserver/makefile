@@ -7,7 +7,7 @@
 ########################################################################
 incpath = .
 
-# cflags+= -D SUPPORT_SMB2
+cflags+= -D SUPPORT_SMB2
 
 ## SET SMB_PATH
 SMB_PATH = ../..

@@ -30,6 +30,7 @@
 //============================================================================
 // Interface between stream and SrvSrvc
 typedef struct StreamtoSrvSrvc_s {
+ dword reply_status_code;
  word  reply_data_count;
  void *reply_heap_data;
  void *reply_response_data;

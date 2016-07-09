@@ -57,6 +57,12 @@ rtsmb_char pipe_lanman[13]   = {'\\','P','I','P','E','\\','L', 'A', 'N', 'M', 'A
 #if (HARDWIRED_INCLUDE_DCE)
 rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
+
+#ifdef SUPPORT_SMB2
+rtsmb_char _rtsmb2_srvsvc_pipe_name [7] = {'l','s','a','r','p','c',0};
+#endif
+
+
 #endif
 
 #ifdef STATE_DIAGNOSTICS
@@ -814,7 +820,7 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             ERROR_CODE                                 /
  * -------------------------------------------------- */
 
-dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid)
+dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFDWORD answer_external_fid, PFINT answer_fid)
 {
     SMBFSTAT stat;
     int fid;
@@ -854,9 +860,10 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
      * Bug fix - 12-2009 we were making sure the path to the file existed
      * even if we were not creating. Was moved below to do it in the correct place.
      */
-
+rtsmb_dump_bytes("OpenOrCreate file name", filename, rtsmb_len(filename)*2, DUMPUNICODE);
     if (SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
     {
+printf("Stat worked\n");
         if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
         {
             printf("Error excl\n");
@@ -880,12 +887,17 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
             }
 
             *answer_fid = 0;
-            *answer_external_fid = (word)externalFid;
+            *answer_external_fid = (dword)externalFid;
             return 0;
         }
     }
+#if (HARDWIRED_INCLUDE_DCE == 1)
+    else if (pTree->type == ST_IPC)  // Don't check create for IPC
+      ;
+#endif
     else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
     {
+printf("Create error HEREHERE\n");
         return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
     }
     /**
@@ -896,6 +908,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     {
         SMBU_MakePath (pCtx, filename);
     }
+rtsmb_dump_bytes("OpenOrCreate SMBFIO_Open", filename, rtsmb_len(filename)*2, DUMPUNICODE);
     fid = SMBFIO_Open (pCtx, pCtx->tid, filename, flags, mode);
 
     if(fid < 0)
@@ -905,7 +918,17 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     }
     else
     {
-        int externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0);
+     int externalFid;
+#if (HARDWIRED_INCLUDE_DCE == 1)
+        if (pTree->type == ST_IPC)  // Don't check create for IPC
+        {
+printf("IPC open fid == %x ext == %x \n",externalFid,fid);
+          externalFid = fid;
+        }
+        else
+
+#endif
+        externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0);
 
         if (externalFid < 0)
         {
@@ -914,7 +937,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
             return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
         }
         *answer_fid = fid;
-        *answer_external_fid = (word)externalFid;
+        *answer_external_fid = (dword)externalFid;
         return 0;
     }
 }
@@ -945,6 +968,7 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     byte permissions;
     int fid;
     dword r;
+    dword dwexternalFid;
     word externalFid;
 
     /*ASSURE (!assertUid (pCtx), 0);   */
@@ -1015,8 +1039,8 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     }
 
     pTree = SMBU_GetTree (pCtx, pCtx->tid);
-    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &externalFid, &fid);
-
+    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &dwexternalFid, &fid);
+    externalFid = (word) dwexternalFid;
     if (r != 0)
     {
         pOutHdr->status = r;
@@ -1084,6 +1108,7 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
     int fid;
     dword r;
     word externalFid;
+    dword dwexternalFid;
     RTSMB_NT_CREATE_AND_X_R response;
     SMBFSTAT stat;
     BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
@@ -1200,7 +1225,9 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
     {
         response.directory = FALSE;
     }
-    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &externalFid, &fid);
+
+    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &dwexternalFid, &fid);
+    externalFid = (word) dwexternalFid;
     if (r != 0)
     {
         pOutHdr->status = r;

@@ -44,30 +44,26 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     word externalFid;
 	PTREE pTree;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  YA YA !!...\n",0);
-
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
     ASSERT_SMB2_TID (pStream)  // Returns if the TID is not valid
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 3!!...\n",0);
 
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
 
-
     if (!pStream->Success)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  RtsmbStreamDecodeCommand failed...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
 
     if (command.StructureSize != 24)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
     // What to do with these fields
@@ -78,9 +74,20 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
     externalFid = *((word *) &command.FileId[1]);
-    ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
-    fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags);
 
+    if (externalFid == 0xffff)
+    {
+      printf("Close, exfd == 0xffff why ?\n");
+      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+      fid = -1;
+    }
+    else
+    {
+
+      // Set the status to success
+      ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
+      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags);
+    }
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
      */
@@ -117,6 +124,8 @@ printf("Close asked for stat but we can not give them yet\n");
     }
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
 
+        // Set the status to success
+    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize = 60;
     /* Success - see above if the client asked for stats */
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);

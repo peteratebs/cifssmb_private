@@ -21,7 +21,7 @@ BBOOL assert_smb2_uid(smb2_stream  *pStream);
 BBOOL assert_smb2_tid(smb2_stream  *pStream);
 BBOOL assert_smb2_permission(smb2_stream  *pStream,byte permission);
 BBOOL assert_smb2_Fid (smb2_stream  *pStream, word external, word flag);
-
+BBOOL assert_smb2_new_Fid (smb2_stream  *pStream, word external, word flag);
 
 #define ASSERT_SMB2_UID(S) if(assert_smb2_uid(S)) return TRUE;   //
 #define ASSERT_SMB2_TID(S) if(assert_smb2_tid(S)) return TRUE;  //

@@ -147,7 +147,6 @@ int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem)
 {
 int rv = -1;
     pStream->Success = FALSE;
-    // printf("RtsmbStreamEncodeResponse cmd: %d\n", pStream->OutHdr.Command);
     switch (pStream->OutHdr.Command)
     {
         case SMB2_NEGOTIATE:
@@ -184,7 +183,7 @@ int rv = -1;
             rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  4, 0);
             break;
         case SMB2_IOCTL          :
-            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  88, RtsmbWireVarEncodeIoctlResponseCb);
+            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  48, RtsmbWireVarEncodeIoctlResponseCb);
             break;
         case SMB2_CANCEL         :
             break;
@@ -211,7 +210,7 @@ int rv = -1;
     if (rv >= 0)
         pStream->Success = TRUE;
     else
-        RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
     return rv;
 }
 
@@ -239,16 +238,8 @@ PRTSMB2_READ_R pResponse = (PRTSMB2_READ_R )pItem;
 
 static int RtsmbWireVarEncodeIoctlResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
 {
-PFVOID s=buf;
-    HEREHERE // Complex needs work
-   pStream  =    pStream;
-   origin  =    origin;
-   buf  =    buf;
-   size  =    size;
-   pItem   =    pItem ;
-//PRTSMB2_IOCTL_R pResponse = (PRTSMB2_IOCTL_R )pItem;
-//    return RtsmbWireVarEncode(pStream, origin, buf, size, pResponse->DataOffset, pResponse->DataLength, pResponse->StructureSize);
-    return PDIFF (buf, s);
+PRTSMB2_IOCTL_R pResponse = (PRTSMB2_IOCTL_R )pItem;
+    return RtsmbWireVarEncode(pStream, origin, buf, size, pResponse->OutputOffset, pResponse->OutputCount+pResponse->InputCount, pResponse->StructureSize);
 }
 
 static int RtsmbWireVarEncodeQueryDirectoryResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
@@ -361,14 +352,8 @@ int i;
 
 static int RtsmbWireVarDecodeIoctlCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem)
 {
-PFVOID s=buf;
-   pStream  =    pStream;   origin  =    origin;   buf  =    buf;   size  =    size;   pItem   =    pItem ;
-#if (0)
-//PRTSMB2_IOCTL_C pCommand = (PRTSMB2_IOCTL_C) pItem;
-
-    HEREHERE // - This is complicated, needs work
-#endif
-    return PDIFF (buf, s);
+  PRTSMB2_IOCTL_C pCommand = (PRTSMB2_IOCTL_C) pItem;
+  return RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->InputOffset, pCommand->InputCount, pCommand->StructureSize);
 }
 
 static int RtsmbWireVarDecodeQueryDirectoryCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
@@ -389,19 +374,10 @@ PRTSMB2_SET_INFO_C pCommand = (PRTSMB2_SET_INFO_C) pItem;
     return RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->BufferOffset, pCommand->BufferLength, pCommand->StructureSize);
 }
 
-
-
-/* Packet processing failed. Restore pointers. If encryption is enabled release the buffer  */
 static int _smb2_stream_write_error(smb2_stream *pStream, dword statusCode, word ErrorByteCount, byte *ErrorBytes)
 {
 int write_header_size;
-    if (pStream->EncryptMessage)
-    {
-        RTSmb2_Encryption_Release_Encrypt_Buffer(pStream->write_origin);
-        pStream->write_origin = pStream->saved_write_origin;
-    }
 	pStream->OutHdr.Status_ChannelSequenceReserved = statusCode;
-    pStream->write_buffer_remaining  = pStream->write_buffer_size;
 	write_header_size = cmd_fill_header_smb2 (pStream, &pStream->OutHdr);
 	if (write_header_size >= 0)
     {
@@ -433,21 +409,14 @@ int write_header_size;
       pStream->write_buffer_remaining-=consumed;
       pStream->OutBodySize += (rtsmb_size) (write_header_size + consumed);
     }
-	pStream->Success=FALSE;
+	pStream->Success=TRUE; // This says whether to encrypt or not
     return 0;
 }
 
-/* Packet processing failed. Restore pointers. If encryption is enabled release the buffer  */
-int RtsmbWriteSrvError(smb2_stream *pStream, byte errorClass, word errorCode, word ErrorByteCount, byte *ErrorBytes)
-{
-dword dw = SMBU_MakeError (errorClass, errorCode);
 
-    return _smb2_stream_write_error(pStream, dw,   ErrorByteCount,   ErrorBytes);
-}
-
-/* Packet processing failed. Restore pointers. If encryption is enabled release the buffer  */
 int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode)
 {
     return _smb2_stream_write_error(pStream, statusCode,0,0);
 }
+
 #endif

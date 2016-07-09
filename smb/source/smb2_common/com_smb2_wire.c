@@ -297,8 +297,6 @@ PFVOID s=buf;
     if (BufferLength)
     {
         dword OffsetToBuffer = BufferOffset-(dword)(StructureSize+pStream->OutHdr.StructureSize-1);
-rtp_printf("Var encoding . OffsetToBuffer = %d  BufferOffset = %d  StructureSize = %d pStream->OutHdr.StructureSize = %d\n",
-    (int) OffsetToBuffer, (int)BufferOffset, (int)StructureSize, (int)pStream->OutHdr.StructureSize );
         while(OffsetToBuffer-- > 0)
             RTSMB_PACK_BYTE(0);
         if (!pStream->WriteBufferParms[0].pBuffer || BufferLength > pStream->WriteBufferParms[0].byte_count)

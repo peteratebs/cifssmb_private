@@ -253,5 +253,8 @@ extern ddword swapdword(const ddword i);
 #if (HARDWIRED_INCLUDE_DCE)
 extern rtsmb_char _rtsmb_srvsvc_pipe_name[8];  // '\\','s','r','v','s','v','c',0 File name HARDWIRED_SRVSVC_FID maps to this name
 extern rtsmb_char pipe_protocol[7];            // '\\','P','I','P','E','\\','\0'
+#ifdef SUPPORT_SMB2
+extern rtsmb_char _rtsmb2_srvsvc_pipe_name [7];// = {'l','s','a','r','p','c',0};
+#endif
 #endif
 #endif /* __SMB_DEFS_H__ */

@@ -166,12 +166,19 @@ static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc)
    }
 
 }
+
+
 static StreamtoSrvSrvc *FdToSrvSrvcStream(int fd)
 {
    return &SrvSrvcStreams[fd&0xf];
 }
-
-
+#ifdef SUPPORT_SMB2
+static BBOOL ipcrpc_is_smb2_srvsvc(char RTSMB_FAR * name)
+{
+  printf("YA YA : check for lsarps == %d \n", rtsmb_casecmp (name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE));
+  return (rtsmb_casecmp (name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
+}
+#endif
 static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
 {
   return (rtsmb_casecmp (name, _rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
@@ -179,7 +186,13 @@ static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
 static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
     int fd = -1;
-
+#ifdef SUPPORT_SMB2
+    // lsarpc
+    if (ipcrpc_is_smb2_srvsvc(name))
+    {
+       fd = AllocSrvSrvcStreamFid();
+    } else
+#endif
     if (ipcrpc_is_srvsvc(name))
     {
        fd = AllocSrvSrvcStreamFid();
@@ -197,14 +210,23 @@ static int ipcrpc_wopen(unsigned short RTSMB_FAR * name, unsigned short flag, un
 }
 
 
+// Read the results of a write command that actually went to the dce layer.
+// If reply_status_code is non zero, then no return data was stored, just return the 4 byte status.
+// otherwise return the amount that was buffered.
 static long ipcrpc_read(int fd,  unsigned char RTSMB_FAR * buf, long count)
 {
     long rv = -1;
 
     if (IS_SRVSVC_FID(fd))
-    {  // This is hacky, call the srvsrvc call
+    {  // We are reading the results of a write command that actuall went to the dce layer.
+       // If reply_status_code id non zero, then no return data was buffered, just return the 4 byte ststu.
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
-      if (pStreamtoSrvSrvc->reply_data_count <= count)
+      if (pStreamtoSrvSrvc->reply_status_code!=0)
+      {
+        tc_memcpy(buf, &pStreamtoSrvSrvc->reply_status_code, 4);
+        rv = 4;
+      }
+      else if (pStreamtoSrvSrvc->reply_data_count <= count)
       {
         tc_memcpy(buf, pStreamtoSrvSrvc->reply_response_data, pStreamtoSrvSrvc->reply_data_count);
         rv = pStreamtoSrvSrvc->reply_data_count;
@@ -215,18 +237,27 @@ static long ipcrpc_read(int fd,  unsigned char RTSMB_FAR * buf, long count)
 }
 
 
-
+// return xount if success
+// return -2 if it failed but read 4 bytes will
+// return -1 if it failed
 static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
 {
+    int r;
     long rv = -1;
-
+printf("FD: %d IS_SRVCFD():%d\n", fd  , IS_SRVSVC_FID(fd));
     if (IS_SRVSVC_FID(fd))
     {  // This is hacky, call the srvsrvc call
        StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
        FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
-       if (SMBU_StreamWriteToSrvcSrvc ( buf, count,pStreamtoSrvSrvc) == 0)
+printf("SMBU_StreamWriteToSrvcSrvc conunt: %d\n", count);
+       pStreamtoSrvSrvc->reply_status_code=0;
+       r = SMBU_StreamWriteToSrvcSrvc ( buf, count,pStreamtoSrvSrvc);
+       if (r == 0 || pStreamtoSrvSrvc->reply_status_code!=0)
        {
-           rv = count;
+           if (pStreamtoSrvSrvc->reply_status_code!=0)
+             rv = -2;
+           else
+             rv = count;
        }
        else
           FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.

@@ -59,7 +59,6 @@ extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_
 
 extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
 extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
-extern int RtsmbWriteSrvError(smb2_stream *pStream, byte errorClass, word errorCode, word ErrorByteCount, byte *ErrorBytes);
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
@@ -181,16 +180,17 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	 * Do a quick check here that the first command we receive is a negotiate.
 	 */
 
+
 	if (!smb2stream.psmb2Session)
     {
 	    RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
 		return TRUE;
     }
 	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
 	{
 		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n", RTSMB_DEBUG_TYPE_ASCII);
-		RtsmbWriteSrvError(&smb2stream, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
 		return TRUE;
 	}
 
@@ -214,6 +214,9 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
              return FALSE;
            }
        }
+       // Why do we do this I wonder
+       smb2stream.psmb2Session->pSmbCtx->tid = (word)smb2stream.InHdr.TreeId;
+
        // Set up outgoing header.
        smb2stream.OutHdr = smb2stream.InHdr;
        smb2stream.OutHdr.NextCommand = 0;
@@ -238,7 +241,6 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
          }
          else
          {
-		     printf("SMBS_ProcSMB2_Body: Compound request: NextCommand == :%X\n", smb2stream.InHdr.NextCommand);
            NextCommandOffset = smb2stream.InHdr.NextCommand;
          }
        }
@@ -247,15 +249,14 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        // See if there are more input commands to process if the packet doesn't require compound_output
        if (!smb2stream.compound_output)
          NextCommandOffset = smb2stream.InHdr.NextCommand;
-       printf("!!!!!Okay compound_output=%d NextCommandOffset==%d\n",smb2stream.compound_output,NextCommandOffset);
 
        PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
-       printf("Hacking out process id to input \n");
-       // Actually process id to input
+       // Set out process id to input \n");
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
-       if (NextCommandOffset == 0 && AddtoFinalCreditRequest_CreditResponse)
-          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
+       if (NextCommandOffset == 0)
+          pOutHeader->CreditRequest_CreditResponse = 1 + AddtoFinalCreditRequest_CreditResponse;
+//          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
 
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request
        if (smb2stream.compound_output || NextCommandOffset != 0)
@@ -276,7 +277,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
           }
           else
           {
-             AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
+//             AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
+             AddtoFinalCreditRequest_CreditResponse += 1; // pOutHeader->CreditRequest_CreditResponse;
              pOutHeader->CreditRequest_CreditResponse = 0;
              pStream->pInBuf+=SkipCount;
              pStream->read_buffer_remaining-=SkipCount;
@@ -298,9 +300,7 @@ unsigned int PrevLength;
 unsigned int SkipCount;
     // Now see if we have to pad the output to get to an 8 byte boundary
     PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
-    printf("SMBS_ProcSMB2_Body: PrevLength: %X %u\n",PrevLength,PrevLength);
     SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
-    printf("SMBS_ProcSMB2_Body: Skip2: %X\n",SkipCount);
     if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
     {
       printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
@@ -334,6 +334,7 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     PRTSMB2_HEADER pHeaderInBuffer;
     PFVOID   pOutBufStart;
 
+
     tc_memset(pStream->OutHdr.Signature,0, sizeof(pStream->OutHdr.Signature));
     pStream->OutHdr.Flags |= SMB2_FLAGS_SERVER_TO_REDIR;
     pStream->OutHdr.StructureSize = 64;
@@ -342,6 +343,7 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     pHeaderInBuffer = (PRTSMB2_HEADER) pStream->pOutBuf;
 	/* fill it in once, just so we have something reasonable in place */
 	header_size = cmd_fill_header_smb2 (pStream, &pStream->OutHdr);
+
 	if (header_size >= 0)
     {
       /* Reset the stream */
@@ -426,7 +428,7 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     			doSend = Proc_smb2_OplockBreak(pStream);
     			break;
     		default:
-    		    RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+                RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
     		    doFinalize = FALSE;
     		    doSend = TRUE;
     		break;
@@ -434,15 +436,14 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
 	}
     if (doSend)
     {
-        printf("Setting status in header before send to %X\n", pStream->OutHdr.Status_ChannelSequenceReserved);
-        printf("Setting CreditCharge=0 assume 2.02\n");
+        // Set CreditCharge=0 assume 2.02\n");
         pStream->OutHdr.CreditCharge=0;
         tc_memcpy(pHeaderInBuffer,&pStream->OutHdr,sizeof(pStream->OutHdr));
 	    if (doFinalize)
         {
             if (RtsmbWriteFinalizeSmb2(pStream, pStream->InHdr.MessageId)<0)
             {
-                RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR,0,0);
+                RtsmbWriteSrvStatus (pStream, SMB2_STATUS_BUFFER_OVERFLOW);
             }
         }
         Smb2SrvModel_Global_Stats_Send_Update(pStream->OutBodySize);
@@ -462,8 +463,6 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
     BBOOL doFinalize = FALSE;
     smb2_stream  smb2stream;
     smb2_stream * pStream;
-    // Add in SMBV2 session stuff
-    printf("call SMBS_InitSessionCtx_smb2 from SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB\n");
 
     SMBS_InitSessionCtx_smb2(pSctx);
 
@@ -623,7 +622,7 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
 
     if (select_3x_only && !SMB2IS3XXDIALECT(pEntry->dialect))
     {
-        RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS,0,0);
+		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
 		return TRUE;
     }
 
@@ -1299,12 +1298,11 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream)
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
-    rtp_printf("In logoff handler \n");
     /* Read into command */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
 
@@ -1377,8 +1375,6 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
-    rtp_printf("In tree connect handler \n");
-
      /* Set up a temporary buffer to hold incoming share name */
     pStream->ReadBufferParms[0].pBuffer = share_name;
     pStream->ReadBufferParms[0].byte_count = sizeof(share_name);
@@ -1386,25 +1382,14 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
-    }
-    rtp_printf("Got share name:");
-    {int i;
-    for (i=0;share_name[i]!=0;i++)
-      rtp_printf("%c", (char )share_name[i]);
-    rtp_printf(":\n");
     }
     RTSMB_DEBUG_OUTPUT_STR ("\nShare name:", RTSMB_DEBUG_TYPE_ASCII);
     RTSMB_DEBUG_OUTPUT_STR (share_name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
     RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
 
-    rtp_printf("Trying to find session from session id in header %d\n", (int) pStream->InHdr.SessionId);
     pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
-
-
-
-    rtp_printf("Got v == %X by stream pointer == %X\n", (unsigned int)pSmb2Session,(unsigned int)pStream->psmb2Session);
 
 
     /* Tie into the V1 share mechanism for now */
@@ -1428,6 +1413,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
             access = SECURITY_READWRITE;
 #else
+printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 			/**
 			 * We first see what mode the server was in when the user logged in.
 			 * This will let us know how to get access info.
@@ -1440,7 +1426,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 						access = pResource->permission;
 					else
 					{
-						pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+						pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);   // Commented out
 					}
 					break;
 				case AUTH_USER_MODE:
@@ -1482,7 +1468,6 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				                                            SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA;
                         //response.MaximalAccess          =   0x001f01ff;
-                        //printf("Proc_smb2_TreeConnect Hax max acess to %X\n", response.MaximalAccess);
                     }
 				    externaltid = (word) (((int) (tree)) & 0xFFFF);
 				    pStream->OutHdr.TreeId = (dword) externaltid;
@@ -1554,7 +1539,7 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
     if (!pStream->Success)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand failed...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
     else

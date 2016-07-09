@@ -102,7 +102,6 @@ typedef int (* pVarDecodeFn_t) (smb2_stream *pStream, PFVOID origin, PFVOID buf,
 int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarDecodeFn_t pVarDecodeFn);
 int RtsmbWriteFinalizeSmb2(smb2_stream *pStream,ddword SessionId);
 
-extern int RtsmbWriteSrvError(smb2_stream *pStream, byte errorClass, word errorCode, word ErrorByteCount, byte *ErrorBytes);
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 
 

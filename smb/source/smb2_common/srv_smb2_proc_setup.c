@@ -705,7 +705,7 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
 
            if (user == (PUSER)0)
            {
-               RtsmbWriteSrvError(pStream, SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS,0,0);
+               RtsmbWriteSrvStatus(pStream,SMB2_STATUS_SMB_TOO_MANY_GUIDS_REQUESTED);
                return FALSE;
            }
            else

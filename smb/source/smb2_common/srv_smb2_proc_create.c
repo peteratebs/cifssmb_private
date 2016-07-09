@@ -44,7 +44,7 @@ const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,
 #include "srvauth.h"
 #include "smbdebug.h"
 
-extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFWORD answer_external_fid, PFINT answer_fid);
+extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFDWORD answer_external_fid, PFINT answer_fid);
 
 
 #define MAX_CREATE_CONTEXT_LENGTH_TOTAL 512 // Don't need much, mostly 4 byte values
@@ -104,7 +104,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     byte create_content[MAX_CREATE_CONTEXT_LENGTH_TOTAL];
     int fid;
     dword r;
-    word externalFid;
+    dword externalFid;
     BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
     BBOOL wants_extra_info = FALSE;
     dword CreateAction = 1; // 1== FILE_OPEN, 0 = SUPER_SEDED, 2=CREATED, 3=OVERWRITTEN
@@ -114,10 +114,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA !!...\n",0);
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
+
 
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 1!!...\n",0);
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
@@ -138,16 +138,17 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     if (!pStream->Success)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  RtsmbStreamDecodeCommand failed...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
 
     if (command.StructureSize != 57)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n",0);
-   		RtsmbWriteSrvError(pStream,SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD,0,0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
+
 
     if (command.NameLength!=0)
     {
@@ -253,8 +254,29 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         mode |= command.FileAttributes & 0x20 ? RTP_FILE_S_ARCHIVE : 0;
     }
 
-    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, (word)pStream->InHdr.TreeId);
+//    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
+
+if (pTree->type == ST_PRINTQ)
+{ // Don't open IPCs or printers yet.
+printf("Create: printq, bye\n");
+}
+else if (pTree->type == ST_IPC)
+{
+printf("Create: IPC\n");
+}
+else
+{
+printf("Create: (disk) tree type: %d \n", pTree->type);
+}
+printf("Create: Name length:  %d\n", command.NameLength);
+if (command.NameLength)
+{
+  printf("Create: Filename :[");
+  RTSMB_DEBUG_OUTPUT_STR(file_name, RTSMB_DEBUG_TYPE_UNICODE);
+  printf("]\n");
+}
 
     if (pTree->type == ST_PRINTQ)
     { // Don't open IPCs or printers yet.
@@ -286,14 +308,17 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       wants_extra_info = TRUE;
       printf ("Cretae options == %X\n", command.CreateOptions);
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, &externalFid, &fid);
-      printf ("Open on root returned : %x, external fileid == %d \n", r, externalFid);
+      printf ("Open on root returned : %x, external fileid == %ld \n", r, externalFid);
     }
     else
     {
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
+printf("Okay have a name attrib %X %X \n", command.FileAttributes, command.CreateOptions);
+rtsmb_dump_bytes("Proc_smb2_Create opne name: ", file_name, command.NameLength, DUMPUNICODE);
       /* If we have a normal filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-      if (ON (command.FileAttributes, 0x80) && ON (command.CreateOptions, 0x1))
+    /* We check if the client is trying to make a directory.  If so, make it   */
+      if (ON (command.FileAttributes, 0x80) | ON (command.CreateOptions, 0x1))
       {
           if (ON (flags, RTP_FILE_O_CREAT))
           {
@@ -302,8 +327,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
               TURN_OFF (flags, RTP_FILE_O_EXCL);
               CreateAction = 2; // File created
           }
-          r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
       }
+printf("Okay call create\n");
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
+      printf ("Open on file returned : %x, external fileid == %ld \n", r, externalFid);
     }
 #if (HARDWIRED_INCLUDE_DCE)
     if (pTree->type == ST_IPC)
@@ -324,8 +351,9 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 6 IPC!!...\n",0);
     }
+    else
+      SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
 #endif
-    SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
 //=====
 
 	// byte  SecurityFlags;              // reserved
@@ -365,8 +393,11 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     response.EndofFile       = stat.f_size;
     response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
     // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
-    *((word *) &response.FileId[0]) = (word) 0xABCD;
-    *((word *) &response.FileId[1]) = (word) externalFid;
+    {
+     dword *dw = (dword *)&response.FileId[0];
+     *dw++  = externalFid; // Encode the 32 bit file handle in the reply
+     *dw    = 0xABCD;      // Tag it to identify it, for no particular reason, remove later
+    }
     response.CreateContextsOffset = 0;
     response.CreateContextsLength = 0;
 

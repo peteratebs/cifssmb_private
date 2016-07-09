@@ -93,15 +93,18 @@
 
 #define SMB2_STATUS_SUCCESS                     0x00000000 /* The client request is successful. */
 #define SMB2_STATUS_INVALID_SMB                 0x00010002 /* An invalid SMB client request is received by the server. */
-#define SMB2_STATUS_SMB_BAD_TID                 0x00050002 /* The client request received by the server contains an invalid TID value. */
 #define SMB2_STATUS_SMB_BAD_COMMAND             0x00160002 /* The client request received by the server contains an unknown SMB command code. */
-#define SMB2_STATUS_SMB_BAD_UID                 0x005B0002 /* The client request to the server contains an invalid UID value. */
 #define SMB2_STATUS_SMB_USE_STANDARD            0x00FB0002 /* The client request received by the server is for a non-standard SMB operation (for example, an SMB_COM_READ_MPX request on a non-disk share ). The client SHOULD send another request with a different SMB command to perform this operation. */
+
+#define SMB_STATUS_ACCOUNT_RESTRICTION          0xC000006E /* The client request to the server contains an invalid UID value. */
+
 #define SMB2_STATUS_BUFFER_OVERFLOW             0x80000005 /* The data was too large to fit into the specified buffer. */
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
 #define SMB2_STATUS_STOPPED_ON_SYMLINK          0x8000002D /* The create operation stopped after reaching a symbolic link. */
+#define SMB2_STATUS_UNSUCCESSFUL                0xC0000001 /* The requested operation failed */
 #define SMB2_STATUS_NOT_IMPLEMENTED             0xC0000002 /* The requested operation is not implemented. */
 #define SMB2_STATUS_INVALID_INFO_CLASS          0xC0000003 /*  */
+#define SMB2_STATUS_INVALID_HANDLE              0xC0000008 /* Invalid file handle */
 #define SMB2_STATUS_INVALID_PARAMETER           0xC000000D /* The parameter specified in the request is not valid. */
 #define SMB2_STATUS_NO_SUCH_DEVICE              0xC000000E /* A device that does not exist was specified. */
 #define SMB2_STATUS_INVALID_DEVICE_REQUEST      0xC0000010 /* The specified request is not a valid operation for the target device. */
@@ -120,8 +123,10 @@
 #define SMB2_STATUS_USER_SESSION_DELETED        0xC0000203 /* The user session specified by the client has been deleted on the server. This error is returned by the server if the client sends an incorrect UID. */
 #define SMB2_STATUS_NOT_FOUND                   0xC0000225 /* Experimental. Send in response to a DFS_GET_REFERRALS query */
 #define SMB2_STATUS_NETWORK_SESSION_EXPIRED     0xC000035C /* The client's session has expired; therefore, the client MUST re-authenticate to continue accessing remote resources. */
-#define SMB2_STATUS_SMB_TOO_MANY_UIDS           0xC000205A /*  */
+#define SMB2_STATUS_SMB_TOO_MANY_GUIDS_REQUESTED 0xC0000082
 
+
+#define  STG_E_WRITEFAULT  0x8003001D
 
 #define SMB2_STATUS_INSUFFICIENT_RESOURCES      0xC000009A
 #define SMB2_STATUS_REQUEST_NOT_ACCEPTED        0xC00000D0
@@ -711,7 +716,8 @@ typedef RTSMB2_CANCEL_C RTSMB_FAR *PRTSMB2_CANCEL_C;
 
 
 
-#define FSCTL_DFS_GET_REFERRALS 0x00060194
+#define FSCTL_DFS_GET_REFERRALS  0x00060194
+#define FSCTL_PIPE_TRANSCEIVE    0x0011c017
 /* Note: 2.2.31.1 contains formats for IOCTL requests */
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_IOCTL_C
@@ -883,6 +889,52 @@ typedef struct s_RTSMB2_ERROR_R
 } PACK_ATTRIBUTE RTSMB2_ERROR_R;
 PACK_PRAGMA_POP
 typedef RTSMB2_ERROR_R RTSMB_FAR *PRTSMB2_ERROR_R;
+
+
+PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_BOTH_DIRECTORY_INFO
+{
+	dword file_index;
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword low_allocation_size;
+	dword high_allocation_size;
+
+	dword extended_file_attributes;
+	dword ea_size;
+
+	byte short_name_size;	/* size in characters */
+	rtsmb_char short_name[13];	/* 8.3 name */
+
+	dword filename_size;
+    // byte    Buffer;
+} MSFSCC_BOTH_DIRECTORY_INFO;
+PACK_PRAGMA_POP
+
+
+
+PACK_PRAGMA_ONE
+// Possible errors STATUS_INFO_LENGTH_MISMATCH 0xC0000004
+typedef struct s_MSFSCC_FILE_FS_SIZE_INFO
+{
+	ddword TotalAllocationUnits;
+	ddword AvailableAllocationUnits;
+	dword SectorsPerAllocationUnit;
+	dword BytesPerSector;
+} MSFSCC_FILE_FS_SIZE_INFO;
+PACK_PRAGMA_POP
+
+
+
+
 
 
 //============================================================================

@@ -34,16 +34,19 @@ BBOOL assert_smb2_uid(smb2_stream  *pStream)
 {
 	PUSER user;
 
+//RtsmbWriteSrvStatus(pStream,SMB2_STATUS_SMB_TOO_MANY_GUIDS_REQUESTED);
+//return TRUE;
+
+
 	// no need to authenticate when in share mode
 	if (pStream->psmb2Session->pSmbCtx->accessMode == AUTH_SHARE_MODE)
 	{
 		return FALSE;
 	}
 	user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
-
 	if (user == (PUSER)0)
 	{
-        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_SMB_BAD_UID);
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_USER_SESSION_DELETED);
 		return TRUE;
 	}
 	else
@@ -59,8 +62,7 @@ BBOOL assertThissmb2Tid (smb2_stream  *pStream)
 	{  // Ok the tree exists
 		return FALSE;
 	}
-
-    RtsmbWriteSrvStatus(pStream, SMB2_STATUS_SMB_BAD_TID);
+    RtsmbWriteSrvStatus(pStream, SMB2_STATUS_INVALID_HANDLE);
 	return TRUE;
 }
 BBOOL assert_smb2_tid(smb2_stream  *pStream)
@@ -90,6 +92,7 @@ BBOOL assert_smb2_permission(smb2_stream  *pStream,byte permission)
 
 	return FALSE;
 }
+
 // undefined behavior if uid or tid isn't valid
 // or if user doesn't have access permissions
 // this also checks for old errors on this fid
@@ -99,14 +102,15 @@ BBOOL assert_smb2_Fid (smb2_stream  *pStream, word external, word flag)
 	byte ec = 0;
 	word error = 0;
     PSMB_SESSIONCTX pCtx = pStream->psmb2Session->pSmbCtx;
+
 	if ((fid = SMBU_GetInternalFid (pCtx, external, flag,0)) == -2)
 	{
-        RtsmbWriteSrvStatus(pStream, SMBU_MakeError(SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS));
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
 		return TRUE;
 	}
 	else if (fid < 0)
 	{
-        RtsmbWriteSrvStatus(pStream, SMBU_MakeError(SMB_EC_ERRDOS, SMB_ERRDOS_BADFID));
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_INVALID_HANDLE);
 		return TRUE;
 	}
 
@@ -116,10 +120,10 @@ BBOOL assert_smb2_Fid (smb2_stream  *pStream, word external, word flag)
 	if (error > 0)
 	{
 		SMBU_SetFidError (pCtx, external, SMB_EC_SUCCESS, 0);
-        RtsmbWriteSrvStatus(pStream, SMBU_MakeError(ec, error));
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_UNSUCCESSFUL); // Make SMB2_STATUS_UNSUCCESSFUL a catch all.
 		return TRUE;
 	}
 
 	return FALSE;
-}
 
+}
