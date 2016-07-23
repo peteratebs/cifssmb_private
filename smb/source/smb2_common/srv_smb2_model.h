@@ -49,7 +49,6 @@
 /* Client name or IP4/IPV6 string address string */
 #define RTSMB2_MAX_QUALIFIED_CLIENTNAME_SIZE   66 // ??
 
-#define RTSMB2_MAX_FILENAME_SIZE               512 // ??
 
 /* Transport name and bit flags stored in connect Connect.TransportName */
 #define RTSMB2_TRANSPORT_SMB_OVER_NBSS 1

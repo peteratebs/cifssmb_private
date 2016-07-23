@@ -17,8 +17,8 @@
 #include "smbnbns.h"  /* for port number */
 #include "smbnbds.h"  /* for port number */
 #include "smbnbss.h"  /* for port number */
-#include "rtpstr.h" 
-#include "rtpscnv.h" 
+#include "rtpstr.h"
+#include "rtpscnv.h"
 #include "rtpnet.h"
 #include "rtpprint.h"
 #include "smbdebug.h"
@@ -31,7 +31,7 @@ RTSMB_STATIC byte rtsmb_net_broadcast_ip [4];
 RTSMB_STATIC BBOOL rtsmb_net_ip_is_set = FALSE;
 
 
-int rtsmb_net_ip_to_str (PFBYTE pfAddr, PFCHAR pfAddrStr); 
+int rtsmb_net_ip_to_str (PFBYTE pfAddr, PFCHAR pfAddrStr);
 
 /* global data */
 int rtsmb_nbds_port = RTSMB_NBDS_PORT;
@@ -122,7 +122,7 @@ int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
     if(bytesRead < 0)
     {
         RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Error in recv\n", RTSMB_DEBUG_TYPE_ASCII);
-        return -1;
+        printf("Error Number:%d\n", bytesRead);
     }
 
     return bytesRead;

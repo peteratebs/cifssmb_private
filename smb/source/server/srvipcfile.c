@@ -30,8 +30,6 @@
 #include "srvsrvsvc.h"
 #include "smbutil.h"
 
-#define HARDWIRED_SRVSVC_FID                              0xDCE0  // 0xDCE0 uniquely ID /srvsvc named pipe
-#define IS_SRVSVC_FID(FD) ((FD&0xfff0) == HARDWIRED_SRVSVC_FID)
 
 // ********************************************************************
 static int  ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode);

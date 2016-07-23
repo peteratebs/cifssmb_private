@@ -70,6 +70,8 @@ int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);
 
 int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid);
 
+void *ptralign(void *ptr, int a);
+
 //============================================================================
 //    INTERFACE TRAILING HEADERS
 //============================================================================

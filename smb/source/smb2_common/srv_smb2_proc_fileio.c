@@ -33,6 +33,176 @@
 #include "smbdebug.h"
 
 
+typedef struct s_RTSMB2_FILEIOARGS_C
+{
+PTREE pTree;
+int fid;
+word fidflags=0;
+byte externalFidRaw[16];
+word externalFid;
+} RTSMB2_FILEIOARGS;
+
+
+BBOOL Proc_smb2_Close(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID command, PFVOID Fileid,int command_size)
+{
+    ASSERT_SMB2_UID(pStream)   // Returns TRUE if the UID is not valid
+    ASSERT_SMB2_TID (pStream)  // Returns TRUE if the TID is not valid
+
+    /* Read into command, TreeId will be present in the input header */
+    RtsmbStreamDecodeCommand(pStream, command);
+
+    if (!pStream->Success)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_filieio:  RtsmbStreamDecodeCommand failed...\n",0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+        return TRUE;
+    }
+
+    if (command.StructureSize != command_size)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_filieio:  StructureSize invalid...\n",0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+        return TRUE;
+    }
+
+    pargs->pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+    tc_memcpy(pargs->externalFidRaw,FileId, 16);
+    pargs->externalFid = *((word *) &pargs->externalFidRaw[0]);
+
+    if (pargs->externalFid == 0xffff)
+    {
+      printf("Close, exfd == 0xffff why ?\n");
+      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+      pargs->fid = -1;
+    }
+    else
+    {
+printf("Call assert ex: %X \n",externalFid);
+      // Set the status to success
+      ASSERT_SMB2_FID(pStream,pargs->externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
+printf("Back assert\n");
+      pargs->fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, pargs->externalFid, FID_FLAG_ALL, &fidflags);
+    }
+    return false;
+}
+
+
+
+BBOOL Proc_smb2_Flush(smb2_stream  *pStream)
+{
+RTSMB2_FLUSH_C command;
+RTSMB2_FLUSH_R response;
+
+typedef struct s_RTSMB2_FLUSH_C
+{
+    word  StructureSize; // 24
+	word  Reserved1;
+	dword Reserved2;
+	byte  FileId[16];
+} PACK_ATTRIBUTE RTSMB2_FLUSH_C;
+PACK_PRAGMA_POP
+typedef RTSMB2_FLUSH_C RTSMB_FAR *PRTSMB2_FLUSH_C;
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_FLUSH_R
+{
+    word  StructureSize; // 4
+	word  Reserved;
+} PACK_ATTRIBUTE RTSMB2_FLUSH_R;
+PACK_PRAGMA_POP
+typedef RTSMB2_FLUSH_R RTSMB_FAR *PRTSMB2_FLUSH_R;
+
+
+return FALSE;
+}
+BBOOL Proc_smb2_Read(smb2_stream  *pStream)
+{
+RTSMB2_READ_C command;
+RTSMB2_READ_R response;
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_READ_C
+{
+    word    StructureSize; // 49
+	byte    Padding;
+	byte    Flags;
+	dword   Length;
+	ddword  Offset;
+	byte    FileId[16];
+	dword   MinimumCount;
+	dword   Channel;
+	dword   RemainingBytes;
+	word    ReadChannelInfoOffset;
+	word    ReadChannelInfoLength;
+	byte    Buffer;
+} PACK_ATTRIBUTE RTSMB2_READ_C;
+PACK_PRAGMA_POP
+typedef RTSMB2_READ_C RTSMB_FAR *PRTSMB2_READ_C;
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_READ_R
+{
+    word  StructureSize; // 17
+	byte  DataOffset;
+	byte  Reserved;
+	dword DataLength;
+	dword DataRemaining;
+	dword Reserved2;
+	byte  Buffer;
+} PACK_ATTRIBUTE RTSMB2_READ_R;
+PACK_PRAGMA_POP
+typedef RTSMB2_READ_R RTSMB_FAR *PRTSMB2_READ_R;
+
+
+
+return FALSE;
+}
+BBOOL Proc_smb2_Write(smb2_stream  *pStream)
+{
+RTSMB2_WRITE_C command;
+RTSMB2_WRITE_R response;
+#define SMB2_WRITEFLAG_WRITE_THROUGH 0x00000001
+#define SMB2_WRITEFLAG_WRITE_UNBUFFERED 0x00000002
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_WRITE_C
+{
+    word    StructureSize; // 49
+	dword   DataOffset;
+	dword   Length;
+	ddword  Offset;
+	byte    FileId[16];
+	dword   Channel;
+	dword   RemainingBytes;
+	word    WriteChannelInfoOffset;
+	word    WriteChannelInfoLength;
+	dword   Flags;
+	byte    Buffer;
+} PACK_ATTRIBUTE RTSMB2_WRITE_C;
+PACK_PRAGMA_POP
+typedef RTSMB2_WRITE_C RTSMB_FAR *PRTSMB2_WRITE_C;
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_WRITE_R
+{
+    word  StructureSize; // 17
+	word  Reserved;
+	dword Count;
+	dword Remaining;
+	word  WriteChannelInfoOffset;
+	word  WriteChannelInfoLength;
+} PACK_ATTRIBUTE RTSMB2_WRITE_R;
+PACK_PRAGMA_POP
+typedef RTSMB2_WRITE_R RTSMB_FAR *PRTSMB2_WRITE_R;
+return FALSE;
+}
+BBOOL Proc_smb2_Lock(smb2_stream  *pStream)
+{
+//RTSMB2_READ_C command;
+//RTSMB2_READ_R response;
+return FALSE;
+}
+#if (0)
 
 BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 {
@@ -164,6 +334,9 @@ printf("Close asked for stat but we can not give them yet\n");
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
 } // Proc_smb2_Ioctl
+#endif // #if (0)
 
 #endif
 #endif
+
+

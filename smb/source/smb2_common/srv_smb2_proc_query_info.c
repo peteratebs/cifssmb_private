@@ -114,12 +114,15 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     printf("Proc_smb2_QueryInfo: Got infotyp == %X\n", command.InfoType);
     if (command.InfoType == SMB2_0_INFO_FILESYSTEM)
     {
-       BBOOL isFound; // did we find a file?
+      BBOOL isFound = FALSE; // did we find a file?
       SMBFSTAT stat;
 
       printf("Proc_smb2_QueryInfo: Processing SMB2_0_INFO_FILESYSTEM == %X\n", command.InfoType);
 
-      isFound = SMBFIO_GFirst (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, stat, file_name);
+      if (!file_name[0])
+         printf("Proc_smb2_QueryInfo: No file name\n");
+      else
+        isFound = SMBFIO_GFirst (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, stat, file_name);
 
       printf("Proc_smb2_QueryInfo: SMBFIO_GFirst returned %d\n", isFound);
 

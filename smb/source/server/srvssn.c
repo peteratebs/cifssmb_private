@@ -111,15 +111,22 @@ static void DebugOutputTrans2Command(int command);
 /*    IMPLEMENTATION PRIVATE STRUCTURES                                          */
 /*============================================================================   */
 
-RTSMB_STATIC rtsmb_char srv_dialect_core[] = {'P', 'C', ' ', 'N', 'E', 'T', 'W', 'O', 'R', 'K', ' ',
+#define DIALECT_TYPE rtsmb_char
+
+
+RTSMB_STATIC DIALECT_TYPE srv_dialect_core[] = {'P', 'C', ' ', 'N', 'E', 'T', 'W', 'O', 'R', 'K', ' ',
 'P', 'R', 'O', 'G', 'R', 'A', 'M', ' ', '1', '.', '0', '\0'};
-RTSMB_STATIC rtsmb_char srv_dialect_lanman[] = {'L', 'A', 'N', 'M', 'A', 'N', '1', '.', '0', '\0'};
-RTSMB_STATIC rtsmb_char srv_dialect_lm1_2x[] = {'L', 'M', '1', '.', '2', 'X', '0', '0', '2', '\0'};
-RTSMB_STATIC rtsmb_char srv_dialect_lanman2[] = {'L', 'A', 'N', 'M', 'A', 'N', '2', '.', '1', '\0'};
-RTSMB_STATIC rtsmb_char srv_dialect_ntlm[] = {'N', 'T', ' ', 'L', 'M', ' ', '0', '.', '1', '2', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lanman[] = {'L', 'A', 'N', 'M', 'A', 'N', '1', '.', '0', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lm1_2x[] = {'L', 'M', '1', '.', '2', 'X', '0', '0', '2', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lanman2[] = {'L', 'A', 'N', 'M', 'A', 'N', '2', '.', '1', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_ntlm[] = {'N', 'T', ' ', 'L', 'M', ' ', '0', '.', '1', '2', '\0'};
 #ifdef SUPPORT_SMB2    /* Some branching to SMB2 from this file, no major processing */
-RTSMB_STATIC rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};
-RTSMB_STATIC rtsmb_char srv_dialect_smb2xxx[] = {'S', 'M', 'B', '2', '.', '?', '?', '?', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2002[] = {'S', 'M', 'B',' ', '2', '.', '0', '0', '2', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2xxx[] = {'S', 'M', 'B',' ', '2', '.', '?', '?', '?', '\0'};
+// Use these instead as poor man's way to disable smb2002 need to implement max protocol
+// RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2002[] = {'N', 'O', 'N', 'E', '\0'};
+// RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2xxx[] = {'N', 'O', 'N', 'E', '\0'};
+BBOOL gl_disablesmb2 = FALSE;
 #endif
 
 const byte zeros24[24] = {0};
@@ -127,7 +134,7 @@ const byte zeros24[24] = {0};
 struct dialect_entry_s
 {
     SMB_DIALECT_T dialect;
-    PFRTCHAR name;
+    DIALECT_TYPE * name;
     int priority;
 }
  dialectList[] =
@@ -142,6 +149,10 @@ struct dialect_entry_s
     {SMB2_2xxx, srv_dialect_smb2xxx, 7}
 #endif
 };
+SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
+
+
+
 /*============================================================================   */
 /*    IMPLEMENTATION REQUIRED EXTERNAL REFERENCES (AVOID)                        */
 /*============================================================================   */
@@ -1626,17 +1637,19 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
     int i, entry, bestEntry;
     SMB_DIALECT_T dialect = DIALECT_NONE;
     int authmode;
-    rtsmb_char dialect_bufs[10][21];
-    PFRTCHAR dialects[10];
+    DIALECT_TYPE dialect_bufs[32][21];
+    DIALECT_TYPE *dialects[32];
     RTSMB_NEGOTIATE command;
 
-    for (i = 0; i < 10; i++)
+
+
+    for (i = 0; i < 32; i++)
     {
         dialects[i] = dialect_bufs[i];
         *dialects[i]=0;
     }
 
-    command.num_dialects = 10;
+    command.num_dialects = 32;
     command.string_size = 20;
     command.dialects = dialects;
     READ_SMB (srv_cmd_read_negotiate);
@@ -1656,20 +1669,21 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         /*check dialect field against dialect list   */
         for (i = PC_NETWORK; i < NUM_DIALECTS; i++)
         {
+            if (dialectList[i].dialect > max_dialect)
+              continue;
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
             if (dialectList[i].name == srv_dialect_smb2002 || dialectList[i].name == srv_dialect_smb2xxx)
             {
                if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
                {
-// rtp_printf("IGNORE smb dialect !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-//                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Temporarilly Ignoring client COM_NEGOTIATE request with 2.002 option. !!!!!!!!!!!!!!\n",0);
-//                continue;
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Responding to 2.002 option. !!!!!!!!!!!!!!\n",0);
                 dialect = dialectList[i].dialect;
                 bestEntry = entry;
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
             }
             } else
 #endif
+            {
             if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
             {
                 if ((dialect == DIALECT_NONE)
@@ -1677,7 +1691,9 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
                 {
                     dialect = dialectList[i].dialect;
                     bestEntry = entry;
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Not Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
                 }
+            }
             }
         }
     }
@@ -4739,10 +4755,14 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
             return FALSE;
         }
 #ifdef SUPPORT_SMB2
+        if (pInBuf[0] == 0xFE && gl_disablesmb2)
+          return FALSE;
         if (pSctx->state == NOTCONNECTED)
         {
             if (pInBuf[0] == 0xFE)
+            {
                 SMBS_InitSessionCtx_smb2(pSctx);
+            }
             else
                 SMBS_InitSessionCtx_smb1(pSctx);
 #ifdef STATE_DIAGNOSTICS
@@ -4796,7 +4816,6 @@ BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx)
      */
     pInBuf = (PFBYTE) SMB_INBUF (pSctx);
     pOutBuf = SMB_OUTBUF (pSctx);
-
 #if (INCLUDE_RTSMB_DC)
     if (pInBuf[4] == SMB_COM_NEGOTIATE &&
         pSctx->accessMode == AUTH_USER_MODE && pSctx->state == IDLE)
@@ -4885,6 +4904,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     /* Now we have all the data from the wire. call smb2 if it's an smb2 session.   */
     if (pSctx->isSMB2)
     {
+        printf("SMBS_ProcSMBBody: call smb2\n");
         return SMBS_ProcSMB2_Body (pSctx);
     }
 #endif

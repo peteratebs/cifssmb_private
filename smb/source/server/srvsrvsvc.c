@@ -172,6 +172,27 @@ typedef struct s_DCE_LSARP_GET_USER_NAME_REPLY
 PACK_PRAGMA_POP
 
 
+PACK_PRAGMA_ONE
+typedef struct s_DCE_LSARP_LOOKUP_NAMES_REPLY
+{
+    byte  version;        // 5
+    byte  version_minor;  // 0
+	byte  packet_type;
+	byte  packet_flags;
+	dword data_representation;
+	word  frag_length;
+	word  auth_length;
+	dword call_id;
+	dword alloc_hint;
+	word  context_id;
+	byte  cancel_count;
+	byte  pad;
+    /* end common fields */
+
+} DCE_LSARP_LOOKUP_NAMES_REPLY;
+PACK_PRAGMA_POP
+
+
 
 //============================================================================
 //    IMPLEMENTATION REQUIRED EXTERNAL REFERENCES (AVOID)
@@ -214,13 +235,17 @@ static const byte bind_accepance_item[24] = { 0x00,0x00,0x00,0x00,0x04,0x5d,0x88
 static const byte user_name_item[] = { 'p',0,'e',0,'t',0,'e',0,'r',0 };
 static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,'X',0,'P',0,'S',0,'-',0,'8',0,'3',0,'0',0,'0',0 };
 
+static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0x4f, 0x7b, 0xf9, 0x3e };
+
 
 static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04 };
 
+#define DCE_LSARP_CLOSE               0
 #define DCE_LSARP_GET_USER_NAME      45
 #define DCE_LSARP_GET_OPEN_POLICY2   44
 #define DCE_LSARP_LOOKUP_NAMES       14
 
+extern const byte zeros24[24];
 
 
 PACK_PRAGMA_ONE
@@ -235,13 +260,6 @@ PACK_PRAGMA_POP
 
 
 
-static void *ptralign(void *ptr, int a)
-{
- ddword dd = (ddword) ptr;
- ddword s = (ddword)(a-1);
- dd=(dd+s)&~s;
- return (void *) dd;
-}
 
 
 
@@ -377,6 +395,9 @@ static int encode_dce_string_pointer(dword *pout, dword Referentid, void *pin, w
 }
 
 
+
+
+
 // 0xC00000BB. STATUS_NOT_SUPPORTED
 //
 // Exectute a DCE request and return the reults inpRdata, pRdata_count. If the response is head, pRheap_data contains the base o the heap sectin to be freed.
@@ -420,7 +441,7 @@ printf("!!!!!!! malloc\n");
     }
     else if (pdce_header->packet_type == DCE_PACKET_BIND)
     {
-      dword *pfraglength;
+      word *pfraglength;
       void *start_results;
       DCE_BIND_HEADER *pin  = (DCE_BIND_HEADER *) pdce_header;
       DCE_BIND_REPLY_HEADER *pout;
@@ -452,12 +473,45 @@ printf("!!!!!!! malloc\n");
       *pRdata_count = *pfraglength; // sizeof(DCE_BIND_REPLY_HEADER);
       rval = 0;
      }
+     else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_CLOSE)
+     {
+       DCE_ENUM_REPLY_HEADER *pout;
+       void *results;
+       start = *pRheap_data;
+       start= ptralign(start, 4);
+       word *pfraglength;
+       dword *pdw;
+       pout = (DCE_ENUM_REPLY_HEADER *) start;
+
+       pout->version              = pdce_header->version;
+       pout->version_minor        = pdce_header->version_minor;   // 0
+       pout->packet_type          = DCE_PACKET_REPLY;                    // Response
+       pout->packet_flags         = pdce_header->packet_flags;
+       pout->data_representation  = pdce_header->data_representation;
+       pout->frag_length          = 0; // Fill this in later
+       pfraglength                = &pout->frag_length;
+       pout->auth_length          = 0;
+       pout->call_id              = pdce_header->call_id;
+       pout->alloc_hint           = 0;  // Supposed to be allowed to be zero
+       pout->context_id           = pdce_header->context_id;
+       pout->cancel_count         = 0;
+       pout->pad                  = 0;
+       pout += 1;
+       results = (void *) pout;
+       results= ptralign(results, 4);
+       pdw = (dword *) results;
+       *pdw++ =0; *pdw++ =0;  *pdw++ =0; // Handle is 20 bytes 00000000
+       *pdw++ =0; *pdw++ =0;
+       *pdw++ = 0; // NTstatus of zero
+       *pfraglength  = PDIFF(pdw, start);
+       *pRdata_count = *pfraglength;
+       rval = 0;
+     }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_GET_OPEN_POLICY2)
      {
        void *start;
        void *results;
-       dword *pfraglength;
-
+       word *pfraglength;
        DCE_LSARP_GET_USER_NAME_REPLY *pout;
        start = *pRheap_data;
        start= ptralign(start, 4);
@@ -504,8 +558,82 @@ printf("!!!!!!! malloc\n");
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_LOOKUP_NAMES)
      {
-        *reply_status_code = SMB2_STATUS_NOT_SUPPORTED;
-        rval = -2;
+       dword  MaxCount, Offset,Length;
+       DCE_LSARP_LOOKUP_NAMES_REPLY *pout;
+       void *results;
+       dword *pdw;
+       int l;
+       word *pfraglength;
+       dword *palloc_hint;
+       word *pw;
+
+       start = *pRheap_data;
+       start= ptralign(start, 4);
+       pout = ( DCE_LSARP_LOOKUP_NAMES_REPLY *) start;
+
+       pout->version              = pdce_header->version;
+       pout->version_minor        = pdce_header->version_minor;   // 0
+       pout->packet_type          = DCE_PACKET_REPLY;                    // Response
+       pout->packet_flags         = pdce_header->packet_flags;
+       pout->data_representation  = pdce_header->data_representation;
+       pout->frag_length          = 0; // Fill this in later
+       pfraglength                = &pout->frag_length;
+       pout->auth_length          = 0;
+       pout->call_id              = pdce_header->call_id;
+       pout->alloc_hint           = 0;  // Supposed to be allowed to be zero
+       palloc_hint                = &pout->alloc_hint;
+       pout->context_id           = pdce_header->context_id;
+       pout->cancel_count         = 0;
+       pout->pad                  = 0;
+
+       pout += 1;
+       results = (void *) pout;
+       results= ptralign(results, 4);
+       pdw = (dword *) results ;
+       // Encode domains
+       *pdw++ = 0x20004;
+       *pdw++ = 1;        // count
+       *pdw++ = 0x20008;  // pointer to domains
+       *pdw++ = 32;       // max size
+       *pdw++ =  1;        // Maxcount ??
+
+       pw = (word *) pdw;
+       *pw++ = sizeof(authority_name_item);            // len
+       *pw =   sizeof(authority_name_item)+2;          // size
+       pdw++;
+
+       *pdw++ = 0x200c0;     // pointer to string
+       *pdw++ = 0x20010;     // pointer to sid
+
+       *pdw++ = sizeof(authority_name_item)/2 + 1;             // max count for string
+       *pdw++ = 0;                                       //  offset for string
+       *pdw++ = sizeof(authority_name_item)/2;           // actual for string
+       memcpy(pdw, authority_name_item,sizeof(authority_name_item) ); // String
+       results= PADD(pdw, sizeof(authority_name_item));
+       results= ptralign(results, 4);
+       pdw = (dword *) results;
+       *pdw++ = 4;           // count for sid type
+       memcpy(pdw, my_sid, sizeof(my_sid)); //   sid type
+
+       results= (PADD(pdw, sizeof(my_sid)));
+       results= ptralign(results, 4);
+       pdw = (dword *) results;
+
+       // Translated sids
+       *pdw++ = 1;     // count
+       *pdw++ = 0x20014;
+       *pdw++ = 1;     // maxcount
+       *pdw++ = 1;     // user
+       *pdw++ = 0x3eb; // rid
+       *pdw++ = 0;     // index
+
+       *pdw++ = 1;     // count  WTF ??
+       *pdw++ = 0;     // NT error status zero
+
+       *pfraglength  = PDIFF(pdw, start);
+       *palloc_hint  = *pfraglength - sizeof(DCE_LSARP_LOOKUP_NAMES_REPLY);
+       *pRdata_count = *pfraglength;
+        rval = 0;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_GET_USER_NAME)
      {
@@ -514,7 +642,7 @@ printf("!!!!!!! malloc\n");
        dword prevReferentid=0;
        dword * pdata = (dword *) (pdce_header + 1);
        int l;
-       dword *pfraglength;
+       word *pfraglength;
        dword *palloc_hint;
 
        void *start;
@@ -632,7 +760,7 @@ printf("!!!!!!! malloc\n");
         DCE_ENUM_REPLY_HEADER *p;
         void *start;
         dword *pdw;
-        dword *pfraglength;
+        word *pfraglength;
         dword *pdwcount;
         dword *pdwmaxcount;
         dword rev_base =  0x0002000c;
@@ -751,7 +879,7 @@ printf("!!!!!!! malloc\n");
          rval = 0;
      }
      else
-    {
+     {
        printf("Unhandled dce\n");
        printf("packet_type  : %d\n",pdce_header->packet_type);
        printf("pdce_header->opnum : %d\n", pdce_header->opnum);

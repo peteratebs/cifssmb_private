@@ -147,14 +147,17 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 {
 	RTSMB2_QUERY_DIRECTORY_C command;
 	RTSMB2_QUERY_DIRECTORY_R response;
-    byte file_name[RTSMB2_MAX_FILENAME_SIZE];
+    byte file_name[SMBF_FILENAMESIZE];
     SMBFSTAT stat;
     dword r;
 	PUSER user;
 	word sid;
     BBOOL searchFound=FALSE;
     BBOOL isFound;
+    int numFound=0;
     BBOOL isEof=FALSE;
+    rtsmb_size bytes_ecoded = 0;
+
     rtsmb_size bytes_remaining = 0;
     void *byte_pointer = 0;
     void *Saved_Inbuf;
@@ -181,7 +184,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  RtsmbStreamDecodeCommand failed...\n",0);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  RtsmbStreamDecodeCommand failed...\n",0);
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
     }
@@ -196,22 +199,32 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 
     user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
 
-    if (pStream->compound_output == TRUE || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN))==0)
+    // See if we have a match for this file id
     {
         int _sid;
         sid = 0;
         for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
         {
-          if (tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
+          if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
           {
+printf("Reusing stat\n");
             searchFound=TRUE;
             sid = _sid;
             break;
           }
         }
     }
+    if (searchFound && (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN))!=0)
+    {   // Make sure to start over if we found an open directoy on a rescan
+printf("Close for rescan\n");
+        SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+        user->searches[sid].inUse=FALSE;
+        searchFound=FALSE;
+    }
+
     if (!searchFound)
     {
+printf("Go for a new stat\n");
     	for (sid = 0; sid < prtsmb_srv_ctx->max_searches_per_uid; sid++)
     		if (!user->searches[sid].inUse)
     			break;
@@ -225,7 +238,6 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     				sid = i;
     		SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
     	}
-        tc_memcpy(user->searches[sid].FileId, command.FileId, sizeof(command.FileId));
 	}
 
 //	stat = &user->searches[sid].stat;
@@ -233,7 +245,8 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 	user->searches[sid].inUse = TRUE;
 	user->searches[sid].tid = pStream->psmb2Session->pSmbCtx->tid;
 	user->searches[sid].pid64 = pStream->InHdr.SessionId;
-
+    // Save the ID
+    tc_memcpy(user->searches[sid].FileId, command.FileId, sizeof(command.FileId));
 
     // == Done Borrowed from srvtrans2 ==
     if (command.FileNameLength > sizeof(user->searches[sid].name))
@@ -244,7 +257,13 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         return TRUE;
     }
     else
-        tc_memcpy(user->searches[sid].name,file_name,command.FileNameLength);
+    {
+        int strsize = RTSMB_MIN(command.FileNameLength,(sizeof(file_name)-2) );
+        file_name[strsize]=0;
+        file_name[strsize+1]=0;
+        tc_memcpy(user->searches[sid].name,file_name,strsize);
+     }
+
 
     printf("Proc_smb2_QueryDirectory: Maximum output length == %lu\n", command.OutputBufferLength);
     printf("Proc_smb2_QueryDirectory: command.FileInformationClass == %d\n", command.FileInformationClass);
@@ -254,39 +273,60 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       printf("%c", (char )file_name[i]);
     rtp_printf(":\n");
     }
+    {
+      PFRTCHAR name;
+      word externalFid = *((word *) &command.FileId[0]);
+      int field_size = sizeof(user->searches[sid].name)/sizeof(name[0]);
+
+	  name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+      if (name)
+      {
+        PFRTCHAR temp;
+        int pathlen = rtsmb_len(name);
+        int whatsleft = field_size-(pathlen+1);
+        if (whatsleft > 0)
+        {
+          rtsmb_ncpy(user->searches[sid].name, name,field_size);
+          temp = &user->searches[sid].name[pathlen];
+          temp[0] = '\\';
+          temp[1] = '\0';
+          rtsmb_ncpy(&temp[1], file_name, whatsleft);
+        }
+        else
+          rtsmb_ncpy(user->searches[sid].name, file_name, field_size );
+      }
+      else
+        rtsmb_ncpy(user->searches[sid].name, file_name, field_size );
+    }
+    // Prepare to accumulate as much as the space we have left in the output.
+    bytes_remaining = pStream->write_buffer_remaining-(pStream->OutHdr.StructureSize + 8);
+
+    byte_pointer = rtp_malloc(bytes_remaining);
+    pStream->WriteBufferParms[0].pBuffer    = byte_pointer;
+    pStream->WriteBufferParms[0].byte_count = 0;
 
   // SMBFIO_GFirst (PSMB_SESSIONCTX pCtx, word tid, PSMBDSTAT dirobj, PFRTCHAR name)
 
 
-    if (pStream->compound_output == FALSE && (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
+//    if (pStream->compound_output_index == FALSE && (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
+//     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
+    if (searchFound==FALSE)
     {
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
-       printf("==== TOP: Gfirst\n");
+       printf("====  Gfirst found: %d\n", isFound);
     }
     else
     {
 	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
-       printf("==== TOP: Gnext\n");
+       printf("====  Gnext found: %d\n", isFound);
     }
 
     if (!isFound)
-    {
-      pStream->WriteBufferParms[0].pBuffer    = 0;
-      pStream->WriteBufferParms[0].byte_count = 0;
       isEof=TRUE;
-    }
-    else
-    { // Prepare to accumulate as much as the space we have left in the output.
-      bytes_remaining = pStream->write_buffer_remaining-(pStream->OutHdr.StructureSize + 8);
-      byte_pointer = rtp_malloc(bytes_remaining);
-      pStream->WriteBufferParms[0].pBuffer    = byte_pointer;
-      pStream->WriteBufferParms[0].byte_count = 0;
-    }
-
     while (isFound)
     {
+        numFound += 1;
         rtsmb_size bytes_consumed = 0;
-
         switch (command.FileInformationClass) {
         // FileInformationClass
            case FileDirectoryInformation        : // 0x01
@@ -311,8 +351,6 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         if (byte_pointer)
           *((dword *) byte_pointer) = 0;              // Start with next offset pointer zero
         printf("Bytes consumed :%d\n",bytes_consumed);
-
-
 
         if (bytes_consumed == 0)
            break;
@@ -340,38 +378,46 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
             }
         }
     }
-    //command.FileNameOffset;
-    //command.FileNameLength;
 
-    response.StructureSize = 9; // 9
-    response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
-    if (response.OutputBufferLength)
-    { // We''l come back at least one more time so be sure we can reread the input header again
-      response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-      pStream->compound_output = TRUE;
-      pStream->pInBuf = Saved_Inbuf;
-      pStream->read_buffer_remaining = Saved_read_buffer_remaining;
-    }
-    else
+
+    if (numFound)
     {
-      byte_pointer = rtp_malloc(4);           // send a zero in the payload, sending only one byte but work here by 4s.
-      *((dword *) byte_pointer) = 0;
-      pStream->WriteBufferParms[0].pBuffer    = byte_pointer;
-      pStream->WriteBufferParms[0].byte_count = 1;
-      response.OutputBufferLength = 0;
-      response.OutputBufferOffset = 0;
-      pStream->compound_output = FALSE;
+      response.StructureSize = 9; // 9
+      response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
+      if (response.OutputBufferLength)
+        response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
+      if (isEof==TRUE)
+      { // We did get content but we also reached the end. clear the compound output flag so we send now. The client should ask again and we'll send , no more
+        pStream->compound_output_index = 0;
+      }
+      else
+      { // We'll come back at least one more time so set the base of the next compound output packet
+       // and be sure we can reread the input header again
+        pStream->compound_output_index += 1;
+        pStream->pInBuf = Saved_Inbuf;
+        pStream->read_buffer_remaining = Saved_read_buffer_remaining;
+      }
+      RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+
     if (pStream->WriteBufferParms[0].pBuffer)
         rtp_free(pStream->WriteBufferParms[0].pBuffer);
     pStream->WriteBufferParms[0].pBuffer = 0;
     //
-    if (isEof && response.OutputBufferLength==0)
-    {
+    if (numFound == 0)
+    { // Send back an error status if this is the first reply in the reply chain
+      printf("Send no more error\n");
       // - Pack a header and response packet set status in header to STATUS_NO_MORE_FILES (0x80000006)
+      RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NO_MORE_FILES);
       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_NO_MORE_FILES;
-    }
+      pStream->compound_output_index=0; // Force a send, and make him query again for a response
+      if (searchFound)
+      {
+printf("Free stat structure\n");
+        SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+        user->searches[sid].inUse = FALSE;
+      }
+	}
     return TRUE;
 } // Proc_smb2_QueryDirectory
 
@@ -413,7 +459,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	rtsmb_size filename_size = (rtsmb_size) rtsmb_len(stat->filename) * sizeof (rtsmb_char);
 
     if (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + filename_size > (rtsmb_size) bytes_remaining)
-       return 0;;
+       return 0;
 
 	pinfo->low_last_access_time = stat->fatime64.low_time;
 	pinfo->high_last_access_time = stat->fatime64.high_time;
@@ -428,7 +474,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	pinfo->low_allocation_size = stat->fsize;
 	pinfo->high_allocation_size = 0;
 	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
-	pinfo->filename_size = 0;
+	pinfo->filename_size = filename_size;
 	pinfo->file_index = 0;
 	pinfo->ea_size = 0;
     return (int) sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO);
@@ -494,9 +540,28 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size 
     tc_memcpy(byte_pointer, stat->filename, filename_size);
     return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) + pinfo->filename_size);
 }
+
+
+
 static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
 {
-    return -1;
+    FILE_ID_BOTH_DIR_INFORMATION *pinfo = (FILE_ID_BOTH_DIR_INFORMATION *) byte_pointer;
+    int base_size;
+    rtsmb_size filename_size = (rtsmb_size) rtsmb_len(pstat->filename) * sizeof (rtsmb_char);
+
+    if (sizeof(FILE_ID_BOTH_DIR_INFORMATION)+filename_size > (rtsmb_size) bytes_remaining)
+       return 0;
+    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat);
+    if (base_size ==0)
+       return 0;
+	tc_memcpy(pinfo->ShortName, pstat->short_filename, sizeof(pinfo->ShortName));
+	pinfo->ShortNameLength =   (rtsmb_size) rtsmb_len(pstat->short_filename) * sizeof (rtsmb_char);
+	pinfo->Reserved1           =  0;
+	pinfo->Reserved2           =  0;
+	pinfo->EaSize              =  0;
+    // Copy the filename just after the small file info
+    tc_memcpy(&pinfo->FileName[0], pstat->filename, filename_size);
+    return (int) (sizeof(FILE_ID_BOTH_DIR_INFORMATION)-1 + filename_size);
 }
 static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
 {

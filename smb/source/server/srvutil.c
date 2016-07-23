@@ -34,6 +34,7 @@
 #include "srvans.h"
 #include "smbutil.h"
 #include "smbpack.h"
+#include "srvipcfile.h"
 
 #if (INCLUDE_RTSMB_ENCRYPTION)
 #include "smb_md4.h"
@@ -65,6 +66,15 @@
 //============================================================================
 //    INTERFACE FUNCTIONS
 //============================================================================
+
+void *ptralign(void *ptr, int a)
+{
+ ddword dd = (ddword) ptr;
+ ddword s = (ddword)(a-1);
+ dd=(dd+s)&~s;
+ return (void *) dd;
+}
+
 
 PFRTCHAR SMBU_ShortenSMBPath (PFRTCHAR path)
 {
@@ -142,14 +152,45 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
 {
 	PUSER user;
 
+ printf("SMBU_GetInternalFid 1 ex: %X \n",external);
 	user = SMBU_GetUser (pCtx, pCtx->uid);
 
 	if (user == (PUSER)0)
 		return -1;
+ printf("SMBU_GetInternalFid 2\n");
 
+
+#if (HARDWIRED_INCLUDE_DCE)
+    {
+      PTREE pTree;
+      pTree = SMBU_GetTree( pCtx, pCtx->tid);
+ printf("SMBU_GetInternalFid 2a\n");
+      // Special case of ipc just determine that it is a valid handle
+      if (pTree && pTree->type == ST_IPC)
+      {
+ printf("SMBU_GetInternalFid 2b ex:%X isSRVC:%d \n",external,IS_SRVSVC_FID(external) );
+        if (IS_SRVSVC_FID(external))
+        {
+          if (rflags) *rflags = 0;
+          return (external&0xf);
+        }
+        else
+          return -2;
+      }
+      else
+       printf("SMBU_GetInternalFid 2d not SRVC\n");
+
+    }
+#endif
 	if (external >= prtsmb_srv_ctx->max_fids_per_uid)
 		return -1;
-
+  if (!user->fids[external])
+   printf("SMBU_GetInternalFid 3 user->fids[external]: %x\n",user->fids[external]);
+ else
+ {
+ printf("SMBU_GetInternalFid 3 internal: %d\n",user->fids[external]->internal);
+ printf("SMBU_GetInternalFid 3 tidmatch: %d\n",user->fids[external]->tid == pCtx->tid);
+ }
 	if (user->fids[external] && user->fids[external]->internal != -1 &&
 		user->fids[external]->tid == pCtx->tid)
 	{
@@ -157,13 +198,16 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
 		{
 			if (rflags) /* IF flags passed retuern the flags value */
 				*rflags = user->fids[external]->flags;
+ printf("SMBU_GetInternalFid ok\n");
 			return user->fids[external]->internal;
 		}
 		else
 		{
+ printf("SMBU_GetInternalFid 4\n");
 			return -2;
 		}
 	}
+ printf("SMBU_GetInternalFid 5\n");
 
 	return -1; // not found
 }
@@ -312,6 +356,8 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
 
+printf("SMBU_SetInternalFid i:% user->fids[i]:%x\n", i,user->fids[i]);
+printf("SMBU_SetInternalFid i:% user->fids[i]:%x internal:%d external:%d\n", i,user->fids[i],internal,k);
 	return k;
 }
 
@@ -324,6 +370,18 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PUSER user;
 	word i, j, k;
 
+#if (HARDWIRED_INCLUDE_DCE)
+    {
+      tree = SMBU_GetTree( pCtx, pCtx->tid);
+      // Special case of ipc just determine that it is a valid handle
+      RTSMB_DEBUG_OUTPUT_STR("SMBU_ClearInternalFid: clear IPC external fid.\n", RTSMB_DEBUG_TYPE_ASCII);
+      if (tree && tree->type == ST_IPC)
+        return;
+    }
+#endif
+
+//printf("Burn external fid %x\n", external);
+//return;
 	// find fid in master list
 	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session; k++)
 	{
@@ -384,7 +442,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	}
 
 	// clear the fid in master list
-	pCtx->fids[k].internal = -1;
+   pCtx->fids[k].internal = -1;
 }
 
 
@@ -447,6 +505,9 @@ PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 	return (PFRTCHAR)0;
 }
 
+
+
+
 // returns true if s is a substring of src, false else
 BBOOL SMBU_DoesContain (PFRTCHAR src, PFRTCHAR s)
 {
@@ -454,8 +515,11 @@ BBOOL SMBU_DoesContain (PFRTCHAR src, PFRTCHAR s)
 	int size;
 	int ssize;
 
+
 	size = (int)rtsmb_len (src);
 	ssize = (int)rtsmb_len (s);
+
+
 	for (i = 0; i <= size - ssize; i++)
 	{
 		if (rtsmb_ncmp (src, s, (rtsmb_size)ssize) == 0)
@@ -465,7 +529,6 @@ BBOOL SMBU_DoesContain (PFRTCHAR src, PFRTCHAR s)
 
 		src++;
 	}
-
 	return FALSE;
 }
 

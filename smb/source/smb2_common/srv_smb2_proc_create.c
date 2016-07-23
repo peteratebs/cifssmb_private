@@ -100,7 +100,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
 	RTSMB2_CREATE_C command;
 	RTSMB2_CREATE_R response;
-    byte file_name[RTSMB2_MAX_FILENAME_SIZE];
+    byte file_name[SMBF_FILENAMESIZE];
     byte create_content[MAX_CREATE_CONTEXT_LENGTH_TOTAL];
     int fid;
     dword r;
@@ -283,6 +283,7 @@ if (command.NameLength)
       RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
       return TRUE;
     }
+
     // Decode CreateContexts into decoded_create_context structure
     if (command.CreateContextsOffset)
     {

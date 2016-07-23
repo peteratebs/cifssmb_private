@@ -72,6 +72,7 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_model.c
 cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_fileio.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_setup.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_ioctl.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_create.c

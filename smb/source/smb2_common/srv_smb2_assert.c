@@ -103,6 +103,8 @@ BBOOL assert_smb2_Fid (smb2_stream  *pStream, word external, word flag)
 	word error = 0;
     PSMB_SESSIONCTX pCtx = pStream->psmb2Session->pSmbCtx;
 
+ printf("assert_smb2_Fid 1 ex: %X \n",external);
+
 	if ((fid = SMBU_GetInternalFid (pCtx, external, flag,0)) == -2)
 	{
         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);

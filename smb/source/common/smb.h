@@ -25,21 +25,21 @@ typedef enum		//Possible SMB Dialects
 	LANMAN_2_1,		// LANMAN 2.1
 	NT_LM,			// NT LM 0.12
 #ifdef SUPPORT_SMB2
-    SMB_SMB2_2002,       // "SMB 2.002"
-    SMB_SMB2_2xxx,       //  "SMB 2.???"
+    SMB2_2002,       // "SMB 2.002"
+    SMB2_2xxx,       //  "SMB 2.???"
 #endif
 	NUM_DIALECTS
 } SMB_DIALECT_T;
 
-#ifdef SUPPORT_SMB2
-typedef enum		//Possible SMB Dialects
-{
-	SMB2_NONE=-1,
-    SMB2_2002,       // "SMB 2.002"
-    SMB2_2xxx,
-	SMB2_NUM_DIALECTS
-} SMB2_DIALECT_T;
-#endif
+//#ifdef SUPPORT_SMB2
+//typedef enum		//Possible SMB Dialects
+//{
+//	SMB2_NONE=-1,
+//    SMB2_2002,       // "SMB 2.002"
+//    SMB2_2xxx,
+//	SMB2_NUM_DIALECTS
+//} SMB2_DIALECT_T;
+//#endif
 
 
 
