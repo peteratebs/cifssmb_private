@@ -6269,7 +6269,7 @@ if (s.blob)
 {
     (INDEX_OF (prtsmb_cli_ctx->sessions, pSession)
     int rtsmb_cli_session_ntlm_auth (INDEX_OF(prtsmb_cli_ctx->sessions, pSession), pJob->data.session_setup.account_name, pJob->data.session_setup.password, pJob->data.session_setup.domain_name, PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
-    rtp_free(s.blob);
+    RTP_FREE(s.blob);
 }
 int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain,PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
     pJob->data.session_setup.user_struct->

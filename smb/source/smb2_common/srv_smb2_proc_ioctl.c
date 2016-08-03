@@ -111,8 +111,8 @@ printf("FSCTL_PIPE_TRANSCEIVE out == %ld\n",response.OutputCount);
         RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }
 free_bail:
-    rtp_free(pStream->ReadBufferParms[0].pBuffer);
-    rtp_free(pStream->WriteBufferParms[0].pBuffer);
+    RTP_FREE(pStream->ReadBufferParms[0].pBuffer);
+    RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
     return TRUE;
 } // Proc_smb2_Ioctl
 

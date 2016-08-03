@@ -15,6 +15,7 @@ long SMBFIO_Read (PSMB_SESSIONCTX pCtx, word tid, int fd, PFBYTE buf, dword coun
 long SMBFIO_Write (PSMB_SESSIONCTX pCtx, word tid, int fd, PFBYTE buf, dword count);
 long SMBFIO_Seek (PSMB_SESSIONCTX pCtx, word tid, int fd, long offset, int origin);
 dword SMBFIO_Seeku32 (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset);
+ddword SMBFIO_Seeku64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword offset);
 BBOOL SMBFIO_Truncate (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset);
 BBOOL SMBFIO_Flush (PSMB_SESSIONCTX pCtx, word tid, int fd);
 int SMBFIO_Close (PSMB_SESSIONCTX pCtx, word tid, int fd);

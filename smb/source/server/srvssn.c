@@ -484,7 +484,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
            else
            {
               rtp_printf("Lost Got extended blob signature == %X2\n",command.security_blob[0]);
-              SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
+              SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
            }
 
         }
@@ -553,7 +553,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
            }
            else
            {
-             pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+             pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
            }
        }
        else
@@ -617,7 +617,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
            if (user == (PUSER)0)
            {
-               pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS);
+               pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_TOOMANYUIDS);
            }
            else
            {
@@ -727,7 +727,7 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
                     access = pResource->permission;
                 else
                 {
-                    pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
+                    pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);
                     RELEASE_SHARE ();
                     return 0;
                 }
@@ -756,7 +756,7 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             if (!tree)
             {
                 /* no free tree structs   */
-                pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
+                pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
                 return 0;
             }
 
@@ -798,13 +798,13 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
         else
         {
             RELEASE_SHARE ();
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
+            pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
             return 0;
         }
     }
     else
     {
-        pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_INVNETNAME);
+        pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_INVNETNAME);
         return 0;
     }
 
@@ -831,7 +831,8 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             ERROR_CODE                                 /
  * -------------------------------------------------- */
 
-dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFDWORD answer_external_fid, PFINT answer_fid)
+
+dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid)
 {
     SMBFSTAT stat;
     int fid;
@@ -847,8 +848,8 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
         /* This way (denying access) makes them think we support it, but they  */
         /* just don't have the right priviledges, and they fall back to normal */
         /* packets.       */
-        return SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
-        /*return -1 * SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);   */
+        return SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
+        /*return -1 * SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);   */
     } else
 #endif
     if (pTree->type == ST_PRINTQ)
@@ -859,7 +860,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
         /* Usually clients will just send "" anyway.                                  */
         if (SMBU_TemporaryFileName (pCtx, empty, filename))
         {
-            return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
+            return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
         }
 
         /* don't fail if file doesn't exist.  rather, create it   */
@@ -878,7 +879,7 @@ printf("Stat worked\n");
         if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
         {
             printf("Error excl\n");
-            return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
+            return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
         }
 
         /**
@@ -887,14 +888,14 @@ printf("Stat worked\n");
         if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
         {
             /* We create a dummy file entry that can only be opened and closed.   */
-            int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY);
+            int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags);
 
 
             if (externalFid < 0)
             {
             printf("Error Not enough file handles\n");
                 RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around for dummy directory!\n", RTSMB_DEBUG_TYPE_ASCII);
-                return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
+                return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
             }
 
             *answer_fid = 0;
@@ -909,7 +910,7 @@ printf("Stat worked\n");
     else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
     {
 printf("Create error HEREHERE\n");
-        return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+        return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
     }
     /**
      * The Samba client at least, and probably others, expects that if the create
@@ -925,7 +926,7 @@ rtsmb_dump_bytes("OpenOrCreate SMBFIO_Open", filename, rtsmb_len(filename)*2, DU
     if(fid < 0)
     {
         RTSMB_DEBUG_OUTPUT_STR("Open denied.\n", RTSMB_DEBUG_TYPE_ASCII);
-        return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
+        return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
     }
     else
     {
@@ -939,13 +940,13 @@ printf("IPC open fid == %x ext == %x \n",externalFid,fid);
         else
 
 #endif
-        externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0);
+        externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0,smb2flags);
 
         if (externalFid < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around!\n", RTSMB_DEBUG_TYPE_ASCII);
-            return SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
+            return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
         }
         *answer_fid = fid;
         *answer_external_fid = (dword)externalFid;
@@ -1011,7 +1012,7 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
         permissions = SECURITY_READWRITE;
         break;
     default:
-        pOutHdr->status = SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADACCESS);
+        pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADACCESS);
         return 0;
     }
 
@@ -1050,7 +1051,7 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     }
 
     pTree = SMBU_GetTree (pCtx, pCtx->tid);
-    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &dwexternalFid, &fid);
+    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, (dword) 0,&dwexternalFid, &fid);
     externalFid = (word) dwexternalFid;
     if (r != 0)
     {
@@ -1237,7 +1238,7 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
         response.directory = FALSE;
     }
 
-    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode, &dwexternalFid, &fid);
+    r = OpenOrCreate (pCtx, pTree, command.filename, (word)flags, (word)mode,(dword) 0, &dwexternalFid, &fid);
     externalFid = (word) dwexternalFid;
     if (r != 0)
     {
@@ -1370,7 +1371,7 @@ int ProcReadAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     ASSURE (!assertDiskOrIpc (pCtx), 0);
     ASSURE (!assertFid (pCtx, command.fid, 0), 0);
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     /* special case return of 0 bytes for reads completely beyond end of file            */
     /* this is not explicit in spec but it makes some sense for very simple file systems */
@@ -1389,12 +1390,12 @@ int ProcReadAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
 
         if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset) == 0xffffffff)
         {
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
+            pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
             return 0;
         }
         else if ((bytesRead = SMBFIO_Read (pCtx, pCtx->tid, fid, pCtx->tmpBuffer, toRead)) < 0)
         {
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRHRD, SMB_ERRHRD_READ);
+            pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_READ);
             return 0;
         }
         else
@@ -1436,16 +1437,16 @@ int ProcWriteAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
     ASSURE (!assertFid (pCtx, command.fid, 0), 0);
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset) == 0xffffffff)
     {
-        pOutHdr->status = SMBU_MakeError (SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
+        pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
         return 0;
     }
     else if ((resp = SMBFIO_Write (pCtx, pCtx->tid, fid, pCtx->tmpBuffer, (word) command.data_size)) < 0)
     {
-        pOutHdr->status = SMBU_MakeError (SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
+        pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
         return 0;
     }
     else
@@ -1579,16 +1580,16 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
         case SMB_COM_LOCKING_ANDX:
             /* we don't really handle byte range locking yet (mike)   */
             next_command = ProcLockingAndx (pCtx, pInHdr, &pInBuf, pOutHdr, &pOutBuf);
-            /*pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);   */
+            /*pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);   */
             break;
         default:
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
+            pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
             break;
         }
 
         if (next_command < 0)
         {
-            pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
+            pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
             break;
         }
 
@@ -1603,7 +1604,7 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
         (rtsmb_size)SMB_BUFFER_SIZE, pOutHdr);
     if (header_size == -1)
     {
-        pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
+        pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
     }
 
     if (pOutHdr->status)
@@ -2418,7 +2419,7 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!Got command.setup[0] == : %d\n", command.setup
     }
 release_and_return:
     if (response.heap_data)
-       rtp_free(response.heap_data);
+       RTP_FREE(response.heap_data);
     return rval;
 } /* End ProcTransaction */
 struct fake_FILE_NOTIFY_INFORMATION {
@@ -2478,7 +2479,7 @@ static BBOOL ProcFakeNotifyTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInH
     }
 release_and_return:
     if (response.heap_data)
-       rtp_free(response.heap_data);
+       RTP_FREE(response.heap_data);
     return rval;
 } /* End ProcTransaction */
 
@@ -2794,7 +2795,7 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     {
         int external;
 
-        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0)) < 0)
+        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -2838,7 +2839,7 @@ BBOOL ProcClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
     ASSERT_FID (pCtx, command.fid, FID_FLAG_ALL)
 
     pTree = SMBU_GetTree (pCtx, pCtx->tid);
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, &fidflags);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, &fidflags,0);
 
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
@@ -2888,7 +2889,7 @@ BBOOL ProcClosePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     ASSERT_FID (pCtx, command.fid, 0)
 
 /*  pTree = SMBU_GetTree (pCtx, pCtx->tid);   */
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     if (SMBU_PrintFile (pCtx, fid))
         RTSMB_DEBUG_OUTPUT_STR("ProcClosePrintFile: Printing file on close failed.\n", RTSMB_DEBUG_TYPE_ASCII);
@@ -2926,7 +2927,7 @@ BBOOL ProcRead (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
 
     ASSERT_FID (pCtx, command.fid, 0)
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     response.data = pCtx->tmpBuffer;
 
@@ -2985,7 +2986,7 @@ BBOOL ProcSeek (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
 
     ASSERT_FID (pCtx, command.fid, 0)
 
-    offset = SMBFIO_Seek (pCtx, pCtx->tid, SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, 0),
+    offset = SMBFIO_Seek (pCtx, pCtx->tid, SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, 0,0),
             (long)command.offset, command.mode);
     if (offset < 0)
         SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
@@ -3112,7 +3113,7 @@ BBOOL ProcWrite (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
 
     ASSERT_FID (pCtx, command.fid, 0)
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     spaceLeft = MIN (command.count, command.data_size);
 
@@ -3209,7 +3210,7 @@ BBOOL ProcFlush (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
             {
                 int internal;
 
-                internal = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, 0);
+                internal = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL, 0,0);
 
                 /* this isn't amazingly helpful, but at least they'll know   */
                 /* *something* went wrong                                    */
@@ -3224,7 +3225,7 @@ BBOOL ProcFlush (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
 
         ASSERT_FID (pCtx, command.fid, 0)
 
-        fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+        fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
         if (!SMBFIO_Flush (pCtx, pCtx->tid, fid))
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRHRD, SMB_ERRHRD_GENERAL);
@@ -3691,7 +3692,7 @@ BBOOL ProcDeleteDirectory (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pI
     {
         /* here i must make a guess as to the problem                     */
         /* we're going to assume it is because the directory is not empty */
-        SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS);
+        SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS);
     }
 
     WRITE_SMB (srv_cmd_fill_delete_directory);
@@ -3738,7 +3739,7 @@ BBOOL ProcCreate (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRT
     {
         int external;
 
-        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0)) < 0)
+        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -3791,7 +3792,7 @@ BBOOL ProcCreateTemporary (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pI
     {
         int external;
 
-        if ((external = SMBU_SetInternalFid (pCtx, fid, (PFRTCHAR) pCtx->tmpBuffer, 0)) < 0)
+        if ((external = SMBU_SetInternalFid (pCtx, fid, (PFRTCHAR) pCtx->tmpBuffer, 0, 0)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -3841,7 +3842,7 @@ BBOOL ProcSetInformation (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
      */
     if (!SMBFIO_Chmode (pCtx, pCtx->tid, command.filename, rtsmb_util_smb_to_rtsmb_attributes (command.file_attributes)))
     {
-        SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+        SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
     }
 
     WRITE_SMB (srv_cmd_fill_set_information);
@@ -3883,7 +3884,7 @@ BBOOL ProcSetInformation2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pI
      * We should return badfile error if file doesn't exist.
      */
     if (!SMBFIO_Stat (pCtx, pCtx->tid, name, &stat))
-        SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+        SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
 
     WRITE_SMB (srv_cmd_fill_set_information2);
 
@@ -3969,7 +3970,7 @@ BBOOL ProcWriteAndClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInB
 
     ASSERT_FID (pCtx, command.fid, 0)
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     written = SMBU_WriteToFile (pCtx, fid, command.data, command.data_size, FALSE, command.offset);
 
@@ -4018,7 +4019,7 @@ BBOOL ProcReadRaw (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PR
         return FALSE;
     }
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     /* special case return of 0 bytes for reads completely beyond end of file            */
     /* this is not explicit in spec but it makes some sense for very simple file systems */
@@ -4084,11 +4085,11 @@ BBOOL ProcWriteRaw1 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, 
 
     if (command.count > SMB_BIG_BUFFER_SIZE)
     {
-        SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRSRV, SMB_ERRSRV_USESTD);
+        SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRSRV, SMB_ERRSRV_USESTD);
         return TRUE;
     }
 
-    pCtx->writeRawInfo.internal = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    pCtx->writeRawInfo.internal = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
     pCtx->writeRawInfo.external = command.fid;
     pCtx->writeRawInfo.hdr = *pOutHdr;
     pCtx->writeRawInfo.maxCount = (word) ((command.count - command.data_size) & 0xFFFF);
@@ -4107,7 +4108,7 @@ BBOOL ProcWriteRaw1 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, 
         RTSMB_WRITE_RAW_R2 response;
 
         pOutHdr->command = SMB_COM_WRITE_COMPLETE;
-        SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
+        SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
 
         response.count = 0; /* I have no way of getting number of bytes written */
         WRITE_SMB (srv_cmd_fill_write_raw2);
@@ -4146,7 +4147,7 @@ BBOOL ProcWriteRaw2 (PSMB_SESSIONCTX pCtx, PFBYTE data, PFVOID pOutBuf, word byt
 
         if (written < 0)
         {
-            SMBU_AddError (pOutHdr, pOutBuf, SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
+            SMBU_AddError (pCtx, pOutHdr, pOutBuf, SMB_EC_ERRHRD, SMB_ERRHRD_WRITE);
         }
         else
         {
@@ -4223,7 +4224,7 @@ BBOOL ProcOpenPrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInB
     else
     {
 
-        int externalFid = SMBU_SetInternalFid (pCtx, fid, string, 0);
+        int externalFid = SMBU_SetInternalFid (pCtx, fid, string, 0, 0);
 
         if (externalFid < 0)
         {
@@ -4267,7 +4268,7 @@ BBOOL ProcWritePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
 
     ASSERT_FID (pCtx, command.fid, 0)
 
-    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0);
+    fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     SMBU_WriteToFile (pCtx, fid, command.data, command.data_size, TRUE, 0);
 

@@ -34,10 +34,12 @@
 //============================================================================
 
 
-dword SMBU_MakeError (byte errorClass, word errorCode);
+dword SMBU_MakeError (PSMB_SESSIONCTX pCtx, byte errorClass, word errorCode);
 void SMBU_FillNtError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, dword errorCode);
 void SMBU_FillError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, byte errorClass, word errorCode);
-void SMBU_AddError (PRTSMB_HEADER pHdr, PFVOID buf, byte errorClass, word errorCode);
+void SMBU_AddError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pHdr, PFVOID buf, byte errorClass, word errorCode);
+
+
 
 void SMBU_DOSifyName (PFRTCHAR name, PFRTCHAR buf, char pad);
 PFRTCHAR SMBU_DOSifyPath (PFRTCHAR name, PFRTCHAR dest, rtsmb_size size);
@@ -62,8 +64,8 @@ PTREE SMBU_GetTree (PSMB_SESSIONCTX pCtx, int tid);
 
 int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error );
 int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error);
-int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags);
-int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags);
+int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags, dword *rsmb2flags);
+int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags);
 void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external);
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external);
 int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);

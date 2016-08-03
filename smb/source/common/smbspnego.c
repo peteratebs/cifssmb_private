@@ -213,8 +213,8 @@ void spnego_init_extended_security(void)
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
 {
-  if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);
-  if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);
+  if (decoded_token->mechToken) RTP_FREE(decoded_token->mechToken);
+  if (decoded_token->mechListMic) RTP_FREE(decoded_token->mechListMic);
 }
 
 
@@ -354,8 +354,8 @@ static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *pre
 {
   if (presource) {
     if (presource->value_at_offset)
-      rtp_free(presource->value_at_offset);
-    rtp_free(presource);
+      RTP_FREE(presource->value_at_offset);
+    RTP_FREE(presource);
   }
 }
 
@@ -406,7 +406,7 @@ word length_w, max_w;
     if (!presource->value_at_offset)
     {
       *_presource = 0;
-      rtp_free(presource);
+      RTP_FREE(presource);
       return SPNEGO_SYSTEM_ERROR;
     }
     byte *data_at_offset = blob_base + dw;
@@ -1605,7 +1605,6 @@ int spnego_get_client_ntlmssp_negotiate_blob(byte **pblob)
     *pblob = (byte *) spnego_client_ntlmssp_negotiate_blob;
     return sizeof(spnego_client_ntlmssp_negotiate_blob);
 }
-
 
 
 

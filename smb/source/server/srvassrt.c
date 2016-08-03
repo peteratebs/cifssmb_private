@@ -26,14 +26,14 @@
 BBOOL assertUid (PSMB_SESSIONCTX pCtx)
 {
 	PUSER user;
-	
+
 	// no need to authenticate when in share mode
 	if (pCtx->accessMode == AUTH_SHARE_MODE)
 	{
 		return FALSE;
 	}
 	user = SMBU_GetUser (pCtx, pCtx->uid);
-	
+
 	if (user == (PUSER)0)
 	{
 		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_BADUID);
@@ -102,7 +102,7 @@ BBOOL assertFid (PSMB_SESSIONCTX pCtx, word external, word flag)
 	byte ec = 0;
 	word error = 0;
 
-	if ((fid = SMBU_GetInternalFid (pCtx, external, flag,0)) == -2)
+	if ((fid = SMBU_GetInternalFid (pCtx, external, flag,0,0)) == -2)
 	{
 		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
 		return TRUE;

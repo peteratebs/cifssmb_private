@@ -43,6 +43,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     int fid;
     dword r;
     word externalFid;
+    dword smb2flags;
 	PTREE pTree;
 
     tc_memset(&response,0, sizeof(response));
@@ -96,7 +97,8 @@ printf("Call assert ex: %X \n",externalFid);
       // Set the status to success
       ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
 printf("Back assert\n");
-      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags);
+      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+printf ("smb2flags: %lX\n", smb2flags);
     }
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
@@ -111,8 +113,6 @@ printf("Back assert\n");
     else
     {
     // == Borrowed from srvtrans2 ==
-
-
         /**
          * If we are closing a diskfile make sure directory enum streams is closed..
         */
@@ -153,10 +153,17 @@ printf("Close asked for stat but we can not give them yet\n");
 #endif
            }
            SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
-        }
+       }
+       if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
+       {
+printf ("smb2flags in: %lX\n", smb2flags);
+         if (fidflags != FID_FLAG_DIRECTORY)
+           SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+         else
+           SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+       }
     }
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
-
         // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize = 60;

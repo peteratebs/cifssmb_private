@@ -100,7 +100,7 @@ int rv = -1;
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 24, 0);
             break;
         case SMB2_READ           :
-            rv = RtsmbWireDecodeSmb2(pStream, pItem, 48, RtsmbWireVarDecodeReadCommandCb);
+            rv = RtsmbWireDecodeSmb2(pStream, pItem, 48, 0);
             break;
         case SMB2_WRITE          :
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 48, RtsmbWireVarDecodeWriteCommandCb);

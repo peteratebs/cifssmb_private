@@ -44,7 +44,7 @@ const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,
 #include "srvauth.h"
 #include "smbdebug.h"
 
-extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, PFDWORD answer_external_fid, PFINT answer_fid);
+extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid);
 
 
 #define MAX_CREATE_CONTEXT_LENGTH_TOTAL 512 // Don't need much, mostly 4 byte values
@@ -113,7 +113,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     byte permissions = 5; /* HAD TO SET IT TO A USELESS VALUE _YI_ */
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
-
+    dword smb2flags = 0;
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -188,6 +188,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         wants_attr_write = TRUE;
     }
 
+
 //=====
     /* do we make the file if it doesn't exist?   */
     switch (command.CreateDisposition)
@@ -213,7 +214,20 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
             wants_write = TRUE;
             break;
     }
+    // Make sure we have write permission if we are deleting
+printf ("command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
+    if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
+    {
+printf ("Match command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
 
+    }
+    else
+    {
+printf ("no match command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
+
+    }
+    if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
+      wants_write = TRUE;
     if (wants_read && wants_write)
     {
         /* reading and writing   */
@@ -308,7 +322,7 @@ if (command.NameLength)
       // Hack, include extra info in stream if no file
       wants_extra_info = TRUE;
       printf ("Cretae options == %X\n", command.CreateOptions);
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, &externalFid, &fid);
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
       printf ("Open on root returned : %x, external fileid == %ld \n", r, externalFid);
     }
     else
@@ -319,7 +333,7 @@ printf("Okay have a name attrib %X %X \n", command.FileAttributes, command.Creat
 rtsmb_dump_bytes("Proc_smb2_Create opne name: ", file_name, command.NameLength, DUMPUNICODE);
       /* If we have a normal filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
     /* We check if the client is trying to make a directory.  If so, make it   */
-      if (ON (command.FileAttributes, 0x80) | ON (command.CreateOptions, 0x1))
+      if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
       {
           if (ON (flags, RTP_FILE_O_CREAT))
           {
@@ -329,16 +343,30 @@ rtsmb_dump_bytes("Proc_smb2_Create opne name: ", file_name, command.NameLength, 
               CreateAction = 2; // File created
           }
       }
+
+    if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+    {
+      if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
+      { // Don't succeed if they are requesting a directory but the object is not one
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
+        return TRUE;
+      }
+      if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
+      { // Don't succeed if they are requesting a non-directory but the object is one
+        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
+        return TRUE;
+      }
+    }
 printf("Okay call create\n");
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, &externalFid, &fid);
+    if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
+    {
+       smb2flags = SMB2DELONCLOSE;
+//         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+//        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+    }
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
       printf ("Open on file returned : %x, external fileid == %ld \n", r, externalFid);
     }
-#if (HARDWIRED_INCLUDE_DCE)
-    if (pTree->type == ST_IPC)
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 5 IPC!!...\n",0);
-    }
-#endif
     if (r != 0)
     {
         printf("OpenOrCreate failed r == %x\n", r);
@@ -347,15 +375,6 @@ printf("Okay call create\n");
         return TRUE;
     }
 
-#if (HARDWIRED_INCLUDE_DCE)
-    if (pTree->type == ST_IPC)
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 6 IPC!!...\n",0);
-    }
-    else
-      SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
-#endif
-//=====
 
 	// byte  SecurityFlags;              // reserved
 	// command.RequestedOplockLevel;

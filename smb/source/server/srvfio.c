@@ -294,6 +294,38 @@ long SMBFIO_Write (PSMB_SESSIONCTX pCtx, word tid, int fd, PFBYTE buf, dword cou
 	return SMBFIO_WriteInternal ((word) tree->internal, fd, buf, count);
 }
 
+
+ddword SMBFIO_Seeku64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword offset)
+{
+	PTREE tree;
+
+	tree = SMBU_GetTree (pCtx, tid);
+	if (tree)
+	{
+        long loffset,r;
+        /* Unsigned 64 bit version of seek set */
+        // We can't actually do it yet
+        if ((offset & 0xffffffff00000000)!=0)
+              return  0xffffffffffffffff;
+
+        if ((offset & 0x8000000)==0)
+            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
+        else
+        {
+            loffset = (long)(offset/2);
+            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
+            if (r != -1)
+            {
+                loffset = (long)(offset-(offset/2));
+                r=SMBFIO_SeekInternal ((word) tree->internal, fd, loffset, RTSMB_SEEK_CUR);
+            }
+        }
+        if (r != -1)
+		    return offset;
+	}
+
+	return 0xffffffffffffffff;
+}
 dword SMBFIO_Seeku32 (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset)
 {
 	PTREE tree;

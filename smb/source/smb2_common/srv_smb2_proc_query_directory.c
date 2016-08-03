@@ -401,7 +401,7 @@ printf("Go for a new stat\n");
     }
 
     if (pStream->WriteBufferParms[0].pBuffer)
-        rtp_free(pStream->WriteBufferParms[0].pBuffer);
+        RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
     pStream->WriteBufferParms[0].pBuffer = 0;
     //
     if (numFound == 0)

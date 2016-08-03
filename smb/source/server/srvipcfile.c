@@ -158,7 +158,7 @@ static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc)
 {
    if (pStreamtoSrvSrvc->reply_heap_data)
    {
-     rtp_free(pStreamtoSrvSrvc->reply_heap_data);
+     RTP_FREE(pStreamtoSrvSrvc->reply_heap_data);
      pStreamtoSrvSrvc->reply_heap_data = 0;
      pStreamtoSrvSrvc->reply_data_count = 0;
    }

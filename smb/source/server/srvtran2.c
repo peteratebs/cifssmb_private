@@ -432,7 +432,7 @@ void fillSMB_INFO_IS_NAME_VALID (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, PF
 	// try to expand the name.  this will catch common name problems
 	if (!SMBFIO_ExpandName (pCtx, pCtx->tid, fileName, buf, SMBF_FILENAMESIZE + 1))
 	{
-		pOutHdr->status = SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+		pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
 	}
 }
 
@@ -662,7 +662,7 @@ int fillQueryWithInfo (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_HEADER
 
 	if(worked == FALSE)
 	{
-		pOutHdr->status = SMBU_MakeError (SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+		pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
 	}
 	else
 	{
@@ -687,11 +687,11 @@ int fillQueryWithInfo (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_HEADER
 
 		case SMB_INFO_QUERY_EAS_FROM_LIST:
 		case SMB_INFO_QUERY_ALL_EAS:
-			pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
+			pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
 			break;
 
 		default:
-			pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
+			pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
 			break;
 		}
 	}
@@ -797,7 +797,7 @@ BBOOL ST2_FindFirst2 (PSMB_SESSIONCTX pCtx,
 
 		if (status < 0)
 		{
-			pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
+			pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
 			error = TRUE;
 			break;
 		}
@@ -917,7 +917,7 @@ BBOOL ST2_FindNext2 (PSMB_SESSIONCTX pCtx,
 
 		if (status < 0)
 		{
-			pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
+			pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
 			error = TRUE;
 			break;
 		}
@@ -1433,13 +1433,13 @@ BBOOL ST2_SetFileInformation (PSMB_SESSIONCTX pCtx,
 			ST2_ProcSetInfoStandard (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename);
 			break;
 		case SMB_SET_FILE_BASIC_INFO:
-			ST2_ProcSetBasicInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0));
+			ST2_ProcSetBasicInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0,0));
 			break;
 		case SMB_SET_FILE_ALLOCATION_INFO:
-			ST2_ProcAllocationInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0));
+			ST2_ProcAllocationInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0,0));
 			break;
 		case SMB_SET_FILE_END_OF_FILE_INFO:
-			ST2_ProcEndOfFileInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0));
+			ST2_ProcEndOfFileInfo (pCtx, pInHdr, pInBuf, pOutHdr, size_left, filename, SMBU_GetInternalFid(pCtx, command.fid, FID_FLAG_ALL,0,0));
 			break;
         case SMB_SET_FILE_DISPOSITION_INFO:
 //        	dispositionResponse.file_is_deleted = 1;

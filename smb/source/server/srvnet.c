@@ -511,7 +511,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
                 RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
                 RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_session_cycle: Resetting timer, not killing the socket\n", RTSMB_DEBUG_TYPE_ASCII);
                 (*session)->lastActivity = rtp_get_system_msec ();
-                /* isDead = TRUE; */
+                isDead = TRUE;
             }
         }
         break;
@@ -748,4 +748,4 @@ PFBYTE rtsmb_srv_net_get_broadcast_ip (void)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
+

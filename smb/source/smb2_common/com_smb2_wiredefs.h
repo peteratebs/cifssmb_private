@@ -98,6 +98,7 @@
 
 #define SMB_STATUS_ACCOUNT_RESTRICTION          0xC000006E /* The client request to the server contains an invalid UID value. */
 
+
 #define SMB2_STATUS_BUFFER_OVERFLOW             0x80000005 /* The data was too large to fit into the specified buffer. */
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
 #define SMB2_STATUS_STOPPED_ON_SYMLINK          0x8000002D /* The create operation stopped after reaching a symbolic link. */
@@ -192,7 +193,14 @@
 #define SMB2_DIR_ACCESS_MASK_GENERIC_WRITE          0x40000000   /* ** This value indicates a request for the following access flags listed above: FILE_ADD_FILE| FILE_ADD_SUBDIRECTORY| FILE_WRITE_ATTRIBUTES| FILE_WRITE_EA| SYNCHRONIZE| READ_CONTROL. */
 #define SMB2_DIR_ACCESS_MASK_GENERIC_READ           0x80000000   /* ** This value indicates a request for the following access flags listed above: FILE_LIST_DIRECTORY| FILE_READ_ATTRIBUTES| FILE_READ_EA| SYNCHRONIZE| READ_CONTROL. */
 
+// GET/SET INFO
+#define SMB2_0_INFO_FILE       0x01
+#define SMB2_0_INFO_FILESYSTEM 0x02
+#define SMB2_0_INFO_SECURITY   0x03
+#define SMB2_0_INFO_QUOTA      0x04
 
+
+#define SMB2_0_FileRenameInformation       0x0a
 
 
 //============================================================================
@@ -566,7 +574,7 @@ PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_WRITE_C
 {
     word    StructureSize; // 49
-	dword   DataOffset;
+	word    DataOffset;
 	dword   Length;
 	ddword  Offset;
 	byte    FileId[16];
@@ -857,6 +865,18 @@ PACK_PRAGMA_POP
 typedef RTSMB2_SET_INFO_C RTSMB_FAR *PRTSMB2_SET_INFO_C;
 
 PACK_PRAGMA_ONE
+typedef struct s_FILE_RENAME_INFORMATION_TYPE_2
+{
+	byte    ReplaceIfExists;
+	byte    Reserved[7];
+	ddword  RootDirectory;
+	dword   FileNameLength;  // Bytes
+    byte    Buffer[1];
+} PACK_ATTRIBUTE FILE_RENAME_INFORMATION_TYPE_2;
+PACK_PRAGMA_POP
+typedef RTSMB2_SET_INFO_C RTSMB_FAR *PRTSMB2_SET_INFO_C;
+
+PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_SET_INFO_R
 {
     word    StructureSize; // 2
@@ -932,8 +952,70 @@ typedef struct s_MSFSCC_FILE_FS_SIZE_INFO
 } MSFSCC_FILE_FS_SIZE_INFO;
 PACK_PRAGMA_POP
 
+PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_FULL_DIRECTORY_INFO
+{
+	dword file_index;
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword low_allocation_size;
+	dword high_allocation_size;
+	dword extended_file_attributes;
+	dword filename_size;
+	dword ea_size;
+    // byte    Buffer;
+} MSFSCC_FULL_DIRECTORY_INFO;
+PACK_PRAGMA_POP
 
 
+// See ms-fscc page 98
+PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_ALL_DIRECTORY_INFO
+{
+// BasicInformation (40 bytes): A FILE_BASIC_INFORMATION structure specified in section 2.4.7.
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword extended_file_attributes;
+	dword resered_dw;
+// StandardInformation (24 bytes): A FILE_STANDARD_INFORMATION structure specified in section 2.4.38.
+	dword low_allocation_size;
+	dword high_allocation_size;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword number_of_links;
+	byte  delete_pending;
+	byte  is_directory;
+	word  reserved;
+// InternalInformation (8 bytes): A FILE_INTERNAL_INFORMATION structure specified in section 2.4.20.
+    ddword IndexNumber; // (8 bytes): A 64-bit signed integer that contains the 8-byte file reference number for the file. This number MUST be assigned by the file system and is unique to the volume on which the file or directory is located. This file reference number is the same as the file reference number that is stored in the FileId field of the FILE_ID_BOTH_DIR_INFORMATION and
+// EaInformation (4 bytes): A FILE_EA_INFORMATION structure specified in section 2.4.12.
+    dword EaSize; //  (4 bytes): A 32-bit unsigned integer that contains the combined length, in bytes, of the extended attributes (EA) for the file
+// AccessInformation (4 bytes): A FILE_ACCESS_INFORMATION structure specified in section 2.4.1.
+    ddword AccessFlags; // (4 bytes): A 32-bit unsigned integer that MUST contain values specified in [MS-SMB2] section 2.2.13.1.
+// PositionInformation (8 bytes): A FILE_POSITION_INFORMATION structure specified in section 2.4.32.
+    dword CurrentByteOffset; // Not sure about this (8 bytes):
+// ModeInformation (4 bytes): A FILE_MODE_INFORMATION structure specified in section 2.4.24.
+    dword Mode;   // (4 bytes): A 32-bit unsigned integer that specifies how the file will subsequently be accessed
+// AlignmentInformation (4 bytes): A FILE_ALIGNMENT_INFORMATION structure specified 2.4.3
+    dword AlignmentRequirement; //  (4 bytes):  FILE_BYTE_ALIGNMENT 0x00000000 If this value is specified, there are no alignment requirements for the device.
+    dword FileNameLength; //
+    // Filename
+} MSFSCC_ALL_DIRECTORY_INFO;
+PACK_PRAGMA_POP
 
 
 

@@ -72,6 +72,7 @@ extern BBOOL Proc_smb2_Flush(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Read(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Write(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Lock(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream);
 
 
 
@@ -86,7 +87,6 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
 
 static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream){return FALSE;}
 static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream){return FALSE;}
 static void DebugOutputSMB2Command(int command);
 
@@ -1435,7 +1435,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 						access = pResource->permission;
 					else
 					{
-						pOutHdr->status = SMBU_MakeError (SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);   // Commented out
+						pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_BADPW);   // Commented out
 					}
 					break;
 				case AUTH_USER_MODE:

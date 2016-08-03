@@ -31,22 +31,25 @@
 #include "srvutil.h"
 #include "srvauth.h"
 #include "smbdebug.h"
+#include "rtpmem.h"
 
 
 typedef struct s_RTSMB2_FILEIOARGS_C
 {
-PTREE pTree;
-int fid;
-word fidflags=0;
-byte externalFidRaw[16];
-word externalFid;
+  PTREE pTree;
+  int fid;
+  word fidflags;
+  byte externalFidRaw[16];
+  word externalFid;
 } RTSMB2_FILEIOARGS;
 
 
-BBOOL Proc_smb2_Close(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID command, PFVOID Fileid,int command_size)
+BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID command, PFVOID pcommand_structure_Fileid,word *pcommand_structure_size, word command_size)
 {
+    tc_memset(pargs, 0, sizeof(*pargs));
     ASSERT_SMB2_UID(pStream)   // Returns TRUE if the UID is not valid
     ASSERT_SMB2_TID (pStream)  // Returns TRUE if the TID is not valid
+
 
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, command);
@@ -58,7 +61,7 @@ BBOOL Proc_smb2_Close(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID co
         return TRUE;
     }
 
-    if (command.StructureSize != command_size)
+    if (*pcommand_structure_size != command_size)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_filieio:  StructureSize invalid...\n",0);
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
@@ -66,60 +69,58 @@ BBOOL Proc_smb2_Close(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID co
     }
 
     pargs->pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
-    tc_memcpy(pargs->externalFidRaw,FileId, 16);
+    tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
     pargs->externalFid = *((word *) &pargs->externalFidRaw[0]);
 
     if (pargs->externalFid == 0xffff)
     {
       printf("Close, exfd == 0xffff why ?\n");
-      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+      pargs->fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
       pargs->fid = -1;
     }
     else
     {
-printf("Call assert ex: %X \n",externalFid);
+printf("Call assert ex: %X \n",pargs->externalFid);
       // Set the status to success
       ASSERT_SMB2_FID(pStream,pargs->externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
 printf("Back assert\n");
-      pargs->fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, pargs->externalFid, FID_FLAG_ALL, &fidflags);
+      pargs->fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, pargs->externalFid, FID_FLAG_ALL, &pargs->fidflags,0);
     }
-    return false;
+    return FALSE;
 }
 
 
 
 BBOOL Proc_smb2_Flush(smb2_stream  *pStream)
 {
-RTSMB2_FLUSH_C command;
-RTSMB2_FLUSH_R response;
+RTSMB2_FLUSH_C command;   //  StructureSize;  24
+RTSMB2_FLUSH_R response;   //  StructureSize;  4
+RTSMB2_FILEIOARGS fileioargs;
 
-typedef struct s_RTSMB2_FLUSH_C
-{
-    word  StructureSize; // 24
-	word  Reserved1;
-	dword Reserved2;
-	byte  FileId[16];
-} PACK_ATTRIBUTE RTSMB2_FLUSH_C;
-PACK_PRAGMA_POP
-typedef RTSMB2_FLUSH_C RTSMB_FAR *PRTSMB2_FLUSH_C;
-
-PACK_PRAGMA_ONE
-typedef struct s_RTSMB2_FLUSH_R
-{
-    word  StructureSize; // 4
-	word  Reserved;
-} PACK_ATTRIBUTE RTSMB2_FLUSH_R;
-PACK_PRAGMA_POP
-typedef RTSMB2_FLUSH_R RTSMB_FAR *PRTSMB2_FLUSH_R;
-
+    tc_memset(&response,0, sizeof(response));
+    tc_memset(&command,0, sizeof(command));
+    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
+    {
+      return TRUE;
+    }
+    // HEREHERE Flush command.fid;
+    // Set the status to success
+    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+    response.StructureSize = 4;
+    /* Success - see above if the client asked for stats */
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+    return TRUE;
 
 return FALSE;
 }
 BBOOL Proc_smb2_Read(smb2_stream  *pStream)
 {
-RTSMB2_READ_C command;
-RTSMB2_READ_R response;
-
+RTSMB2_READ_C command;        //  StructureSize; 49
+RTSMB2_READ_R response;       //  17
+RTSMB2_FILEIOARGS fileioargs;
+dword toRead;
+long bytesRead;
+#if(0)
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_READ_C
 {
@@ -152,18 +153,69 @@ typedef struct s_RTSMB2_READ_R
 } PACK_ATTRIBUTE RTSMB2_READ_R;
 PACK_PRAGMA_POP
 typedef RTSMB2_READ_R RTSMB_FAR *PRTSMB2_READ_R;
+RTSMB2_FILEIOARGS fileioargs;
+#endif
+    tc_memset(&response,0, sizeof(response));
+    tc_memset(&command,0, sizeof(command));
+    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,49))
+    {
+      return TRUE;
+    }
 
 
+    // HEREHERE Flush command.fid;
 
-return FALSE;
+    pStream->WriteBufferParms[0].byte_count = pStream->psmb2Session->Connection->MaxReadSize;
+    pStream->WriteBufferParms[0].pBuffer = rtp_malloc(pStream->psmb2Session->Connection->MaxReadSize);
+
+
+    // Set the status to success
+    // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+
+     toRead = (dword) MIN (pStream->psmb2Session->pSmbCtx->tmpSize, command.Length);
+    // note: command.Flags &0x01 == unbuffered;
+    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
+    {
+       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
+       return TRUE;
+    }
+    else if ((bytesRead = SMBFIO_Read (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->WriteBufferParms[0].pBuffer, toRead)) < 0)
+    {
+       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
+       return TRUE;
+    }
+	if (bytesRead < command.MinimumCount)
+    {
+       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
+       return TRUE;
+    }
+
+    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+    response.StructureSize  = 17;
+	response.DataOffset     = sizeof(RTSMB2_HEADER) + 16;
+	response.DataLength     = bytesRead;
+	response.DataRemaining  = 0;
+
+    pStream->WriteBufferParms[0].byte_count = bytesRead;
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+free_and_out:
+    RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
+    return TRUE;
 }
 BBOOL Proc_smb2_Write(smb2_stream  *pStream)
 {
 RTSMB2_WRITE_C command;
 RTSMB2_WRITE_R response;
+RTSMB2_FILEIOARGS fileioargs;
+long bytesWritten;
+
 #define SMB2_WRITEFLAG_WRITE_THROUGH 0x00000001
 #define SMB2_WRITEFLAG_WRITE_UNBUFFERED 0x00000002
 
+#if(0)
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_WRITE_C
 {
@@ -181,7 +233,6 @@ typedef struct s_RTSMB2_WRITE_C
 } PACK_ATTRIBUTE RTSMB2_WRITE_C;
 PACK_PRAGMA_POP
 typedef RTSMB2_WRITE_C RTSMB_FAR *PRTSMB2_WRITE_C;
-
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_WRITE_R
 {
@@ -194,13 +245,58 @@ typedef struct s_RTSMB2_WRITE_R
 } PACK_ATTRIBUTE RTSMB2_WRITE_R;
 PACK_PRAGMA_POP
 typedef RTSMB2_WRITE_R RTSMB_FAR *PRTSMB2_WRITE_R;
-return FALSE;
+#endif
+    tc_memset(&response,0, sizeof(response));
+    tc_memset(&command,0, sizeof(command));
+
+    pStream->ReadBufferParms[0].byte_count = pStream->psmb2Session->Connection->MaxWriteSize;
+    pStream->ReadBufferParms[0].pBuffer = rtp_malloc(pStream->psmb2Session->Connection->MaxWriteSize);
+
+    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,49))
+    {
+      goto free_and_out;
+    }
+printf("Writing %ld bytes\n", command.Length);
+    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
+    {
+       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
+       goto free_and_out;
+    }
+    else if ((bytesWritten = SMBFIO_Write(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->ReadBufferParms[0].pBuffer, command.Length)) < 0)
+    {
+       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
+       goto free_and_out;
+    }
+    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+    response.StructureSize = 17;
+	response.Count = bytesWritten;
+printf("Success writing %ld bytes\n", bytesWritten);
+    /* Success - see above if the client asked for stats */
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+free_and_out:
+    RTP_FREE(pStream->ReadBufferParms[0].pBuffer);
+    return TRUE;
 }
 BBOOL Proc_smb2_Lock(smb2_stream  *pStream)
 {
-//RTSMB2_READ_C command;
-//RTSMB2_READ_R response;
-return FALSE;
+#if (0)
+    tc_memset(&response,0, sizeof(response));
+    tc_memset(&command,0, sizeof(command));
+    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, PFVOID (&command.Fileid[0]),49))
+    {
+      return TRUE;
+    }
+    // HEREHERE Flush command.fid;
+
+    // Set the status to success
+    // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+    response.StructureSize = 17;
+    /* Success - see above if the client asked for stats */
+    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+#endif
+    return TRUE;
 }
 #if (0)
 
@@ -209,7 +305,6 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 	RTSMB2_CLOSE_C command;
 	RTSMB2_CLOSE_R response;
     SMBFSTAT stat;
-    word fidflags=0;
     int fid;
     dword r;
     word externalFid;
@@ -256,7 +351,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     if (externalFid == 0xffff)
     {
       printf("Close, exfd == 0xffff why ?\n");
-      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+      pargs->fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
       fid = -1;
     }
     else
@@ -266,7 +361,7 @@ printf("Call assert ex: %X \n",externalFid);
       // Set the status to success
       ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
 printf("Back assert\n");
-      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags);
+      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags,0);
     }
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
@@ -327,7 +422,7 @@ printf("Close asked for stat but we can not give them yet\n");
     }
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
 
-        // Set the status to success
+    // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize = 60;
     /* Success - see above if the client asked for stats */
@@ -338,5 +433,4 @@ printf("Close asked for stat but we can not give them yet\n");
 
 #endif
 #endif
-
 

@@ -84,10 +84,27 @@ void rtsmb_main (void)
 
 
 
-int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
+volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
+
+#include<signal.h>
+// #include <unistd.h>
+
+void sig_handler(int signo)
+{
+  if (signo == SIGINT)
+  {
+    printf("received SIGINT\n");
+    go = 0;
+  }
+}
+
 int smbservermain ()
 {
 	go = 1;
+
+    // Control C handler for setting go = 0
+    signal(SIGINT, sig_handler);
+
  	if (rtp_net_init () < 0)
 	{
 		return -1;

@@ -87,6 +87,8 @@
 #define RTSMB_ASSERT(X)
 #endif /* WIN32 */
 
+#define RTP_FREE(B) {printf("call freeon %X:  %s:%ld\n", B, __FILE__, __LINE__); rtp_free(B); }
+
 #define PADD(p, n) ((PFVOID) (((RTP_ADDR) (p)) + ((RTP_ADDR) (n))))
 #define PDIFF(p, q) (RTP_ADDR)((RTP_ADDR) (p) - (RTP_ADDR) (q))
 

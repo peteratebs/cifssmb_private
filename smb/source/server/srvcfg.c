@@ -60,7 +60,7 @@
  * If the server is at maximum, new session requests will be denied.
  */
 #ifndef CFG_RTSMB_MAX_SESSIONS
-#define CFG_RTSMB_MAX_SESSIONS              4
+#define CFG_RTSMB_MAX_SESSIONS              8
 #endif
 
 /**

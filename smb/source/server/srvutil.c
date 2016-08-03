@@ -35,6 +35,9 @@
 #include "smbutil.h"
 #include "smbpack.h"
 #include "srvipcfile.h"
+#ifdef SUPPORT_SMB2
+#include "com_smb2_wiredefs.h"
+#endif
 
 #if (INCLUDE_RTSMB_ENCRYPTION)
 #include "smb_md4.h"
@@ -101,18 +104,84 @@ void SMBU_FillNtError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, dword errorC
 	}
 }
 
-dword SMBU_MakeError (byte errorClass, word errorCode)
+dword SMBU_MakeError (PSMB_SESSIONCTX pCtx, byte errorClass, word errorCode)
 {
-	dword error = 0;
-	error |= ((dword)errorCode) << 16;
-	error |= ((dword)errorClass);
-	return error;
+  dword error = 0;
+#ifdef SUPPORT_SMB2
+  if (pCtx && pCtx->pCtxtsmb2Session)
+  {
+    if (errorClass == SMB_EC_ERRDOS)
+    {
+      switch (errorCode) {
+       case SMB_ERRDOS_BADACCESS:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       case SMB_ERRDOS_BADFID:
+         return SMB2_STATUS_INVALID_HANDLE;
+       case SMB_ERRDOS_BADFILE:
+         return SMB2_STATUS_OBJECT_NAME_NOT_FOUND;
+       case SMB_ERRDOS_BADPATH:
+         return SMB2_STATUS_OBJECT_PATH_NOT_FOUND;
+       case SMB_ERRDOS_DIFFDEVICE:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       case SMB_ERRDOS_FILEEXISTS:
+         return SMB2_STATUS_OBJECT_NAME_COLLISION;
+       case SMB_ERRDOS_NOACCESS:
+         return SMB2_STATUS_ACCESS_DENIED;
+       case SMB_ERRDOS_NOFIDS:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       case SMB_ERRDOS_REMCD:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       }
+    }
+    else if (errorClass == SMB_EC_ERRSRV)
+    {
+      switch (errorCode) {
+       case SMB_ERRSRV_ACCESS:
+       case SMB_ERRSRV_BADPW:
+       case SMB_ERRSRV_BADUID:
+           return SMB2_STATUS_ACCESS_DENIED;
+       case SMB_ERRSRV_ERROR:
+       case SMB_ERRSRV_INVDEVICE:
+       case SMB_ERRSRV_INVNETNAME:
+       case SMB_ERRSRV_INVNID:
+       case SMB_ERRSRV_NOSUPPORT:
+       case SMB_ERRSRV_SMBCMD:
+       case SMB_ERRSRV_SRVERROR:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       case SMB_ERRSRV_TOOMANYUIDS:
+         return SMB2_STATUS_SMB_TOO_MANY_GUIDS_REQUESTED;
+       case SMB_ERRSRV_USESTD:
+         return SMB2_STATUS_UNSUCCESSFUL;
+       }
+     }
+     else if (errorClass == SMB_EC_ERRHRD)
+     {
+       switch (errorCode) {
+        case SMB_ERRHRD_GENERAL:
+        case SMB_ERRHRD_READ:
+        case SMB_ERRHRD_SEEK:
+        case SMB_ERRHRD_WRITE:
+          return SMB2_STATUS_UNSUCCESSFUL;
+       }
+      }
+      else
+      {
+         return SMB2_STATUS_UNSUCCESSFUL;
+      }
+  }
+  else
+#endif
+  {
+    error |= ((dword)errorCode) << 16;
+    error |= ((dword)errorClass);
+  }
+  return error;
 }
 void SMBU_FillError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, byte errorClass, word errorCode)
 {
 	int size;
 
-	pOutHdr->status = SMBU_MakeError (errorClass, errorCode);
+	pOutHdr->status = SMBU_MakeError (pCtx ,errorClass, errorCode);
 
 	size = srv_cmd_fill_header (pCtx->write_origin, pCtx->write_origin,
 		prtsmb_srv_ctx->small_buffer_size, pOutHdr);
@@ -123,9 +192,9 @@ void SMBU_FillError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, byte errorClas
 	}
 }
 
-void SMBU_AddError (PRTSMB_HEADER pHdr, PFVOID buf, byte errorClass, word errorCode)
+void SMBU_AddError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pHdr, PFVOID buf, byte errorClass, word errorCode)
 {
-	pHdr->status = SMBU_MakeError (errorClass, errorCode);
+	pHdr->status = SMBU_MakeError (pCtx, errorClass, errorCode);
 	tc_memset (buf, 0, 3);	/* pretty unsafe, but it is only 3 bytes */
 }
 
@@ -148,7 +217,7 @@ PUSER SMBU_GetUser (PSMB_SESSIONCTX pCtx, word uid)
 // returns -1 if not found
 // returns -2 if found, but not valid
 // flag_mask is a set of bits that the flag value *can* have
-int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags)
+int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags, dword *rsmb2flags)
 {
 	PUSER user;
 
@@ -158,7 +227,8 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
 	if (user == (PUSER)0)
 		return -1;
  printf("SMBU_GetInternalFid 2\n");
-
+    if (rsmb2flags)
+     *rsmb2flags = 0;
 
 #if (HARDWIRED_INCLUDE_DCE)
     {
@@ -199,6 +269,9 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
 			if (rflags) /* IF flags passed retuern the flags value */
 				*rflags = user->fids[external]->flags;
  printf("SMBU_GetInternalFid ok\n");
+           if (rsmb2flags)
+             *rsmb2flags = user->fids[external]->smb2flags;
+
 			return user->fids[external]->internal;
 		}
 		else
@@ -284,7 +357,7 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 // finds free slot and
 // returns external fid associated with this internal one
 // returns -1 if not found
-int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags)
+int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags)
 {
 	PTREE tree;
 	PUSER user;
@@ -353,6 +426,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	pCtx->fids[k].uid = pCtx->uid;
 	pCtx->fids[k].error = 0;
 	pCtx->fids[k].flags = flags;
+	pCtx->fids[k].smb2flags = smb2flags;
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
 

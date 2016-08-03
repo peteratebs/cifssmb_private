@@ -777,7 +777,7 @@ printf("!!!!!!! malloc\n");
           RELEASE_SHARE();
           if (heap_needed > heap_size)
           {
-            rtp_free(*pRheap_data);
+            RTP_FREE(*pRheap_data);
             *pRheap_data = rtp_malloc(heap_needed);
           }
           start = *pRheap_data;
@@ -884,7 +884,7 @@ printf("!!!!!!! malloc\n");
        printf("packet_type  : %d\n",pdce_header->packet_type);
        printf("pdce_header->opnum : %d\n", pdce_header->opnum);
 
-       rtp_free(*pRheap_data);
+       RTP_FREE(*pRheap_data);
        *pRheap_data = 0;
 
        return 0; // Windows clients behave nicer like this is seems.
@@ -892,7 +892,7 @@ printf("!!!!!!! malloc\n");
 printf("!!!!!!! DONE rval == %d\n", rval);
      if (rval == -1)
      {
-       rtp_free(*pRheap_data);
+       RTP_FREE(*pRheap_data);
        *pRheap_data = 0;
      }
 

@@ -90,7 +90,7 @@ byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size  buffer_size
 }
 void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
 {
-    rtp_free (buffer);;
+    RTP_FREE(buffer);
 }
 
 void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *pBuffer)

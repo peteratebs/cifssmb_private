@@ -76,6 +76,9 @@ typedef struct fid_s
     word external;
 
     word flags;
+#define SMB2FIDSIG 0x11000000
+#define SMB2DELONCLOSE SMB2FIDSIG|0x01
+    dword smb2flags;
 
     word tid;       /* owning tree */
     word uid;       /* owning user */

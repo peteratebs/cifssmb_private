@@ -101,18 +101,142 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
         return TRUE;
     }
 
-#define SMB2_0_INFO_FILE       0x01
-#define SMB2_0_INFO_FILESYSTEM 0x02
-#define SMB2_0_INFO_SECURITY   0x03
-#define SMB2_0_INFO_QUOTA      0x04
-
 #define SMB2_FS_INFO_01        0x01
 #define SMB2_FS_INFO_FSIZE     0x03  // Size
 #define SMB2_FS_INFO_05        0x05
+#define SMB2_FILE_INFO_ALL       0x12
+#define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
 
     pStream->WriteBufferParms[0].byte_count = 0;
     printf("Proc_smb2_QueryInfo: Got infotyp == %X\n", command.InfoType);
-    if (command.InfoType == SMB2_0_INFO_FILESYSTEM)
+    if (command.InfoType == SMB2_0_INFO_FILE)
+    {
+      SMBFSTAT stat;
+      switch (command.FileInfoClass) {
+       case SMB2_FILE_INFO_ALL: // 0x12
+       {
+         int file_name_len_bytes;
+         MSFSCC_ALL_DIRECTORY_INFO *pInfo;
+         BBOOL worked;
+//         SMBDSTAT stat;
+         SMBFSTAT stat;
+         PFRTCHAR filepath;
+         PFRTCHAR filename;
+
+         word externalFid = *((word *) &command.FileId[0]);
+         filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
+         if(worked == FALSE)
+         {
+           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+           return TRUE;
+         }
+         filename = SMBU_GetFilename (filepath);
+         file_name_len_bytes = (rtsmb_len (filename)+1)*sizeof(rtsmb_char);
+
+printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+printf("File size == %ld \n", stat.f_size);
+printf("file_name_len_bytes == %ld \n", file_name_len_bytes);
+printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+
+         pInfo = rtp_malloc(sizeof(*pInfo)+file_name_len_bytes);
+         pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_ALL_DIRECTORY_INFO)+file_name_len_bytes;
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+
+
+         pInfo->low_last_access_time = stat.f_atime64.low_time;
+         pInfo->high_last_access_time = stat.f_atime64.high_time;
+         pInfo->low_creation_time = stat.f_ctime64.low_time;
+         pInfo->high_creation_time = stat.f_ctime64.high_time;
+         pInfo->low_last_write_time = stat.f_wtime64.low_time;
+         pInfo->high_last_write_time = stat.f_wtime64.high_time;
+         pInfo->low_change_time = stat.f_htime64.low_time;
+         pInfo->high_change_time = stat.f_htime64.high_time;
+         pInfo->low_end_of_file = stat.f_size;
+         pInfo->high_end_of_file = 0;
+         pInfo->low_allocation_size = stat.f_size;
+         pInfo->high_allocation_size = 0;
+         pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+//         pInfo->filename_size = file_name_len_bytes/sizeof(rtsmb_char);       // dword filename_size;
+//         pInfo->ea_size = 0;       // dword ea_size;
+         pInfo->number_of_links = 0;
+         pInfo->delete_pending = 0;
+         pInfo->is_directory = 0;
+         pInfo->IndexNumber = 0;
+         pInfo->EaSize = 0;
+         pInfo->is_directory =  pInfo->extended_file_attributes&SMB_FA_D?1:0;
+//         pInfo->is_directory =  |= SMB_FA_D; (stat.fattributes & RTP_FILE_ATTRIB_ISDIR)?1:0;
+         if (pInfo->is_directory)
+            pInfo->AccessFlags =             // AccessInformation (4 bytes): A FILE_ACCESS_INFORMATION structure specified in section 2.4.1.
+              SMB2_DIR_ACCESS_MASK_FILE_LIST_DIRECTORY|
+              SMB2_DIR_ACCESS_MASK_FILE_ADD_FILE|
+              SMB2_DIR_ACCESS_MASK_FILE_ADD_SUBDIRECTORY|
+              SMB2_DIR_ACCESS_MASK_FILE_TRAVERSE|
+              SMB2_DIR_ACCESS_MASK_FILE_DELETE_CHILD|
+              SMB2_DIR_ACCESS_MASK_FILE_READ_ATTRIBUTES|
+              SMB2_DIR_ACCESS_MASK_FILE_WRITE_ATTRIBUTES|
+              SMB2_DIR_ACCESS_MASK_DELETE;
+         else
+            pInfo->AccessFlags =             // AccessInformation (4 bytes): A FILE_ACCESS_INFORMATION structure specified in section 2.4.1.
+              SMB2_DIR_ACCESS_MASK_FILE_READ_ATTRIBUTES|
+              SMB2_DIR_ACCESS_MASK_FILE_WRITE_ATTRIBUTES|
+              SMB2_DIR_ACCESS_MASK_DELETE|
+              SMB2_DIR_ACCESS_MASK_GENERIC_EXECUTE|
+              SMB2_DIR_ACCESS_MASK_GENERIC_WRITE|
+              SMB2_DIR_ACCESS_MASK_GENERIC_READ;
+
+         pInfo->CurrentByteOffset = 0;      //
+         pInfo->Mode = 0;      //
+         pInfo->AlignmentRequirement = 0;            //
+         pInfo->FileNameLength = file_name_len_bytes;
+         pInfo += 1;
+         tc_memcpy(pInfo, filename, file_name_len_bytes);
+       }
+       break;
+       case SMB2_FILE_INFO_FULL: // Does not exist
+       {
+         int file_name_len_bytes;
+         MSFSCC_FULL_DIRECTORY_INFO *pInfo;
+         BBOOL worked;
+         SMBDSTAT stat;
+         word externalFid = *((word *) &command.FileId[0]);
+         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
+         if(worked == FALSE)
+         {
+           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+           return TRUE;
+         }
+         file_name_len_bytes = (rtsmb_len (stat.filename)+1)*sizeof(rtsmb_char);
+         pInfo = rtp_malloc(sizeof(MSFSCC_FULL_DIRECTORY_INFO)+file_name_len_bytes);
+         pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FULL_DIRECTORY_INFO)+file_name_len_bytes;
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+
+         pInfo->file_index = 0;       // dword file_index;
+         pInfo->low_last_access_time = stat.fatime64.low_time;
+         pInfo->high_last_access_time = stat.fatime64.high_time;
+         pInfo->low_creation_time = stat.fctime64.low_time;
+         pInfo->high_creation_time = stat.fctime64.high_time;
+         pInfo->low_last_write_time = stat.fwtime64.low_time;
+         pInfo->high_last_write_time = stat.fwtime64.high_time;
+         pInfo->low_change_time = stat.fhtime64.low_time;
+         pInfo->high_change_time = stat.fhtime64.high_time;
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = 0;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = 0;
+         pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.fattributes);
+         pInfo->filename_size = file_name_len_bytes/sizeof(rtsmb_char);       // dword filename_size;
+         pInfo->ea_size = 0;       // dword ea_size;
+         pInfo += 1;
+         tc_memcpy(pInfo, stat.filename, file_name_len_bytes);
+       }
+       default:
+          printf("Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unkown file class == %X\n", command.FileInfoClass);
+         break;
+       break;
+      }
+    }
+    else if (command.InfoType == SMB2_0_INFO_FILESYSTEM)
     {
       BBOOL isFound = FALSE; // did we find a file?
       SMBFSTAT stat;
@@ -154,14 +278,15 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        break;
        default:
           printf("Proc_smb2_QueryInfo: Got unkown file class == %X\n", command.FileInfoClass);
+         break;
       }
     }
     else
     {
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NOT_IMPLEMENTED);
         return TRUE;
-     }
-      printf("Proc_smb2_QueryInfo: Got other infotyp == %X\n", command.InfoType);
+    }
+    printf("Proc_smb2_QueryInfo: Got other infotyp == %X\n", command.InfoType);
 
     response.StructureSize = 9; // 9
     response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
@@ -170,9 +295,9 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
 
     if (pStream->WriteBufferParms[0].pBuffer)
-      rtp_free(pStream->WriteBufferParms[0].pBuffer);
+      RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
     if (pStream->WriteBufferParms[1].pBuffer)
-      rtp_free(pStream->WriteBufferParms[1].pBuffer);
+      RTP_FREE(pStream->WriteBufferParms[1].pBuffer);
 
     return TRUE;
 } // Proc_smb2_QueryInfo
