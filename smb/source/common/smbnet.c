@@ -115,14 +115,12 @@ int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
     if (bytesRead == 0)
     {
         // other side has closed connection
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Connection closed by remote client\n", RTSMB_DEBUG_TYPE_ASCII);
         return -1;
     }
 
     if(bytesRead < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Error in recv\n", RTSMB_DEBUG_TYPE_ASCII);
-        printf("Error Number:%d\n", bytesRead);
+        ; // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Error in recv\n", RTSMB_DEBUG_TYPE_ASCII);
     }
 
     return bytesRead;
@@ -158,7 +156,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
 
     if ((bytesRead = rtsmb_net_read_simple (sock, buf, (int)length)) < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error in rtsmb_net_read_simple.\n", RTSMB_DEBUG_TYPE_ASCII);
+        // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error in rtsmb_net_read_simple.\n", RTSMB_DEBUG_TYPE_ASCII);
         return -1;
     }
 

@@ -196,13 +196,12 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname, word *authId)
 {
     word rv = AUTH_NOACCESS;
-#if (HARDWIRED_INCLUDE_NTLMV2)
     short uid;
     BYTE output[1024];
 
     PUSERDATA user;
 
-
+    rtp_printf("Auth_AuthenticateUser_ntlmv2 is a stack hog\n");
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
     if (user)
@@ -215,7 +214,6 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
         }
     }
     RELEASE_AUTH ();
-#endif
     return rv;
 }
 
@@ -223,7 +221,6 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
 word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYTE lm_response, PFRTCHAR name, PFRTCHAR domainname, word *authId)
 {
     word rv = AUTH_NOACCESS;
-#if (HARDWIRED_INCLUDE_NTLMV2)
     short uid;
     BYTE output24[24];
     PUSERDATA user;
@@ -241,7 +238,6 @@ word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYT
         }
     }
     RELEASE_AUTH ();
-#endif
     return rv;
 }
 

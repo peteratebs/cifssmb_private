@@ -38,6 +38,11 @@
 #include "rtpnet.h"
 #include "rtpthrd.h"
 #include "rtpprint.h"
+#ifdef SUPPORT_SMB2
+#include "com_smb2.h"
+#include "com_smb2_wiredefs.h"
+#include "srv_smb2_model.h"
+#endif
 
 RTSMB_STATIC PNET_THREAD mainThread;
 
@@ -123,7 +128,6 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     /**
      * Move connection to a shiny new port and socket.
      */
-    RTSMB_DEBUG_OUTPUT_STR("about to accept\n", RTSMB_DEBUG_TYPE_ASCII);
     if (rtp_net_accept ((RTP_SOCKET *) &sock,(RTP_SOCKET) net_ssnSock, clientAddr, &clientPort, &ipVersion) < 0)
     {
         RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_net_connection_open: accept error\n", RTSMB_DEBUG_TYPE_ASCII);
@@ -131,22 +135,15 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     }
 
     pNetCtx = allocateSession();
-    RTSMB_DEBUG_OUTPUT_STR("allocateSession back\n", RTSMB_DEBUG_TYPE_ASCII);
 
     if(pNetCtx)
     {
         pNetCtx->sock = sock;
 
-    RTSMB_DEBUG_OUTPUT_STR("SMBS_InitSessionCtx\n", RTSMB_DEBUG_TYPE_ASCII);
         pNetCtx->lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->smbCtx), pNetCtx->sock);
-    RTSMB_DEBUG_OUTPUT_STR("Back SMBS_InitSessionCtx\n", RTSMB_DEBUG_TYPE_ASCII);
 
         SMBS_SetBuffers (&pNetCtx->smbCtx, pThread->inBuffer, prtsmb_srv_ctx->small_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->small_buffer_size, pThread->tmpBuffer, prtsmb_srv_ctx->small_buffer_size);
-
-        RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_connection_open: socket ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_DINT (pNetCtx->sock);
-        RTSMB_DEBUG_OUTPUT_STR (" opened\n", RTSMB_DEBUG_TYPE_ASCII);
 
         return pNetCtx;
     }
@@ -166,12 +163,18 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     }
 }
 
+
 RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
 {
 
-    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_DINT (pSCtx->sock);
-    RTSMB_DEBUG_OUTPUT_STR (" closed\n", RTSMB_DEBUG_TYPE_ASCII);
+//    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ", RTSMB_DEBUG_TYPE_ASCII);
+//    RTSMB_DEBUG_OUTPUT_DINT (pSCtx->sock);
+//    RTSMB_DEBUG_OUTPUT_STR (" closed\n", RTSMB_DEBUG_TYPE_ASCII);
+
+#ifdef SUPPORT_SMB2
+     if (pSCtx->smbCtx.pCtxtsmb2Session)
+       RTSmb2_SessionShutDown(pSCtx->smbCtx.pCtxtsmb2Session);
+#endif
 
     SMBS_CloseSession( &(pSCtx->smbCtx) );
 
@@ -509,7 +512,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
                 RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_session_cycle: Connection timed out on socket ", RTSMB_DEBUG_TYPE_ASCII);
                 RTSMB_DEBUG_OUTPUT_DINT ((*session)->sock);
                 RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_session_cycle: Resetting timer, not killing the socket\n", RTSMB_DEBUG_TYPE_ASCII);
                 (*session)->lastActivity = rtp_get_system_msec ();
                 isDead = TRUE;
             }
@@ -685,7 +687,6 @@ void rtsmb_srv_net_cycle (long timeout)
          */
         else if (readList[i] == net_ssnSock)
         {
-            RTSMB_DEBUG_OUTPUT_STR("A client is requesting a connection.\n", RTSMB_DEBUG_TYPE_ASCII);
             rtsmb_srv_net_thread_new_session (mainThread);
         }
     }
@@ -748,4 +749,3 @@ PFBYTE rtsmb_srv_net_get_broadcast_ip (void)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-

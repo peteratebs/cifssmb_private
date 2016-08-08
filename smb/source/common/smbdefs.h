@@ -22,7 +22,6 @@
 #define HARDWIRED_EXTENDED_SECURITY           1  // Use extended security (SPNEO_) if true and client supports it. Set to zero to authenticate through the NTLM1 method, where the clint sends LM or NTLM1
                                                  // credentials in the setup request
 #define HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE  1  // Set to zero to force the client to reply with NTLM1 resonse not NTLM2 (not ntlmv2, that's different) response. If HARDWIRED_EXTENDED_SECURITY and client requests exended security.
-#define HARDWIRED_INCLUDE_NTLMV2              1  // Set to 1 to check security blobs for LMV2 or NTLMV2 NOt completed
 #define HARDWIRED_DEBUG_ENCRYPTION_KEY        1  // send 0123456789abcde for an encrypion key for easier debugging of hash functions
 #define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  0  // If one force a successful login even though the password checker failed
 #define HARDWIRED_ENCRYPION_KEY_HACK          1  // Must be fixed. Use a global to pass the encryption key between levels in trans.
@@ -87,7 +86,8 @@
 #define RTSMB_ASSERT(X)
 #endif /* WIN32 */
 
-#define RTP_FREE(B) {printf("call freeon %X:  %s:%ld\n", B, __FILE__, __LINE__); rtp_free(B); }
+// #define RTP_FREE(B) {printf("call freeon %X:  %s:%ld\n", B, __FILE__, __LINE__); rtp_free(B); }
+#define RTP_FREE(B) {rtp_free(B);}
 
 #define PADD(p, n) ((PFVOID) (((RTP_ADDR) (p)) + ((RTP_ADDR) (n))))
 #define PDIFF(p, q) (RTP_ADDR)((RTP_ADDR) (p) - (RTP_ADDR) (q))

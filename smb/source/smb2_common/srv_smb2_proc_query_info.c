@@ -68,8 +68,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     word externalFid;
     PTREE pTree;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  YA YA !!...\n",0);
-
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
@@ -108,7 +106,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
 
     pStream->WriteBufferParms[0].byte_count = 0;
-    printf("Proc_smb2_QueryInfo: Got infotyp == %X\n", command.InfoType);
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
       SMBFSTAT stat;
@@ -133,11 +130,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          }
          filename = SMBU_GetFilename (filepath);
          file_name_len_bytes = (rtsmb_len (filename)+1)*sizeof(rtsmb_char);
-
-printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-printf("File size == %ld \n", stat.f_size);
-printf("file_name_len_bytes == %ld \n", file_name_len_bytes);
-printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 
          pInfo = rtp_malloc(sizeof(*pInfo)+file_name_len_bytes);
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_ALL_DIRECTORY_INFO)+file_name_len_bytes;
@@ -231,7 +223,7 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
          tc_memcpy(pInfo, stat.filename, file_name_len_bytes);
        }
        default:
-          printf("Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unkown file class == %X\n", command.FileInfoClass);
+          rtp_printf("Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unkown file class == %X\n", command.FileInfoClass);
          break;
        break;
       }
@@ -241,14 +233,9 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
       BBOOL isFound = FALSE; // did we find a file?
       SMBFSTAT stat;
 
-      printf("Proc_smb2_QueryInfo: Processing SMB2_0_INFO_FILESYSTEM == %X\n", command.InfoType);
 
-      if (!file_name[0])
-         printf("Proc_smb2_QueryInfo: No file name\n");
-      else
+      if (file_name[0])
         isFound = SMBFIO_GFirst (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, stat, file_name);
-
-      printf("Proc_smb2_QueryInfo: SMBFIO_GFirst returned %d\n", isFound);
 
       switch (command.FileInfoClass) {
         case SMB2_FS_INFO_01:
@@ -277,7 +264,7 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
        }
        break;
        default:
-          printf("Proc_smb2_QueryInfo: Got unkown file class == %X\n", command.FileInfoClass);
+          rtp_printf("Proc_smb2_QueryInfo: Got unkown file class == %X\n", command.FileInfoClass);
          break;
       }
     }
@@ -286,8 +273,6 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NOT_IMPLEMENTED);
         return TRUE;
     }
-    printf("Proc_smb2_QueryInfo: Got other infotyp == %X\n", command.InfoType);
-
     response.StructureSize = 9; // 9
     response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
     if (response.OutputBufferLength)

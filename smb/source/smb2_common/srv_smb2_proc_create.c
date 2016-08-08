@@ -117,13 +117,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
+    tc_memset(file_name,0, sizeof(file_name));
+    tc_memset(create_content,0, sizeof(create_content));
 
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 1!!...\n",0);
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 2!!...\n",0);
     ASSERT_SMB2_TID (pStream)  // Returns if the TID is not valid
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 3!!...\n",0);
 
      /* Set up a temporary buffer to hold incoming share name */
     pStream->ReadBufferParms[0].pBuffer = file_name;
@@ -215,17 +214,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
             break;
     }
     // Make sure we have write permission if we are deleting
-printf ("command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
-    if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
-    {
-printf ("Match command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
-
-    }
-    else
-    {
-printf ("no match command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FILE_DELETE_ON_CLOSE);
-
-    }
     if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
       wants_write = TRUE;
     if (wants_read && wants_write)
@@ -272,26 +260,6 @@ printf ("no match command.CreateOptions: %lx op:%lx\n", command.CreateOptions,FI
 //    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
 
-if (pTree->type == ST_PRINTQ)
-{ // Don't open IPCs or printers yet.
-printf("Create: printq, bye\n");
-}
-else if (pTree->type == ST_IPC)
-{
-printf("Create: IPC\n");
-}
-else
-{
-printf("Create: (disk) tree type: %d \n", pTree->type);
-}
-printf("Create: Name length:  %d\n", command.NameLength);
-if (command.NameLength)
-{
-  printf("Create: Filename :[");
-  RTSMB_DEBUG_OUTPUT_STR(file_name, RTSMB_DEBUG_TYPE_UNICODE);
-  printf("]\n");
-}
-
     if (pTree->type == ST_PRINTQ)
     { // Don't open IPCs or printers yet.
       RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
@@ -302,15 +270,8 @@ if (command.NameLength)
     if (command.CreateContextsOffset)
     {
        int decode_r;
-       printf("Processing command.CreateContextsOffset == %d\n",  command.CreateContextsOffset);
        decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
     }
-#if (HARDWIRED_INCLUDE_DCE)
-    if (pTree->type == ST_IPC)
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  YA YA 4 IPC!!...\n",0);
-    }
-#endif
     if (command.NameLength==0)
     { // opening the root of the share
       PFRTCHAR p = (PFRTCHAR) file_name;
@@ -321,16 +282,12 @@ if (command.NameLength)
       TURN_ON(command.FileAttributes, 0x80);
       // Hack, include extra info in stream if no file
       wants_extra_info = TRUE;
-      printf ("Cretae options == %X\n", command.CreateOptions);
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
-      printf ("Open on root returned : %x, external fileid == %ld \n", r, externalFid);
     }
     else
     {
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
-printf("Okay have a name attrib %X %X \n", command.FileAttributes, command.CreateOptions);
-rtsmb_dump_bytes("Proc_smb2_Create opne name: ", file_name, command.NameLength, DUMPUNICODE);
       /* If we have a normal filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
     /* We check if the client is trying to make a directory.  If so, make it   */
       if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
@@ -357,7 +314,6 @@ rtsmb_dump_bytes("Proc_smb2_Create opne name: ", file_name, command.NameLength, 
         return TRUE;
       }
     }
-printf("Okay call create\n");
     if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
     {
        smb2flags = SMB2DELONCLOSE;
@@ -365,40 +321,15 @@ printf("Okay call create\n");
 //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
     }
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
-      printf ("Open on file returned : %x, external fileid == %ld \n", r, externalFid);
     }
     if (r != 0)
     {
-        printf("OpenOrCreate failed r == %x\n", r);
 //        r = SMB_NT_STATUS_NO_SUCH_FILE;
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
     }
 
 
-	// byte  SecurityFlags;              // reserved
-	// command.RequestedOplockLevel;
-	printf("Oplock level %d \n", command.RequestedOplockLevel);
-	printf("ImpersonationLevel %d \n", command.ImpersonationLevel);
-	// byte  SmbCreateFlags[8]; reserved
-	// byte  Reserved[8];
-	printf("DesiredAccess %X\n", command.DesiredAccess);
-	printf("FileAttributes %X\n", command.FileAttributes);
-	printf("ShareAccess %X\n", command.ShareAccess);
-	printf("CreateDisposition %X\n", command.CreateDisposition);
-	printf("CreateOptions %X\n", command.CreateOptions);
-    printf("NameOffset %d\n", command.NameOffset);
-    printf("NameLength %d\n", command.NameLength);
-    printf("CreateContextsOffset %d\n", command.CreateContextsOffset);
-    printf("CreateContextsLength %d\n", command.CreateContextsLength);
-    printf("Filename: :");
-    {int i;
-    for (i=0;i<command.NameLength; i+= 2)
-      printf("%c", (char )file_name[i]);
-    rtp_printf(":\n");
-    }
-
-    printf("Input Tree Id = %ld\n", pStream->InHdr.TreeId);
 
     response.StructureSize = 89;
     response.OplockLevel = 0; // command.RequestedOplockLevel;
@@ -481,7 +412,6 @@ int current_create_context_buffer_length = create_context_buffer_length;
 PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_length);
 
   tc_memset(pdecoded_create_context,0,sizeof(*pdecoded_create_context));
-  printf("decode_create_context_request_values: length : %d\n", create_context_buffer_length);
   while (current_create_context_buffer_length>=RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
   {
     BBOOL is_error_record = FALSE;

@@ -33,7 +33,7 @@
 
 /* Uncomment the below code to enable debug information **/
 #ifndef RTP_DEBUG
-#define RTP_DEBUG 1
+// #define RTP_DEBUG 1
 #endif
 
 /************************************************************************

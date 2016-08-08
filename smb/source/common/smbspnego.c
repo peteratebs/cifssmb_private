@@ -210,6 +210,18 @@ void spnego_init_extended_security(void)
   target_config_unicode.dns_computer_name      =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.dns_computer_name    );
 }
 
+void spnego_free_extended_security(void)
+{
+  if (target_config_unicode.target_name)
+  {
+    RTP_FREE(target_config_unicode.target_name            );
+    RTP_FREE(target_config_unicode.netbios_domain_name    );
+    RTP_FREE(target_config_unicode.netbios_computer_name  );
+    RTP_FREE(target_config_unicode.dns_domain_name        );
+    RTP_FREE(target_config_unicode.dns_computer_name      );
+  }
+}
+
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
 {

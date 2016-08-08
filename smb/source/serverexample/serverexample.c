@@ -81,9 +81,6 @@ void rtsmb_main (void)
 
 
 
-
-
-
 volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 
 #include<signal.h>
@@ -93,7 +90,6 @@ void sig_handler(int signo)
 {
   if (signo == SIGINT)
   {
-    printf("received SIGINT\n");
     go = 0;
   }
 }
@@ -125,8 +121,8 @@ int smbservermain ()
     }
 #endif
 
-    rtp_printf("Using PORT numbers (137 and 138),SMB/SAMBA should not also be running on this device.\n");
-    rtp_printf("type: sudo service stop smbd\n");
+//    rtp_printf("Using PORT numbers (137 and 138),SMB/SAMBA should not also be running on this device.\n");
+//    rtp_printf("type: sudo service stop smbd\n");
     rtsmb_init_port_well_know();
     // See also: rtsmb_init_port_alt();
 
@@ -184,6 +180,9 @@ int smbservermain ()
 
 	//Shutdown
 	rtp_printf("main: shutting down\n");
+#if (HARDWIRED_EXTENDED_SECURITY)
+    spnego_free_extended_security();
+#endif
 
 	rtsmb_srv_shutdown ();
 	rtp_net_exit ();

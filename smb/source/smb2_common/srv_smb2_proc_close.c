@@ -76,29 +76,18 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
     externalFid = *((word *) &command.FileId[0]);
-#if (HARDWIRED_INCLUDE_DCE)
-    if (pTree->type == ST_IPC)
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  YA YA 6 IPC!!...\n",0);
-    }
-#endif
-
 
     if (externalFid == 0xffff)
     {
-      printf("Close, exfd == 0xffff why ?\n");
+      rtp_printf("Close, exfd == 0xffff why ?\n");
       fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
       fid = -1;
     }
     else
     {
-printf("Call assert ex: %X \n",externalFid);
-
       // Set the status to success
       ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
-printf("Back assert\n");
       fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
-printf ("smb2flags: %lX\n", smb2flags);
     }
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
@@ -125,7 +114,6 @@ printf ("smb2flags: %lX\n", smb2flags);
             {
               if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
               {
-                printf("File close, releaseing stat\n");
                 SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[_sid].tid, &user->searches[_sid].stat);
                 user->searches[_sid].inUse=FALSE;
                 break;
@@ -156,7 +144,6 @@ printf("Close asked for stat but we can not give them yet\n");
        }
        if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
        {
-printf ("smb2flags in: %lX\n", smb2flags);
          if (fidflags != FID_FLAG_DIRECTORY)
            SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
          else

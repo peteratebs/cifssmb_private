@@ -281,9 +281,6 @@ int SRVSVC_ProcTransaction (PSMB_SESSIONCTX pCtx,
      return -1;
    // Processing TRANS_TRANSACT_NMPIPE. pTransaction->setup[2] = fid;
    // pInBuf points at PIPE
-   printf("Inside SRVSVC_ProcTransaction TRANS_TRANSACT_NMPIPE FID == %X\n", pTransaction->setup[1]);
-   printf("Inside SRVSVC_ProcTransaction %X\n", pTransaction->setup[1]);
-
    pTransactionR->setup_size = 0;
    pTransactionR->parameter_count = 0;
    pTransactionR->heap_data = 0;
@@ -322,8 +319,6 @@ static int consume_full_dce_pointer(dword *pdata, dword *Referentid, dword *MaxC
   }
   else
   {
-     if (*Referentid != 1)
-       printf("DCE strange referent id :%X\n",*Referentid);
      *MaxCount = *pdata++;
       r = 8;
       if (*MaxCount)
@@ -414,11 +409,9 @@ int i;
 int rval = -1;
 int heap_size = 1024;
 void *start;
-printf("IN SRVSVC_Execute\n");
 
    *reply_status_code = 0;   // No errror
 
-printf("!!!!!!! malloc\n");
     *pRheap_data = rtp_malloc(heap_size);
     pdce_header = (PDCE_HEADER) pTransaction_data;
     rtp_memset(*pRheap_data,0,heap_size);
@@ -734,22 +727,12 @@ printf("!!!!!!! malloc\n");
      dword len;
      dword * pdata = (dword *) (pdce_header + 1);
        pdata = ptralign(pdata, 4);
-        printf("DCE_PACKET_GETSHARE_INFO  Referent id :%X\n",*pdata++);
-        printf("DCE_PACKET_GETSHARE_INFO  max count   :%X\n",*pdata++);
-        printf("DCE_PACKET_GETSHARE_INFO  offset      :%X\n",*pdata++);
         len = *pdata++;
-        printf("DCE_PACKET_GETSHARE_INFO  actual count:%X\n",len);
-        rtsmb_dump_bytes("DCE_PACKET_GETSHARE_INFO unc", pdata, len*2, DUMPUNICODE);
         pdata = (dword *) PADD(pdata,len*2);
         pdata = ptralign(pdata, 4);
-        printf("DCE_PACKET_GETSHARE_INFO  max count   :%X\n",*pdata++);
-        printf("DCE_PACKET_GETSHARE_INFO  offset      :%X\n",*pdata++);
         len = *pdata++;
-        printf("DCE_PACKET_GETSHARE_INFO  actual count:%X\n",len);
-        rtsmb_dump_bytes("DCE_PACKET_GETSHARE_INFO share:", pdata, len*2, DUMPUNICODE);
         pdata = (dword *) PADD(pdata,len*2);
         pdata = ptralign(pdata, 4);
-        printf("DCE_PACKET_GETSHARE_INFO  level        :%X\n",*pdata);
         rval = 0;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_PACKET_ENUM_ALL_SHARES)
@@ -880,16 +863,15 @@ printf("!!!!!!! malloc\n");
      }
      else
      {
-       printf("Unhandled dce\n");
-       printf("packet_type  : %d\n",pdce_header->packet_type);
-       printf("pdce_header->opnum : %d\n", pdce_header->opnum);
+       rtp_printf("Unhandled dce\n");
+       rtp_printf("packet_type  : %d\n",pdce_header->packet_type);
+       rtp_printf("pdce_header->opnum : %d\n", pdce_header->opnum);
 
        RTP_FREE(*pRheap_data);
        *pRheap_data = 0;
 
        return 0; // Windows clients behave nicer like this is seems.
      }
-printf("!!!!!!! DONE rval == %d\n", rval);
      if (rval == -1)
      {
        RTP_FREE(*pRheap_data);

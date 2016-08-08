@@ -50,11 +50,16 @@
 
 #include "rtptime.h"
 
+static pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
+
 // Shared with srvssn.c
 extern void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
 
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
+
+static Smb2SrvModel_Session Smb2Sessions[RTSMB2_CFG_MAX_SESSIONS];
+static Smb2SrvModel_Connection Smb2Connections[RTSMB2_CFG_MAX_CONNECTIONS];
 
 
 /*
@@ -132,7 +137,7 @@ void Smb2SrvModel_Global_Init(void)
 /*
  This function intializes the session context portions that is unique to SMBV2.
 
- This is performed when the server state goes from UNCONNECTED to IDLE after accepting it' first bytes and identifying smbv2
+ This is performed when the server state goes from UNCONNECTED to IDLE after accepting it's first bytes and identifying smbv2
 
     A new smb2 context/session/connection is allocated and a new session ID is generated. The session ID is not returned in the connect reply but it is returned in the
     setup response.
@@ -143,7 +148,7 @@ void Smb2SrvModel_Global_Init(void)
 */
 BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
 {
-    /* NEWNEW Initialize the SMB1 pSmbCtx->uids[i] and pSmbCtx->tree[i] and fid structures */
+    /* Initialize the SMB1 pSmbCtx->uids[i] and pSmbCtx->tree[i] and fid structures */
     SMBS_InitSessionCtx_smb1(pSmbCtx);
     /* Allocate the smb2 session stuff */
     pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
@@ -166,17 +171,6 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
     /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
    pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
    pSmbCtx->isSMB2 = TRUE;
-
-
-    /**
-     * Set some flags to let processing functions know what's going on without
-     * having to pass a lot of info on around on the stack.
-     *
-     * These are the values for the smb being processed.
-     */
-//    pSmbCtx->uid = (word) pSmbCtx->pCtxtsmb2Session.SessionId;  //   ?? is this right ?
-//    dword pid;
-//    word tid;
 
    return TRUE;
 }
@@ -312,6 +306,7 @@ BBOOL r=FALSE;
     return r;
 }
 
+#ifdef SUPPORT_SMB3
 /* See if Session.ChannelList has a channel entry for which Channel.Connection matches the connection on which this request is received */
 pSmb2SrvModel_Channel Smb2SrvModel_Session_Get_ChannelInChannelList(pSmb2SrvModel_Session pSession, pSmb2SrvModel_Connection Connection)
 {
@@ -348,6 +343,7 @@ BBOOL r=FALSE;
     RELEASE_SEMAPHORE
     return r;
 }
+#endif // #ifdef SUPPORT_SMB3
 
 /* MS-SMB2::3.3.4.0 Sending Any Outgoing Message
 
@@ -372,38 +368,48 @@ void Smb2SrvModel_Global_Stats_Error_Update(void)
 
 }
 
-pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
+
+
+static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 {
     // TBD
     int i;
-    static Smb2SrvModel_Session TestSessions[16];
-    for (i = 0; i < (int)(sizeof(TestSessions)/sizeof(TestSessions[0])); i++)
+    for (i = 0; i < (int)(sizeof(Smb2Sessions)/sizeof(Smb2Sessions[0])); i++)
     {
-        if (!TestSessions[i].RTSMBisAllocated)
+        if (!Smb2Sessions[i].RTSMBisAllocated)
         {
-            MEMCLEAROBJ(TestSessions[i]);
-            TestSessions[i].SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
-            TestSessions[i].RTSMBisAllocated=TRUE;
-            TestSessions[i].pSmbCtx = pSmbCtx;
-            return &TestSessions[i];
+            MEMCLEAROBJ(Smb2Sessions[i]);
+            Smb2Sessions[i].SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
+            Smb2Sessions[i].RTSMBisAllocated=TRUE;
+            Smb2Sessions[i].pSmbCtx = pSmbCtx;
+            return &Smb2Sessions[i];
         }
     }
     rtp_printf("Leak: - Force session aloc\n");
-    return &TestSessions[i];
-    return 0;
+    return &Smb2Sessions[0];
 }
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
+    if (pSession->Connection) pSession->RTSMBisAllocated = FALSE;
     pSession->RTSMBisAllocated=FALSE;
 }
 
 pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void)
 {
     // TBD
-    static Smb2SrvModel_Connection TestConnection;
-    MEMCLEAROBJ(TestConnection);
-    return &TestConnection;
+    int i;
+    for (i = 0; i < (int)(sizeof(Smb2Connections)/sizeof(Smb2Connections[0])); i++)
+    {
+        if (!Smb2Connections[i].RTSMBisAllocated)
+        {
+          MEMCLEAROBJ(Smb2Connections[i]);
+          Smb2Connections[i].RTSMBisAllocated = TRUE;
+          return &Smb2Connections[i];
+        }
+    }
+    return 0;
 }
+#ifdef SUPPORT_SMB3
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection)
 {
     // TBD
@@ -412,6 +418,7 @@ pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connecti
     TestChannel.Connection = Connection;
     return &TestChannel;
 }
+#endif
 
 
 #endif /* INCLUDE_RTSMB_SERVER */

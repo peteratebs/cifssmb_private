@@ -277,7 +277,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
           }
           if (SkipCount > smb2stream.read_buffer_remaining)
           {
-             printf("SMBS_ProcSMB2_Body: Bad Compound request:\n");
+             rtp_printf("SMBS_ProcSMB2_Body: Bad Compound request:\n");
           }
           else
           {
@@ -309,7 +309,7 @@ unsigned int SkipCount;
     SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
     if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
     {
-      printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
+      rtp_printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
       return FALSE;
     }
     else
@@ -945,7 +945,7 @@ static byte spnego_blob_buffer[512];
             }
 #endif
             spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->psmb2Session->pSmbCtx->encryptionKey);
-            printf("Sending spnego type 2 challenge \n");
+            rtp_printf("Sending spnego type 2 challenge \n");
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 0;
@@ -959,21 +959,20 @@ static byte spnego_blob_buffer[512];
           if (NegTokenTargDecodeResult == 0)
           {
             extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
-            printf("Tested response, access == %u \n",extended_access);
           }
           spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
 
           if (extended_access==AUTH_NOACCESS)
           {
             // Force the buffer to zero this will close the session and shut down the socket
-            printf("!!!! Auth failed, No access !!!! \n");
+            rtp_printf("!!!! Auth failed, No access !!!! \n");
             pStream->WriteBufferParms[0].pBuffer = 0;
             status=SMB2_STATUS_ACCESS_DENIED;
           }
           else
           {
             spnego_blob_size=spnego_encode_ntlm2_type3_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer));
-            printf("Sending spnego type 3 response size == %d \n",spnego_blob_size);
+            rtp_printf("Sending spnego type 3 response size == %d \n",spnego_blob_size);
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 1;
@@ -1249,7 +1248,6 @@ static byte spnego_blob_buffer[512];
             */
             if (more_processing_required)
             {
-                printf("Set more processing in staruct at %X\n", &pStream->OutHdr);
                 pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_MORE_PROCESSING_REQUIRED;
                 if (Connection3XXDIALECT)
                 {
@@ -1260,7 +1258,7 @@ static byte spnego_blob_buffer[512];
     } // if (send_next_token==TRUE)
     if (reject)
     {
-        printf("!!!! Auth setting reject status !!!! \n");
+        rtp_printf("!!!! Auth setting reject status !!!! \n");
 		RtsmbWriteSrvStatus (pStream, reject_status);
         pStream->doSessionClose = TRUE;
     }
@@ -1422,7 +1420,6 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 
             access = SECURITY_READWRITE;
 #else
-printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 			/**
 			 * We first see what mode the server was in when the user logged in.
 			 * This will let us know how to get access info.
@@ -1476,9 +1473,6 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				        response.MaximalAccess          =   SMB2_FPP_ACCESS_MASK_FILE_READ_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA;
-                        //response.MaximalAccess          =   0x001f01ff;
-printf("test Patch  response.MaximalAccess to 0x1f00a9\n");
-                        // response.MaximalAccess          =   0x1f00a9;
                     }
 				    externaltid = (word) (((int) (tree)) & 0xFFFF);
 				    pStream->OutHdr.TreeId = (dword) externaltid;
@@ -1641,6 +1635,7 @@ const char *DebugSMB2CommandToString(int command);
 
 static void DebugOutputSMB2Command(int command)
 {
+    return;
 #ifdef RTSMB_DEBUG
 char tmpBuffer[32];
     char* buffer = tmpBuffer;

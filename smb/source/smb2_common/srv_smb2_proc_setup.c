@@ -112,7 +112,6 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
       else
       {
         pStreamSession = pStream->psmb2Session = pSmb2Session;
-        printf("Force send_next_token\n");
         finish=send_next_token=TRUE;
       }
     }
@@ -306,6 +305,7 @@ static byte spnego_blob_buffer[512];
 #if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
             static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
 //           tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
+            rtp_printf("Sending hardwired type 2 key \n");
             tc_memcpy (&pStream->psmb2Session->pSmbCtx->encryptionKey[0], b, 8);
 #else
             for (i = 0; i < 4; i++)
@@ -315,7 +315,6 @@ static byte spnego_blob_buffer[512];
             }
 #endif
             spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->psmb2Session->pSmbCtx->encryptionKey);
-            printf("Sending spnego type 2 challenge \n");
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 0;
@@ -329,21 +328,19 @@ static byte spnego_blob_buffer[512];
           if (NegTokenTargDecodeResult == 0)
           {
             extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
-            printf("Tested response, access == %u \n",extended_access);
           }
           spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
 
           if (extended_access==AUTH_NOACCESS)
           {
             // Force the buffer to zero this will close the session and shut down the socket
-            printf("!!!! Auth failed, No access !!!! \n");
+            rtp_printf("!!!! spnego Auth failed, No access !!!! \n");
             pStream->WriteBufferParms[0].pBuffer = 0;
             status=SMB2_STATUS_ACCESS_DENIED;
           }
           else
           {
             spnego_blob_size=spnego_encode_ntlm2_type3_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer));
-            printf("Sending spnego type 3 response size == %d \n",spnego_blob_size);
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 1;
@@ -419,12 +416,14 @@ static byte spnego_blob_buffer[512];
                     }
                 }
                 RELEASE_SEMAPHORE
+#ifdef SUPPORT_SMB3
                 /* If Connection.Dialect belongs to the SMB 3.x dialect family */
                 if (Connection3XXDIALECT)
                 {
                     /* the server MUST insert the Session into Connection.SessionTable. */
                     if (!Smb2SrvModel_Connection_Set_SessionInSessionList(Connection, pStreamSession))
                     {
+
                         reject_status = SMB2_STATUS_INSUFFICIENT_RESOURCES;
                         finish=reject=TRUE;
                     }
@@ -450,6 +449,7 @@ static byte spnego_blob_buffer[512];
                         }
                     }
                 }
+#endif
                 /* 2. If Connection.ClientCapabilities is 0, the server MUST set Connection.ClientCapabilities to the capabilities received in the
                    SMB2 SESSION_SETUP Request. */
                 if (Connection->ClientCapabilities == 0)
@@ -508,6 +508,7 @@ static byte spnego_blob_buffer[512];
                 {
                     RTSmb2_Encryption_SetSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey);
                 }
+#ifdef SUPPORT_SMB3
                 /*  7. If Connection.Dialect belongs to the SMB 3.x dialect family,
                        the server MUST generate Session.SigningKey as specified in section 3.1.4.2 by providing the following inputs:
                        Session.SessionKey as the key derivation key.
@@ -568,6 +569,8 @@ static byte spnego_blob_buffer[512];
                         RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey( pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->DecryptionKey, pStreamSession->SessionKey);
                     }
                 } // if (Connection3XXDIALECT)
+#endif  // SUPPORT_SMB3
+
                 /*
                     11.If Session.SigningRequired is TRUE, the server MUST sign the final session setup response before sending it to the client.
                     Otherwise, if Connection.Dialect belongs to the SMB 3.x dialect family, and if the SMB2_SESSION_FLAG_BINDING is set in the Flags
@@ -581,13 +584,14 @@ static byte spnego_blob_buffer[512];
                     else
                         pStream->SigningRule = SIGN_HMAC_SHA256;
                 }
+#ifdef SUPPORT_SMB3
                 else if (!more_processing_required && Connection3XXDIALECT  && (command.Flags & SMB2_SESSION_FLAG_BINDING)!=0)
                 {
                     RTSMB_ASSERT(pChannel)
                     pStream->SigningKey = pChannel->SigningKey;
                     pStream->SigningRule = SIGN_AES_CMAC_128;
                 }
-
+#endif
                 /*
                     12.If the PreviousSessionId field of the request is not equal to zero, the server MUST take the following actions:
                         1. The server MUST look up the old session in GlobalSessionTable, where Session.SessionId matches PreviousSessionId. If no session is found,
@@ -621,22 +625,23 @@ static byte spnego_blob_buffer[512];
             if (more_processing_required)
             {
                 pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_MORE_PROCESSING_REQUIRED;
+#ifdef SUPPORT_SMB3
                 if (Connection3XXDIALECT)
                 {
                     RTSmb2_Encryption_SignMessage(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey,pStream->InHdr.Signature);
                 }
+#endif
             }
         } // if (!pStream->WriteBufferParms[0].pBuffer) else ..
     } // if (send_next_token==TRUE)
     if (reject)
     {
-        printf("!!!! Auth setting reject status !!!! \n");
+        rtp_printf("!!!! Auth setting reject status !!!! \n");
 		RtsmbWriteSrvStatus (pStream, reject_status);
         pStream->doSessionClose = TRUE;
     }
     else
     {
-        printf("setup succeed\n");
         pStream->OutHdr.SessionId       = pStreamSession->SessionId;
         // Allocate a UID structure for this session and populate pStream->psmb2Session->pSmbCtx->uid
         if (!Smb1SrvUidForStream (pStream))
@@ -680,7 +685,6 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
                {
                    if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
                    {
-/*                      rtp_printf("reuse uid: %i, authid: %i \n", pInHdr->uid, authId);   */
                        user = &pCtx->uids[i];
                        break;
                    }

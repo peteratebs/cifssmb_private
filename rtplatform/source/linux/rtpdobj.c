@@ -134,11 +134,13 @@ int hung_up = 512;
          }
        }
        if (hung_up==0) return -1;
-       result = glob((const char *) bracified_name, GLOB_BRACE, NULL, &(linDirObj->globdata));
+       result = glob((const char *) bracified_name, GLOB_BRACE|GLOB_PERIOD, NULL, &(linDirObj->globdata));
        free(bracified_name);
     }
     else
-        result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
+    {
+        result = glob((const char *) name, GLOB_PERIOD, NULL, &(linDirObj->globdata));
+    }
     if (result != 0)
     {
         free (linDirObj);
@@ -180,7 +182,6 @@ char *stat_name=0;
     result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
     if (result == GLOB_NOMATCH)
     {
-      printf("GLOB_NOMATCH go straight to stat\n");
       stat_name = name;
     }
     else if (result != 0)

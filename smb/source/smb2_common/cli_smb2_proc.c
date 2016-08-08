@@ -284,7 +284,6 @@ int rtsmb2_cli_session_send_negotiate (smb2_stream  *pStream)
         send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
     else
        send_status=RTSMB_CLI_SSN_RV_OK;
-rtp_printf("PVO Send negotiate complet\n");
     return send_status;
 }
 
@@ -355,7 +354,6 @@ byte securiy_buffer[255];
 ##        /* we currently only support 8-bytes */
 ##        ASSURE (nr.challenge_size == 8, RTSMB_CLI_SSN_RV_DEAD);
 ##    }
-##rtp_printf("PVO Receive RTSMB2_NEGOTIATE_R returning ok\n");
 #endif
     return recv_status;
 }
@@ -366,8 +364,6 @@ int rtsmb2_cli_session_send_session_setup (smb2_stream  *pStream)
     int send_status;
     tc_memset(&command_pkt, 0, sizeof(command_pkt));
     rtsmb2_cli_session_init_header (pStream, SMB2_SESSION_SETUP, (ddword) pStream->pBuffer->mid,0);
-
-rtp_printf("PVO Send session setup entered\n");
 
 
     command_pkt.StructureSize = 25;
@@ -394,8 +390,6 @@ int rtsmb2_cli_session_receive_session_setup (smb2_stream  *pStream)
 int recv_status = RTSMB_CLI_SSN_RV_OK;
 RTSMB2_SESSION_SETUP_R response_pkt;
 byte securiy_buffer[255];
-
-rtp_printf("PVO Recv session setup entered\n");
 
     pStream->ReadBufferParms[0].byte_count = sizeof(securiy_buffer);
     pStream->ReadBufferParms[0].pBuffer = securiy_buffer;
@@ -457,7 +451,6 @@ int rtsmb2_cli_session_send_tree_connect (smb2_stream  *pStream)
     command_pkt.PathLength      = (word)pStream->WriteBufferParms[0].byte_count;
 
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_tree_connect called: Sharename == %s\n",share_name);
-    rtp_printf("PVO : Set pJob->data.tree_connect.share_struct->connect_mid = pJob->mid == %d, by buffer == %d\n",  (int)pStream->pJob->mid, (int)pStream->pBuffer->mid);
     /* Save the message ID in the share sructure */
 	pStream->pJob->data.tree_connect.share_struct->connect_mid = pStream->pJob->mid;
 

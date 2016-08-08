@@ -130,7 +130,6 @@ RTSMB_STATIC PFRTCHAR expandName (PSR_RESOURCE resource, PFRTCHAR name, PFRTCHAR
 
 	if (nameSize == 2 && name[0] == '\\' && name[1] == '.')
 	{
-	  printf("expandName: Faking fake return of maont name \n");
 	  return dest;
     }
 

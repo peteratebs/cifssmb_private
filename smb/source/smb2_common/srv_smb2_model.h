@@ -22,8 +22,8 @@
 //============================================================================
 
 /* Configs, none well thought out yet */
-#define RTSMB2_CFG_MAX_SESSIONS                         2
-#define RTSMB2_CFG_MAX_CONNECTIONS                      1
+#define RTSMB2_CFG_MAX_SESSIONS                         4 // 2
+#define RTSMB2_CFG_MAX_CONNECTIONS                      4
 #define RTSMB2_CFG_MAX_LOCK_SEQUENCES                 128
 #define RTSMB2_CFG_MAX_SHARES                          32
 #define RTSMB2_CFG_MAX_OPENS                           32
@@ -110,7 +110,7 @@ typedef struct s_Smb2SrvModel_Global {
             an open is as specified in section 3.3.1.10. The table MUST support enumeration of all entries in the table. */
     pSmb2SrvModel_Open OpenTable[RTSMB2_CFG_MAX_OPENS];
         /*  A list of all the active sessions established to this server, indexed by the Session.SessionId. */
-    pSmb2SrvModel_Session  SessionTable[RTSMB2_CFG_MAX_SESSIONS];
+    pSmb2SrvModel_Session  SessionTable[RTSMB2_CFG_MAX_SESSIONS];   // See: Smb2Sessions
         /*  A list of all open connections on the server, indexed by the connection endpoint addresses. */
     pSmb2SrvModel_Connection ConnectionList[RTSMB2_CFG_MAX_CONNECTIONS];
     /* Examle uuid value {f81d4fae-7dec-11d0-a765-00a0c91e6bf6} - RFC4122*/
@@ -146,6 +146,7 @@ typedef struct s_Smb2SrvModel_Global {
 /* 3.3.1.6 Per Share ............................................................................................... 224 */
 
 
+#ifdef INCLUDE_UNUSED
 typedef struct s_Smb2SrvModel_Share
 {
             /* A name for the shared resource on this server. */
@@ -194,11 +195,12 @@ typedef struct s_Smb2SrvModel_Share
     BBOOL EncryptData;                   /* Indicates that the server requires messages for accessing this share to be encrypted,
                                             per the conditions specified in section 3.3.5.2.11. */
 } Smb2SrvModel_Share;
-
+#endif // INCLUDE_UNUSED
 
 /* 3.3.1.7 Per Transport Connection ......................................................................... 225 */
 typedef struct s_Smb2SrvModel_Connection
 {
+    BBOOL  RTSMBisAllocated;
     ddword CommandSequenceWindow[2];    /*  A list of the sequence numbers that is valid to receive from the client at this time.
                                             For more information, see section 3.3.1.1. */
     pSmb2SrvModel_Request RequestList;     /*  A list of requests, as specified in section 3.3.1.13, that are currently
@@ -296,6 +298,7 @@ typedef struct s_Smb2SrvModel_Session
 
 
 
+#ifdef INCLUDE_UNUSED
 /* 3.3.1.9 Per Tree Connect ..................................................................................... 228 */
 typedef struct s_Smb2SrvModel_TreeConnect
 {
@@ -307,8 +310,9 @@ typedef struct s_Smb2SrvModel_TreeConnect
     TYPELESS TreeGlobalId;              /* A numeric value obtained via registration with [MS-SRVS], as specified in [MS-SRVS] section 3.1.6.6. */
     FILETIME_T CreationTime;            /* The time tree connect was established. */
 } Smb2SrvModel_TreeConnect;
+#endif
 
-
+#ifdef INCLUDE_UNUSED
 /* 3.3.1.10 Per Open .............................................................................................. 228 */
 typedef struct s_Smb2SrvModel_Open
 {
@@ -441,6 +445,7 @@ typedef struct s_Smb2SrvModel_Channel
     byte SigningKey[16];               /* A 128-bit key used for signing the SMB2 messages on this channel. */
     pSmb2SrvModel_Connection Connection;  /* The connection on which this channel was established. */
 } Smb2SrvModel_Channel;
+#endif // INCLUDE_UNUSED
 
 
 
@@ -464,10 +469,11 @@ BBOOL Smb2SrvModel_Session_Set_ChannelInChannelList(pSmb2SrvModel_Session pSessi
 void Smb2SrvModel_Global_Stats_Send_Update(dword body_size);
 void Smb2SrvModel_Global_Stats_Open_Update(int change);
 void Smb2SrvModel_Global_Stats_Error_Update(void);
-pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
+
+void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
 
 
 

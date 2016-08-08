@@ -246,40 +246,44 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
 BBOOL has_lm_field=FALSE;
+BBOOL display_login_info=FALSE;
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
     // Note: pCtx->encryptionKey[] holds the key we sent
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
 // access = decode (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
 
-    rtp_printf("\nAuthenticate user from SPNEGO PACCKET\n");
-    if (decoded_targ_token->lm_response)       //
+    if (display_login_info)
     {
-        rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
-        ;
-    }
-    if (decoded_targ_token->ntlm_response)
-    {
-        rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->ntlm_response->size, DUMPBIN);
-    }
-    if (decoded_targ_token->user_name)
-    {
-        rtsmb_dump_bytes("USER NAME", decoded_targ_token->user_name->value_at_offset, decoded_targ_token->user_name->size, DUMPUNICODE);
-        ;
-    }
-    if (decoded_targ_token->domain_name)
-    {
-        rtsmb_dump_bytes("DOMAIN NAME", decoded_targ_token->domain_name->value_at_offset, decoded_targ_token->domain_name->size, DUMPUNICODE);
-        ;
-    }
-    if (decoded_targ_token->host_name)
-    {
-        rtsmb_dump_bytes("HOST NAME", decoded_targ_token->host_name->value_at_offset, decoded_targ_token->host_name->size, DUMPUNICODE);
-        ;
-    }
-    if (decoded_targ_token->session_key)
-    {
-        rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
-        ;
+      rtp_printf("\nAuthenticate user from SPNEGO PACCKET\n");
+      if (decoded_targ_token->lm_response)       //
+      {
+          rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
+          ;
+      }
+      if (decoded_targ_token->ntlm_response)
+      {
+          rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->ntlm_response->size, DUMPBIN);
+      }
+      if (decoded_targ_token->user_name)
+      {
+          rtsmb_dump_bytes("USER NAME", decoded_targ_token->user_name->value_at_offset, decoded_targ_token->user_name->size, DUMPUNICODE);
+          ;
+      }
+      if (decoded_targ_token->domain_name)
+      {
+          rtsmb_dump_bytes("DOMAIN NAME", decoded_targ_token->domain_name->value_at_offset, decoded_targ_token->domain_name->size, DUMPUNICODE);
+          ;
+      }
+      if (decoded_targ_token->host_name)
+      {
+          rtsmb_dump_bytes("HOST NAME", decoded_targ_token->host_name->value_at_offset, decoded_targ_token->host_name->size, DUMPUNICODE);
+          ;
+      }
+      if (decoded_targ_token->session_key)
+      {
+          rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
+          ;
+      }
     }
     word Access=AUTH_NOACCESS;
 
@@ -297,44 +301,42 @@ BBOOL has_lm_field=FALSE;
       default_domainname_buffer[0] = 0;
       domainname = default_domainname_buffer;
     }
-#if (HARDWIRED_INCLUDE_NTLMV2) // Can remove this define, the option works
     // Try ntlmv2
     Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
-    rtp_printf("Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
     // Try lmv2 - not tested yet.
     if (Access == AUTH_NOACCESS)
     {
       Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
-      rtp_printf("Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+      if (display_login_info) rtp_printf("Auth_AuthenticateUser_lmv2 returned %X\n", Access);
     }
     // Try ntlm2
-#endif
     if (Access == AUTH_NOACCESS)
     {
       if (has_lm_field)
       { // The client key is in lm_response
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
-        rtp_printf("Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
+        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
       }
       if (Access == AUTH_NOACCESS)
       {
         ntlmv2_response_t *pntlmv2_response = (ntlmv2_response_t *)decoded_targ_token->ntlm_response->value_at_offset;
-        rtp_printf("Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
+        if (display_login_info) rtp_printf("Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, decoded_targ_token->user_name->value_at_offset, extended_authId);
-        rtp_printf("Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
+        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
       }
 //      TBD - Recheck may have broken on windows.
       if (Access == AUTH_NOACCESS)
       {
         if (has_lm_field)
           Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
-        rtp_printf("Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
+        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
       }
     }
     if (Access == AUTH_NOACCESS)
     {
       Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
-      rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
+      if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
     }
     if (Access == AUTH_NOACCESS)
     {
@@ -342,14 +344,14 @@ BBOOL has_lm_field=FALSE;
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
       rtp_printf("Auth_AuthenticateUser_lm returned %X\n", Access);
     }
-    rtp_printf("Auth_AuthenticateUser should be removed \n");
+    if (display_login_info) rtp_printf("Auth_AuthenticateUser should be removed \n");
     {
     int i;
     for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
     {
         if (pCtx->uids[i].uid == pCtx->uid)
         {
-          rtp_printf("Auth_AuthenticateUser did removed %d \n", i);
+          if (display_login_info) rtp_printf("Auth_AuthenticateUser did removed %d \n", i);
           pCtx->uids[i].inUse = FALSE;
           break;
         }
@@ -367,6 +369,7 @@ BBOOL has_lm_field=FALSE;
       Access = AUTH_USER_MODE;
     }
 #endif
+    rtp_printf("\nAuthenticate user from SPNEGO PACCKET v=%d \n", Access);
     return Access;
 }
 #endif
@@ -518,15 +521,12 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        else
        {
          access = AUTH_NOACCESS;
-         rtp_printf("ProcSetupAndx Testing code to eliminate Auth_AuthenticateUser \n");
          if (pCtx->dialect < NT_LM)
          {
            access = Auth_AuthenticateUser_lm (pCtx, password_buf, username, &authId);
          }
          else
          {
-//            access = Auth_AuthenticateUser_ntlm2 (pCtx,password_buf, decoded_targ_token->ntlm_response->value_at_offset, username, &authId);
-//            rtp_printf("Auth_AuthenticateUser_ntlm2 returned %X\n", Access);
             if (access == AUTH_NOACCESS)
             {
               access = Auth_AuthenticateUser_ntlm (pCtx,password_buf, username, &authId);
@@ -592,7 +592,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
                {
                    if (pCtx->uids[i].inUse && (authId == pCtx->uids[i].authId))
                    {
-/*                      rtp_printf("reuse uid: %i, authid: %i \n", pInHdr->uid, authId);   */
                        user = &pCtx->uids[i];
                        break;
                    }
@@ -653,8 +652,6 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
     if (response.extended_security)
     {
        glencryptionKey = pCtx->encryptionKey;
-       rtp_printf("Fix this hack to send the encryption key with spnego\n");
-
         WRITE_SMB_AND_X (srv_cmd_fill_session_setup_extended_and_x);
     }
     else
@@ -872,13 +869,10 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
      * Bug fix - 12-2009 we were making sure the path to the file existed
      * even if we were not creating. Was moved below to do it in the correct place.
      */
-rtsmb_dump_bytes("OpenOrCreate file name", filename, rtsmb_len(filename)*2, DUMPUNICODE);
     if (SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
     {
-printf("Stat worked\n");
         if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
         {
-            printf("Error excl\n");
             return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
         }
 
@@ -893,7 +887,6 @@ printf("Stat worked\n");
 
             if (externalFid < 0)
             {
-            printf("Error Not enough file handles\n");
                 RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around for dummy directory!\n", RTSMB_DEBUG_TYPE_ASCII);
                 return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
             }
@@ -909,7 +902,6 @@ printf("Stat worked\n");
 #endif
     else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
     {
-printf("Create error HEREHERE\n");
         return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
     }
     /**
@@ -920,7 +912,6 @@ printf("Create error HEREHERE\n");
     {
         SMBU_MakePath (pCtx, filename);
     }
-rtsmb_dump_bytes("OpenOrCreate SMBFIO_Open", filename, rtsmb_len(filename)*2, DUMPUNICODE);
     fid = SMBFIO_Open (pCtx, pCtx->tid, filename, flags, mode);
 
     if(fid < 0)
@@ -934,7 +925,6 @@ rtsmb_dump_bytes("OpenOrCreate SMBFIO_Open", filename, rtsmb_len(filename)*2, DU
 #if (HARDWIRED_INCLUDE_DCE == 1)
         if (pTree->type == ST_IPC)  // Don't check create for IPC
         {
-printf("IPC open fid == %x ext == %x \n",externalFid,fid);
           externalFid = fid;
         }
         else
@@ -1403,7 +1393,6 @@ int ProcReadAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
             response.next_command = command.next_command;
             response.data_size = (dword)bytesRead;
             response.data = pCtx->tmpBuffer;
-/*          PRINTF (("asked for %i bytes, got %i bytes @ offset %i\n", spaceLeft, bytesRead, pInParam->offset));   */
         }
     }
 
@@ -1755,7 +1744,6 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.capabilities |= CAP_NT_SMBS;
 
 #if (HARDWIRED_INCLUDE_DCE)
-        printf("Enable DCE in response\n");
         response.capabilities |= CAP_RPC_REMOTE_APIS;
 // #define CAP_STATUS32			0x0040	/* The server can respond with 32 bit
 #endif
@@ -2371,7 +2359,6 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
     buf = PADD (buf, size);
 
     rval = TRUE;
-printf("!!!!!!!!!!!!!!!!!!!!!!!!!!Got command.setup[0] == : %d\n", command.setup[0]);
     if (command.setup[0] == TRANS_TRANSACT_NOTIFY)
     {
       printf("Got a notify size == : %d\n", command.setup_size);
@@ -2399,7 +2386,6 @@ printf("!!!!!!!!!!!!!!!!!!!!!!!!!!Got command.setup[0] == : %d\n", command.setup
     }
     else
     {
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  Got a command with setup  == : %d\n", command.setup[0]);
         rval = ProcFakeNotifyTransaction (pCtx, pInHdr, pInBuf, pOutHdr, pOutBuf);
         return rval;
     }
@@ -4905,7 +4891,6 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     /* Now we have all the data from the wire. call smb2 if it's an smb2 session.   */
     if (pSctx->isSMB2)
     {
-        printf("SMBS_ProcSMBBody: call smb2\n");
         return SMBS_ProcSMB2_Body (pSctx);
     }
 #endif

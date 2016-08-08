@@ -207,7 +207,6 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         {
           if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
           {
-printf("Reusing stat\n");
             searchFound=TRUE;
             sid = _sid;
             break;
@@ -216,7 +215,6 @@ printf("Reusing stat\n");
     }
     if (searchFound && (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN))!=0)
     {   // Make sure to start over if we found an open directoy on a rescan
-printf("Close for rescan\n");
         SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
         user->searches[sid].inUse=FALSE;
         searchFound=FALSE;
@@ -224,7 +222,6 @@ printf("Close for rescan\n");
 
     if (!searchFound)
     {
-printf("Go for a new stat\n");
     	for (sid = 0; sid < prtsmb_srv_ctx->max_searches_per_uid; sid++)
     		if (!user->searches[sid].inUse)
     			break;
@@ -264,15 +261,6 @@ printf("Go for a new stat\n");
         tc_memcpy(user->searches[sid].name,file_name,strsize);
      }
 
-
-    printf("Proc_smb2_QueryDirectory: Maximum output length == %lu\n", command.OutputBufferLength);
-    printf("Proc_smb2_QueryDirectory: command.FileInformationClass == %d\n", command.FileInformationClass);
-    printf("Proc_smb2_QueryDirectory Search pattern:");
-    {int i;
-    for (i = 0;i<command.FileNameLength; i+= 2)
-      printf("%c", (char )file_name[i]);
-    rtp_printf(":\n");
-    }
     {
       PFRTCHAR name;
       word externalFid = *((word *) &command.FileId[0]);
@@ -313,12 +301,10 @@ printf("Go for a new stat\n");
     if (searchFound==FALSE)
     {
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
-       printf("====  Gfirst found: %d\n", isFound);
     }
     else
     {
 	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
-       printf("====  Gnext found: %d\n", isFound);
     }
 
     if (!isFound)
@@ -350,7 +336,6 @@ printf("Go for a new stat\n");
         }
         if (byte_pointer)
           *((dword *) byte_pointer) = 0;              // Start with next offset pointer zero
-        printf("Bytes consumed :%d\n",bytes_consumed);
 
         if (bytes_consumed == 0)
            break;
@@ -367,13 +352,11 @@ printf("Go for a new stat\n");
             isFound = SMBFIO_GNext(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
             if (isFound)
             {
-               printf("==== Found more stay in\n");
                 *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
                 byte_pointer = PADD(byte_pointer, bytes_consumed);
             }
             else
             {
-              printf("==== Found no more get out\n");
              isEof=TRUE;
             }
         }
@@ -406,14 +389,12 @@ printf("Go for a new stat\n");
     //
     if (numFound == 0)
     { // Send back an error status if this is the first reply in the reply chain
-      printf("Send no more error\n");
       // - Pack a header and response packet set status in header to STATUS_NO_MORE_FILES (0x80000006)
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NO_MORE_FILES);
       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_NO_MORE_FILES;
       pStream->compound_output_index=0; // Force a send, and make him query again for a response
       if (searchFound)
       {
-printf("Free stat structure\n");
         SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
         user->searches[sid].inUse = FALSE;
       }
@@ -567,10 +548,6 @@ static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_re
 {
     return 0;
 }
-
-
-
-
 
 #endif
 #endif

@@ -1274,6 +1274,8 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
   BYTE NTLMv2_Hash[16];
   int dst, src, ndLen;
 
+    rtp_printf("cli_util_client_encrypt_password_ntlmv2 is a stack hog\n");
+
 	// p21 is actually p16 with 5 null bytes appended.  we just null it now
 	// and fill it as if it were p16
 	tc_memset (&p21[16], 0, 5);
@@ -1313,7 +1315,6 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
                p21,             /* pointer to remote authentication key */
                16,              /* length of authentication key */
                NTLMv2_Hash);    /* caller digest to be filled in */
-    rtp_printf("1024 byte stack Bad for embedded right here !!!\n");
     BYTE concatChallenge[1024];
     BYTE output_value[16];
     // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
@@ -1383,7 +1384,6 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
                p21,             /* pointer to remote authentication key */
                16,              /* length of authentication key */
                NTLMv2_Hash);    /* caller digest to be filled in */
-    rtp_printf("1024 byte stack Bad for embedded right here !!!\n");
     BYTE concatChallenge[1024];
     BYTE output_value[16];
     // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash

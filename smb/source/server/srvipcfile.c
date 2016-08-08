@@ -147,7 +147,6 @@ int i;
      if (!SrvSrvcStreams[i].in_use)
      {
       SrvSrvcStreams[i].in_use = TRUE;
-      printf("AllocSrvSrvcStreamFid returning FD: %X\n", i|HARDWIRED_SRVSVC_FID);
       return i|HARDWIRED_SRVSVC_FID;
      }
    }
@@ -173,7 +172,6 @@ static StreamtoSrvSrvc *FdToSrvSrvcStream(int fd)
 #ifdef SUPPORT_SMB2
 static BBOOL ipcrpc_is_smb2_srvsvc(char RTSMB_FAR * name)
 {
-  printf("YA YA : check for lsarps == %d \n", rtsmb_casecmp (name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE));
   return (rtsmb_casecmp (name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
 }
 #endif
@@ -242,12 +240,10 @@ static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
 {
     int r;
     long rv = -1;
-printf("FD: %d IS_SRVCFD():%d\n", fd  , IS_SRVSVC_FID(fd));
     if (IS_SRVSVC_FID(fd))
     {  // This is hacky, call the srvsrvc call
        StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
        FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
-printf("SMBU_StreamWriteToSrvcSrvc conunt: %d\n", count);
        pStreamtoSrvSrvc->reply_status_code=0;
        r = SMBU_StreamWriteToSrvcSrvc ( buf, count,pStreamtoSrvSrvc);
        if (r == 0 || pStreamtoSrvSrvc->reply_status_code!=0)

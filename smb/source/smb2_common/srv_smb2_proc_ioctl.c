@@ -51,10 +51,11 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
         goto free_bail;
     }
 
-     printf("StructureSize = %d\n",command.StructureSize);
     if (command.StructureSize != 49)
     {
-       printf("StructureSize Bad: %d\n",command.StructureSize);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  StructureSize invalid...\n",0);
+        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+        return TRUE;
     }
 
     fileid = *((int *) &command.FileId[0]);
@@ -64,18 +65,15 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       error_status = SMB2_STATUS_NOT_FOUND;  // Return this to continue mounting
     else if (command.CtlCode == FSCTL_PIPE_TRANSCEIVE) //    0x0011c017
     {
-printf("FSCTL_PIPE_TRANSCEIVE inp == %ld\n",command.InputCount);
        if (command.InputCount)
        {
          long l;
 
-// HEREHERE - The write and read are not getting into the svsvc layer
          l = SMBFIO_Write (pStream->psmb2Session->pSmbCtx,
               pStream->psmb2Session->pSmbCtx->tid,
               fileid,
               pStream->ReadBufferParms[0].pBuffer,
               command.InputCount);
-printf("FSCTL_PIPE_TRANSCEIVE write: %ld\n", l);
 
          if (l==-2 ) // l == -2 means, read 4 bytes and you'll get the status code to return
          {
@@ -84,14 +82,11 @@ printf("FSCTL_PIPE_TRANSCEIVE write: %ld\n", l);
          }
          else
          {
-printf("FSCTL_PIPE_TRANSCEIVE read: %ld\n", l);
             l = SMBFIO_Read  (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileid, pStream->WriteBufferParms[0].pBuffer, 1024);
             if (l > 0)
               response.OutputCount = (unsigned long) l;
           }
        }
-printf("FSCTL_PIPE_TRANSCEIVE inp == %ld\n",command.InputCount);
-printf("FSCTL_PIPE_TRANSCEIVE out == %ld\n",response.OutputCount);
     }
     else
       error_status = SMB2_STATUS_NOT_FOUND;
