@@ -73,6 +73,7 @@ cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_model.c
 cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_set_info.c
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_oplocks.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_fileio.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_setup.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_ioctl.c
@@ -91,6 +92,7 @@ cfiles += $(lib_to_rtsmb_crypto_path)/md4_dgst.c
 cfiles += $(lib_to_rtsmb_crypto_path)/hmac_md5.c
 cfiles += $(lib_to_rtsmb_crypto_path)/md5rsa.c
 cfiles += $(lib_to_rtsmb_crypto_path)/md4_one.c
+cfiles += $(lib_to_rtsmb_crypto_path)/sha256.c
 
 cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
@@ -163,7 +165,7 @@ all: rtsmbserverapplication.out
 $(OBJDIR)/rtsmbserverapplication.a: $(OUT_OBJS)
 $(OBJDIR)/rtsmbserverapplication.o: rtsmbserverapplication.c
 
-rtsmbserverapplication.out: $(OBJDIR)/rtsmbserverapplication.o $(OBJDIR)/rtsmbserverapplication.a
+rtsmbserverapplication.out: $(OBJDIR)/rtsmbserverapplication.o $(OBJDIR)/rtsmbserverapplication.a /lib/i386-linux-gnu/libSegFault.so
 
 include ../rulesgnu.inc
 #############################################################################

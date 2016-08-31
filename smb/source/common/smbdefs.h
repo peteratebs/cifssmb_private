@@ -32,7 +32,9 @@
 #define HARDWIRED_NTLM_EXTENSIONS                          1  // Fixes for missing extensions, may cause mal;formed issues for earlier than NTLM1.2.
 #define HARDWIRED_NEGOTIATE_CHALLENGE_SIZE                 0  // TBD: MAC does not respond to protocol reponse unless this is 0,
                                                               // for mac based client, 8 for windows client
-#define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    16384 // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
+// #define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    16384 // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
+// At least 64K required for SMB2
+#define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    ((32768*2)+4) // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
 #define HARDWIRE_USE_CONFIG_FILE                           1  // 1 to read user and share info from "smb_config.txt" in the launch directory.
                                                               // These values are then used instead of HARDWIRED_USER_NAME, HARDWIRED_PASSWORD, HARDWIRED_SHARE_NAME, HARDWIRED_SHARE_PATH
                                                               // Note: Should add EXTENDED security, min-dialect, max-dialect, others.

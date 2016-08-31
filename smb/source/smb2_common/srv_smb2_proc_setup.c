@@ -96,7 +96,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
     /* Read into command, if a security token is passed it will be placed in command_args.pBuffer which came from RTSmb2_Encryption_Get_Spnego_InBuffer */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
-        return TRUE;
+        goto release_and_return_TRUE;
 
     /* Pg 260 3. If SessionId in the SMB2 header of the request is zero, the server MUST process the authentication request as specified in section 3.3.5.5.1. */
     pStreamSession = pStream->psmb2Session;
@@ -593,7 +593,8 @@ static byte spnego_blob_buffer[512];
                 }
 #endif
                 /*
-                    12.If the PreviousSessionId field of the request is not equal to zero, the server MUST take the following actions:
+                      HEREHERE  - Session restore/Expiration time are not working properly
+                       2.If the PreviousSessionId field of the request is not equal to zero, the server MUST take the following actions:
                         1. The server MUST look up the old session in GlobalSessionTable, where Session.SessionId matches PreviousSessionId. If no session is found,
                            no other processing is necessary.
                         2. If a session is found with Session.SessionId equal to PreviousSessionId, the server MUST determine if the old session and the newly established
@@ -605,14 +606,12 @@ static byte spnego_blob_buffer[512];
                             3. Otherwise, if the server determines that the authentications were for different users, the server MUST ignore the PreviousSessionId value.
 
                 */
-                HEREHERE
                 /* 13.Session.State MUST be set to Valid */
                 pStreamSession->State = Smb2SrvModel_Session_State_Valid;
 
                 /* 14.Session.ExpirationTime MUST be set to the expiration time returned by the GSS authentication subsystem. If the GSS authentication subsystem does not
                    return an expiration time, the Session.ExpirationTime should be set to infinity.
                 */
-                HEREHERE
             }
             /*
                 The GSS-API can indicate that this is not the final message in authentication exchange using the GSS_S_CONTINUE_NEEDED semantics as specified in
@@ -654,7 +653,7 @@ static byte spnego_blob_buffer[512];
           RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
         }
     }
-//    TBD - releaing / leaks
+release_and_return_TRUE:
     if (pStream->WriteBufferParms[0].pBuffer)
         RTSmb2_Encryption_Release_Spnego_Next_token(pStream->WriteBufferParms[0].pBuffer);
     if (pStream->ReadBufferParms[0].pBuffer)

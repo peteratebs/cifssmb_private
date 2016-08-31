@@ -323,6 +323,7 @@ PFVOID s=buf;
 #include "../client/clissn.h"
 int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarEncodeFn_t pVarEncodeFn)
 {
+BBOOL doSign = FALSE;
     FILL_PROLOG_TEMPLATE
     /* PACK_STRUCT_TO_WIRE checks if the local variable "size" is large enough to contain the buffer. If not returns -1.
        Otherwise copy the bytes from the structure to the wire, decrease the variable size, and increase the pointer variable buf
@@ -348,7 +349,20 @@ int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize
     pStream->pOutBuf = PADD(pStream->pOutBuf, consumed);
     pStream->write_buffer_remaining-=consumed;
     pStream->OutBodySize+=consumed;
-    if (pStream->SigningKey)
+
+    // If the request was signed by the client, the response message being sent contains a nonzero SessionId and a zero TreeId in the SMB2 header, and the session identified by SessionId has Session.SigningRequired equal to TRUE.
+    if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->InHdr.SessionId != 0 && pStream->InHdr.TreeId ==0)
+       doSign = TRUE;
+    // If the request was signed by the client, the response message being sent contains a nonzero SessionId, and a nonzero TreeId in the SMB2 header, and the session identified by SessionId
+    // has Session.SigningRequired equal to TRUE, if either global EncryptData is FALSE or Connection.ClientCapabilities does not include the SMB2_GLOBAL_CAP_ENCRYPTION bit.
+    if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->OutHdr.SessionId != 0 && pStream->InHdr.TreeId != 0)
+       doSign = TRUE;
+    // If the request was signed by the client, and the response is not an interim response to an asynchronously processed request.
+    // So more or less, anything not a CANCEL response I think.
+    if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED)
+       doSign = TRUE;
+
+    if (doSign && pStream->SigningKey)
         RTSmb2_Encryption_Sign_message(pStream->OutHdr.Signature,pStream->SigningKey, pStream->SigningRule, pStream->write_origin,consumed);
 	return (int) consumed;
 }

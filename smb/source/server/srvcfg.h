@@ -25,14 +25,14 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	unsigned short    max_shares;
 	unsigned short    max_users;
 	unsigned short    max_groups;
-	unsigned short    small_buffer_size;
+	unsigned long     small_buffer_size;
 	unsigned long     big_buffer_size;
 	unsigned short    num_big_buffers;
 	int               enum_results_size;
 	BBOOL             enum_results_in_use;
 	int               server_table_size;
 	int               domain_table_size;
-	
+
 	/* MUTEX HANDLES */
 	unsigned long     bufsem;
 	unsigned long     authsem;
@@ -43,7 +43,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	unsigned long     netsem;
 	unsigned long    *activeSessions;
 	unsigned long     enum_results_mutex;
-	
+
 	/* BUFFER POOLS */
 	PFBYTE                      bigBuffers;
 	PFCHAR                      bigBufferInUse;

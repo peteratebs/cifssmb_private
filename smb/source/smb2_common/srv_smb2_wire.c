@@ -316,37 +316,32 @@ int rv;
     rv = RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->DataOffset, pCommand->Length, pCommand->StructureSize);
     if (rv >= 0)
     {
-        HEREHERE  // - Have to decode WriteChannelInfo and pass it up. Might need additional inbuff to do so. 3.X only
+         // - Have to decode WriteChannelInfo and pass it up. Might need additional inbuff to do so. 3.X only
         ; // return RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->WriteChannelInfoOffset, pCommand->WriteChannelInfoLength, pCommand->StructureSize);
     }
     return rv;
 }
 
+
+
 static int RtsmbWireVarDecodeLockCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem)
 {
 PFVOID s=buf;
-   pStream  =    pStream;   origin  =    origin;   buf  =    buf;   size  =    size;   pItem   =    pItem ;
-
-#if (0)
 PRTSMB2_LOCK_REQUEST_C pCommand = (PRTSMB2_LOCK_REQUEST_C) pItem;
 RTSMB2_LOCK_ELEMENT *pLock;
 int i;
 
-    HEREHERE // - BROKEN
-    pStream  =    pStream;
+   pStream  =    pStream;
    origin  =    origin;
    buf  =    buf;
    size  =    size;
    pItem   =    pItem ;
-
-
 
     pLock = &pCommand->Locks;
 	for (i=0; i < pCommand->LockCount;i++, pLock++)
 	{
 		RTSMB_READ_ITEM(pLock, sizeof(*pLock));
 	}
-#endif
     return PDIFF (buf, s);
 }
 

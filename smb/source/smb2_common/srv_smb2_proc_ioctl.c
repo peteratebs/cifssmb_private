@@ -21,10 +21,21 @@
 #include "com_smb2.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
-
 #include "rtptime.h"
 #include "rtpmem.h"
 #include "srvssn.h"
+
+extern pSmb2SrvModel_Global pSmb2SrvGlobal;
+
+PACK_PRAGMA_ONE
+typedef struct s_VALIDATE_NEGOTIATE_INFO_R
+{
+    dword Capabilities;
+    byte  guid[16];
+    word  SecurityMode;
+    word  Dialect;
+} PACK_ATTRIBUTE VALIDATE_NEGOTIATE_INFO_R;
+PACK_PRAGMA_POP
 
 BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
 {
@@ -51,18 +62,27 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
         goto free_bail;
     }
 
-    if (command.StructureSize != 49)
+//    if (command.StructureSize != 39) //was 39 wtf
+    if (command.StructureSize != 57)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  StructureSize invalid...\n",0);
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
-        return TRUE;
+        goto free_bail;
     }
 
     fileid = *((int *) &command.FileId[0]);
 
-
     if (command.CtlCode == FSCTL_DFS_GET_REFERRALS)
       error_status = SMB2_STATUS_NOT_FOUND;  // Return this to continue mounting
+    else if (command.CtlCode == FSCTL_VALIDATE_NEGOTIATE_INFO) //         0x00140204
+    {
+      VALIDATE_NEGOTIATE_INFO_R *answer = (VALIDATE_NEGOTIATE_INFO_R *) pStream->WriteBufferParms[0].pBuffer;
+      answer->Capabilities = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, 0);
+      tc_memcpy(answer->guid,pSmb2SrvGlobal->ServerGuid,16);
+      answer->SecurityMode =  SMB2_NEGOTIATE_SIGNING_ENABLED;
+      answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;
+      response.OutputCount = sizeof(VALIDATE_NEGOTIATE_INFO_R);
+    }
     else if (command.CtlCode == FSCTL_PIPE_TRANSCEIVE) //    0x0011c017
     {
        if (command.InputCount)

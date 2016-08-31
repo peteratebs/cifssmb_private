@@ -23,6 +23,7 @@
 #include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
+#include "srv_smb2_proc_fileio.h"
 
 
 #include "rtptime.h"
@@ -33,15 +34,6 @@
 #include "smbdebug.h"
 #include "rtpmem.h"
 
-
-typedef struct s_RTSMB2_FILEIOARGS_C
-{
-  PTREE pTree;
-  int fid;
-  word fidflags;
-  byte externalFidRaw[16];
-  word externalFid;
-} RTSMB2_FILEIOARGS;
 
 
 BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID command, PFVOID pcommand_structure_Fileid,word *pcommand_structure_size, word command_size)
@@ -95,21 +87,19 @@ RTSMB2_FLUSH_C command;   //  StructureSize;  24
 RTSMB2_FLUSH_R response;   //  StructureSize;  4
 RTSMB2_FILEIOARGS fileioargs;
 
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
-    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
-    {
-      return TRUE;
-    }
-    // HEREHERE Flush command.fid;
-    // Set the status to success
-    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
-    response.StructureSize = 4;
-    /* Success - see above if the client asked for stats */
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+  tc_memset(&response,0, sizeof(response));
+  tc_memset(&command,0, sizeof(command));
+  if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
+  {
     return TRUE;
-
-return FALSE;
+  }
+  SMBFIO_Flush (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid);
+  // Set the status to success
+  pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+  response.StructureSize = 4;
+  /* Success */
+  RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+  return TRUE;
 }
 BBOOL Proc_smb2_Read(smb2_stream  *pStream)
 {
@@ -159,9 +149,6 @@ RTSMB2_FILEIOARGS fileioargs;
     {
       return TRUE;
     }
-
-
-    // HEREHERE Flush command.fid;
 
     pStream->WriteBufferParms[0].byte_count = pStream->psmb2Session->Connection->MaxReadSize;
     pStream->WriteBufferParms[0].pBuffer = rtp_malloc(pStream->psmb2Session->Connection->MaxReadSize);
@@ -275,26 +262,6 @@ free_and_out:
     RTP_FREE(pStream->ReadBufferParms[0].pBuffer);
     return TRUE;
 }
-BBOOL Proc_smb2_Lock(smb2_stream  *pStream)
-{
-#if (0)
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
-    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, PFVOID (&command.Fileid[0]),49))
-    {
-      return TRUE;
-    }
-    // HEREHERE Flush command.fid;
-
-    // Set the status to success
-    // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
-    response.StructureSize = 17;
-    /* Success - see above if the client asked for stats */
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-#endif
-    return TRUE;
-}
 
 #endif
 #endif
-

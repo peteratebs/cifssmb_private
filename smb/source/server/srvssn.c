@@ -246,7 +246,7 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
 BBOOL has_lm_field=FALSE;
-BBOOL display_login_info=FALSE;
+BBOOL display_login_info=TRUE;
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
     // Note: pCtx->encryptionKey[] holds the key we sent
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
