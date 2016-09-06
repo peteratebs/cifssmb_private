@@ -1335,7 +1335,153 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
 	return (PFBYTE )output;
 }
 
+BYTE glowf[] = {0x75 ,0xAA ,0xA7 ,0x29 ,0x0B ,0xB9 ,0x08 ,0x60 ,0x3D ,0x1C ,0x74 ,0xB4 ,0x80 ,0xD7 ,0x05 ,0x03 };
 
+BYTE glkr[] = {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
+BYTE glserverChallenge[] = {0xE5, 0xA2, 0x1C, 0x3B, 0xD1, 0x91, 0x86, 0x9E};
+BYTE glntlm_response_blob [] = {
+0x01 , 0x01 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01,
+0x83 , 0x47 , 0x86 , 0x40 , 0x9B , 0x48 , 0x17 , 0x0E , 0x00 , 0x00 , 0x00 , 0x00 , 0x02 , 0x00 , 0x1C , 0x00,
+0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
+0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x01 , 0x00 , 0x1C , 0x00,
+0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
+0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x04 , 0x00 , 0x02 , 0x00,
+0x00 , 0x00 , 0x03 , 0x00 , 0x1C , 0x00 , 0x70 , 0x00 , 0x65 , 0x00 , 0x74 , 0x00 , 0x65 , 0x00 , 0x72 , 0x00,
+0x2D , 0x00 , 0x78 , 0x00 , 0x70 , 0x00 , 0x73 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00,
+0x30 , 0x00 , 0x07 , 0x00 , 0x08 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01 , 0x06 , 0x00,
+0x04 , 0x00 , 0x02 , 0x00 , 0x00 , 0x00 , 0x08 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
+0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x30 , 0x00 , 0x00 , 0x7B , 0x49 , 0xB5 , 0x84 , 0xB7 , 0xBB,
+0x0C , 0xDD , 0xDC , 0xE2 , 0x18 , 0xB4 , 0x4C , 0xC1 , 0xA7 , 0x6A , 0x6E , 0xCF , 0xDA , 0xA8 , 0x71 , 0xBC,
+0x17 , 0x38 , 0xBD , 0x27 , 0x12 , 0x21 , 0x03 , 0xE7 , 0xD2 , 0x92 , 0x0A , 0x00 , 0x10 , 0x00 , 0x00 , 0x00,
+0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x09 , 0x00,
+0x22 , 0x00 , 0x63 , 0x00 , 0x69 , 0x00 , 0x66 , 0x00 , 0x73 , 0x00 , 0x2F , 0x00 , 0x31 , 0x00 , 0x39 , 0x00,
+0x32 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x36 , 0x00 , 0x38 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x2E , 0x00,
+0x31 , 0x00 , 0x34 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
+};
+// This should be the result
+// CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+
+// glkr is derived from domain name
+
+// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+// KR to SMBsesskeygen_ntv2
+
+BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
+
+BYTE gluser[] = {'P', 0, 'E', 0, 'T' , 0, 'E', 0, 'R', 0, 0, 0};
+BYTE glpassword[] = {'5',0,'4',0,'2',0,'L',0,'a',0,'f',0,'a',0,'y',0,'e',0,'t',0,'t',0,'e',0,0,0};
+
+PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16]);
+PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16]);
+PFBYTE cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output);
+
+// This works to produce the signing key
+
+// Need User name minus termination
+// Need domain name minus termination (empty)
+// glowf
+#include "rc4.h"
+
+//void RC4_set_key(RC4_KEY *key, const int len, const unsigned char *data)
+//void RC4(RC4_KEY *, const int, const unsigned char *, unsigned char *);
+
+//            arcfour_crypt(state->encrypted_session_key.data,
+//                      session_key.data,
+//                      state->encrypted_session_key.length);
+
+
+
+void test_challenge(void)
+{
+BYTE output[16];
+BYTE encsignkey[16];
+BYTE kr[16];
+BYTE outowf[16];
+BYTE outrc4[16];
+RC4_KEY rc4_key;
+BYTE sess_key[16];
+
+  cli_util_nt_password_hash(glpassword, sizeof(glpassword)-2, outowf);
+  rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
+  rtsmb_dump_bytes("NTLMv2 glowf nt hash: ", glowf, 16, DUMPBIN);
+
+  cli_util_encrypt_signing_key_responese (glowf, gluser, sizeof(gluser)-2, 0, 0,kr);
+
+  // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
+  rtsmb_dump_bytes("NTLMv2 enrypted key response output: ", kr, 16, DUMPBIN);
+
+
+  cli_util_encrypt_signing_key_ntlmv2 (glserverChallenge, glntlm_response_blob, sizeof (glntlm_response_blob), kr, encsignkey);
+  // This should be the result  - and should match the first 16 byts of the clients Ntlmv2 response
+  // CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+  rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);
+
+  // BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+  // BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
+//  SMBsesskeygen_ntv2(const uint8_t kr[16], const uint8_t * nt_resp, uint8_t sess_key[16])
+// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+  hmac_md5(encsignkey ,16,  kr, 16,sess_key);
+  rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);
+  // should be  0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+
+  RC4_set_key(&rc4_key, sizeof(glntsessionkey), glntsessionkey);
+  RC4(&rc4_key, sizeof(glencsessionkey), glencsessionkey, outrc4);
+  rtsmb_dump_bytes("outrc4: ", outrc4, 16, DUMPBIN);
+
+
+
+}
+
+
+
+PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16])
+{
+  RTSMB_MD4(password, password_l, output);
+}
+
+PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16])
+{
+  BYTE concatChallenge[1024];
+  BYTE output_value[16];
+  tc_memcpy(concatChallenge, user, user_l);
+  if (domain)
+    tc_memcpy(concatChallenge+user_l, domain, domain_l);
+	hmac_md5(concatChallenge,	/* pointer to data stream */
+               user_l+domain_l,		/* length of data stream */
+               &owf[0],		     /*  */
+               16,				/* length of authentication key */
+               (PFBYTE ) output_value);
+    rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);
+	tc_memcpy(&output[0], output_value, 16);
+
+}
+
+
+
+PFBYTE cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output)
+{
+	// The HMAC-MD5 message authentication code algorithm is applied to
+	// the unicode (username,domainname) using the 16-byte NTLM hash as the key.
+	// This results in a 16-byte value - the NTLMv2 hash.
+    BYTE concatChallenge[1024];
+    BYTE output_value[16];
+   // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
+   // Passed in blob length
+   // (calculated in step 2) as the key. This results in a 16-byte output value.
+   tc_memcpy(concatChallenge, serverChallenge, 8);
+   tc_memcpy(&concatChallenge[8], ntlm_response_blob, ntlm_response_blob_length);
+//    rtsmb_dump_bytes("NTLMv2 hash: ", NTLMv2_Hash, 16, DUMPBIN);
+//    rtsmb_dump_bytes("NTLMv2 concatChallenge: ", concatChallenge, ntlm_response_blob_length+8, DUMPBIN);
+	hmac_md5(concatChallenge,	/* pointer to data stream */
+               ntlm_response_blob_length+8,		/* length of data stream */
+               &kr[0],		     /*  */
+               16,				/* length of authentication key */
+               (PFBYTE ) output_value);
+
+	tc_memcpy(&output[0], output_value, 16);
+
+}
 
 PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output)
 {

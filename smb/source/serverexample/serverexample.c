@@ -97,6 +97,8 @@ void sig_handler(int signo)
 int smbservermain ()
 {
 	go = 1;
+    test_challenge();
+    return -1;
 
     // Control C handler for setting go = 0
     signal(SIGINT, sig_handler);

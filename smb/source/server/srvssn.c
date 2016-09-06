@@ -243,6 +243,8 @@ NextUID:  ;
 
 word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId);
 
+BYTE spnego_session_key[16];
+
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
 BBOOL has_lm_field=FALSE;
@@ -283,6 +285,7 @@ BBOOL display_login_info=TRUE;
       {
           rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
           ;
+tc_memcpy(spnego_session_key, decoded_targ_token->session_key->value_at_offset, 16);
       }
     }
     word Access=AUTH_NOACCESS;

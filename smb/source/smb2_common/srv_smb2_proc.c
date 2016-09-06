@@ -154,6 +154,8 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream);
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
 
+extern BYTE spnego_session_key[16];
+
 BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
 	int header_size;
@@ -297,7 +299,6 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        }
        // sign
 #if (1)
-
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
        { // sign if dialact == 2100 and session id != 0
@@ -305,26 +306,48 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 printf("Okay sign2\n");
             if (pStream->psmb2Session->SessionId != 0)
             {
+               unsigned int PrevLength;
+               unsigned int SkipCount;
                int i;
                SHA256_CTX ctx;
                SHA256_CTX ctx_o;
                uint8_t ipad[65];
                uint8_t opad[65];
 
-               PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
+               MEMCLEAROBJ(ctx);
+               MEMCLEAROBJ(ctx_o);
 
+               // Now see if we have to pad the output to get to an 8 byte boundary
+               PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
+               SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
+printf("Okay skip before calc signature l=%d\n",SkipCount);
+               if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
+               {
+                  tc_memset(pStream->pOutBuf,0,SkipCount);
+                  pStream->write_buffer_remaining -= SkipCount;
+                  pStream->pOutBuf = PADD (pStream->pOutBuf, SkipCount);
+                  pStream->OutBodySize += SkipCount;
+               }
 printf("Okay sign3\n");
+               PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
                pOutHdr->Flags |= SMB2_FLAGS_SIGNED;
                tc_memset(pOutHdr->Signature, 0, 16);
-               tc_memset(ipad, 0, 64);
-               tc_memset(opad, 0, 64);
+               tc_memset(ipad, 0, sizeof(ipad));
+               tc_memset(opad, 0, sizeof(opad));
 //	if (session_key.length == 0) {
 //		DEBUG(2,("Wrong session key length %u for SMB2 signing\n",
 //			 (unsigned)session_key.length));
 //		return NT_STATUS_ACCESS_DENIED;
 //	}
-               tc_memcpy( ipad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
-               tc_memcpy( opad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
+
+//               tc_memcpy( ipad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
+//               tc_memcpy( opad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
+
+rtsmb_dump_bytes("encryptionKey", pStream->psmb2Session->pSmbCtx->encryptionKey, 16,  DUMPBIN);
+
+               tc_memcpy( ipad, spnego_session_key, 16);
+               tc_memcpy( opad, spnego_session_key, 16);
+rtsmb_dump_bytes("spnego_session_key", spnego_session_key, 16,  DUMPBIN);
 
                /* XOR key with ipad and opad values */
                for (i=0; i<64; i++)
@@ -340,6 +363,7 @@ printf("Okay sign3\n");
                {
                 void *data = pOutBufStart;
                 size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
+printf("Okay calc signature l=%d\n",data_len);
                 SHA256_Update(&ctx, data, data_len); /* then text of datagram */
                }
                SHA256_Final(digest, &ctx);
