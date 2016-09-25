@@ -142,7 +142,9 @@ printf("Close asked for stat but we can not give them yet\n");
            }
            SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
        }
-       if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
+       // 0xffff is not real resource so don't do any file ops.
+        if ( (externalFid != 0xffff) &&
+           (smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
        {
          if (fidflags != FID_FLAG_DIRECTORY)
            SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));

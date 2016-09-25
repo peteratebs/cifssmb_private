@@ -283,6 +283,15 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       // Hack, include extra info in stream if no file
       wants_extra_info = TRUE;
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
+      tc_memset(&stat, 0, sizeof(stat));
+      // Fake stat to return 0 sizes, and directory attribute
+//      stat.f_ctime64 =
+//      stat.f_atime64 =
+//      stat.f_wtime64 =
+//      stat.f_htime64 = 0;
+//      stat.f_size = 0;
+//      stat.f_size = 0;
+      stat.f_attributes = RTP_FILE_ATTRIB_ISDIR;
     }
     else
     {
@@ -301,26 +310,26 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
           }
       }
 
-    if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
-    {
-      if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
-      { // Don't succeed if they are requesting a directory but the object is not one
-        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
-        return TRUE;
+      if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+      {
+        if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
+        { // Don't succeed if they are requesting a directory but the object is not one
+          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
+          return TRUE;
+        }
+        if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
+        { // Don't succeed if they are requesting a non-directory but the object is one
+          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
+          return TRUE;
+        }
       }
-      if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
-      { // Don't succeed if they are requesting a non-directory but the object is one
-        RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
-        return TRUE;
+      if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
+      {
+         smb2flags = SMB2DELONCLOSE;
+         //         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+         //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
       }
-    }
-    if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
-    {
-       smb2flags = SMB2DELONCLOSE;
-//         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
-//        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
-    }
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
+        r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
     }
     if (r != 0)
     {

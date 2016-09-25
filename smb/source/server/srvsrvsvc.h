@@ -32,6 +32,7 @@
 typedef struct StreamtoSrvSrvc_s {
  dword reply_status_code;
  word  reply_data_count;
+ void *bound_stream_pointer;
  void *reply_heap_data;
  void *reply_response_data;
  BBOOL in_use;
@@ -46,6 +47,7 @@ int SRVSVC_ProcTransaction (PSMB_SESSIONCTX pCtx,
 	PRTSMB_HEADER pOutHdr, PRTSMB_TRANSACTION_R pTransactionR, rtsmb_size size_left);
 
 int SMBU_StreamWriteToSrvcSrvc (void *pIndata, rtsmb_size size_left,StreamtoSrvSrvc *pReturn);
+
 
 
 //============================================================================

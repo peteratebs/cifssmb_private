@@ -106,6 +106,7 @@ PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, 
 
 /* some unicode convenience functions */
 rtsmb_size rtsmb_util_wlen (PFWCS str);
+PFWCS rtsmb_util_wstrmalloc(PFWCS source);
 PFWCS rtsmb_util_wncpy (PFWCS dest, PFWCS source, rtsmb_size count);
 PFWCS rtsmb_util_wcpy (PFWCS dest, PFWCS source);
 int rtsmb_util_wncmp (PFWCS left, PFWCS right, rtsmb_size count);

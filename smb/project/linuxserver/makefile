@@ -95,6 +95,8 @@ cfiles += $(lib_to_rtsmb_crypto_path)/md4_one.c
 cfiles += $(lib_to_rtsmb_crypto_path)/sha256.c
 cfiles += $(lib_to_rtsmb_crypto_path)/rc4.c
 
+cfiles += $(lib_to_rtsmb_crypto_path)/hmacsha256.c
+
 cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
 cfiles += $(lib_to_rtsmb_common_path)/psmbnet.c

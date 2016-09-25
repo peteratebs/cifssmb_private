@@ -74,7 +74,7 @@ void SHA1_Final (void *res, struct sha *m);
 #define SHA256_DIGEST_LENGTH 32
 
 struct hc_sha256state {
-  unsigned int sz[2];
+  uint32_t sz[2];
   uint32_t counter[8];
   unsigned char save[64];
 };

@@ -46,6 +46,9 @@
 #include "smbdebug.h"
 
 #include "com_smb2_wiredefs.h"    // For SMB2_STATUS_NOT_SUPPORTED, is actuall NT_STATUS
+extern PFWCS  RTSmb2_get_stream_username(void *pSmb2Stream);
+extern PFWCS  RTSmb2_get_stream_authority_name(void *pSmb2Stream);
+
 
 //============================================================================
 //    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS
@@ -206,7 +209,7 @@ PACK_PRAGMA_POP
 //============================================================================
 //    IMPLEMENTATION PRIVATE FUNCTION PROTOTYPES
 //============================================================================
-static int SRVSVC_Execute (void *pTransaction_data, word *pRdata_count,void **pRheap_data,void **pRdata, dword *reply_status_code, rtsmb_size size_left);
+static int SRVSVC_Execute (void *pTransaction_data, word *pRdata_count,void **pRheap_data,void **pRdata, dword *reply_status_code, rtsmb_size size_left, void *pSmb2Stream);
 
 //============================================================================
 //    IMPLEMENTATION PRIVATE FUNCTIONS
@@ -227,13 +230,10 @@ static const byte dce_bind_response_capture[] = {0x05,0x00,0x0c,0x03,0x10,0x00,0
 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00};
 static const byte bind_accepance_item[24] = { 0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00};
 
-//static const byte user_name_item[] = { 'e', 0, 'b', 0, 's', 0 };
-//static const byte authority_name_item[] = { 'a', 0, 'u', 0, 't', 0, 'h', 0 };
 
-//static const byte user_name_item[] = { peter };
-//static const byte authority_name_item[] = { PETER-XPS-8300 };
+// We don't want to use these we use domain and user name in the spnego transactions instead. These are here for SMB1 which doesn't support this, yet at least
 static const byte user_name_item[] = { 'p',0,'e',0,'t',0,'e',0,'r',0 };
-static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,'X',0,'P',0,'S',0,'-',0,'8',0,'3',0,'0',0,'0',0 };
+static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,'X',0,'P',0,'S',0,'-',0,'8',0,'3',0,'0',0,'0',0, 0, 0 };
 
 static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0x4f, 0x7b, 0xf9, 0x3e };
 
@@ -286,7 +286,7 @@ int SRVSVC_ProcTransaction (PSMB_SESSIONCTX pCtx,
    pTransactionR->heap_data = 0;
 
 
-   return SRVSVC_Execute ( pTransaction->data, &pTransactionR->data_count, &pTransactionR->heap_data,&pTransactionR->data,&reply_status_code, size_left);
+   return SRVSVC_Execute ( pTransaction->data, &pTransactionR->data_count, &pTransactionR->heap_data,&pTransactionR->data,&reply_status_code, size_left, 0);
 
 }
 
@@ -298,7 +298,7 @@ int SMBU_StreamWriteToSrvcSrvc (void *pIndata, rtsmb_size size_left,StreamtoSrvS
    void *rely_heap_data=0;
    void *rely_response_data=0;
    dword reply_status_code=0;
-   r = SRVSVC_Execute (pIndata, &reply_data_count, &rely_heap_data,&rely_response_data,&reply_status_code, size_left);
+   r = SRVSVC_Execute (pIndata, &reply_data_count, &rely_heap_data,&rely_response_data,&reply_status_code, size_left,pReturn->bound_stream_pointer);
    pReturn->reply_data_count    =reply_data_count;
    pReturn->reply_heap_data     =rely_heap_data;
    pReturn->reply_response_data =rely_response_data;
@@ -389,9 +389,13 @@ static int encode_dce_string_pointer(dword *pout, dword Referentid, void *pin, w
    return r;
 }
 
-
-
-
+static PFWCS SRVSVC_get_stream_authority_name(void *pSmb2Stream)
+{
+  if (pSmb2Stream)
+    return RTSmb2_get_stream_authority_name(pSmb2Stream);
+  else
+    return authority_name_item;
+}
 
 // 0xC00000BB. STATUS_NOT_SUPPORTED
 //
@@ -402,7 +406,7 @@ static int encode_dce_string_pointer(dword *pout, dword Referentid, void *pin, w
 //   DCE_PACKET_ENUM_ALL_SHARES  - return live share data
 //
 //
-static int SRVSVC_Execute (void *pTransaction_data, word *pRdata_count,void **pRheap_data,void **pRdata, dword *reply_status_code, rtsmb_size size_left)
+static int SRVSVC_Execute (void *pTransaction_data, word *pRdata_count,void **pRheap_data,void **pRdata, dword *reply_status_code, rtsmb_size size_left, void *pSmb2Stream)
 {
 PDCE_HEADER pdce_header;
 int i;
@@ -555,7 +559,7 @@ void *start;
        DCE_LSARP_LOOKUP_NAMES_REPLY *pout;
        void *results;
        dword *pdw;
-       int l;
+       int l,auth_buff_len;
        word *pfraglength;
        dword *palloc_hint;
        word *pw;
@@ -590,19 +594,22 @@ void *start;
        *pdw++ = 32;       // max size
        *pdw++ =  1;        // Maxcount ??
 
+        auth_buff_len= rtp_wcslen(SRVSVC_get_stream_authority_name(pSmb2Stream))*2;
+
+
        pw = (word *) pdw;
-       *pw++ = sizeof(authority_name_item);            // len
-       *pw =   sizeof(authority_name_item)+2;          // size
+       *pw++ = auth_buff_len; // sizeof(authority_name_item);            // len
+       *pw =   auth_buff_len + 2; // sizeof(authority_name_item)+2;          // size
        pdw++;
 
        *pdw++ = 0x200c0;     // pointer to string
        *pdw++ = 0x20010;     // pointer to sid
 
-       *pdw++ = sizeof(authority_name_item)/2 + 1;             // max count for string
+       *pdw++ = auth_buff_len/2 + 1;             // max count for string
        *pdw++ = 0;                                       //  offset for string
-       *pdw++ = sizeof(authority_name_item)/2;           // actual for string
-       memcpy(pdw, authority_name_item,sizeof(authority_name_item) ); // String
-       results= PADD(pdw, sizeof(authority_name_item));
+       *pdw++ = auth_buff_len/2;           // actual for string
+       memcpy(pdw, SRVSVC_get_stream_authority_name(pSmb2Stream),auth_buff_len); // String
+       results= PADD(pdw, auth_buff_len);
        results= ptralign(results, 4);
        pdw = (dword *) results;
        *pdw++ = 4;           // count for sid type
@@ -697,7 +704,11 @@ void *start;
        {
          // Encode user name
          dword Referentid = 0x20008;
-         l = encode_dce_string((dword *)results, Referentid, user_name_item, sizeof(user_name_item));
+
+         if (pSmb2Stream)
+          l = encode_dce_string((dword *)results, Referentid, RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)));
+         else // This won't work send a constant
+           l = encode_dce_string((dword *)results, Referentid, user_name_item, sizeof(user_name_item));
          results = PADD(results,l);
          results= ptralign(results, 4);
          Referentid += 8;
@@ -708,7 +719,7 @@ void *start;
 
          // Encode auth string
          Referentid += 4;
-         l = encode_dce_string_pointer((dword *)results, Referentid, authority_name_item, sizeof(authority_name_item));
+         l = encode_dce_string((dword *)results, Referentid, SRVSVC_get_stream_authority_name(pSmb2Stream), 2*rtsmb_util_wlen(SRVSVC_get_stream_authority_name(pSmb2Stream)));
          results = PADD(results,l);
 //         results= ptralign(results, 4);
        }

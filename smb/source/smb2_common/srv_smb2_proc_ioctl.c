@@ -24,6 +24,9 @@
 #include "rtptime.h"
 #include "rtpmem.h"
 #include "srvssn.h"
+#include "smbdebug.h"
+
+extern void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer);
 
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
@@ -80,6 +83,12 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       answer->Capabilities = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, 0);
       tc_memcpy(answer->guid,pSmb2SrvGlobal->ServerGuid,16);
       answer->SecurityMode =  SMB2_NEGOTIATE_SIGNING_ENABLED;
+      if (pSmb2SrvGlobal->RequireMessageSigning)
+         answer->SecurityMode |=  SMB2_NEGOTIATE_SIGNING_REQUIRED;
+#if (HARDWIRED_DISABLE_SIGNING)
+printf("Force signing off\n");
+      answer->SecurityMode =  0;
+#endif
       answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;
       response.OutputCount = sizeof(VALIDATE_NEGOTIATE_INFO_R);
     }
@@ -88,6 +97,8 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
        if (command.InputCount)
        {
          long l;
+         // srvsvc layer will need the stream pointer to get to session info like user name and domain so pass it through the FD
+         rtsmb_ipcrpc_bind_stream_pointer(fileid, (void *)pStream);
 
          l = SMBFIO_Write (pStream->psmb2Session->pSmbCtx,
               pStream->psmb2Session->pSmbCtx->tid,

@@ -147,11 +147,13 @@ int i;
      if (!SrvSrvcStreams[i].in_use)
      {
       SrvSrvcStreams[i].in_use = TRUE;
+      SrvSrvcStreams[i].bound_stream_pointer = 0;
       return i|HARDWIRED_SRVSVC_FID;
      }
    }
    return -1;
 }
+
 
 static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc)
 {
@@ -168,6 +170,16 @@ static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc)
 static StreamtoSrvSrvc *FdToSrvSrvcStream(int fd)
 {
    return &SrvSrvcStreams[fd&0xf];
+}
+
+// Bind SMB2 stream pointer to fd file descriptor so we can get to context items from IOCTL calls that are accessed through the file system
+void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
+{
+  if (IS_SRVSVC_FID(fd))
+  {
+    StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
+    pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
+  }
 }
 #ifdef SUPPORT_SMB2
 static BBOOL ipcrpc_is_smb2_srvsvc(char RTSMB_FAR * name)

@@ -262,12 +262,31 @@ pSmb2SrvModel_Session r=0;
 }
 
 
+/* Helper function for security code to access the user name from the smb2 session structure. */
+PFWCS  RTSmb2_get_stream_username(void *pSmb2Stream)
+{
+  if (pSmb2Stream && ((smb2_stream  *)pSmb2Stream)->psmb2Session &&((smb2_stream  *)pSmb2Stream)->psmb2Session->UserName)
+    return ((smb2_stream  *)pSmb2Stream)->psmb2Session->UserName;
+  else
+    return "U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
+}
+/* Helper function for security code to access the domain name from the smb2 session structure. */
+PFWCS  RTSmb2_get_stream_authority_name(void *pSmb2Stream)
+{
+  if (pSmb2Stream && ((smb2_stream  *)pSmb2Stream)->psmb2Session &&((smb2_stream  *)pSmb2Stream)->psmb2Session->DomainName)
+    return ((smb2_stream  *)pSmb2Stream)->psmb2Session->DomainName;
+  else
+    return "U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
+}
+
+
+
 /* Format the global caps field for Proc_smb2_NegotiateProtocol. Values derived from fields in the global object */
 dword Smb2_util_get_global_caps(pSmb2SrvModel_Connection pConnection,PRTSMB2_NEGOTIATE_C pRequest)
 {
 dword global_caps = 0;
 BBOOL is3XXDIALECT = (BBOOL)SMB2IS3XXDIALECT(pConnection->NegotiateDialect);
-    if (pSmb2SrvGlobal->IsDfsCapable)
+    // if (pSmb2SrvGlobal->IsDfsCapable)
         global_caps |= SMB2_GLOBAL_CAP_DFS;
     if (pSmb2SrvGlobal->RTSMBIsLeaseCapable)
         global_caps |= SMB2_GLOBAL_CAP_LEASING;

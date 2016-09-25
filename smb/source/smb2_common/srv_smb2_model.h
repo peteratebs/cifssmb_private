@@ -287,6 +287,7 @@ typedef struct s_Smb2SrvModel_Session
     FILETIME_T CreationTime;            /* The time the session was established. */
     ddword   IdleTime;                  /* The time the session processed its most recent request. */
     byte    *UserName;                  /* The name of the user who established the session. */
+    byte    *DomainName;                /* The domain of the user who established the session. */
         /* If the server implements the SMB 3.x dialect family, it MUST implement the following  */
     pSmb2SrvModel_Channel ChannelList[RTSMB2_CFG_MAX_CHANNELS_PER_SESSION];/* A list of channels that have been established on this authenticated session, as specified in section 3.3.1.14. */
     BBOOL EncryptData;                  /* Indicates that the messages on this session SHOULD be encrypted. */

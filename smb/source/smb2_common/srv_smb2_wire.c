@@ -372,14 +372,17 @@ PRTSMB2_SET_INFO_C pCommand = (PRTSMB2_SET_INFO_C) pItem;
 static int _smb2_stream_write_error(smb2_stream *pStream, dword statusCode, word ErrorByteCount, byte *ErrorBytes)
 {
 int write_header_size;
+rtsmb_size  StartOutBodySize =  pStream->OutBodySize;  // Remember the starting poing
+PFVOID StartS  = pStream->pOutBuf;
+
 	pStream->OutHdr.Status_ChannelSequenceReserved = statusCode;
 	write_header_size = cmd_fill_header_smb2 (pStream, &pStream->OutHdr);
 	if (write_header_size >= 0)
     {
     rtsmb_size size;
     rtsmb_size consumed;
-	PFVOID buf, s;
     RTSMB2_ERROR_R reply;
+    PFVOID buf, s;
       buf     = pStream->pOutBuf;
       size    = pStream->write_buffer_remaining;
       s = buf;
@@ -393,7 +396,6 @@ int write_header_size;
       }
       else
           reply.Buffer         = 0;
-
       PACK_STRUCT_TO_WIRE(&reply,RTSMB2_ERROR_R,9);
       if ( ErrorBytes )
       {
@@ -402,8 +404,10 @@ int write_header_size;
       consumed = (rtsmb_size)(PDIFF(buf, s));
       pStream->pOutBuf = PADD(pStream->pOutBuf,consumed);
       pStream->write_buffer_remaining-=consumed;
-      pStream->OutBodySize += (rtsmb_size) (write_header_size + consumed);
+//      pStream->OutBodySize += (rtsmb_size) (write_header_size + consumed);
     }
+printf("_smb2_stream_write_error   pStream->OutBodySize after:%d\n", pStream->OutBodySize);
+    pStream->OutBodySize = StartOutBodySize + (PDIFF(pStream->pOutBuf, StartS));
 	pStream->Success=TRUE; // This says whether to encrypt or not
     return 0;
 }

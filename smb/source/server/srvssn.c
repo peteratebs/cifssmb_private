@@ -295,22 +295,49 @@ tc_memcpy(spnego_session_key, decoded_targ_token->session_key->value_at_offset, 
        has_lm_field=TRUE;
 
     // Make sure we have an nulled domain name buffer if none was passed.
-    rtsmb_char default_domainname_buffer[32];
+    BYTE default_domainname_buffer[256];
+    BYTE username_buffer[256];
     PFRTCHAR domainname = 0;
+    PFRTCHAR username  = 0;
     if (decoded_targ_token->domain_name)
-      domainname = decoded_targ_token->domain_name->value_at_offset;
-    else
     {
-      default_domainname_buffer[0] = 0;
+      rtp_printf("decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);
+      domainname = decoded_targ_token->domain_name->value_at_offset;
+      tc_memcpy(default_domainname_buffer,decoded_targ_token->domain_name->value_at_offset,decoded_targ_token->domain_name->size);
+      default_domainname_buffer[decoded_targ_token->domain_name->size]=0;
+      default_domainname_buffer[decoded_targ_token->domain_name->size+1]=0;
       domainname = default_domainname_buffer;
     }
+    else
+    {
+      rtp_printf("No domain:%d\n");
+      default_domainname_buffer[0] = 0;
+      default_domainname_buffer[1] = 0;
+      domainname = default_domainname_buffer;
+    }
+    if (decoded_targ_token->user_name)
+    {
+      rtp_printf("decoded_targ_token->user_name->size:%d\n", decoded_targ_token->user_name->size);
+      tc_memcpy(username_buffer,decoded_targ_token->user_name->value_at_offset,decoded_targ_token->user_name->size);
+      username_buffer[decoded_targ_token->user_name->size]=0;
+      username_buffer[decoded_targ_token->user_name->size+1]=0;
+      username = username_buffer;
+    }
+    else
+    {
+      rtp_printf("No domain:%d\n");
+      default_domainname_buffer[0] = 0;
+      default_domainname_buffer[1] = 0;
+      domainname = default_domainname_buffer;
+    }
+
     // Try ntlmv2
-    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
     if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
     // Try lmv2 - not tested yet.
     if (Access == AUTH_NOACCESS)
     {
-      Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, domainname, extended_authId);
+      Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
       if (display_login_info) rtp_printf("Auth_AuthenticateUser_lmv2 returned %X\n", Access);
     }
     // Try ntlm2
@@ -318,33 +345,33 @@ tc_memcpy(spnego_session_key, decoded_targ_token->session_key->value_at_offset, 
     {
       if (has_lm_field)
       { // The client key is in lm_response
-        Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+        Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
         if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
       }
       if (Access == AUTH_NOACCESS)
       {
         ntlmv2_response_t *pntlmv2_response = (ntlmv2_response_t *)decoded_targ_token->ntlm_response->value_at_offset;
         if (display_login_info) rtp_printf("Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
-        Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, decoded_targ_token->user_name->value_at_offset, extended_authId);
+        Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, username, extended_authId);
         if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
       }
 //      TBD - Recheck may have broken on windows.
       if (Access == AUTH_NOACCESS)
       {
         if (has_lm_field)
-          Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+          Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
         if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
       }
     }
     if (Access == AUTH_NOACCESS)
     {
-      Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+      Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
       if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
     }
     if (Access == AUTH_NOACCESS)
     {
       // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
-      Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->user_name->value_at_offset, extended_authId);
+      Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
       rtp_printf("Auth_AuthenticateUser_lm returned %X\n", Access);
     }
     if (display_login_info) rtp_printf("Auth_AuthenticateUser should be removed \n");

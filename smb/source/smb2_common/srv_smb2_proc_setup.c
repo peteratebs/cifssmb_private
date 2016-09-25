@@ -66,6 +66,7 @@ Proccess SESSION_SETUP requests.
 
 
 */
+void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *user_name, int user_name_size, BYTE *domain_name, int domain_name_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result);
 
 BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
 {
@@ -329,11 +330,11 @@ static byte spnego_blob_buffer[512];
           {
             extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
           }
-          spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
 
           if (extended_access==AUTH_NOACCESS)
           {
             // Force the buffer to zero this will close the session and shut down the socket
+            spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
             rtp_printf("!!!! spnego Auth failed, No access !!!! \n");
             pStream->WriteBufferParms[0].pBuffer = 0;
             status=SMB2_STATUS_ACCESS_DENIED;
@@ -344,6 +345,29 @@ static byte spnego_blob_buffer[512];
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 1;
+            // Calculate the session signing key
+// void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result);
+
+            if (decoded_targ_token.ntlm_response && decoded_targ_token.ntlm_response->size>16)
+            {
+                 calculate_ntlmv2_signing_key(pStream->psmb2Session->pSmbCtx->encryptionKey,
+                   &decoded_targ_token.ntlm_response->value_at_offset[16],
+                   decoded_targ_token.ntlm_response->size-16,
+                   decoded_targ_token.user_name?decoded_targ_token.user_name->value_at_offset:0,
+                   decoded_targ_token.user_name?(int) decoded_targ_token.user_name->size:0,
+                   decoded_targ_token.domain_name?decoded_targ_token.domain_name->value_at_offset:0,
+                   decoded_targ_token.domain_name?(int) decoded_targ_token.domain_name->size:0,
+                   decoded_targ_token.session_key?decoded_targ_token.session_key->value_at_offset:0,
+                   decoded_targ_token.session_key?(int) decoded_targ_token.session_key->size:0,
+                   pStream->psmb2Session->SigningKey);
+
+            }
+
+            // Save off
+            pStream->psmb2Session->UserName = rtsmb_util_wstrmalloc(decoded_targ_token.user_name?decoded_targ_token.user_name->value_at_offset:"U\0N\0K\0N\0O\0W\0N\0\0\0");
+            pStream->psmb2Session->DomainName = rtsmb_util_wstrmalloc(decoded_targ_token.domain_name?decoded_targ_token.domain_name->value_at_offset:"U\0N\0K\0N\0O\0W\0N\0\0\0");
+
+            spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
           }
         }
 //        pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Next_token(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext, &pStream->WriteBufferParms[0].byte_count, &Spnego_isLast_token, &status, pStream->ReadBufferParms[0].pBuffer, command.SecurityBufferLength);
