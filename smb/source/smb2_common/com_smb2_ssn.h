@@ -59,13 +59,14 @@ typedef struct smb2_stream_s {
     rtsmb_size write_buffer_size;
     rtsmb_size write_buffer_remaining;
     rtsmb_size OutBodySize;
-
     RTSMB2_HEADER InHdr;                            // Buffer control and header from command
 	RTSMB2_BUFFER_PARM ReadBufferParms[2];          // For reads points to sink for extra data.  Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   read_origin;
     rtsmb_size read_buffer_size;
     rtsmb_size read_buffer_remaining;
     rtsmb_size InBodySize;
+    byte     LastFileId[16];                        // Filled in by create so we can replace 0xffffff with the last created FD.
+                                                    // Cleared before processing a packet (compound request)
 
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;

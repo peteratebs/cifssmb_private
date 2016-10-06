@@ -56,6 +56,7 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer,  rtsmb_size
 static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
 static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
 
+const byte FileIdWildcard[16] = {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff};
 
 
 
@@ -141,6 +142,8 @@ typedef struct s_FILE_NAMES_INFORMATION
 PACK_PRAGMA_POP
 
 
+// OutputBufferLength;  HEREHERE need to honor user's requested max OutputBufferLength
+
 extern const byte zeros24[24];
 
 BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
@@ -162,8 +165,9 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     void *byte_pointer = 0;
     void *Saved_Inbuf;
     rtsmb_size Saved_read_buffer_remaining;
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:\n",0);
+printf("Proc_smb2_QueryDirectory: 1 !!!!!!:\n",0);
+    PFVOID   pOutBufStart;
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:\n",0);
 
 
     tc_memset(&response,0, sizeof(response));
@@ -178,6 +182,9 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     // Save the input position
     Saved_Inbuf = pStream->pInBuf;
     Saved_read_buffer_remaining = pStream->read_buffer_remaining;
+
+    // Save the start output position for doing 8 byte oundaries
+    pOutBufStart = pStream->pOutBuf;
 
     /* Read into command, TreeId will be present in the input header */
     command.StructureSize = 33;
@@ -194,30 +201,57 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
     }
+rtsmb_dump_bytes("PATTERN- ARG", file_name, command.FileNameLength, DUMPUNICODE);
 
     // == Borrowed from srvtrans2 ==
 
     user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
 
+rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId),  DUMPBIN);
+    // Compound requests send 0xffff ffff ffff ffff to mean the last file id returned by create
+    byte * pFileId = command.FileId;
+    if (tc_memcmp(command.FileId, FileIdWildcard, sizeof(command.FileId))==0)
+      pFileId = pStream->LastFileId;
+
+rtsmb_dump_bytes("PATTERN- MATCH FILID:",  pFileId, sizeof(command.FileId),  DUMPBIN);
+
     // See if we have a match for this file id
     {
         int _sid;
         sid = 0;
+rtsmb_dump_bytes("PATTERN- MATCH FILE:",  command.FileId, sizeof(command.FileId),  DUMPBIN);
         for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
         {
-          if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
+printf("Sid %d inuse : %d\n",_sid,  user->searches[_sid].inUse);
+if (user->searches[_sid].inUse)
+{
+  rtsmb_dump_bytes("PATTERN- FID", user->searches[_sid].FileId, sizeof(command.FileId),  DUMPBIN);
+}
+          if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, pFileId, sizeof(command.FileId))==0)
           {
             searchFound=TRUE;
+printf("Sid %d match\n",_sid);
             sid = _sid;
             break;
           }
         }
     }
-    if (searchFound && (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN))!=0)
-    {   // Make sure to start over if we found an open directoy on a rescan
-        SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
-        user->searches[sid].inUse=FALSE;
-        searchFound=FALSE;
+printf("Proc_smb2_QueryDirectory: search found :%d\n",searchFound);
+printf("Proc_smb2_QueryDirectory: command.flags:%x masked:%x\n",command.Flags,
+      (command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN))
+      );
+    if (searchFound)
+    {
+printf("Proc_smb2_QueryDirectory: okay inside search found :%d\n",searchFound);
+      if (
+        (command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN))
+       )
+      {   // Make sure to start over if we found an open directory on a rescan
+        printf("Proc_smb2_QueryDirectory: reopen, start over\n");
+          SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+          user->searches[sid].inUse=FALSE;
+          searchFound=FALSE;
+      }
     }
 
     if (!searchFound)
@@ -233,6 +267,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     		for (i = 1; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
     				sid = i;
+printf("Proc_smb2_QueryDirectory: 2222 start over\n");
     		SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
     	}
 	}
@@ -243,7 +278,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 	user->searches[sid].tid = pStream->psmb2Session->pSmbCtx->tid;
 	user->searches[sid].pid64 = pStream->InHdr.SessionId;
     // Save the ID
-    tc_memcpy(user->searches[sid].FileId, command.FileId, sizeof(command.FileId));
+    tc_memcpy(user->searches[sid].FileId, pFileId, sizeof(command.FileId));
 
     // == Done Borrowed from srvtrans2 ==
     if (command.FileNameLength > sizeof(user->searches[sid].name))
@@ -276,7 +311,10 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         {
           rtsmb_ncpy(user->searches[sid].name, name,field_size);
           temp = &user->searches[sid].name[pathlen];
-          temp[0] = '\\';
+//          temp[0] = '\\';
+//char rtp_file_get_path_seperator (void)
+//          temp[0] = rtp_file_get_path_seperator (void)
+          temp[0] = '/';
           temp[1] = '\0';
           rtsmb_ncpy(&temp[1], file_name, whatsleft);
         }
@@ -300,10 +338,13 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
+printf("Proc_smb2_QueryDirectory: GFIRST\n");
+rtsmb_dump_bytes("PATTERN - to Gfirst", user->searches[sid].name, 2*rtsmb_util_wlen(user->searches[sid].name), DUMPUNICODE);
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
     }
     else
     {
+printf("Proc_smb2_QueryDirectory: GNEXT\n");
 	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
     }
 
@@ -312,6 +353,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     while (isFound)
     {
         numFound += 1;
+printf("Proc_smb2_QueryDirectory: numfound:%d\n",numFound);
         rtsmb_size bytes_consumed = 0;
         switch (command.FileInformationClass) {
         // FileInformationClass
@@ -352,8 +394,21 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
             isFound = SMBFIO_GNext(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
             if (isFound)
             {
-                *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
-                byte_pointer = PADD(byte_pointer, bytes_consumed);
+               dword *prev_byte_pointer = byte_pointer;
+               *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
+               byte_pointer = PADD(byte_pointer, bytes_consumed);
+               rtsmb_size SkipCount = ( ((bytes_consumed+7)/8) *8 ) - bytes_consumed;
+               if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
+               {
+                  tc_memset(byte_pointer,0,SkipCount);
+                  bytes_consumed += SkipCount;
+                  byte_pointer = PADD(byte_pointer, SkipCount);
+                  *((dword *) prev_byte_pointer) = bytes_consumed;           // Next offset pointer
+                  pStream->WriteBufferParms[0].byte_count += SkipCount;
+                  bytes_remaining -= SkipCount;
+
+
+               }
             }
             else
             {
@@ -362,14 +417,13 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         }
     }
 
-
     if (numFound)
     {
       response.StructureSize = 9; // 9
       response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
       if (response.OutputBufferLength)
         response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-      if (isEof==TRUE)
+      if (isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
       { // We did get content but we also reached the end. clear the compound output flag so we send now. The client should ask again and we'll send , no more
         pStream->compound_output_index = 0;
       }
@@ -393,7 +447,8 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NO_MORE_FILES);
       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_NO_MORE_FILES;
       pStream->compound_output_index=0; // Force a send, and make him query again for a response
-      if (searchFound)
+printf("Not calling GDONE on search found\n");
+      if (0&&searchFound)
       {
         SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
         user->searches[sid].inUse = FALSE;
@@ -480,6 +535,8 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
     if (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + filename_size > (rtsmb_size) bytes_remaining)
        return 0;
 
+    tc_memset(pinfo, 0, sizeof(*pinfo));
+
     base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat);
     if (base_size ==0)
         return 0;
@@ -507,6 +564,7 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size 
 
     if (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO)+sizeof(RTSMB2_FILE_SHORT_DIRECTORY_INFO)+filename_size > (rtsmb_size) bytes_remaining)
        return 0;
+    tc_memset(pinfo, 0, sizeof(*pinfo));
     base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat);
     if (base_size ==0)
        return 0;
@@ -532,6 +590,7 @@ static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_siz
 
     if (sizeof(FILE_ID_BOTH_DIR_INFORMATION)+filename_size > (rtsmb_size) bytes_remaining)
        return 0;
+    tc_memset(pinfo, 0, sizeof(*pinfo));
     base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat);
     if (base_size ==0)
        return 0;

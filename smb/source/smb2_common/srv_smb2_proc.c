@@ -201,6 +201,10 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 		return TRUE;
 	}
 
+    // Fill in by create so we can replace 0xffffff with the last created FD.
+    // Cleared before processing a packet (compound request)
+    tc_memset(pStream->LastFileId,0, sizeof( pStream->LastFileId));
+
     // Process one or more SMB2 packets
     smb2stream.compound_output_index = 0;
     do
@@ -302,8 +306,10 @@ printf("Bodysize after processing command: %d\n",pStream->OutBodySize);
           }
        }
 printf("Bodysize before signing: %d\n",pStream->OutBodySize);
+printf("Address we of header before signing:  :%X\n",pOutBufStart);
        // sign
 #if (1)
+
 
         PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
         pOutHdr->Flags &= ~SMB2_FLAGS_SIGNED;
@@ -314,16 +320,26 @@ rtsmb_dump_bytes("Zero sig", pOutHdr->Signature, 16,  DUMPBIN);
 #if (HARDWIRED_DISABLE_SIGNING)
        sign_packet = FALSE;
 #else
+printf("Okay sign 1:%d\n", sign_packet);
+       // Always sign if signing is required.
+       if (pStream->psmb2Session->SigningRequired)
+         sign_packet = TRUE;
+printf("Okay sign 1a:%d\n", sign_packet);
+         sign_packet = TRUE;
+printf("Okay sign 1b:%d\n", sign_packet);
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          sign_packet = TRUE;
+printf("Okay sign 2:%d\n", sign_packet);
 
        if (pStream->InHdr.Command == SMB2_SESSION_SETUP && pStream->OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
 printf("Okay signing setup return\n");
          sign_packet = TRUE;
        }
+printf("Okay sign 3:%d\n", sign_packet);
 #endif
+printf("Okay sign 4:%d\n", sign_packet);
        if (sign_packet)
        { // sign if dialact == 2100 and session id != 0
             uint8_t digest[SHA256_DIGEST_LENGTH];
@@ -1182,7 +1198,6 @@ const char *DebugSMB2CommandToString(int command);
 //
 static void DebugOutputSMB2Command(int command)
 {
-    return;
 #ifdef RTSMB_DEBUG
 char tmpBuffer[32];
     char* buffer = tmpBuffer;

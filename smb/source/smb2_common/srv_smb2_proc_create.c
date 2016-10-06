@@ -361,6 +361,9 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     response.CreateContextsOffset = 0;
     response.CreateContextsLength = 0;
 
+    // Fill in by create so we can replace 0xffffff with the last created FD.
+    // Cleared before processing a packet (compound request)
+    tc_memcpy(pStream->LastFileId,&response.FileId[0], sizeof( pStream->LastFileId));
 
 
     if (wants_extra_info)
