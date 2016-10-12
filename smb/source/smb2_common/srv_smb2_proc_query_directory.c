@@ -60,6 +60,15 @@ const byte FileIdWildcard[16] = {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x
 
 
 
+// Compound requests send 0xffff ffff ffff ffff to mean the last file id returned by create
+byte *RTSmb2_mapWildFileId(smb2_stream  *pStream, byte * pFileId)
+{
+  if (tc_memcmp(pFileId, FileIdWildcard, sizeof(FileIdWildcard))==0)
+    pFileId = pStream->LastFileId;
+  return pFileId;
+}
+
+
 PACK_PRAGMA_ONE
 typedef struct s_FILE_DIRECTORY_INFORMATION_BASE
 {
@@ -209,9 +218,11 @@ rtsmb_dump_bytes("PATTERN- ARG", file_name, command.FileNameLength, DUMPUNICODE)
 
 rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId),  DUMPBIN);
     // Compound requests send 0xffff ffff ffff ffff to mean the last file id returned by create
-    byte * pFileId = command.FileId;
-    if (tc_memcmp(command.FileId, FileIdWildcard, sizeof(command.FileId))==0)
-      pFileId = pStream->LastFileId;
+//    byte * pFileId = command.FileId;
+//    if (tc_memcmp(command.FileId, FileIdWildcard, sizeof(command.FileId))==0)
+//      pFileId = pStream->LastFileId;
+    // keep the fid or map it to the previous create if it is a wildcard
+    byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
 
 rtsmb_dump_bytes("PATTERN- MATCH FILID:",  pFileId, sizeof(command.FileId),  DUMPBIN);
 

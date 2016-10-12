@@ -235,7 +235,8 @@ static const byte bind_accepance_item[24] = { 0x00,0x00,0x00,0x00,0x04,0x5d,0x88
 static const byte user_name_item[] = { 'p',0,'e',0,'t',0,'e',0,'r',0 };
 static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,'X',0,'P',0,'S',0,'-',0,'8',0,'3',0,'0',0,'0',0, 0, 0 };
 
-static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0x4f, 0x7b, 0xf9, 0x3e };
+// static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0x4f, 0x7b, 0xf9, 0x3e };
+   static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0xf9, 0x3e, 0x4f, 0x7b };
 
 
 static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04 };
@@ -509,6 +510,7 @@ void *start;
        void *start;
        void *results;
        word *pfraglength;
+       dword *palloc_hint;
        DCE_LSARP_GET_USER_NAME_REPLY *pout;
        start = *pRheap_data;
        start= ptralign(start, 4);
@@ -536,6 +538,7 @@ void *start;
        pout->auth_length          = 0;
        pout->call_id              = pdce_header->call_id;
        pout->alloc_hint           = 0;  // Supposed to be allowed to be zero
+       palloc_hint                = &pout->alloc_hint;
        pout->context_id           = pdce_header->context_id;
        pout->cancel_count         = 0;
        pout->pad                  = 0;
@@ -550,6 +553,8 @@ void *start;
        *((dword *)results) =  0;
        results = PADD(results,4);
        *pfraglength  = PDIFF(results, start);
+printf("Add alloc hint\n");
+*palloc_hint = *pfraglength - sizeof(DCE_LSARP_POLICY2_REPLY);
        *pRdata_count = *pfraglength;
        rval = 0;
      }
@@ -630,9 +635,15 @@ void *start;
        *pdw++ = 1;     // count  WTF ??
        *pdw++ = 0;     // NT error status zero
 
-       *pfraglength  = PDIFF(pdw, start);
+       *pfraglength  = PDIFF(pdw, start); // Subtract status code length from dce length
        *palloc_hint  = *pfraglength - sizeof(DCE_LSARP_LOOKUP_NAMES_REPLY);
        *pRdata_count = *pfraglength;
+//       printf("Adding 4 don;t know why\n");
+//       *pfraglength  += 4;
+//       *palloc_hint  += 4;
+//       *pRdata_count += 4;
+
+
         rval = 0;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_GET_USER_NAME)
@@ -709,8 +720,13 @@ void *start;
           l = encode_dce_string((dword *)results, Referentid, RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)));
          else // This won't work send a constant
            l = encode_dce_string((dword *)results, Referentid, user_name_item, sizeof(user_name_item));
+
+rtsmb_dump_bytes("User name", RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)), DUMPUNICODE);
+printf("l::::: %d r1:%X \n", l, results);
          results = PADD(results,l);
+printf("l2::::: %d r1:%X \n", l, results);
          results= ptralign(results, 4);
+printf("l3::::: %d r1:%X \n", l, results);
          Referentid += 8;
 
          // Encode auth Referent and payload length/size
@@ -720,8 +736,12 @@ void *start;
          // Encode auth string
          Referentid += 4;
          l = encode_dce_string((dword *)results, Referentid, SRVSVC_get_stream_authority_name(pSmb2Stream), 2*rtsmb_util_wlen(SRVSVC_get_stream_authority_name(pSmb2Stream)));
+rtsmb_dump_bytes("Domain name", SRVSVC_get_stream_authority_name(pSmb2Stream), 2*rtsmb_util_wlen(SRVSVC_get_stream_authority_name(pSmb2Stream)), DUMPUNICODE);
+printf("l::::: %d r1:%X \n", l, results);
          results = PADD(results,l);
-//         results= ptralign(results, 4);
+printf("l2::::: %d r1:%X \n", l, results);
+         results= ptralign(results, 4);
+printf("l3::::: %d r1:%X \n", l, results);
        }
        // NT error status zero
        *((dword *)results) =  0;

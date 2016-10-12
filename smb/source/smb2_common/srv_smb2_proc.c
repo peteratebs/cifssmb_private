@@ -260,7 +260,6 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        // Process this one smb packet
        doSend |= SMBS_ProcSMB2_Packet (&smb2stream);
 
-printf("Bodysize after processing command: %d\n",pStream->OutBodySize);
 
        // See if there are more input commands to process if the packet doesn't require compound_output_index
        if (!smb2stream.compound_output_index)
@@ -305,8 +304,6 @@ printf("Bodysize after processing command: %d\n",pStream->OutBodySize);
                isCompoundReply = FALSE;
           }
        }
-printf("Bodysize before signing: %d\n",pStream->OutBodySize);
-printf("Address we of header before signing:  :%X\n",pOutBufStart);
        // sign
 #if (1)
 
@@ -314,36 +311,26 @@ printf("Address we of header before signing:  :%X\n",pOutBufStart);
         PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
         pOutHdr->Flags &= ~SMB2_FLAGS_SIGNED;
         tc_memset(pOutHdr->Signature, 0, 16);
-printf("Sig address %X\n", pOutHdr->Signature);
-rtsmb_dump_bytes("Zero sig", pOutHdr->Signature, 16,  DUMPBIN);
 
 #if (HARDWIRED_DISABLE_SIGNING)
        sign_packet = FALSE;
 #else
-printf("Okay sign 1:%d\n", sign_packet);
        // Always sign if signing is required.
        if (pStream->psmb2Session->SigningRequired)
          sign_packet = TRUE;
-printf("Okay sign 1a:%d\n", sign_packet);
          sign_packet = TRUE;
-printf("Okay sign 1b:%d\n", sign_packet);
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          sign_packet = TRUE;
-printf("Okay sign 2:%d\n", sign_packet);
 
        if (pStream->InHdr.Command == SMB2_SESSION_SETUP && pStream->OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
-printf("Okay signing setup return\n");
          sign_packet = TRUE;
        }
-printf("Okay sign 3:%d\n", sign_packet);
 #endif
-printf("Okay sign 4:%d\n", sign_packet);
        if (sign_packet)
        { // sign if dialact == 2100 and session id != 0
             uint8_t digest[SHA256_DIGEST_LENGTH];
-printf("Okay sign2\n");
             if (pStream->psmb2Session->SessionId != 0)
             {
                unsigned int PrevLength;
@@ -360,28 +347,19 @@ printf("Okay sign2\n");
                // Now see if we have to pad the output to get to an 8 byte boundary
                PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
                SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
-printf("Okay skip before calc signature l=%d\n",SkipCount);
-printf("Bodysize before :%d SkipCount :%d\n",pStream->OutBodySize, SkipCount );
                if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
                {
                   tc_memset(pStream->pOutBuf,0,SkipCount);
                   pStream->write_buffer_remaining -= SkipCount;
                   pStream->pOutBuf = PADD (pStream->pOutBuf, SkipCount);
                   pStream->OutBodySize += SkipCount;
-printf("Bodysize before :%d SkipCount :%d\n",pStream->OutBodySize, SkipCount );
                }
-printf("Okay sign3\n");
                pOutHdr->Flags |= SMB2_FLAGS_SIGNED;
 
                {
                 void *data = pOutBufStart;
                 size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
-printf("Okay call calculate_smb2_signing_key l=%d\n",data_len);
-rtsmb_dump_bytes("signingkey:",  pStream->psmb2Session->SigningKey, 16,  DUMPBIN);
-rtsmb_dump_bytes("session data", data, data_len,  DUMPBIN);
-rtsmb_dump_bytes("signature 1:",  pOutHdr->Signature, 16,  DUMPBIN);
                 calculate_smb2_signing_key(pStream->psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
-rtsmb_dump_bytes("signature:",  pOutHdr->Signature, 16,  DUMPBIN);
                }
 #if (0)
                tc_memset(ipad, 0, sizeof(ipad));
@@ -395,11 +373,9 @@ rtsmb_dump_bytes("signature:",  pOutHdr->Signature, 16,  DUMPBIN);
 //               tc_memcpy( ipad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
 //               tc_memcpy( opad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
 
-rtsmb_dump_bytes("encryptionKey", pStream->psmb2Session->pSmbCtx->encryptionKey, 16,  DUMPBIN);
 
                tc_memcpy( ipad, pStream->psmb2Session->SigningKey, 16);
                tc_memcpy( opad, pStream->psmb2Session->SigningKey, 16);
-rtsmb_dump_bytes("session signing key", pStream->psmb2Session->SigningKey, 16,  DUMPBIN);
 
                /* XOR key with ipad and opad values */
                for (i=0; i<64; i++)
@@ -415,7 +391,6 @@ rtsmb_dump_bytes("session signing key", pStream->psmb2Session->SigningKey, 16,  
                {
                 void *data = pOutBufStart;
                 size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
-printf("Okay calc signature l=%d\n",data_len);
                 SHA256_Update(&ctx, data, data_len); /* then text of datagram */
                }
                SHA256_Final(digest, &ctx);
@@ -426,15 +401,12 @@ printf("Okay calc signature l=%d\n",data_len);
                //SHA256_Final(digest, &ctx_o);
                tc_memcpy(pOutHdr->Signature, digest, 16);
                // tc_memset(&pOutHdr->Signature[8], 0x12, 4);
-printf("Okay sign3\n");
 #endif
             }
         }
 #endif
-printf("Bodysize in loop : %d iscompound :%d \n",pStream->OutBodySize, isCompoundReply );
     }  while (isCompoundReply);
     Smb1SrvCtxtFromStream(pSctx, pStream);
-printf("Bodysize after processing :%d\n",pStream->OutBodySize);
     return TRUE;
 //    return doSend;
 }
@@ -553,7 +525,6 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     			doSend = Proc_smb2_Lock(pStream);
     			break;
             case SMB2_IOCTL          :
-printf("Proc_smb2_Ioctl   pStream->OutBodySize before:%d\n", pStream->OutBodySize);
     			doSend = Proc_smb2_Ioctl(pStream);
     			break;
             case SMB2_CANCEL         :

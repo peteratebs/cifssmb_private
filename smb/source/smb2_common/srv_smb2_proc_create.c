@@ -24,10 +24,21 @@
 #include "srv_smb2_model.h"
 
 
-const unsigned char extra_info_response[] = {0x20,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-0xff,0x01,0x1f, // Access mask
-0x00,0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,0x9e,0x3b,0x06,0x00
-,0x00,0x00,0x00,0x00,0x00,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+const unsigned char pMxAc_info_response[] = {0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0xff,0x01,0x1f, 0x00,}; // pMxAc Access mask
+
+const unsigned char pQfid_info_response[] = {
+ 0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,0x9e,0x3b,0x06,0x00,
+ 0x00,0x00,0x00,0x00,0x00,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+// Note leading 4 bytes are 0x20 00 00 00 , which is "next"
+const unsigned char pMxAc_and_pQfid_info_response[] = {
+0x20,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0xff,0x01,0x1f, 0x00,
+0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,0x9e,0x3b,0x06,0x00,
+0x00,0x00,0x00,0x00,0x00,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
 
 
 #include "rtptime.h"
@@ -106,7 +117,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     dword r;
     dword externalFid;
     BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
-    BBOOL wants_extra_info = FALSE;
+    BBOOL wants_extra_pMxAc_info = FALSE;
+    BBOOL wants_extra_pQfid_info = FALSE;
     dword CreateAction = 1; // 1== FILE_OPEN, 0 = SUPER_SEDED, 2=CREATED, 3=OVERWRITTEN
     int flags = 0, mode;
     SMBFSTAT stat;
@@ -281,7 +293,9 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       flags = RTP_FILE_O_RDONLY;
       TURN_ON(command.FileAttributes, 0x80);
       // Hack, include extra info in stream if no file
-      wants_extra_info = TRUE;
+      wants_extra_pMxAc_info = TRUE;
+      wants_extra_pQfid_info = FALSE;
+
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
       tc_memset(&stat, 0, sizeof(stat));
       // Fake stat to return 0 sizes, and directory attribute
@@ -366,10 +380,39 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     tc_memcpy(pStream->LastFileId,&response.FileId[0], sizeof( pStream->LastFileId));
 
 
-    if (wants_extra_info)
+    static unsigned char responsebuff[512];
+    if (wants_extra_pMxAc_info)
     {
-      pStream->WriteBufferParms[0].byte_count = sizeof(extra_info_response);
-      pStream->WriteBufferParms[0].pBuffer = extra_info_response;
+      pStream->WriteBufferParms[0].pBuffer = pMxAc_info_response;
+      pStream->WriteBufferParms[0].byte_count = sizeof(pMxAc_info_response);;
+      response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
+      response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
+    }
+    else if (wants_extra_pMxAc_info || wants_extra_pQfid_info)
+    {
+      unsigned char *presponse = &responsebuff[0];
+
+      pStream->WriteBufferParms[0].pBuffer = presponse;
+      pStream->WriteBufferParms[0].byte_count = 0;
+
+      if (wants_extra_pMxAc_info)
+      {
+        tc_memcpy(presponse ,pMxAc_info_response, sizeof(pMxAc_info_response));
+        pStream->WriteBufferParms[0].byte_count += sizeof(pMxAc_info_response);
+        dword *pdw = (dword *) presponse;
+        // Point to the pQfid_info packet if it wants both
+        if (wants_extra_pQfid_info)
+          *pdw = sizeof(pMxAc_info_response);
+        else
+          *pdw = 0;
+        presponse +=sizeof(pMxAc_info_response);
+      }
+      if (wants_extra_pQfid_info)
+      {
+        tc_memcpy(presponse ,pQfid_info_response, sizeof(pQfid_info_response));
+        pStream->WriteBufferParms[0].byte_count += sizeof(pQfid_info_response);
+        presponse +=sizeof(pQfid_info_response);
+      }
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
@@ -450,6 +493,8 @@ PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_le
          p_current_value->NameDw = *((dword *)pName); // TBD Byte order issue
          p_current_value->p_context_entry_wire=p_current_context_onwire;
 
+printf("Yah process %X\n", SMB_NTOHD(p_current_value->NameDw));
+
          switch (SMB_NTOHD(p_current_value->NameDw))
          {
             case SMB2_CREATE_EA_BUFFER                    :   // "ExtA"  The data contains the extended attributes that MUST be stored on the created file. This value MUST NOT be set for named pipes and print files.
@@ -468,12 +513,14 @@ PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_le
               pdecoded_create_context->pAISi = p_current_value;
             break;
             case SMB2_CREATE_QUERY_MAXIMAL_ACCESS_REQUEST :   // "MxAc"  The client is requesting that the server return maximal access information.
+printf("Yah got Mxac\n");
               pdecoded_create_context->pMxAc = p_current_value;
             break;
             case SMB2_CREATE_TIMEWARP_TOKEN               :   // "TWrp"  The client is requesting that the server open an earlier version of the file identified by the provided time stamp.
               pdecoded_create_context->pTWrp = p_current_value;
             break;
             case SMB2_CREATE_QUERY_ON_DISK_ID             :   // "QFid"  The client is requesting that the server return a 32-byte opaque BLOB that uniquely identifies the file being opened on disk. No data is passed to the server by the client.
+printf("Yah got Qfid\n");
               pdecoded_create_context->pQFid = p_current_value;
             break;
             case SMB2_CREATE_REQUEST_LEASE                :   // "RqLs"  SMB2.1 and above

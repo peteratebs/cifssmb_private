@@ -46,7 +46,8 @@
 #endif
 
 // Passed with the extended security client challenge. Target configuration strings.
-#define HARDWIRED_TARGET_NAME       "TARGETNAME"
+// #define HARDWIRED_TARGET_NAME       "TARGETNAME"
+#define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"
 #define HARDWIRED_NBDOMAIN_NAME     "DOMAIN"
 #define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
 #define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
@@ -55,6 +56,8 @@
 
 #define HARDWIRED_CLIENT_EXTENDED_SECURITY 1                  // Client side Spnego
 #define HARDWIRED_INCLUDE_DCE                             1       // Experimental DCE support for NetShareEnumAll
+
+#define HARDWIRED_DISABLE_SIGNING 0                           // Disables signing
 
 //============================================================================
 //    INTERFACE REQUIRED HEADERS

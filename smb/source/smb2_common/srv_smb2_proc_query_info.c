@@ -120,7 +120,12 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          PFRTCHAR filepath;
          PFRTCHAR filename;
 
-         word externalFid = *((word *) &command.FileId[0]);
+//         word externalFid = *((word *) &command.FileId[0]);
+          // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
+          // Map if neccessary
+         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+         word externalFid = *((word *) &pFileId[0]);
+
          filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
          worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
          if(worked == FALSE)
