@@ -36,6 +36,26 @@ void releaseSession (PNET_SESSIONCTX pCtx)
 	rtp_sig_mutex_release((RTP_MUTEX) prtsmb_srv_ctx->activeSessions[i]);
 
 }
+
+PNET_SESSIONCTX findSessionByContext (PSMB_SESSIONCTX pSctxt)
+{
+	PNET_SESSIONCTX rv = (PNET_SESSIONCTX)0;
+	word i;
+	CLAIM_NET ();
+	for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+	{
+		if (prtsmb_srv_ctx->sessionsInUse[i] && &(prtsmb_srv_ctx->sessions[i].smbCtx) == pSctxt)
+		{
+			rv = &prtsmb_srv_ctx->sessions[i];
+			break;
+		}
+	}
+	RELEASE_NET ();
+
+	return rv;
+}
+
+
 PNET_SESSIONCTX firstSession (void)
 {
 	PNET_SESSIONCTX rv = (PNET_SESSIONCTX)0;

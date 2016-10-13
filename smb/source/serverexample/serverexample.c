@@ -70,6 +70,7 @@ int smbserver_runtimeaddprinter(void);
 #endif
 static void rtsmb_srv_non_file_config(void);
 
+
 void rtsmb_main (void)
 {
 	//spinState += 1;
@@ -94,11 +95,17 @@ void sig_handler(int signo)
   }
 }
 
-int smbservermain ()
+char *syslogname = "RTSMBS";
+unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
+
+
+int smbservermain (int argc, char **argv)
 {
 	go = 1;
     //test_challenge();
     //return -1;
+
+    RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
 
     // Control C handler for setting go = 0
     signal(SIGINT, sig_handler);

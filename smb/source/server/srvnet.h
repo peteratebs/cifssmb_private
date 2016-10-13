@@ -69,6 +69,8 @@ typedef NET_THREAD_T RTSMB_FAR *PNET_THREAD;
 void rtsmb_srv_net_init (void);
 void rtsmb_srv_net_cycle (long timeout);
 void rtsmb_srv_net_shutdown (void);
+void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx );
+PNET_SESSIONCTX findSessionByContext (PSMB_SESSIONCTX pSctxt);
 
 #if INCLUDE_RTSMB_DC
 void rtsmb_srv_net_pdc_invalidate (void);

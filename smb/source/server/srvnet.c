@@ -163,6 +163,20 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     }
 }
 
+// Close the session out but don't close the socket.
+// Used when an SMB2 session tries to reconnect the session withiut closing the socket
+void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx )
+{
+#ifdef SUPPORT_SMB2
+   if (pSCtx->smbCtx.pCtxtsmb2Session)
+     RTSmb2_SessionShutDown(pSCtx->smbCtx.pCtxtsmb2Session);
+#endif
+   SMBS_CloseSession( &(pSCtx->smbCtx) );
+   pSCtx->smbCtx.state = NOTCONNECTED;
+
+}
+
+
 
 RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
 {
@@ -170,13 +184,7 @@ RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
 //    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ", RTSMB_DEBUG_TYPE_ASCII);
 //    RTSMB_DEBUG_OUTPUT_DINT (pSCtx->sock);
 //    RTSMB_DEBUG_OUTPUT_STR (" closed\n", RTSMB_DEBUG_TYPE_ASCII);
-
-#ifdef SUPPORT_SMB2
-     if (pSCtx->smbCtx.pCtxtsmb2Session)
-       RTSmb2_SessionShutDown(pSCtx->smbCtx.pCtxtsmb2Session);
-#endif
-
-    SMBS_CloseSession( &(pSCtx->smbCtx) );
+    rtsmb_srv_net_connection_close_session(pSCtx);
 
     /* kill conection */
     if (rtp_net_closesocket((RTP_SOCKET) pSCtx->sock))
@@ -523,6 +531,9 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
     {
         rtsmb_srv_net_connection_close (*session);
         rv = FALSE;
+        // Set to not connected so we allow reception of SMB2 negotiate packets.
+        rtp_printf("!!!! Session closed out: set not connected state\n");
+        (*session)->smbCtx.state = NOTCONNECTED;
     }
 
     releaseSession (*session);

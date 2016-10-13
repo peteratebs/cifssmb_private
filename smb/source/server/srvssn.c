@@ -243,12 +243,11 @@ NextUID:  ;
 
 word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYTE ntlm2_response, PFRTCHAR name, word *authId);
 
-BYTE spnego_session_key[16];
 
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
 BBOOL has_lm_field=FALSE;
-BBOOL display_login_info=TRUE;
+BBOOL display_login_info=FALSE;
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
     // Note: pCtx->encryptionKey[] holds the key we sent
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
@@ -285,7 +284,6 @@ BBOOL display_login_info=TRUE;
       {
           rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
           ;
-tc_memcpy(spnego_session_key, decoded_targ_token->session_key->value_at_offset, 16);
       }
     }
     word Access=AUTH_NOACCESS;
@@ -4630,6 +4628,18 @@ extern void SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSctx);
 extern BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #endif
 
+
+static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
+{
+  if ((pInBuf[0] == 0xFF) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B'))
+    return 1;
+#ifdef SUPPORT_SMB2
+  if ((pInBuf[0] == 0xFE) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B'))
+    return 2;
+#endif
+    return 0;
+}
+
 BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 {
     PFBYTE pInBuf;
@@ -4677,6 +4687,7 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     pInBuf = (PFBYTE) SMB_INBUF (pSctx);
     pOutBuf = SMB_OUTBUF (pSctx);
 
+printf("SMBS_ProcSMBPacket state: %d\n", pSctx->state);
     switch (pSctx->state)
     {
     case WRITING_RAW:
@@ -4739,6 +4750,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     case NOTCONNECTED:
 #endif
     case IDLE:
+    {
         /**
          * Read starting bytes from the wire.
          */
@@ -4748,20 +4760,14 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
             RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket:  Error on read.  Ending session.\n", RTSMB_DEBUG_TYPE_ASCII);
             return FALSE;
         }
-
+        int protocol_version = SMBS_CheckPacketVersion(pInBuf);
         /**
          * If the packet is not an SMB, end connection.
          */
-#ifdef SUPPORT_SMB2
-        if ( ((pInBuf[0] != 0xFF)&&(pInBuf[0] != 0xFE)) || (pInBuf[1] != 'S') ||
-             (pInBuf[2] != 'M')  || (pInBuf[3] != 'B'))
-#else
-        if ((pInBuf[0] != 0xFF) || (pInBuf[1] != 'S') ||
-             (pInBuf[2] != 'M')  || (pInBuf[3] != 'B'))
-#endif
-
+printf("SMBS_ProcSMBPacket packet protocol_version: %d\n", protocol_version);
+        if (protocol_version == 0)
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: Badly formed packet\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: Not SMB or SMB2 packet\n", RTSMB_DEBUG_TYPE_ASCII);
             /* If we were nice, we'd send a message saying we don't understand.            */
             /* But, we don't know any values to fill it with (like tid, uid) or whatever,  */
             /* so the client won't know which message was bad.  Plus, if they are          */
@@ -4771,17 +4777,43 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
 /*          return SMBS_SendMessage (pSctx, SMBU_GetSize (pOutSmbHdr), TRUE);              */
             return FALSE;
         }
+        // If
 #ifdef SUPPORT_SMB2
-        if (pInBuf[0] == 0xFE && gl_disablesmb2)
+        if (protocol_version == 2 && gl_disablesmb2)
           return FALSE;
+        // Start a new session if we are connected and the current protocol doesn't match the incoming packet
+        if (pSctx->state == IDLE)
+        {
+           if ((protocol_version == 2 && !pSctx->isSMB2) || (protocol_version == 1 && pSctx->isSMB2))
+           {
+             PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
+             if (pNctxt)
+               rtsmb_srv_net_connection_close_session(pNctxt);
+             pSctx->state = NOTCONNECTED;
+             RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n", RTSMB_DEBUG_TYPE_ASCII);
+             // We'll fall into the not connected handler and initialize based on the header
+           }
+        }
+
         if (pSctx->state == NOTCONNECTED)
         {
-            if (pInBuf[0] == 0xFE)
+            if (protocol_version == 2)
             {
+                RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb2.\n", RTSMB_DEBUG_TYPE_ASCII);
+                // Also initializes an SMB1 context
                 SMBS_InitSessionCtx_smb2(pSctx);
+printf("Issmb2 after SMBS_InitSessionCtx_smb2 :%d\n", pSctx->isSMB2);
+                /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
+                pSctx->isSMB2 = TRUE;
             }
             else
+            {
+                RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n", RTSMB_DEBUG_TYPE_ASCII);
                 SMBS_InitSessionCtx_smb1(pSctx);
+                pSctx->isSMB2 = FALSE;
+            }
+            // Okay we have a protocol
+            pSctx->state = IDLE;
 #ifdef STATE_DIAGNOSTICS
 RTSMB_GET_SRV_SESSION_STATE (IDLE);
 #endif
@@ -4790,9 +4822,13 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         pSctx->in_packet_size = (word) (packetSize);
         pSctx->current_body_size = 5;
         pSctx->in_packet_timeout_base = rtp_get_system_msec();
-
+    }
     case READING:
         doSend = SMBS_ProcSMBBody (pSctx);
+        if (pSctx->state == NOTCONNECTED)
+        {
+            printf("Yo we arent connected after process s: %d\n",pSctx->state);
+        }
         break;
     default:
         return TRUE;
@@ -4930,6 +4966,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         pInBuf, pSctx->current_body_size, &inCliHdr)) == -1)
     {
         RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody: Badly formed header", RTSMB_DEBUG_TYPE_ASCII);
+rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
         return FALSE;
     }
 

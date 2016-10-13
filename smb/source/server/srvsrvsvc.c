@@ -553,8 +553,7 @@ void *start;
        *((dword *)results) =  0;
        results = PADD(results,4);
        *pfraglength  = PDIFF(results, start);
-printf("Add alloc hint\n");
-*palloc_hint = *pfraglength - sizeof(DCE_LSARP_POLICY2_REPLY);
+       *palloc_hint = *pfraglength - sizeof(DCE_LSARP_POLICY2_REPLY);
        *pRdata_count = *pfraglength;
        rval = 0;
      }
@@ -638,12 +637,6 @@ printf("Add alloc hint\n");
        *pfraglength  = PDIFF(pdw, start); // Subtract status code length from dce length
        *palloc_hint  = *pfraglength - sizeof(DCE_LSARP_LOOKUP_NAMES_REPLY);
        *pRdata_count = *pfraglength;
-//       printf("Adding 4 don;t know why\n");
-//       *pfraglength  += 4;
-//       *palloc_hint  += 4;
-//       *pRdata_count += 4;
-
-
         rval = 0;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_LSARP_GET_USER_NAME)
@@ -720,13 +713,8 @@ printf("Add alloc hint\n");
           l = encode_dce_string((dword *)results, Referentid, RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)));
          else // This won't work send a constant
            l = encode_dce_string((dword *)results, Referentid, user_name_item, sizeof(user_name_item));
-
-rtsmb_dump_bytes("User name", RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)), DUMPUNICODE);
-printf("l::::: %d r1:%X \n", l, results);
          results = PADD(results,l);
-printf("l2::::: %d r1:%X \n", l, results);
          results= ptralign(results, 4);
-printf("l3::::: %d r1:%X \n", l, results);
          Referentid += 8;
 
          // Encode auth Referent and payload length/size
@@ -736,12 +724,8 @@ printf("l3::::: %d r1:%X \n", l, results);
          // Encode auth string
          Referentid += 4;
          l = encode_dce_string((dword *)results, Referentid, SRVSVC_get_stream_authority_name(pSmb2Stream), 2*rtsmb_util_wlen(SRVSVC_get_stream_authority_name(pSmb2Stream)));
-rtsmb_dump_bytes("Domain name", SRVSVC_get_stream_authority_name(pSmb2Stream), 2*rtsmb_util_wlen(SRVSVC_get_stream_authority_name(pSmb2Stream)), DUMPUNICODE);
-printf("l::::: %d r1:%X \n", l, results);
          results = PADD(results,l);
-printf("l2::::: %d r1:%X \n", l, results);
          results= ptralign(results, 4);
-printf("l3::::: %d r1:%X \n", l, results);
        }
        // NT error status zero
        *((dword *)results) =  0;

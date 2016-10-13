@@ -104,12 +104,57 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FS_INFO_05        0x05
 #define SMB2_FILE_INFO_ALL       0x12
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
+#define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
     pStream->WriteBufferParms[0].byte_count = 0;
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
       SMBFSTAT stat;
       switch (command.FileInfoClass) {
+       case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
+       {
+         MSFSCC_FILE_NETWORK_OPEN_INFORMATION *pInfo;
+         BBOOL worked;
+//         SMBDSTAT stat;
+         SMBFSTAT stat;
+         PFRTCHAR filepath;
+         PFRTCHAR filename;
+
+//         word externalFid = *((word *) &command.FileId[0]);
+          // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
+          // Map if neccessary
+         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+         word externalFid = *((word *) &pFileId[0]);
+
+         filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
+         if(worked == FALSE)
+         {
+           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+           return TRUE;
+         }
+         pInfo = rtp_malloc(sizeof(*pInfo));
+         pStream->WriteBufferParms[0].byte_count = sizeof(*pInfo);
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+
+
+         pInfo->low_last_access_time = stat.f_atime64.low_time;
+         pInfo->high_last_access_time = stat.f_atime64.high_time;
+         pInfo->low_creation_time = stat.f_ctime64.low_time;
+         pInfo->high_creation_time = stat.f_ctime64.high_time;
+         pInfo->low_last_write_time = stat.f_wtime64.low_time;
+         pInfo->high_last_write_time = stat.f_wtime64.high_time;
+         pInfo->low_change_time = stat.f_htime64.low_time;
+         pInfo->high_change_time = stat.f_htime64.high_time;
+         pInfo->low_end_of_file = stat.f_size;
+         pInfo->high_end_of_file = 0;
+         pInfo->low_allocation_size = stat.f_size;
+         pInfo->high_allocation_size = 0;
+
+         pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+         pInfo->reserved = 0;
+         break;
+       }
        case SMB2_FILE_INFO_ALL: // 0x12
        {
          int file_name_len_bytes;

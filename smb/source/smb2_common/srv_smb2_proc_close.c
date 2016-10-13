@@ -75,15 +75,17 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
-    externalFid = *((word *) &command.FileId[0]);
+
 
     if (externalFid == 0xffff)
     {
-      rtp_printf("Close, exfd == 0xffff why ?\n");
-      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
-      fid = -1;
+      rtp_printf("Close, exfd == 0xffff why after map ?\n");
+//      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+//      fid = -1;
     }
-    else
+    byte *MappedFileId =  RTSmb2_mapWildFileId(pStream, command.FileId);
+    externalFid = *((word *) MappedFileId);
+//    else
     {
       // Set the status to success
       ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
@@ -112,7 +114,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
             user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
             for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
             {
-              if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, command.FileId, sizeof(command.FileId))==0)
+              if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, MappedFileId, sizeof(command.FileId))==0)
               {
                 SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[_sid].tid, &user->searches[_sid].stat);
                 user->searches[_sid].inUse=FALSE;
@@ -126,22 +128,23 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
             if (command.Flags & 0x01) // Asking for stats
             {
 // We either need to implement SMBFIO_Fstat or cheat and add a file name store to SMBFIO_OpenInternal and use that in stat, being sure to delete it in SMBFIO_Close()
-printf("Close asked for stat but we can not give them yet\n");
-#ifdef TBD
-                SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
-                response.Flags          = 0; // ??? SMB3 only
-                response.Reserved       = 0; // ??? SMB3 only
-                response.CreationTime   =  *((ddword *) &stat.f_ctime64);
-                response.LastAccessTime =  *((ddword *) &stat.f_atime64);
-                response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
-                response.ChangeTime     =  *((ddword *) &stat.f_htime64);
-                response.AllocationSize  = stat.f_size;
-                response.EndofFile       = stat.f_size;
-                response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
-#endif
+                PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+                if (file_name)
+                {
+                  SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
+                  response.Flags          = 0x01; // ??? SMB3 only
+                  response.Reserved       = 0; // ??? SMB3 only
+                  response.CreationTime   =  *((ddword *) &stat.f_ctime64);
+                  response.LastAccessTime =  *((ddword *) &stat.f_atime64);
+                  response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
+                  response.ChangeTime     =  *((ddword *) &stat.f_htime64);
+                  response.AllocationSize  = stat.f_size;
+                  response.EndofFile       = stat.f_size;
+                  response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+                }
            }
            SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
-       }
+        }
        // 0xffff is not real resource so don't do any file ops.
         if ( (externalFid != 0xffff) &&
            (smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))

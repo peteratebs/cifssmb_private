@@ -126,7 +126,6 @@ void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession)
        and invoking the event specified in [MS-SRVS] section 3.1.6.7. */
     /* For each deregistered TreeConnect, TreeConnect.Share.CurrentUses MUST be decreased by 1. */
     /* All the tree connects in Session.TreeConnectTable MUST be removed and freed. */
-//    RTSmb2_SessionShutDown(pStreamSession);
     Smb2SrvModel_Free_Session(pStreamSession);
 }
 static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
@@ -136,7 +135,9 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
     pSctx->doSocketClose    = pStream->doSocketClose;
     if (pStream->doSessionClose && pStream->psmb2Session)
     {
-        RTSmb2_SessionShutDown(pStream->psmb2Session);
+        // Close the SMB2 session and the SMB1 context and set the
+        // session state pSctx->state = NOTCONNECTED; so we respond to bothe types
+        rtsmb_srv_net_connection_close_session(pStream->psmb2Session);
         pStream->psmb2Session = 0;
         pStream->doSessionClose = FALSE;
     }
@@ -155,7 +156,6 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream);
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
 
-extern BYTE spnego_session_key[16];
 
 BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
@@ -845,17 +845,14 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream)
         return TRUE;
     }
 
-printf("Not doing session shutdown in logoff\n");
-    RTSmb2_SessionShutDown(pStream->psmb2Session);
-
     response.StructureSize          = 4;
     response.Reserved               = 0;
     pStream->OutHdr.SessionId       = pStream->psmb2Session->SessionId;
     /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-printf("Not clearing session pointer in logoff\n");
-//    pStream->psmb2Session = 0;
-
+    // Close out the session after sending the response
+    // The client will be able to start another SMB2 or SMB1 session
+    pStream->doSessionClose = TRUE;
     return TRUE;
 
 }

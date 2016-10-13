@@ -293,8 +293,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       flags = RTP_FILE_O_RDONLY;
       TURN_ON(command.FileAttributes, 0x80);
       // Hack, include extra info in stream if no file
-      wants_extra_pMxAc_info = TRUE;
-      wants_extra_pQfid_info = FALSE;
+      if (decoded_create_context.pMxAc)
+        wants_extra_pMxAc_info = TRUE;
+      if (decoded_create_context.pQFid)
+        wants_extra_pQfid_info = TRUE;
 
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
       tc_memset(&stat, 0, sizeof(stat));
@@ -380,7 +382,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     tc_memcpy(pStream->LastFileId,&response.FileId[0], sizeof( pStream->LastFileId));
 
 
-    static unsigned char responsebuff[512];
+    unsigned char responsebuff[512];
     if (wants_extra_pMxAc_info)
     {
       pStream->WriteBufferParms[0].pBuffer = pMxAc_info_response;
@@ -493,7 +495,6 @@ PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_le
          p_current_value->NameDw = *((dword *)pName); // TBD Byte order issue
          p_current_value->p_context_entry_wire=p_current_context_onwire;
 
-printf("Yah process %X\n", SMB_NTOHD(p_current_value->NameDw));
 
          switch (SMB_NTOHD(p_current_value->NameDw))
          {
@@ -513,14 +514,12 @@ printf("Yah process %X\n", SMB_NTOHD(p_current_value->NameDw));
               pdecoded_create_context->pAISi = p_current_value;
             break;
             case SMB2_CREATE_QUERY_MAXIMAL_ACCESS_REQUEST :   // "MxAc"  The client is requesting that the server return maximal access information.
-printf("Yah got Mxac\n");
               pdecoded_create_context->pMxAc = p_current_value;
             break;
             case SMB2_CREATE_TIMEWARP_TOKEN               :   // "TWrp"  The client is requesting that the server open an earlier version of the file identified by the provided time stamp.
               pdecoded_create_context->pTWrp = p_current_value;
             break;
             case SMB2_CREATE_QUERY_ON_DISK_ID             :   // "QFid"  The client is requesting that the server return a 32-byte opaque BLOB that uniquely identifies the file being opened on disk. No data is passed to the server by the client.
-printf("Yah got Qfid\n");
               pdecoded_create_context->pQFid = p_current_value;
             break;
             case SMB2_CREATE_REQUEST_LEASE                :   // "RqLs"  SMB2.1 and above
@@ -580,25 +579,12 @@ printf("Yah got Qfid\n");
         goto error_return;
   } //   while (current_create_context_buffer_length>=RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
 
-
-  dump_decoded_create_context_request_values(pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
-
-//  if (pdecoded_create_context->pDHnQ)
-//  if (pdecoded_create_context->pQfid)
-  if (pdecoded_create_context->pMxAc)
-  {
-    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->DataLength: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->DataLength);
-    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->NameOffset: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->NameOffset);
-    printf("p_decoded_create_context_request_values->pMxAc->p_context_entry_wire->NameLength: %d\n", pdecoded_create_context->pMxAc->p_context_entry_wire->NameLength);
-    printf("pdecoded_create_context->pMxAc->p_payload: %X\n", pdecoded_create_context->pMxAc->p_payload);
-  }
-
   return pdecoded_create_context->n_create_context_request_values;
 error_return:
-  printf("decode_create_context_request_values: erro return\n");
   dump_decoded_create_context_request_values(&pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
   return -1;
 }
+
 static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values)
 {
 int i;

@@ -409,7 +409,7 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 }
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
-    if (pSession->Connection) pSession->RTSMBisAllocated = FALSE;
+    if (pSession->Connection) pSession->Connection->RTSMBisAllocated = FALSE;
     pSession->RTSMBisAllocated=FALSE;
 }
 

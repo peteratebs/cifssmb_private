@@ -174,9 +174,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     void *byte_pointer = 0;
     void *Saved_Inbuf;
     rtsmb_size Saved_read_buffer_remaining;
-printf("Proc_smb2_QueryDirectory: 1 !!!!!!:\n",0);
     PFVOID   pOutBufStart;
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:\n",0);
 
 
     tc_memset(&response,0, sizeof(response));
@@ -224,41 +222,24 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     // keep the fid or map it to the previous create if it is a wildcard
     byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
 
-rtsmb_dump_bytes("PATTERN- MATCH FILID:",  pFileId, sizeof(command.FileId),  DUMPBIN);
-
     // See if we have a match for this file id
     {
         int _sid;
         sid = 0;
-rtsmb_dump_bytes("PATTERN- MATCH FILE:",  command.FileId, sizeof(command.FileId),  DUMPBIN);
         for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
         {
-printf("Sid %d inuse : %d\n",_sid,  user->searches[_sid].inUse);
-if (user->searches[_sid].inUse)
-{
-  rtsmb_dump_bytes("PATTERN- FID", user->searches[_sid].FileId, sizeof(command.FileId),  DUMPBIN);
-}
           if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, pFileId, sizeof(command.FileId))==0)
           {
             searchFound=TRUE;
-printf("Sid %d match\n",_sid);
             sid = _sid;
             break;
           }
         }
     }
-printf("Proc_smb2_QueryDirectory: search found :%d\n",searchFound);
-printf("Proc_smb2_QueryDirectory: command.flags:%x masked:%x\n",command.Flags,
-      (command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN))
-      );
     if (searchFound)
     {
-printf("Proc_smb2_QueryDirectory: okay inside search found :%d\n",searchFound);
-      if (
-        (command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN))
-       )
+      if ((command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN)) )
       {   // Make sure to start over if we found an open directory on a rescan
-        printf("Proc_smb2_QueryDirectory: reopen, start over\n");
           SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
           user->searches[sid].inUse=FALSE;
           searchFound=FALSE;
@@ -278,7 +259,6 @@ printf("Proc_smb2_QueryDirectory: okay inside search found :%d\n",searchFound);
     		for (i = 1; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
     				sid = i;
-printf("Proc_smb2_QueryDirectory: 2222 start over\n");
     		SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
     	}
 	}
@@ -349,13 +329,10 @@ printf("Proc_smb2_QueryDirectory: 2222 start over\n");
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
-printf("Proc_smb2_QueryDirectory: GFIRST\n");
-rtsmb_dump_bytes("PATTERN - to Gfirst", user->searches[sid].name, 2*rtsmb_util_wlen(user->searches[sid].name), DUMPUNICODE);
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
     }
     else
     {
-printf("Proc_smb2_QueryDirectory: GNEXT\n");
 	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
     }
 
@@ -364,7 +341,6 @@ printf("Proc_smb2_QueryDirectory: GNEXT\n");
     while (isFound)
     {
         numFound += 1;
-printf("Proc_smb2_QueryDirectory: numfound:%d\n",numFound);
         rtsmb_size bytes_consumed = 0;
         switch (command.FileInformationClass) {
         // FileInformationClass
@@ -398,7 +374,6 @@ printf("Proc_smb2_QueryDirectory: numfound:%d\n",numFound);
             bytes_remaining -= bytes_consumed;
             if (command.Flags & SMB2_RETURN_SINGLE_ENTRY)
             {
-                printf("==== SMB2_RETURN_SINGLE_ENTRY break\n");
                 break;
             }
             // If not a single entry look for more matches
@@ -458,12 +433,6 @@ printf("Proc_smb2_QueryDirectory: numfound:%d\n",numFound);
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NO_MORE_FILES);
       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_NO_MORE_FILES;
       pStream->compound_output_index=0; // Force a send, and make him query again for a response
-printf("Not calling GDONE on search found\n");
-      if (0&&searchFound)
-      {
-        SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
-        user->searches[sid].inUse = FALSE;
-      }
 	}
     return TRUE;
 } // Proc_smb2_QueryDirectory

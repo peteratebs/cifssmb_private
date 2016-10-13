@@ -86,7 +86,7 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       if (pSmb2SrvGlobal->RequireMessageSigning)
          answer->SecurityMode |=  SMB2_NEGOTIATE_SIGNING_REQUIRED;
 #if (HARDWIRED_DISABLE_SIGNING)
-printf("Force signing off\n");
+      printf("Force signing off\n"); //  #if (HARDWIRED_DISABLE_SIGNING)
       answer->SecurityMode =  0;
 #endif
       answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;

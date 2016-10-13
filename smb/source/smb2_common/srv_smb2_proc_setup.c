@@ -53,7 +53,6 @@
 
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
-extern void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 extern word NewUID(const PUSER u, int Max);
 static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream);
@@ -266,7 +265,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 /* Free the session we came in with and use the one we just found */
                 if (pStreamSession != pCurrSession)
                 {
-                    RTSmb2_SessionShutDown(pStreamSession);
+                    rtsmb_srv_net_connection_close_session(pStreamSession);
                     pStream->psmb2Session = pCurrSession;
                     pStreamSession = pCurrSession;
                 }
