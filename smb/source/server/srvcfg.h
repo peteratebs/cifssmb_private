@@ -9,7 +9,6 @@
 #include "srvauth.h"
 #include "smbnbds.h"
 
-#define CFG_RTSMB_PRINT_SIZES 0 /* temp config for testing purposes */
 
 typedef struct _RTSMB_SERVER_CONTEXT
 {

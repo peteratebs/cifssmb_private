@@ -350,7 +350,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (!user || !tree)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBU_SetInternalFid: user or tree is not valid.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: user or tree is not valid.\n");
 		return -1;
 	}
 	/**
@@ -367,7 +367,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (i == prtsmb_srv_ctx->max_fids_per_uid) // no space found
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBU_SetInternalFid: Not enough space for new file in user data.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in user data.\n");
 		return -1;
 	}
 
@@ -382,7 +382,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (j == prtsmb_srv_ctx->max_fids_per_tree)	// no space on tree
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBU_SetInternalFid: Not enough space for new file in tree data.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in tree data.\n");
 		return -1;
 	}
 
@@ -392,7 +392,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (k == prtsmb_srv_ctx->max_fids_per_session)	// no space on session
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBU_SetInternalFid: Not enough space for new file in session data.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in session data.\n");
 		return -1;
 	}
 
@@ -445,7 +445,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 	if (k == prtsmb_srv_ctx->max_fids_per_session)	// bad external
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBU_ClearInternalFid: Bad external fid.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBU_ClearInternalFid: Bad external fid.\n");
 		return;
 	}
 
@@ -531,9 +531,7 @@ PTREE SMBU_GetTree (PSMB_SESSIONCTX pCtx, int tid)
 	// for testing purposes
 	if (!rv)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("BAD TREE with external id of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT(tid);
-		RTSMB_DEBUG_OUTPUT_STR("\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "BAD TREE with external id of %d \n");
 	}
 
 	return rv;
@@ -1243,7 +1241,7 @@ int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid)
 //#define PRINT_VIA_CUPS
 	if(rtsmb_osport_printer_open (n) < 1)
 	{
-		rtp_printf("rtsmb_osport_printer_open failed");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_osport_printer_open failed");
 	}
 
 	do
@@ -1258,7 +1256,7 @@ int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid)
 
 		if(rtsmb_osport_printer_write (n, buffer, bytesRead) < 0)
 		{
-			rtp_printf("rtsmb_osport_printer_write failed");
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_osport_printer_write failed");
 		}
 	}
 	while (bytesRead == WRITE_TO_FILE_BUFFER_SIZE);
@@ -1272,7 +1270,7 @@ int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid)
 #if (PRINT_VIA_CUPS)
 	if(rtsmb_osport_file_send_n_delete (n) < 1)
 	{
-		rtp_printf("rtsmb_osport_file_send_n_delete failed");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_osport_file_send_n_delete failed");
 	}
 #else
 	rtsmb_osport_printer_close (n);

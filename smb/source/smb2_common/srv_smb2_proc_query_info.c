@@ -87,14 +87,14 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 
     if (!pStream->Success)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  RtsmbStreamDecodeCommand failed...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  RtsmbStreamDecodeCommand failed...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
 
     if (command.StructureSize != 41)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  StructureSize invalid...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo:  StructureSize invalid...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }

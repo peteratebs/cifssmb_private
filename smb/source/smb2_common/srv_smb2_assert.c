@@ -79,13 +79,7 @@ BBOOL assert_smb2_permission(smb2_stream  *pStream,byte permission)
 	if (!tree || tree->access == SECURITY_NONE ||
 		(tree->access != SECURITY_READWRITE && tree->access != permission))
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("failed permissions check with permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (permission);
-		RTSMB_DEBUG_OUTPUT_STR (" against permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tree->access);
-		RTSMB_DEBUG_OUTPUT_STR (" on tid ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (pStream->psmb2Session->pSmbCtx->tid);
-		RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "failed permissions check with permission of %d against permission of %d on tid %d", permission,tree->access,pStream->psmb2Session->pSmbCtx->tid);
         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
 		return TRUE;
 	}

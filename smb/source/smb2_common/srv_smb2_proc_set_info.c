@@ -53,14 +53,14 @@ RTSMB2_SET_INFO_R response;
 
   if (!pStream->Success)
   {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SetInfo:  RtsmbStreamDecodeCommand failed...\n",0);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SetInfo:  RtsmbStreamDecodeCommand failed...\n");
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
   }
 
   if (command.StructureSize != 33)
   {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SetInfo:  StructureSize invalid...\n",0);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SetInfo:  StructureSize invalid...\n");
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
   }

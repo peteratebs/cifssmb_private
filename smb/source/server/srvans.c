@@ -573,7 +573,7 @@ int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, r
     /* fill in offset */
     rtsmb_pack_add_word_unsafe (poffset, (word) PDIFF (e, origin), FALSE);
   }
-  printf("srv_cmd_fill_tree_connect_options_and_x_lanman hacking flags\n");
+#warning srv_cmd_fill_tree_connect_options_and_x_lanman hacking flags
   pHeader->flags=0x88;
   pHeader->flags2=0xc801;
   return PDIFF (e, s);

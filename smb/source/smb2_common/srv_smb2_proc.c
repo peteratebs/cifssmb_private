@@ -177,7 +177,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	/* read header and advance the stream pointer */
 	if ((header_size = cmd_read_header_raw_smb2 (smb2stream.read_origin, smb2stream.read_origin, smb2stream.InBodySize, &smb2stream.InHdr)) == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: Badly formed header", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body: Badly formed header");
 		return FALSE;
 	}
 	smb2stream.pOutBuf = smb2stream.write_origin;
@@ -190,13 +190,13 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 
 	if (!smb2stream.psmb2Session)
     {
-	    RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n", RTSMB_DEBUG_TYPE_ASCII);
+	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
 		return TRUE;
     }
 	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
 		return TRUE;
 	}
@@ -222,7 +222,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
            if (cmd_read_header_smb2(&smb2stream) != 64)
            {
              break;
-//              RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed\n", RTSMB_DEBUG_TYPE_ASCII);
+//              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed\n");
 //             return TRUE;
            }
        }
@@ -921,9 +921,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-    RTSMB_DEBUG_OUTPUT_STR ("\nShare name:", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (share_name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-    RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "\nConnecting Share name: %ls", share_name);
 
     pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
 
@@ -1067,12 +1065,12 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  called\n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  called\n");
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand failed...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand failed...\n");
 		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
@@ -1087,7 +1085,7 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session == %X\n",(int)pStream->psmb2Session);
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session->pSmbCtx == %X\n",(int)pStream->psmb2Session->pSmbCtx);
             Tree_Shutdown (pStream->psmb2Session->pSmbCtx, tree);
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  back Tree_Shutdown X\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  back Tree_Shutdown X\n");
         }
     }
 	response.StructureSize = 4;
@@ -1117,7 +1115,7 @@ static BBOOL Proc_smb2_Echo(smb2_stream  *pStream)
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Echo:  RtsmbStreamDecodeCommand failed...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Echo:  RtsmbStreamDecodeCommand failed...\n");
 		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
@@ -1167,13 +1165,7 @@ const char *DebugSMB2CommandToString(int command);
 static void DebugOutputSMB2Command(int command)
 {
 #ifdef RTSMB_DEBUG
-char tmpBuffer[32];
-    char* buffer = tmpBuffer;
-    tmpBuffer[0] = '\0';
-    RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMB2_Body:  Processing a packet with command: ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR((char *)DebugSMB2CommandToString(command), RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
-
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "SMBS_ProcSMB2_Body:  Processing a packet with command: %s \n", (char *)DebugSMB2CommandToString(command));
 #endif // RTSMB_DEBUG
 }
 

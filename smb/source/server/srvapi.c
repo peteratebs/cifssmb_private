@@ -62,7 +62,7 @@ int rtsmb_srv_read_config (PFCHAR filename)
 
     if (tc_strlen (filename) > SMBF_FILENAMESIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameter to rtsmb_srv_read_config.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameter to rtsmb_srv_read_config.\n");
         return -2;
     }
 
@@ -127,7 +127,7 @@ int rtsmb_srv_share_add_tree (PFCHAR name, PFCHAR comment, PSMBFILEAPI api, PFCH
         tc_strlen (comment) > RTSMB_MAX_COMMENT_SIZE ||
         tc_strlen (path) > MAX_PATH_PREFIX_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_share_add_tree.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_share_add_tree.\n");
         return -2;
     }
 
@@ -225,7 +225,7 @@ int rtsmb_srv_share_add_printer (PFCHAR name, PFCHAR comment, int n, PSMBFILEAPI
         tc_strlen (printerfile) > SMBF_FILENAMESIZE ||
         tc_strlen (path) > MAX_PATH_PREFIX_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_share_add_printer.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_share_add_printer.\n");
         return -2;
     }
 
@@ -318,7 +318,7 @@ int rtsmb_srv_printer_modify (PFCHAR currentname, PFCHAR newname)
     if (tc_strlen (currentname) > RTSMB_MAX_SHARENAME_SIZE ||
         tc_strlen (newname) > RTSMB_MAX_SHARENAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_printer_modify.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_printer_modify.\n");
         return -2;
     }
 
@@ -366,7 +366,7 @@ int rtsmb_srv_share_remove (PFCHAR name)
 
     if (tc_strlen (name) > RTSMB_MAX_SHARENAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameter to rtsmb_srv_share_remove.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameter to rtsmb_srv_share_remove.\n");
         return -2;
     }
 
@@ -482,7 +482,7 @@ BBOOL rtsmb_srv_register_group (PFCHAR name)
 
     if (tc_strlen (name) > CFG_RTSMB_MAX_GROUPNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameter to rtsmb_srv_register_group.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameter to rtsmb_srv_register_group.\n");
         return FALSE;
     }
 
@@ -540,8 +540,8 @@ BBOOL rtsmb_srv_register_user (PFCHAR name, PFCHAR password)
 
     if (tc_strlen (name) > CFG_RTSMB_MAX_USERNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameter to rtsmb_srv_register_user.\n", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR("User name exceeded the CFG_RTSMB_MAX_USERNAME_SIZE\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameter to rtsmb_srv_register_user.\n");
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"User name exceeded the CFG_RTSMB_MAX_USERNAME_SIZE\n");
         return FALSE;
     }
 
@@ -591,7 +591,7 @@ BBOOL rtsmb_srv_delete_user (PFCHAR name)
 
     if (tc_strlen (name) > CFG_RTSMB_MAX_USERNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameter to rtsmb_srv_delete_user.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameter to rtsmb_srv_delete_user.\n");
         return FALSE;
     }
 
@@ -645,7 +645,7 @@ BBOOL rtsmb_srv_add_user_to_group (PFCHAR user, PFCHAR group)
     if (tc_strlen (user) > CFG_RTSMB_MAX_USERNAME_SIZE ||
         tc_strlen (group) > CFG_RTSMB_MAX_GROUPNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_add_user_to_group.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_add_user_to_group.\n");
         return FALSE;
     }
 
@@ -700,7 +700,7 @@ BBOOL rtsmb_srv_remove_user_from_group (PFCHAR user, PFCHAR group)
     if (tc_strlen (user) > CFG_RTSMB_MAX_USERNAME_SIZE ||
         tc_strlen (group) > CFG_RTSMB_MAX_GROUPNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_remove_user_from_group.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_remove_user_from_group.\n");
         return FALSE;
     }
 
@@ -765,7 +765,7 @@ BBOOL rtsmb_srv_set_group_permissions (PFCHAR group, PFCHAR share, byte permissi
     if (tc_strlen (share) > RTSMB_MAX_SHARENAME_SIZE ||
         tc_strlen (group) > CFG_RTSMB_MAX_GROUPNAME_SIZE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Bad parameters to rtsmb_srv_set_group_permissions.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Bad parameters to rtsmb_srv_set_group_permissions.\n");
         return FALSE;
     }
 
@@ -815,7 +815,7 @@ BBOOL rtsmb_srv_set_group_permissions_uc (PFWCS group, PFWCS share, byte permiss
 ******************************************************************************/
 void rtsmb_srv_init (PFBYTE ip, PFBYTE mask_ip, PFCHAR net_name, PFCHAR group_name)
 {
-    RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_init:  Initializing all server modules.\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_init:  Initializing all server modules.\n");
 
     rtsmb_server_config ();
     rtsmb_fileport_init ();
@@ -918,7 +918,7 @@ long rtsmb_srv_cycle (long timeout)
 ******************************************************************************/
 void rtsmb_srv_shutdown (void)
 {
-    RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_shutdown:  Shutting down all modules.\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_shutdown:  Shutting down all modules.\n");
 
     rtsmb_srv_glue_shutdown ();
     //Auth_Shutdown ();
@@ -949,7 +949,7 @@ void rtsmb_srv_shutdown (void)
 ******************************************************************************/
 void rtsmb_srv_disable (void)
 {
-    RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_disable:  Disabling server.\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_disable:  Disabling server.\n");
 
     rtsmb_srv_browse_shutdown ();
     /* we are intentionally shutting nbds down first because we want it to
@@ -980,7 +980,7 @@ void rtsmb_srv_disable (void)
 ******************************************************************************/
 void rtsmb_srv_enable (PFCHAR net_name, PFCHAR group_name)
 {
-    RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_enable:  Enabling server.\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_enable:  Enabling server.\n");
 
     rtsmb_srv_nbns_init (net_name, group_name); /* srv_net uses this info */
     rtsmb_nbds_init ();

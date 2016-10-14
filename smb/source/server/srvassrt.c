@@ -79,13 +79,7 @@ BBOOL assertPermissionForTid (PSMB_SESSIONCTX pCtx, byte permission, word tid)
 	if (tree->access == SECURITY_NONE ||
 		(tree->access != SECURITY_READWRITE && tree->access != permission))
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("failed permissions check with permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (permission);
-		RTSMB_DEBUG_OUTPUT_STR (" against permission of ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tree->access);
-		RTSMB_DEBUG_OUTPUT_STR (" on tid ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_INT (tid);
-		RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+		 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "failed permissions check with permission of %d against permission of %d  on tid %d\n",permission,tree->access,tid);
 		SMBU_FillError (pCtx, pCtx->pOutHeader, SMB_EC_ERRSRV, SMB_ERRSRV_ACCESS);
 		return TRUE;
 	}

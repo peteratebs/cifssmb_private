@@ -90,9 +90,7 @@ RTSMB_STATIC PNET_THREAD rtsmb_srv_net_thread_new (void)
     {
         if (!prtsmb_srv_ctx->threadsInUse[i])
         {
-            RTSMB_DEBUG_OUTPUT_STR ("Allocating thread ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_INT (i);
-            RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Allocating thread %d \n",i);
             prtsmb_srv_ctx->threadsInUse[i] = 1;
             rv = &prtsmb_srv_ctx->threads[i];
             break;
@@ -107,9 +105,7 @@ void rtsmb_srv_net_thread_close (PNET_THREAD p)
 {
     int location = INDEX_OF (prtsmb_srv_ctx->threads, p);
 
-    RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_thread_close: freeing thread ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT (location);\
-    RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_thread_close: freeing thread %i \n", location);
 
     CLAIM_NET ();
     prtsmb_srv_ctx->threadsInUse[location] = 0;
@@ -130,7 +126,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
      */
     if (rtp_net_accept ((RTP_SOCKET *) &sock,(RTP_SOCKET) net_ssnSock, clientAddr, &clientPort, &ipVersion) < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_net_connection_open: accept error\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_net_connection_open: accept error\n");
         return (PNET_SESSIONCTX)0;
     }
 
@@ -149,14 +145,14 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_net_connection_open:  No free sessions\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_net_connection_open:  No free sessions\n");
 
         /* let them know we are rejecting their request */
         rtsmb_srv_nbss_send_session_response (sock, FALSE);
 
         if (rtp_net_closesocket((RTP_SOCKET) sock))
         {
-            RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ERROR IN CLOSESOCKET\n");
         }
 
         return (PNET_SESSIONCTX)0;
@@ -181,15 +177,15 @@ void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx )
 RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
 {
 
-//    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ", RTSMB_DEBUG_TYPE_ASCII);
+//    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ");
 //    RTSMB_DEBUG_OUTPUT_DINT (pSCtx->sock);
-//    RTSMB_DEBUG_OUTPUT_STR (" closed\n", RTSMB_DEBUG_TYPE_ASCII);
+//    RTSMB_DEBUG_OUTPUT_STR (" closed\n");
     rtsmb_srv_net_connection_close_session(pSCtx);
 
     /* kill conection */
     if (rtp_net_closesocket((RTP_SOCKET) pSCtx->sock))
     {
-        RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
     }
 
     freeSession (pSCtx);
@@ -246,12 +242,6 @@ void rtsmb_srv_net_init (void)
 {
 RTSMB_STATIC PNET_THREAD tempThread;
 
-#if (CFG_RTSMB_PRINT_SIZES)
-    char buffer[128];
-
-    rtp_sprintf (buffer, "net thread: %i\n", sizeof (NET_THREAD_T));
-    tm_puts (buffer);
-#endif
 
 #if INCLUDE_RTSMB_DC
     next_pdc_find = rtp_get_system_msec () + rtsmb_srv_net_pdc_next_interval ();
@@ -267,7 +257,7 @@ RTSMB_STATIC PNET_THREAD tempThread;
 
     if (!tempThread)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_net_init: Error -- could not allocate main pseudo-thread.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_init: Error -- could not allocate main pseudo-thread.\n");
         return;
     }
 
@@ -279,29 +269,29 @@ RTSMB_STATIC PNET_THREAD tempThread;
     /* Name Service Datagram Socket */
     if (rtsmb_net_socket_new (&net_nsSock, rtsmb_nbns_port, FALSE) < 0)
     {
-        rtp_printf(("Could not allocate Name & Datagram service socket\n"));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Could not allocate Name & Datagram service socket\n");
     }
 
     /* SSN Reliable Socket */
   #ifdef RTSMB_ALLOW_SMB_OVER_TCP
     if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_direct_port, TRUE) < 0)
     {
-        rtp_printf(("Could not allocate Name & Datagram service socket\n"));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Master Socket allocation failed Name & Datagram service socke\n");
     }
   #else
     if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_port, TRUE) < 0)
     {
-        rtp_printf (("Could not allocate SSN Reliable socket\n"));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Master Socket allocation failed\n");
     }
   #endif
     if (rtp_net_listen ((RTP_SOCKET) net_ssnSock, prtsmb_srv_ctx->max_sessions) != 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Error occurred while trying to listen on SSN Reliable socket.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to listen on SSN Reliable socket.\n");
     }
 
     if (rtp_net_setbroadcast((RTP_SOCKET) net_nsSock, 1) < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Error occurred while trying to set broadcast on Name & Datagram service socket\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
     }
 }
 
@@ -397,17 +387,14 @@ RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD p
         pMaster->sessionList[i] = (PNET_SESSIONCTX)0;
         pMaster->numSessions --;
     }
-    RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_thread_split: Giving ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT ((int) (numSessions - end));
-    RTSMB_DEBUG_OUTPUT_STR (" session", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR ((numSessions - end == 1 ? "" : "s"), RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (" to a thread.\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_thread_split: Giving %d", (int) (numSessions - end));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
 
     rtsmb_srv_net_thread_init (pThread, (dword) (numSessions - end));
 
     if (rtp_thread_spawn(&newThread, (RTP_ENTRY_POINT_FN) rtsmb_srv_net_thread_main, "SMBTHREAD", 0, 0, pThread))
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_net_thread_split: Couldn't start thread!\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_thread_split: Couldn't start thread!\n");
     }
 }
 
@@ -425,10 +412,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
         /**
          * Add new session to our list.
          */
-        RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_thread_new_session: adding session at place ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT ((int) pMaster->numSessions);
-        RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
-
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_thread_new_session: adding session at place %d\n", (int) pMaster->numSessions);
         pMaster->sessionList[pMaster->numSessions] = pSCtx;
         pMaster->numSessions++;
 
@@ -517,9 +501,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
             /*check for time out */
             if(IS_PAST ((*session)->lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
             {
-                RTSMB_DEBUG_OUTPUT_STR ("rtsmb_srv_net_session_cycle: Connection timed out on socket ", RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_DINT ((*session)->sock);
-                RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_net_session_cycle: Connection timed out on socket %ld ",(*session)->sock);
                 (*session)->lastActivity = rtp_get_system_msec ();
                 isDead = TRUE;
             }
@@ -532,10 +514,9 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
         rtsmb_srv_net_connection_close (*session);
         rv = FALSE;
         // Set to not connected so we allow reception of SMB2 negotiate packets.
-        rtp_printf("!!!! Session closed out: set not connected state\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Session closed\n");
         (*session)->smbCtx.state = NOTCONNECTED;
     }
-
     releaseSession (*session);
 
     if (isDead)
@@ -720,11 +701,11 @@ void rtsmb_srv_net_shutdown (void)
 {
     if (rtp_net_closesocket((RTP_SOCKET) net_nsSock))
     {
-        RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
     }
     if (rtp_net_closesocket((RTP_SOCKET) net_ssnSock))
     {
-        RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
     }
 
     rtsmb_srv_net_thread_close (mainThread);

@@ -60,7 +60,7 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
 
     if (!pStream->Success)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  RtsmbStreamDecodeCommand failed...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  RtsmbStreamDecodeCommand failed...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         goto free_bail;
     }
@@ -68,7 +68,7 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
 //    if (command.StructureSize != 39) //was 39 wtf
     if (command.StructureSize != 57)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  StructureSize invalid...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Ioctl:  StructureSize invalid...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         goto free_bail;
     }

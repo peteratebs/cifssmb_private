@@ -85,7 +85,7 @@ int i;
             return &Rtsmb2ClientSessionArray[i];
         }
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "No client sessions available\n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "No client sessions available\n");
     return 0;
 }
 
@@ -99,7 +99,7 @@ smb2_stream  *rtsmb_cli_wire_smb2_stream_construct (PRTSMB_CLI_SESSION pSession,
     v1_mid = rtsmb_cli_wire_smb2_add_start (&pSession->wire, pJob->mid);
     if (v1_mid<0)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: rtsmb_cli_wire_smb2_add_start Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: rtsmb_cli_wire_smb2_add_start Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         return 0;
     }
 
@@ -107,7 +107,7 @@ smb2_stream  *rtsmb_cli_wire_smb2_stream_construct (PRTSMB_CLI_SESSION pSession,
     pBuffer = rtsmb_cli_wire_get_buffer (&pSession->wire, (word) v1_mid);
     if (!pBuffer)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         return 0;
     }
 
@@ -137,11 +137,11 @@ smb2_stream  *rtsmb_cli_wire_smb2_stream_construct (PRTSMB_CLI_SESSION pSession,
     {
         if (!pSession)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: NewRtsmb2ClientSession Failed no PRTSMB_CLI_SESSION !!!!!!!!!\n", 0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: NewRtsmb2ClientSession Failed no PRTSMB_CLI_SESSION !!!!!!!!!\n");
         }
         else
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: NewRtsmb2ClientSession Failed no psmb2Session !!!!!!!!!!!!!!!!!\n", 0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_construct: NewRtsmb2ClientSession Failed no psmb2Session !!!!!!!!!!!!!!!!!\n");
         }
         return 0;
     }
@@ -159,7 +159,7 @@ smb2_stream  *rtsmb_cli_wire_smb2_stream_get(PRTSMB_CLI_WIRE_SESSION pSession, w
     {
         return &pBuffer->smb2stream;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_get: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", 0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_get: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
     return 0;
 }
 
@@ -200,7 +200,7 @@ int rtsmb_cli_wire_smb2_stream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_stre
 
     if (pSession->state == CONNECTED)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_wire_smb2_stream_flush: Set state Waiting on us\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_stream_flush: Set state Waiting on us\n");
         pBuffer->state = WAITING_ON_US;
 #ifdef STATE_DIAGNOSTICS
 Get_Wire_Buffer_State(WAITING_ON_US);
@@ -209,7 +209,7 @@ Get_Wire_Buffer_State(WAITING_ON_US);
     else
     {
         pBuffer->end_time_base = rtp_get_system_msec ();
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_wire_smb2_stream_flush: Writing %d bytes\n",(int)pBuffer->buffer_size);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_stream_flush: Writing %d bytes\n",(int)pBuffer->buffer_size);
         if (rtsmb_net_write (pSession->socket, pBuffer->buffer, (int)pBuffer->buffer_size)<0)
         {
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_stream_flush: Error writing %d bytes !!!!!!!!!!!!!!!!!\n",(int)pBuffer->buffer_size);
@@ -227,7 +227,7 @@ Get_Wire_Buffer_State(WAITING_ON_US);
         }
       #endif
         pBuffer->state = WAITING_ON_SERVER;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_wire_smb2_stream_flush: Set state Waiting on server\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_stream_flush: Set state Waiting on server\n");
 #ifdef STATE_DIAGNOSTICS
 Get_Wire_Buffer_State(WAITING_ON_SERVER);
 #endif
@@ -400,7 +400,7 @@ byte securiy_buffer[255];
         return RTSMB_CLI_SSN_RV_MALFORMED;
 
     pStream->pSession->psmb2Session->SessionId = pStream->InHdr.SessionId;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_session_setup: Set stream's session id to %X\n", (int)pStream->pSession->psmb2Session->SessionId);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_session_setup: Set stream's session id to %X\n", (int)pStream->pSession->psmb2Session->SessionId);
 
 	/* make sure we have a valid user */
 	if (pStream->pJob->data.session_setup.user_struct->state != CSSN_USER_STATE_LOGGING_ON)
@@ -450,7 +450,7 @@ int rtsmb2_cli_session_send_tree_connect (smb2_stream  *pStream)
     command_pkt.PathOffset      = (word) (pStream->OutHdr.StructureSize+command_pkt.StructureSize-1);
     command_pkt.PathLength      = (word)pStream->WriteBufferParms[0].byte_count;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_tree_connect called: Sharename == %s\n",share_name);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_tree_connect called: Sharename == %s\n",share_name);
     /* Save the message ID in the share sructure */
 	pStream->pJob->data.tree_connect.share_struct->connect_mid = pStream->pJob->mid;
 
@@ -490,10 +490,10 @@ RTSMB2_TREE_CONNECT_R response_pkt;
 
 	pShare = 0;
     pSession  = pStream->pSession;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect called\n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect called\n");
     if(!pSession)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No sesion info !!!! \n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No sesion info !!!! \n");
     }
     if(pSession)
     {
@@ -509,7 +509,7 @@ RTSMB2_TREE_CONNECT_R response_pkt;
     }
    	if (!pShare)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No Share found !!!!!!! \n", 0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No Share found !!!!!!! \n");
         return RTSMB_CLI_SSN_RV_MALFORMED;
     }
 
@@ -521,7 +521,7 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
 	tc_strcpy (pShare->share_name, pStream->pJob->data.tree_connect.share_name);
 	tc_strcpy (pShare->password, pStream->pJob->data.tree_connect.password);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: Share found: Names == %s\n",pShare->share_name);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect: Share found: Names == %s\n",pShare->share_name);
 
 	/* We special-case a situation where we have just connected to the IPC$ share.  This
 	   means that we are now a fully-negotiated session and should alert our consumer. */
@@ -532,7 +532,7 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
 		{
 			if (pSession->jobs[r].state == CSSN_JOB_STATE_FAKE)
 			{
-			    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect IPC$: Finish logon by calling rtsmb_cli_session_job_cleanup\n",0);
+			    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect IPC$: Finish logon by calling rtsmb_cli_session_job_cleanup\n");
 				rtsmb_cli_session_job_cleanup (pSession, &pSession->jobs[r], RTSMB_CLI_SSN_RV_OK);
 			}
 		}
@@ -574,7 +574,7 @@ int rtsmb2_cli_session_send_logoff (smb2_stream  *pStream)
     rtsmb2_cli_session_init_header (pStream, SMB2_LOGOFF, (ddword) pStream->pBuffer->mid,pStream->pSession->psmb2Session->SessionId);
     command_pkt.StructureSize   = 4;
     command_pkt.Reserved        = 0;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_logoff called:\n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_logoff called:\n");
     /* Packs the SMB2 header and tree disconnect into the stream buffer and sets send_status to OK or and ERROR */
     if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
         send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
@@ -584,17 +584,17 @@ int rtsmb2_cli_session_send_logoff (smb2_stream  *pStream)
 }
 int rtsmb2_cli_session_receive_logoff (smb2_stream  *pStream)
 {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_logoff called for session (%d):\n",(int)pStream->InHdr.SessionId);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_logoff called for session (%d):\n",(int)pStream->InHdr.SessionId);
  	/* make sure we have a valid user */
 	if (pStream->pSession->user.state != CSSN_USER_STATE_LOGGED_ON)
 	{
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_logoff: error: (pStream->pSession->user.state != CSSN_USER_STATE_LOGGED_ON) \n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_logoff: error: (pStream->pSession->user.state != CSSN_USER_STATE_LOGGED_ON) \n");
 	    return RTSMB_CLI_SSN_RV_BAD_UID;
     }
 
 //	ASSURE (pSession->user.uid == pHeader->uid, RTSMB_CLI_SSN_RV_BAD_UID);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_logoff: calling: rtsmb_cli_session_user_close \n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_logoff: calling: rtsmb_cli_session_user_close \n");
 	rtsmb_cli_session_user_close (&pStream->pSession->user);
 
 
@@ -614,7 +614,7 @@ int rtsmb2_cli_session_send_tree_disconnect (smb2_stream  *pStream)
     command_pkt.StructureSize   = 4;
     command_pkt.Reserved        = 0;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_tree_disconnect called:\n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_tree_disconnect called:\n");
     /* Packs the SMB2 header and tree disconnect into the stream buffer and sets send_status to OK or and ERROR */
     if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
         send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
@@ -676,20 +676,20 @@ int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
     int send_status;
     tc_memset(&command_pkt, 0, sizeof(command_pkt));
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: Session == %X \n",(int)pStream->pSession);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Session == %X \n",(int)pStream->pSession);
 
     rtsmb2_cli_session_init_header (pStream, SMB2_QUERY_DIRECTORY, (ddword) pStream->pBuffer->mid,pStream->pSession->psmb2Session->SessionId);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: pStream->pSession->psmb2Session == %X \n",(int)pStream->pSession->psmb2Session);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: pStream->pSession->psmb2Session == %X \n",(int)pStream->pSession->psmb2Session);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob == %X \n",(int)pStream->pJob);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct == %X \n",(int)pStream->pJob->data.findfirst.search_struct);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct->share_struct == %X \n",(int)pStream->pJob->data.findfirst.search_struct->share_struct);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct->share_struct->tid == %X \n",(int)pStream->pJob->data.findfirst.search_struct->share_struct->tid);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob == %X \n",(int)pStream->pJob);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct == %X \n",(int)pStream->pJob->data.findfirst.search_struct);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct->share_struct == %X \n",(int)pStream->pJob->data.findfirst.search_struct->share_struct);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: pStream->pJob->data.findfirst.search_struct->share_struct->tid == %X \n",(int)pStream->pJob->data.findfirst.search_struct->share_struct->tid);
 
     pStream->OutHdr.TreeId = (ddword) pStream->pJob->data.findfirst.search_struct->share_struct->tid;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: TreeId == %X \n",(int)pStream->OutHdr.TreeId);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: TreeId == %X \n",(int)pStream->OutHdr.TreeId);
 
     command_pkt.StructureSize   = 33;
 
@@ -710,14 +710,14 @@ int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
     /* Tell the server that the maximum we can accept is what remains in our read buffer */
 	command_pkt.OutputBufferLength      = (word)pStream->read_buffer_remaining;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: Call encode \n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Call encode \n");
 
     /* Packs the SMB2 header and tree connect command/blob into the stream buffer and sets send_status to OK or and ERROR */
     if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
         send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
     else
        send_status=RTSMB_CLI_SSN_RV_OK;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_send_find_first: back encode \n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: back encode \n");
     return send_status;
 }
 

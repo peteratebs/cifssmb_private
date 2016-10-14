@@ -84,8 +84,7 @@ const char *SrvSessionStateName[] = {
                                      "BROWSE_FAIL","WAIT_ON_PDC_NAME", "WAIT_ON_PDC_IP", "FAIL_NEGOTIATE",
                                      "FINISH_NEGOTIATE", "WRITING_RAW", "WRITING_RAW_READING"};
 
-
-#define PRINT_SRV_STATE_CHANGE(a, b)  {rtp_printf("%.2d %5d  Session::%s -> %s\n" , DIAGNOSTIC_INDEX++, rtp_get_system_msec(), a, b);}
+#define PRINT_SRV_STATE_CHANGE(a, b)  {rtp_printf("%.2d %5d  Session::%s -> %s\n" , DIAGNOSTIC_INDEX++, rtp_get_system_msec(), a, b);}     // #ifdef STATE_DIAGNOSTICS
 
 #define RTSMB_GET_SRV_SESSION_STATE(a) {if(SRV_STATE_LOG.srvSessionState != a){\
                                         PRINT_SRV_STATE_CHANGE(SrvSessionStateName[SRV_STATE_LOG.srvSessionState], SrvSessionStateName[a]);\
@@ -194,7 +193,7 @@ void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
     size_andx = A (\
         pCtx->read_origin, *pInBuf, pCtx->current_body_size - (word) PDIFF (*pInBuf, pCtx->read_origin), \
         pInHdr, &command);\
-    if (size_andx == -1) { RTSMB_DEBUG_OUTPUT_STR("FAILED TO READ ANDX SMB!!!\n", RTSMB_DEBUG_TYPE_ASCII); return -1; }\
+    if (size_andx == -1) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FAILED TO READ ANDX SMB!!!\n"); return -1; }\
     *pInBuf = PADD (*pInBuf, size_andx);\
 }
 
@@ -212,7 +211,7 @@ void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
     size_andx = A (\
         pCtx->write_origin, *pOutBuf, (rtsmb_size)(SMB_BUFFER_SIZE - PDIFF (*pOutBuf, pCtx->write_origin)), \
         pOutHdr, &response);\
-    if (size_andx == -1) {RTSMB_DEBUG_OUTPUT_STR("FAILED TO WRITE ANDX SMB!!!\n", RTSMB_DEBUG_TYPE_ASCII); return -1; }\
+    if (size_andx == -1) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FAILED TO WRITE ANDX SMB!!!\n"); return -1; }\
     *pOutBuf = PADD (*pOutBuf, size_andx);\
     pCtx->outBodySize += (rtsmb_size)size_andx;\
 }
@@ -237,6 +236,8 @@ NextUID:  ;
 }
 
 
+BBOOL display_login_info=FALSE;
+
 
 #if (HARDWIRED_EXTENDED_SECURITY)
 
@@ -247,7 +248,6 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
 word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId)
 {
 BBOOL has_lm_field=FALSE;
-BBOOL display_login_info=FALSE;
     // decoded_targ_token is taken from the NTLM Type 3 message sent from the client
     // Note: pCtx->encryptionKey[] holds the key we sent
      //decoded_targ_token->Flags;              // Not used in non data gram connection scheme
@@ -255,7 +255,7 @@ BBOOL display_login_info=FALSE;
 
     if (display_login_info)
     {
-      rtp_printf("\nAuthenticate user from SPNEGO PACCKET\n");
+      rtp_printf("\ndisplay_login_info: Authenticating user from SPNEGO PACCKET\n");
       if (decoded_targ_token->lm_response)       //
       {
           rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
@@ -263,26 +263,26 @@ BBOOL display_login_info=FALSE;
       }
       if (decoded_targ_token->ntlm_response)
       {
-          rtsmb_dump_bytes("NTLMRESPONSE", decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->ntlm_response->size, DUMPBIN);
+          rtsmb_dump_bytes("display_login_info: NTLMRESPONSE", decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->ntlm_response->size, DUMPBIN);
       }
       if (decoded_targ_token->user_name)
       {
-          rtsmb_dump_bytes("USER NAME", decoded_targ_token->user_name->value_at_offset, decoded_targ_token->user_name->size, DUMPUNICODE);
+          rtsmb_dump_bytes("display_login_info: USER NAME", decoded_targ_token->user_name->value_at_offset, decoded_targ_token->user_name->size, DUMPUNICODE);
           ;
       }
       if (decoded_targ_token->domain_name)
       {
-          rtsmb_dump_bytes("DOMAIN NAME", decoded_targ_token->domain_name->value_at_offset, decoded_targ_token->domain_name->size, DUMPUNICODE);
+          rtsmb_dump_bytes("display_login_info: DOMAIN NAME", decoded_targ_token->domain_name->value_at_offset, decoded_targ_token->domain_name->size, DUMPUNICODE);
           ;
       }
       if (decoded_targ_token->host_name)
       {
-          rtsmb_dump_bytes("HOST NAME", decoded_targ_token->host_name->value_at_offset, decoded_targ_token->host_name->size, DUMPUNICODE);
+          rtsmb_dump_bytes("display_login_info: HOST NAME", decoded_targ_token->host_name->value_at_offset, decoded_targ_token->host_name->size, DUMPUNICODE);
           ;
       }
       if (decoded_targ_token->session_key)
       {
-          rtsmb_dump_bytes("SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
+          rtsmb_dump_bytes("display_login_info: SESSION KEY", decoded_targ_token->session_key->value_at_offset, decoded_targ_token->session_key->size, DUMPBIN);
           ;
       }
     }
@@ -299,7 +299,7 @@ BBOOL display_login_info=FALSE;
     PFRTCHAR username  = 0;
     if (decoded_targ_token->domain_name)
     {
-      rtp_printf("decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);
+      if (display_login_info) rtp_printf("display_login_info: decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);
       domainname = decoded_targ_token->domain_name->value_at_offset;
       tc_memcpy(default_domainname_buffer,decoded_targ_token->domain_name->value_at_offset,decoded_targ_token->domain_name->size);
       default_domainname_buffer[decoded_targ_token->domain_name->size]=0;
@@ -315,7 +315,7 @@ BBOOL display_login_info=FALSE;
     }
     if (decoded_targ_token->user_name)
     {
-      rtp_printf("decoded_targ_token->user_name->size:%d\n", decoded_targ_token->user_name->size);
+      if (display_login_info) rtp_printf("display_login_info: decoded_targ_token->user_name->size:%d\n", decoded_targ_token->user_name->size);
       tc_memcpy(username_buffer,decoded_targ_token->user_name->value_at_offset,decoded_targ_token->user_name->size);
       username_buffer[decoded_targ_token->user_name->size]=0;
       username_buffer[decoded_targ_token->user_name->size+1]=0;
@@ -323,7 +323,7 @@ BBOOL display_login_info=FALSE;
     }
     else
     {
-      rtp_printf("No domain:%d\n");
+      if (display_login_info) rtp_printf("display_login_info: No domain\n");
       default_domainname_buffer[0] = 0;
       default_domainname_buffer[1] = 0;
       domainname = default_domainname_buffer;
@@ -331,12 +331,12 @@ BBOOL display_login_info=FALSE;
 
     // Try ntlmv2
     Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
-    if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
     // Try lmv2 - not tested yet.
     if (Access == AUTH_NOACCESS)
     {
       Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
-      if (display_login_info) rtp_printf("Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);
     }
     // Try ntlm2
     if (Access == AUTH_NOACCESS)
@@ -344,42 +344,42 @@ BBOOL display_login_info=FALSE;
       if (has_lm_field)
       { // The client key is in lm_response
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
-        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
+        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
       }
       if (Access == AUTH_NOACCESS)
       {
         ntlmv2_response_t *pntlmv2_response = (ntlmv2_response_t *)decoded_targ_token->ntlm_response->value_at_offset;
-        if (display_login_info) rtp_printf("Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
+        if (display_login_info) rtp_printf("display_login_info: Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, username, extended_authId);
-        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
+        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
       }
 //      TBD - Recheck may have broken on windows.
       if (Access == AUTH_NOACCESS)
       {
         if (has_lm_field)
           Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
-        if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
+        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
       }
     }
     if (Access == AUTH_NOACCESS)
     {
       Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
-      if (display_login_info) rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", Access);
+      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", Access);
     }
     if (Access == AUTH_NOACCESS)
     {
       // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
-      rtp_printf("Auth_AuthenticateUser_lm returned %X\n", Access);
+      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lm returned %X\n", Access);
     }
-    if (display_login_info) rtp_printf("Auth_AuthenticateUser should be removed \n");
+    if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser should be removed \n");
     {
     int i;
     for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
     {
         if (pCtx->uids[i].uid == pCtx->uid)
         {
-          if (display_login_info) rtp_printf("Auth_AuthenticateUser did removed %d \n", i);
+          if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser did removed %d \n", i);
           pCtx->uids[i].inUse = FALSE;
           break;
         }
@@ -393,11 +393,11 @@ BBOOL display_login_info=FALSE;
 #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
     if (Access == AUTH_NOACCESS)
     {
-      rtp_printf("Fake success by returning %X\n",AUTH_USER_MODE);
+      rtp_printf("Fake success by returning %X\n",AUTH_USER_MODE);     // #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
       Access = AUTH_USER_MODE;
     }
 #endif
-    rtp_printf("\nAuthenticate user from SPNEGO PACCKET v=%d \n", Access);
+    if (display_login_info)  rtp_printf("\ndisplay_login_info: Authenticate user from SPNEGO PACCKET v=%d \n", Access);
     return Access;
 }
 #endif
@@ -514,7 +514,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
            }
            else
            {
-              rtp_printf("Lost Got extended blob signature == %X2\n",command.security_blob[0]);
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "EXTENDED_SECURITY - Lost Got command.security_blob[0] unknown value:%X\n",command.security_blob[0]);
               SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
            }
 
@@ -536,7 +536,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        {
          if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
          {
-           rtp_printf("Got extended !!!  phase 1\n");
+           if (display_login_info) rtp_printf("display_login_info: Got extended !!!  phase 1\n");
            access = 0;
            authId = 0;
          }
@@ -558,7 +558,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
             if (access == AUTH_NOACCESS)
             {
               access = Auth_AuthenticateUser_ntlm (pCtx,password_buf, username, &authId);
-              rtp_printf("Auth_AuthenticateUser_ntlm returned %X\n", access);
+              if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", access);
             }
          }
 
@@ -568,9 +568,9 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
          if (access == AUTH_NOACCESS)
          {
-            rtp_printf("ProcSetupAndx fell through to Auth_AuthenticateUser \n");
+            if (display_login_info) rtp_printf("display_login_info: ProcSetupAndx fell through to Auth_AuthenticateUser \n");
             access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
-            rtp_printf("Auth_AuthenticateUser returned %X\n", access);
+            if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser returned %X\n", access);
          }
        }
        if (access == AUTH_NOACCESS)
@@ -915,7 +915,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
 
             if (externalFid < 0)
             {
-                RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around for dummy directory!\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"OpenOrCreate: Not enough file handles to pass around for dummy directory!\n");
                 return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
             }
 
@@ -944,7 +944,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
 
     if(fid < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Open denied.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Open denied.\n");
         return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
     }
     else
@@ -963,7 +963,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
         if (externalFid < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
-            RTSMB_DEBUG_OUTPUT_STR("OpenOrCreate: Not enough file handles to pass around!\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "OpenOrCreate: Not enough file handles to pass around!\n");
             return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
         }
         *answer_fid = fid;
@@ -1626,15 +1626,9 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
 
     if (pOutHdr->status)
     {
-        if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
-        {
-          printf(" SMB_NT_STATUS_MORE_PROCESSING_REQUIRED May have to support all 32 bit errors\n");
-        }
-        else
-        {
-          pCtx->outBodySize = last_body_size + 3;
-          tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
-        }
+#warning SMB_NT_STATUS_MORE_PROCESSING_REQUIRED May have to support all 32 bit errors if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+        pCtx->outBodySize = last_body_size + 3;
+        tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
     }
 
     return TRUE;
@@ -1694,10 +1688,10 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
             {
                if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
                {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Responding to 2.002 option. !!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Responding to 2.002 option. !!!!!!!!!!!!!!\n");
                 dialect = dialectList[i].dialect;
                 bestEntry = entry;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
             }
             } else
 #endif
@@ -1709,7 +1703,7 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
                 {
                     dialect = dialectList[i].dialect;
                     bestEntry = entry;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Not Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Not Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
                 }
             }
             }
@@ -2313,7 +2307,7 @@ BBOOL ProcQueryInformationDisk (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVO
 
     if (!SMBFIO_GetFree (pCtx, pCtx->tid, &blocks, &bfree, &sectors, &bytes))
     {
-        RTSMB_DEBUG_OUTPUT_STR("ProcQueryInformationDisk: Error getting free space.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ProcQueryInformationDisk: Error getting free space.\n");
         SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
     }
     else
@@ -2385,14 +2379,14 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
         (rtsmb_size)(SMB_BUFFER_SIZE - size), pOutHdr, &response);
     if (size == -1) return FALSE;
     buf = PADD (buf, size);
-
+#warning Notify is not implemented
     rval = TRUE;
     if (command.setup[0] == TRANS_TRANSACT_NOTIFY)
     {
-      printf("Got a notify size == : %d\n", command.setup_size);
-      printf("Got a notify filter : high %X low %X\n", command.setup[1],command.setup[0]);
-      printf("Got a notify FID    :  %d\n", command.setup[2]);
-      printf("Got a notify TREE   :  %d\n", command.setup[3]>>4);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Got a notify size == : %d\n", command.setup_size);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify filter : high %X low %X\n", command.setup[1],command.setup[0]);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify FID    :  %d\n", command.setup[2]);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify TREE   :  %d\n", command.setup[3]>>4);
       rval = ProcFakeNotifyTransaction (pCtx, pInHdr, pInBuf, pOutHdr, pOutBuf);
       return rval;
     }
@@ -2589,19 +2583,11 @@ BBOOL ProcTransaction2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBu
             tmpbuf = trans2Commandname(command.setup[0]);
             if (tmpbuf)
             {
-                RTSMB_DEBUG_OUTPUT_STR("ProcTransaction2: sub command (", RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR(tmpbuf, RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR(") unhandled\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcTransaction2: sub command (%s) unhandled\n", tmpbuf);
             }
             else
             {
-            char buf[32];
-                tmpbuf = buf;
-                buf[0] = '\0';
-                RTSMB_DEBUG_OUTPUT_STR("ProcTransaction2: unknown sub command <0x ", RTSMB_DEBUG_TYPE_ASCII);
-                tmpbuf = rtp_itoa(command.setup[0], tmpbuf, 16);
-                RTSMB_DEBUG_OUTPUT_STR(tmpbuf, RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR("> unhandled\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcTransaction2: unknown sub command <%X> \n", command.setup[0]);
             }
         }
 #endif
@@ -2861,7 +2847,7 @@ BBOOL ProcClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
     if (pTree->type == ST_PRINTQ)
     {
         if (SMBU_PrintFile (pCtx, fid))
-            RTSMB_DEBUG_OUTPUT_STR("ProcClose: Printing file on close failed.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n");
         SMBFIO_Close (pCtx, pCtx->tid, fid);
         SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
     }
@@ -2906,7 +2892,7 @@ BBOOL ProcClosePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     if (SMBU_PrintFile (pCtx, fid))
-        RTSMB_DEBUG_OUTPUT_STR("ProcClosePrintFile: Printing file on close failed.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClosePrintFile: Printing file on close failed.\n");
     SMBFIO_Close (pCtx, pCtx->tid, fid);
     SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
 
@@ -3326,15 +3312,7 @@ BBOOL ProcRename (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRT
                 " to get " RTSMB_STR_TOK "->" RTSMB_STR_TOK ".\n",
                 oldpattern, newpattern, matched, result)); */
 
-            RTSMB_DEBUG_OUTPUT_STR ("Odd.  GFirst failed to match ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (oldpattern, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-            RTSMB_DEBUG_OUTPUT_STR ("->", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (newpattern, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-            RTSMB_DEBUG_OUTPUT_STR (" to get ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (matched, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-            RTSMB_DEBUG_OUTPUT_STR ("->", RTSMB_DEBUG_TYPE_ASCII);
-/*            RTSMB_DEBUG_OUTPUT_STR (result, RTSMB_DEBUG_TYPE_SYS_DEFINED);   */
-            RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Odd.  GFirst failed to match %ls -> %ls  to get %ls", oldpattern,  newpattern,  matched);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRHRD, SMB_ERRHRD_GENERAL);
             break;
         }
@@ -4026,9 +4004,7 @@ BBOOL ProcReadRaw (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PR
     if (assertUid (pCtx) || assertTid (pCtx) || assertPermission (pCtx, SECURITY_READ) ||
         assertFid (pCtx, command.fid, 0) || ((temp = allocateBigBuffer ()) != 0))
     {
-        RTSMB_DEBUG_OUTPUT_STR ("ReadRaw: Failed major check", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR ((temp ? "" : " -- no buffers"), RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ReadRaw: Failed major check %s \n", temp ? "" : " -- no buffers");
         SMBS_SendMessage (pCtx, 0, FALSE);
         return FALSE;
     }
@@ -4042,7 +4018,7 @@ BBOOL ProcReadRaw (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PR
 #if 0
     if ((bytesRead = SMBFIO_Seek (pCtx, pCtx->tid, fid, 0, RTSMB_SEEK_END)) >= 0 && (dword) (bytesRead) < command.offset)
     {
-        RTSMB_DEBUG_OUTPUT_STR("ReadRaw: bad seek\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ReadRaw: bad seek\n");
         freeBigBuffer (pCtx->writeBuffer);
         SMBS_SendMessage (pCtx, 0, FALSE);
         return FALSE;
@@ -4062,7 +4038,7 @@ BBOOL ProcReadRaw (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PR
     /* upon read error, we send 0 byte answer   */
     if (bytesRead < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("ReadRaw: read error\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ReadRaw: read error\n");
         bytesRead = 0;
     }
 
@@ -4232,7 +4208,7 @@ BBOOL ProcOpenPrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInB
 
     if(fid < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Open failed for unknown reason.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Open failed for unknown reason.\n");
         SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
     }
     else
@@ -4375,7 +4351,7 @@ BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate)
     r = rtsmb_nbss_fill_header (pCtx->writeBuffer, RTSMB_NBSS_HEADER_SIZE, &header);
     if (r < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_SendMessage: Error writing netbios header!\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_SendMessage: Error writing netbios header!\n");
         return FALSE;
     }
     else
@@ -4654,22 +4630,8 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
      */
     if (packetSize > pSctx->readBufferSize)
     {
-        char tmpBuffer[32];
-        char * buffer = tmpBuffer;
-        tmpBuffer[0] = '\0';
-
-        RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMBPacket:  Packet of size ", RTSMB_DEBUG_TYPE_ASCII);
-        buffer = rtp_ultoa (packetSize, buffer, 10);
-        RTSMB_DEBUG_OUTPUT_STR (buffer, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR ("too big for buffer of size ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT ((int)pSctx->readBufferSize);
-#if 0
-        RTSMB_DEBUG_OUTPUT_STR (".  Ending session.\n", RTSMB_DEBUG_TYPE_ASCII);
-        return FALSE;
-#else
-        RTSMB_DEBUG_OUTPUT_STR (".  Tossing packet.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
         return TRUE; /* eat the packet */
-#endif
     }
 
     /**
@@ -4677,7 +4639,7 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
      */
     if (packetSize < 1)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Warning: enlargening 0-length packet\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: enlargening 0-length packet\n");
         packetSize = 1;
     }
 
@@ -4687,7 +4649,6 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     pInBuf = (PFBYTE) SMB_INBUF (pSctx);
     pOutBuf = SMB_OUTBUF (pSctx);
 
-printf("SMBS_ProcSMBPacket state: %d\n", pSctx->state);
     switch (pSctx->state)
     {
     case WRITING_RAW:
@@ -4703,7 +4664,7 @@ printf("SMBS_ProcSMBPacket state: %d\n", pSctx->state);
         if ((length = rtsmb_net_read (pSctx->sock, pInBuf + pSctx->current_body_size,
             pSctx->readBufferSize - pSctx->current_body_size, packetSize - pSctx->current_body_size)) < 0)
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket:  Error on read.  Ending session.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
             return FALSE;
         }
         pSctx->current_body_size += (dword)length;
@@ -4757,17 +4718,16 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         if ((length = rtsmb_net_read (pSctx->sock, pInBuf,
             pSctx->readBufferSize, 5)) < 0)
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket:  Error on read.  Ending session.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
             return FALSE;
         }
         int protocol_version = SMBS_CheckPacketVersion(pInBuf);
         /**
          * If the packet is not an SMB, end connection.
          */
-printf("SMBS_ProcSMBPacket packet protocol_version: %d\n", protocol_version);
         if (protocol_version == 0)
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: Not SMB or SMB2 packet\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: Not SMB or SMB2 packet\n");
             /* If we were nice, we'd send a message saying we don't understand.            */
             /* But, we don't know any values to fill it with (like tid, uid) or whatever,  */
             /* so the client won't know which message was bad.  Plus, if they are          */
@@ -4790,7 +4750,7 @@ printf("SMBS_ProcSMBPacket packet protocol_version: %d\n", protocol_version);
              if (pNctxt)
                rtsmb_srv_net_connection_close_session(pNctxt);
              pSctx->state = NOTCONNECTED;
-             RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n", RTSMB_DEBUG_TYPE_ASCII);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
            }
         }
@@ -4799,16 +4759,15 @@ printf("SMBS_ProcSMBPacket packet protocol_version: %d\n", protocol_version);
         {
             if (protocol_version == 2)
             {
-                RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb2.\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb2.\n");
                 // Also initializes an SMB1 context
                 SMBS_InitSessionCtx_smb2(pSctx);
-printf("Issmb2 after SMBS_InitSessionCtx_smb2 :%d\n", pSctx->isSMB2);
                 /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
                 pSctx->isSMB2 = TRUE;
             }
             else
             {
-                RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n");
                 SMBS_InitSessionCtx_smb1(pSctx);
                 pSctx->isSMB2 = FALSE;
             }
@@ -4827,7 +4786,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         doSend = SMBS_ProcSMBBody (pSctx);
         if (pSctx->state == NOTCONNECTED)
         {
-            printf("Yo we arent connected after process s: %d\n",pSctx->state);
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Returned to not-connected stated\n");
         }
         break;
     default:
@@ -4878,7 +4837,7 @@ BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx)
         /* we must connect with the dc first   */
         if (!MS_GetPDCName (pdc))
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n");
 
             /* change our state to waiting on pdc name   */
 #ifdef STATE_DIAGNOSTICS
@@ -4895,7 +4854,7 @@ RTSMB_GET_SRV_SESSION_STATE (WAIT_ON_PDC_NAME);
 
         if (!rtsmb_srv_nbns_is_in_name_cache (pdc, RTSMB_NB_NAME_TYPE_SERVER))
         {
-            RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC ip.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC ip.\n");
 
             /* change our state to waiting on pdc ip   */
 #ifdef STATE_DIAGNOSTICS
@@ -4911,7 +4870,7 @@ RTSMB_GET_SRV_SESSION_STATE (WAIT_ON_PDC_IP);
         }
 
         /* ok, we can continue   */
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  NEGOTIATE being processed, we've got all the information we need.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, we've got all the information we need.\n");
     }
 #endif
 
@@ -4921,7 +4880,7 @@ RTSMB_GET_SRV_SESSION_STATE (WAIT_ON_PDC_IP);
     if ((length = rtsmb_net_read (pSctx->sock, (PFBYTE) PADD (pInBuf, pSctx->current_body_size),
         (word) (pSctx->readBufferSize - pSctx->current_body_size), pSctx->in_packet_size - pSctx->current_body_size)) < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  Error on read.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Error on read.\n");
         return FALSE;
     }
     pSctx->current_body_size += (dword)length;
@@ -4965,7 +4924,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     if ((header_size = srv_cmd_read_header (pInBuf,
         pInBuf, pSctx->current_body_size, &inCliHdr)) == -1)
     {
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody: Badly formed header", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody: Badly formed header");
 rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
         return FALSE;
     }
@@ -5023,27 +4982,21 @@ rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
      */
     if (pSctx->dialect == DIALECT_NONE && inCliHdr.command != SMB_COM_NEGOTIATE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  Bad first packet -- was not a NEGOTIATE.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Bad first packet -- was not a NEGOTIATE.\n");
         SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
         doSend = TRUE;
     }
     else if (pSctx->state == FAIL_NEGOTIATE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("SMBS_ProcSMBBody:  Failing pending negotiation.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Failing pending negotiation.\n");
         SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
         doSend = TRUE;
     }
     else
     {
-        char tmpBuffer[32];
-        char* buffer = tmpBuffer;
-        tmpBuffer[0] = '\0';
-        RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMBBody:  Processing a packet with command: ", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Processing a packet with command: ");
         DebugOutputSMBCommand(inCliHdr.command);
-        RTSMB_DEBUG_OUTPUT_STR (" (", RTSMB_DEBUG_TYPE_ASCII);
-        buffer = rtp_itoa (inCliHdr.command, buffer, 16);
-        RTSMB_DEBUG_OUTPUT_STR (buffer, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (").\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," (%d)\n",inCliHdr.command);
 
         /**
          * Ok, we now see what kind of command has been requested, and
@@ -5273,30 +5226,11 @@ RTSMB_GET_SRV_SESSION_STATE (WRITING_RAW);
         case SMB_COM_FIND_UNIQUE:
         case SMB_COM_FIND_NOTIFY_CLOSE:
         case SMB_COM_CLOSE_AND_TREE_DISC:
-            {
-                char tmpBuffer[32];
-                char* buffer = tmpBuffer;
-                tmpBuffer[0] = '\0';
-                /*RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMBBody: Unimplemented Command ", RTSMB_DEBUG_TYPE_ASCII);   */
-                buffer = rtp_itoa (inCliHdr.command, buffer, 16);
-                /*RTSMB_DEBUG_OUTPUT_STR (buffer, RTSMB_DEBUG_TYPE_ASCII);   */
-                /*RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);     */
-
-            }
             SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
             doSend = TRUE;
             break;
 
         default:
-            {
-                char tmpBuffer[32];
-                char* buffer = tmpBuffer;
-                tmpBuffer[0] = '\0';
-                /*RTSMB_DEBUG_OUTPUT_STR ("SMBS_ProcSMBBody: Unknown Command", RTSMB_DEBUG_TYPE_ASCII);   */
-                buffer = rtp_itoa (inCliHdr.command, buffer, 16);
-                /*RTSMB_DEBUG_OUTPUT_STR (buffer, RTSMB_DEBUG_TYPE_ASCII);   */
-                /*RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);     */
-            }
             SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
             doSend = TRUE;
             break;
@@ -5309,203 +5243,204 @@ RTSMB_GET_SRV_SESSION_STATE (WRITING_RAW);
 static void DebugOutputSMBCommand(int command)
 {
 #ifdef RTSMB_DEBUG
+char *CommandName;
     switch(command)
     {
     case SMB_COM_CREATE_DIRECTORY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CREATE_DIRECTORY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CREATE_DIRECTORY";
         break;
     case SMB_COM_DELETE_DIRECTORY:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_DELETE_DIRECTORY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_DELETE_DIRECTORY";
         break;
     case SMB_COM_OPEN:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_OPEN", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_OPEN";
         break;
     case SMB_COM_CREATE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CREATE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CREATE";
         break;
     case SMB_COM_CLOSE:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CLOSE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CLOSE";
         break;
     case SMB_COM_FLUSH:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_FLUSH", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_FLUSH";
         break;
     case SMB_COM_DELETE:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_DELETE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_DELETE";
         break;
     case SMB_COM_RENAME:
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_RENAME", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_RENAME";
         break;
     case SMB_COM_QUERY_INFORMATION :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_QUERY_INFORMATION", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_QUERY_INFORMATION";
         break;
     case SMB_COM_SET_INFORMATION :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_SET_INFORMATION", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_SET_INFORMATION";
         break;
     case SMB_COM_READ :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_READ", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_READ";
         break;
     case SMB_COM_WRITE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE";
         break;
     case SMB_COM_LOCK_BYTE_RANGE :
-        RTSMB_DEBUG_OUTPUT_STR ("", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_LOCK_BYTE_RANGE";
         break;
     case SMB_COM_UNLOCK_BYTE_RANGE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_LOCK_BYTE_RANGE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_UNLOCK_BYTE_RANGE";
         break;
     case SMB_COM_CREATE_TEMPORARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CREATE_TEMPORARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CREATE_TEMPORARY";
         break;
     case SMB_COM_CREATE_NEW :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CREATE_NEW", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CREATE_NEW";
         break;
     case SMB_COM_CHECK_DIRECTORY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CHECK_DIRECTORY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CHECK_DIRECTORY";
         break;
     case SMB_COM_PROCESS_EXIT :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_PROCESS_EXIT", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_PROCESS_EXIT";
         break;
     case SMB_COM_SEEK :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_SEEK", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_SEEK";
         break;
     case SMB_COM_LOCK_AND_READ :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_LOCK_AND_READ", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_LOCK_AND_READ";
         break;
     case SMB_COM_WRITE_AND_UNLOCK :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_AND_UNLOCK", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_AND_UNLOCK";
         break;
     case SMB_COM_READ_RAW :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_READ_RAW", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_READ_RAW";
         break;
     case SMB_COM_READ_MPX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_READ_MPX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_READ_MPX";
         break;
     case SMB_COM_READ_MPX_SECONDARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_READ_MPX_SECONDARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_READ_MPX_SECONDARY";
         break;
     case SMB_COM_WRITE_RAW :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_RAW", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_RAW";
         break;
     case SMB_COM_WRITE_MPX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_MPX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_MPX";
         break;
     case SMB_COM_QUERY_SERVER :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_QUERY_SERVER", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_QUERY_SERVER";
         break;
     case SMB_COM_WRITE_COMPLETE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_COMPLETE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_COMPLETE";
         break;
     case SMB_COM_SET_INFORMATION2 :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_SET_INFORMATION2", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_SET_INFORMATION2";
         break;
     case SMB_COM_QUERY_INFORMATION2 :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_QUERY_INFORMATION2", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_QUERY_INFORMATION2";
         break;
     case SMB_COM_LOCKING_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_LOCKING_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_LOCKING_ANDX";
         break;
     case SMB_COM_TRANSACTION :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TRANSACTION", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TRANSACTION";
         break;
     case SMB_COM_TRANSACTION_SECONDARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TRANSACTION_SECONDARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TRANSACTION_SECONDARY";
         break;
     case SMB_COM_IOCTL :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_IOCTL", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_IOCTL";
         break;
     case SMB_COM_IOCTL_SECONDARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_IOCTL_SECONDARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_IOCTL_SECONDARY";
         break;
     case SMB_COM_COPY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_COPY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_COPY";
         break;
     case SMB_COM_MOVE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_MOVE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_MOVE";
         break;
     case SMB_COM_ECHO :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_ECHO", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_ECHO";
         break;
     case SMB_COM_WRITE_AND_CLOSE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_AND_CLOSE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_AND_CLOSE";
         break;
     case SMB_COM_OPEN_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_OPEN_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_OPEN_ANDX";
         break;
     case SMB_COM_READ_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_READ_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_READ_ANDX";
         break;
     case SMB_COM_WRITE_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_ANDX";
         break;
 
     case SMB_COM_CLOSE_AND_TREE_DISC :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CLOSE_AND_TREE_DISC", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CLOSE_AND_TREE_DISC";
         break;
     case SMB_COM_TRANSACTION2 :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TRANSACTION2", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TRANSACTION2";
         break;
     case SMB_COM_TRANSACTION2_SECONDARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TRANSACTION2_SECONDARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TRANSACTION2_SECONDARY";
         break;
     case SMB_COM_FIND_CLOSE2 :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_FIND_CLOSE2", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_FIND_CLOSE2";
         break;
     case SMB_COM_FIND_NOTIFY_CLOSE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_FIND_NOTIFY_CLOSE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_FIND_NOTIFY_CLOSE";
         break;
     case SMB_COM_TREE_CONNECT :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TREE_CONNECT", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TREE_CONNECT";
         break;
     case SMB_COM_TREE_DISCONNECT :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TREE_DISCONNECT", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TREE_DISCONNECT";
         break;
     case SMB_COM_NEGOTIATE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NEGOTIATE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NEGOTIATE";
         break;
     case SMB_COM_SESSION_SETUP_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_SESSION_SETUP_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_SESSION_SETUP_ANDX";
         break;
     case SMB_COM_LOGOFF_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_LOGOFF_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_LOGOFF_ANDX";
         break;
     case SMB_COM_TREE_CONNECT_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_TREE_CONNECT_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_TREE_CONNECT_ANDX";
         break;
     case SMB_COM_QUERY_INFORMATION_DISK :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_QUERY_INFORMATION_DISK", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_QUERY_INFORMATION_DISK";
         break;
     case SMB_COM_SEARCH :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_SEARCH", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_SEARCH";
         break;
     case SMB_COM_FIND :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_FIND", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_FIND";
         break;
     case SMB_COM_FIND_UNIQUE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_FIND_UNIQUE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_FIND_UNIQUE";
         break;
     case SMB_COM_NT_TRANSACT :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NT_TRANSACT", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NT_TRANSACT";
         break;
     case SMB_COM_NT_TRANSACT_SECONDARY :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NT_TRANSACT_SECONDARY", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NT_TRANSACT_SECONDARY";
         break;
     case SMB_COM_NT_CREATE_ANDX :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NT_CREATE_ANDX", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NT_CREATE_ANDX";
         break;
     case SMB_COM_NT_CANCEL :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NT_CANCEL", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NT_CANCEL";
         break;
     case SMB_COM_OPEN_PRINT_FILE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_OPEN_PRINT_FILE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_OPEN_PRINT_FILE";
         break;
     case SMB_COM_WRITE_PRINT_FILE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_WRITE_PRINT_FILE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_WRITE_PRINT_FILE";
         break;
     case SMB_COM_CLOSE_PRINT_FILE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_CLOSE_PRINT_FILE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_CLOSE_PRINT_FILE";
         break;
     case SMB_COM_GET_PRINT_QUEUE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_GET_PRINT_QUEUE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_GET_PRINT_QUEUE";
         break;
 
 #define SMB_COM_READ_BULK 0xD8
@@ -5513,12 +5448,13 @@ static void DebugOutputSMBCommand(int command)
 #define SMB_COM_WRITE_BULK_DATA 0xDA
 
     case SMB_COM_NONE :
-        RTSMB_DEBUG_OUTPUT_STR ("SMB_COM_NONE", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "SMB_COM_NONE";
         break;
     default:
-        RTSMB_DEBUG_OUTPUT_STR ("UNKOWN COMMAND", RTSMB_DEBUG_TYPE_ASCII);
+        CommandName = "UNKOWN COMMAND";
         break;
     }
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%s\n", CommandName);
 #endif /* RTSMB_DEBUG */
 }
 
@@ -5529,9 +5465,9 @@ static void DebugOutputTrans2Command(int command)
 /*  Commandname = trans2Commandname(command);                                          */
 /*  if (!Commandname)                                                                  */
 /*      Commandname = "UNKOWN TRANS2 COMMAND";                                         */
-    /*RTSMB_DEBUG_OUTPUT_STR ("Processing trans 2 command: ", RTSMB_DEBUG_TYPE_ASCII); */
-    /*RTSMB_DEBUG_OUTPUT_STR (Commandname, RTSMB_DEBUG_TYPE_ASCII);                    */
-    /*RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);                           */
+    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Processing trans 2 command: "); */
+    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,Commandname);                    */
+    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\n");                           */
 #endif
 }
 static char *trans2Commandname(int command)

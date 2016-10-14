@@ -106,7 +106,7 @@ int fillSMB_INFO_ALLOCATION (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_
 
 	if (SMBFIO_GetFree (pCtx, pCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("fillSMB_INFO_ALLOCATION: Error getting free space.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "fillSMB_INFO_ALLOCATION: Error getting free space.\n");
 		SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
 		return 0;
 	}
@@ -166,7 +166,7 @@ int fillSMB_QUERY_FS_SIZE_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTS
 
 	if (SMBFIO_GetFree (pCtx, pCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("fillSMB_QUERY_FS_SIZE_INFO: Error getting free space.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "fillSMB_QUERY_FS_SIZE_INFO: Error getting free space.\n");
 		SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
 		return 0;
 	}
@@ -1114,7 +1114,7 @@ BBOOL ST2_QueryFSInformation (PSMB_SESSIONCTX pCtx,
 		case SMB_QUERY_FS_DEVICE_INFO:		size = fillSMB_QUERY_FS_DEVICE_INFO		(pCtx, pInHdr, pOutHdr, buf, size_left);	break;
 		case SMB_QUERY_FS_ATTRIBUTE_INFO:	size = fillSMB_QUERY_FS_ATTRIBUTE_INFO	(pCtx, pInHdr, pOutHdr, buf, size_left);	break;
 		default:
-			RTSMB_DEBUG_OUTPUT_STR("ST2_QueryFSInformation: Unknown level of detail.\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ST2_QueryFSInformation: Unknown level of detail requested. :%d \n", command.information_level);
 			break;
 	}
 
@@ -1372,7 +1372,7 @@ BBOOL ST2_SetPathInformation (PSMB_SESSIONCTX pCtx,
 			ST2_ProcSetInfoStandard (pCtx, pInHdr, pInBuf, pOutHdr, size_left, command.filename);
 			break;
 		default:
-			RTSMB_DEBUG_OUTPUT_STR("ST2_SetPathInformation: Unhandled level of detail.\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ST2_SetPathInformation: Unhandled level of detail.\n");
 			SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
 			break;
 	}
@@ -1449,7 +1449,7 @@ BBOOL ST2_SetFileInformation (PSMB_SESSIONCTX pCtx,
             SMBFIO_Delete (pCtx, pCtx->tid, filename);
             break;
 		default:
-			RTSMB_DEBUG_OUTPUT_STR("ST2_SetFileInformation: Unhandled level of detail.\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ST2_SetFileInformation: Unhandled level of detail.\n");
 			SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
 			break;
 	}

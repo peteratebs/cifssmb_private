@@ -255,15 +255,12 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
 
     CLAIM_AUTH ();
     uid = getUserIdFromName (name);
-
-    RTSMB_DEBUG_OUTPUT_STR ("\nUser \" ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL ,"\nUser \" %ls ", name);
     if (domainname)
     {
-      RTSMB_DEBUG_OUTPUT_STR (" \" with domainname \" ", RTSMB_DEBUG_TYPE_ASCII);
-      RTSMB_DEBUG_OUTPUT_STR (domainname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" with domainname \" %ls", domainname);
     }
-    RTSMB_DEBUG_OUTPUT_STR (" \" is trying to access the share created on this server\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" is trying to access the share created on this server\n");
 
     if (uid >= 0)
     {
@@ -288,21 +285,15 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
 
     if (rv == 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AuthenticateUser:  User \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" granted access.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls \" granted access.\n", name);
     }
     else if (rv == AUTH_GUEST)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AuthenticateUser:  User \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" granted guest access.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" granted guest access.\n");
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AuthenticateUser:  User \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" not granted access.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" not granted access.\n", name);
     }
 
     return rv;
@@ -497,15 +488,11 @@ BBOOL Auth_RegisterGroup (PFRTCHAR name)
 
     if (rv)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_RegisterGroup:  Successfully registered group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Successfully registered group \" %ls \n",name);
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_RegisterGroup:  Failed to register group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Failed registered group \" %ls \n",name);
     }
 
     return rv;
@@ -530,23 +517,11 @@ BBOOL Auth_AssignGroupPermission (PFRTCHAR group, PFRTCHAR share, byte mode)
 
     if (rv)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AssignGroupPermission:  Successfully assigned group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" permissions ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (mode);
-        RTSMB_DEBUG_OUTPUT_STR (" for share \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (share, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AssignGroupPermission:  Successfully assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AssignGroupPermission:  Failed to assign group \" " , RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" permissions ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (mode);
-        RTSMB_DEBUG_OUTPUT_STR (" for share \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (share, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AssignGroupPermission:  Failed to assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);
     }
 
     return rv;
@@ -570,7 +545,7 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
 
     if (i == prtsmb_srv_ctx->max_users)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_RegisterUser exceeded max_users\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser exceeded max_users\n");
         rv = FALSE;
     }
 
@@ -607,28 +582,14 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
     {
         if (name)
         {
-            RTSMB_DEBUG_OUTPUT_STR ("Auth_RegisterUser:  Successfully registered user \" ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-            if (password)
-            {
-                RTSMB_DEBUG_OUTPUT_STR (" \" with password ", RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR (password, RTSMB_DEBUG_TYPE_ASCII);
-            }
-            RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterUser:  success registering user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");
         }
     }
     else
     {
         if (name)
         {
-            RTSMB_DEBUG_OUTPUT_STR ("Auth_RegisterUser:  Failed to register user \" ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-            if (password)
-            {
-                RTSMB_DEBUG_OUTPUT_STR (" \" with password ", RTSMB_DEBUG_TYPE_ASCII);
-                RTSMB_DEBUG_OUTPUT_STR (password, RTSMB_DEBUG_TYPE_ASCII);
-            }
-            RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser:  Failed to register user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");
         }
     }
 #if (DISPLAY_USERS)
@@ -662,15 +623,11 @@ BBOOL Auth_DeleteUser (PFRTCHAR name)
 
     if (rv)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_DeleteUser:  Successfully deleted user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_DeleteUser:  Successfully deleted user \" %ls  \".\n", name);
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_DeleteUser:  Failed to delete user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_DeleteUser:  Failed to delete user \" %ls  \".\n", name);
     }
 
     return rv;
@@ -694,19 +651,11 @@ BBOOL Auth_AddUserToGroup (PFRTCHAR user, PFRTCHAR group)
 
     if (rv)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AddUserToGroup:  Successfully added user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (user, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" to group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AddUserToGroup:  Successfully add user \" %ls  \" to group \" %ls \n", user, group);
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_AddUserToGroup:  Failed to add user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (user, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" to group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AddUserToGroup:  Failed to add user \" %ls  \" to group \" %ls \n", user, group);
     }
 
     return rv;
@@ -730,20 +679,11 @@ BBOOL Auth_RemoveUserFromGroup (PFRTCHAR user, PFRTCHAR group)
 
     if (rv)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_RemoveUserFromGroup:  Successfully removed user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (user, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" to group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RemoveUserFromGroup:  Successfully remove user \" %ls  \" from group \" %ls \n", user, group);
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR ("Auth_RemoveUserFromGroup:  Failed to remove user \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (user, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \" to group \" ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (group, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-        RTSMB_DEBUG_OUTPUT_STR (" \".\n", RTSMB_DEBUG_TYPE_ASCII);
-
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RemoveUserFromGroup:  Failed to remove user \" %ls  \" to group \" %ls \n", user, group);
     }
 
     return rv;
@@ -760,15 +700,15 @@ void Auth_SetMode (byte mode)
 
     if (mode == AUTH_USER_MODE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Auth_SetMode:  Set server mode to user mode.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_SetMode:  Set server mode to user mode.\n");
     }
     else if (mode == AUTH_SHARE_MODE)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Auth_SetMode:  Set server mode to share mode.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Set server mode to share mode.\n");
     }
     else
     {
-        RTSMB_DEBUG_OUTPUT_STR("Auth_SetMode:  Ignoring unrecognized mode.\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Ignoring unrecognized mode.\n");
     }
 }
 
@@ -785,22 +725,12 @@ byte Auth_GetMode (void)
 
 void Auth_Init (void)
 {
-#if (CFG_RTSMB_PRINT_SIZES)
-    char buffer[128];
-
-    rtp_sprintf (buffer, "access table: %i\n", sizeof (ACCESS_TABLE_T));
-    tm_puts (buffer);
-    rtp_sprintf (buffer, "groups: %i\n", sizeof (GROUPS_T));
-    tm_puts (buffer);
-    rtp_sprintf (buffer, "user data: %i\n", sizeof (USERDATA_T));
-    tm_puts (buffer);
-#endif
     CLAIM_AUTH ();
     prtsmb_srv_ctx->shareMode = AUTH_SHARE_MODE;
     prtsmb_srv_ctx->guestAccount = -1;
     RELEASE_AUTH ();
 
-    RTSMB_DEBUG_OUTPUT_STR("Auth_Init:  Initializing authorization data.\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_Init:  Initializing authorization data.\n");
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */

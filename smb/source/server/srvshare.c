@@ -65,7 +65,7 @@ void SR_Init (void)
 {
 	word i;
 
-	RTSMB_DEBUG_OUTPUT_STR("SR_Init:  Initializing share data.\n", RTSMB_DEBUG_TYPE_ASCII);
+	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SR_Init:  Initializing share data.\n");
 
 	CLAIM_SHARE ();
 
@@ -210,10 +210,10 @@ int SR_GetTreeId( PFRTCHAR name, PFRTCHAR service )
 
 	if (i == prtsmb_srv_ctx->max_shares)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_GetTreeId: resource ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR (service, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR (" not found, unhandled case\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SR_GetTreeId: resource ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "%ls", service);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, " not found, unhandled case\n");
 		return -1;
 	}
 
@@ -244,9 +244,9 @@ int SR_GetTreeIdFromName ( PFRTCHAR name )
 
 	if (i == prtsmb_srv_ctx->max_shares)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_GetTreeIdFromName: resource ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR (" not found, unhandled case\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SR_GetTreeIdFromName: resource ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, " not found, unhandled case\n");
 		return -1;
 	}
 
@@ -407,15 +407,15 @@ int SR_AddDiskTree (PFRTCHAR name, PFRTCHAR comment, PSMBFILEAPI api, PFRTCHAR p
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_AddDiskTree:  Failed to add share ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SR_AddDiskTree:  Failed to add share ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, ".\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_AddDiskTree:  Successfully added share ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SR_AddDiskTree:  Successfully added share ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, ".\n");
 	}
 
 	return rv;
@@ -472,11 +472,11 @@ int SR_AddIPC (PFCHAR password)
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SR_AddIPC:  Failed to add IPC share.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SR_AddIPC:  Failed to add IPC share.\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR("SR_AddIPC:  Successfully added IPC share.\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SR_AddIPC:  Successfully added IPC share.\n");
 	}
 
 	return rv;
@@ -489,7 +489,7 @@ int SR_AddPrinter (PFRTCHAR name, PFRTCHAR comment, int n, PSMBFILEAPI api, PFRT
 	int rv = 0;
 	rtsmb_char empty[] = {'\0'};
 
-	RTSMB_DEBUG_OUTPUT_STR(" ********* SR_AddPrinter: called.\n", RTSMB_DEBUG_TYPE_ASCII);
+	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, " ********* SR_AddPrinter: called.\n");
 
 
 	CLAIM_SHARE ();
@@ -535,7 +535,7 @@ int SR_AddPrinter (PFRTCHAR name, PFRTCHAR comment, int n, PSMBFILEAPI api, PFRT
 		else
 		{
 			prtsmb_srv_ctx->shareTable[i].u.printer.printerfile = (PFRTCHAR)0;
-			RTSMB_DEBUG_OUTPUT_STR(" ********* SR_AddPrinter: we need a printer driver.\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," ********* SR_AddPrinter: we need a printer driver.\n");
 			rv = -1;	/* we need a printer driver */
 			goto addprintcleanup;
 		}
@@ -654,7 +654,7 @@ int SR_AddPrinter (PFRTCHAR name, PFRTCHAR comment, int n, PSMBFILEAPI api, PFRT
 		{
 			rv = -1;
 			prtsmb_srv_ctx->shareTable[i].inUse = FALSE;
-			RTSMB_DEBUG_OUTPUT_STR("SR_AddPrinter: Printer initialization failed.\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SR_AddPrinter: Printer initialization failed.\n");
 		}
 	}
 
@@ -663,15 +663,15 @@ addprintcleanup:
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_AddPrinter:  Failed to add printer \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SR_AddPrinter:  Failed to add printer \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\".\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_AddPrinter:  successfully added printer \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SR_AddPrinter:  successfully added printer \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\".\n");
 	}
 
 	return rv;
@@ -708,21 +708,21 @@ int SR_ModifyShare (PFRTCHAR currentname, PFRTCHAR newname, byte newpermissions)
 
 	if(found == 0)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("Share not found", RTSMB_DEBUG_TYPE_ASCII);
-	    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Share not found");
+	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,".\n");
 	}
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_ModifyShare:  Failed to modify share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (currentname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SR_ModifyShare:  Failed to modify share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"%ls", currentname);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\".\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_ModifyShare:  Successfully modified share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (currentname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SR_ModifyShare:  Successfully modified share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%ls", currentname);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\".\n");
 	}
 
 	return rv;
@@ -754,21 +754,21 @@ int SR_ModifyPrinter (PFRTCHAR currentname, PFRTCHAR newname)
 
 	if(found == 0)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("Printer or print share not found", RTSMB_DEBUG_TYPE_ASCII);
-	    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Printer or print share not found");
+	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,".\n");
 	}
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_ModifyPrinter:  Failed to modify print share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (currentname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SR_ModifyPrinter:  Failed to modify print share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"%ls", currentname);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\".\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_ModifyPrinter:  Successfully modified print share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (currentname, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SR_ModifyPrinter:  Successfully modified print share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%ls", currentname);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\".\n");
 	}
 
 	return rv;
@@ -814,15 +814,15 @@ int SR_RemoveShare (PFRTCHAR name)
 
 	if (rv == -1)
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_RemoveShare:  Failed to remove share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SR_RemoveShare:  Failed to remove share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\".\n");
 	}
 	else
 	{
-		RTSMB_DEBUG_OUTPUT_STR ("SR_RemoveShare:  Successfully removed share \" ", RTSMB_DEBUG_TYPE_ASCII);
-		RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_SYS_DEFINED);
-		RTSMB_DEBUG_OUTPUT_STR ("\".\n", RTSMB_DEBUG_TYPE_ASCII);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SR_RemoveShare:  Successfully removed share \" ");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%ls", name);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\".\n");
 	}
 
 	return rv;

@@ -57,14 +57,14 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 
     if (!pStream->Success)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  RtsmbStreamDecodeCommand failed...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  RtsmbStreamDecodeCommand failed...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
 
     if (command.StructureSize != 24)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
@@ -97,7 +97,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     if (pTree->type == ST_PRINTQ)
     {
         if (SMBU_PrintFile (pStream->psmb2Session->pSmbCtx, fid))
-            RTSMB_DEBUG_OUTPUT_STR("ProcClose: Printing file on close failed.\n", RTSMB_DEBUG_TYPE_ASCII);
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n"); }
         SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
         SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
     }

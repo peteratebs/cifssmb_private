@@ -152,7 +152,7 @@ void rtsmb_srv_cli_shutdown (void)
 
 	if (rtp_net_closesocket((RTP_SOCKET) rtsmb_srv_cli_socket))
 	{
-		RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+		 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SRVCLI: ERROR IN CLOSESOCKET\n");
 	}
 }
 
@@ -870,7 +870,7 @@ RTSMB_STATIC int  _rtsmb_srv_cli_connect_to_server (void)
 	{
 		if (rtp_net_closesocket((RTP_SOCKET) rtsmb_srv_cli_socket))
 		{
-			RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ERROR IN CLOSESOCKET\n");
 		}
 		return -1;
 	}
@@ -925,4 +925,3 @@ RTSMB_STATIC int _rtsmb_srv_cli_read_server_info (PFVOID origin, PFVOID buf, rts
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-

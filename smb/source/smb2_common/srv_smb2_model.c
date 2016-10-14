@@ -160,7 +160,7 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
     }
     if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb2:  Failed !!!!\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb2:  Failed !!!!\n");
         if (pSmbCtx->pCtxtsmb2Session)
         {
             Smb2SrvModel_Free_Session(pSmbCtx->pCtxtsmb2Session);

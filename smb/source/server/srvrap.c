@@ -917,9 +917,7 @@ int RAP_Proc (PSMB_SESSIONCTX pCtx,
         NetAccessGetInfo (pCtx, &func, pInHdr, pInBuf, pOutHdr, size_left);
         break;*/
     default:
-        RTSMB_DEBUG_OUTPUT_STR ("RAP_Proc: function unhandled: ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (func.opcode);
-        RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "RAP_Proc: function unhandled: %d \n", func.opcode);
     }
 
     if (data_size == -2) /* special error case where we don't want to answer */
@@ -951,4 +949,4 @@ int RAP_Proc (PSMB_SESSIONCTX pCtx,
 //****************************************************************************
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
+

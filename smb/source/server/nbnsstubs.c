@@ -197,7 +197,7 @@ BBOOL rtsmb_srv_nbns_add_name (PFCHAR newName, BBOOL group, char suf, BBOOL anno
 		}
 	}
 
-	RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_nbns_add_name:  Name table is full\n", RTSMB_DEBUG_TYPE_ASCII);
+	 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbns_add_name:  Name table is full\n");
 	return(FALSE);
 }
 
@@ -373,17 +373,7 @@ BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)
 			break;
 
 		default:
-
-		{
-			char buf[32];
-			char* tmpbuf = buf;
-
-			buf[0] = '\0';
-			RTSMB_DEBUG_OUTPUT_STR("rtsmb_srv_nbss_process_packet: Unhandled packet type 0x", RTSMB_DEBUG_TYPE_ASCII);
-			tmpbuf = rtp_itoa(header.type, tmpbuf, 16);
-			RTSMB_DEBUG_OUTPUT_STR(tmpbuf, RTSMB_DEBUG_TYPE_ASCII);
-			RTSMB_DEBUG_OUTPUT_STR(".\n", RTSMB_DEBUG_TYPE_ASCII);
-		}
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: Unhandled packet type %X\n", header.type);
 		break;
 	}
 

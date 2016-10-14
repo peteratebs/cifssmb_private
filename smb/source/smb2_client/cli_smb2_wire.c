@@ -78,7 +78,7 @@ int RtsmbStreamEncodeCommand(smb2_stream *pStream, PFVOID pItem)
 int rv = -1;
     pStream->Success = FALSE;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RtsmbStreamEncodeResponse: Encoding command: (%d): %s\n", (int) pStream->OutHdr.Command,DebugSMB2CommandToString((int) pStream->OutHdr.Command));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"RtsmbStreamEncodeResponse: Encoding command: (%d): %s\n", (int) pStream->OutHdr.Command,DebugSMB2CommandToString((int) pStream->OutHdr.Command));
 
     switch (pStream->OutHdr.Command)
     {
@@ -154,7 +154,7 @@ int RtsmbStreamDecodeResponse(smb2_stream *pStream, PFVOID pItem)
 int rv = -1;
     pStream->Success = FALSE;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RtsmbStreamDecodeResponse: processing command: (%d): %s\n", (int) pStream->InHdr.Command,DebugSMB2CommandToString((int) pStream->InHdr.Command));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"RtsmbStreamDecodeResponse: processing command: (%d): %s\n", (int) pStream->InHdr.Command,DebugSMB2CommandToString((int) pStream->InHdr.Command));
 
     switch (pStream->InHdr.Command)
     {
@@ -220,12 +220,12 @@ int rv = -1;
     }
     if (rv >= 0)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Success processing command: %d, positive response is %d\n", (int) pStream->InHdr.Command, rv);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Success processing command: %d, positive response is %d\n", (int) pStream->InHdr.Command, rv);
         pStream->Success = TRUE;
     }
     else
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Failed processing command: %d, error response is %d\n", (int) pStream->InHdr.Command, rv);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Failed processing command: %d, error response is %d\n", (int) pStream->InHdr.Command, rv);
     }
     return rv;
 }

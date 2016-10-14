@@ -346,9 +346,9 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
         password = (PFCHAR)0;
 
     /* Now we register the user */
-    RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseUserSection: Registering user ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Registering user ");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
     rtsmb_srv_register_user (name, password);
 
     /* Now get the user's groups */
@@ -371,11 +371,11 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
 
     do
     {
-        RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseUserSection: Adding user ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (" to group ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (g, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Adding user ");
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," to group ");
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,g);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
 
         rtsmb_srv_add_user_to_group (name, g);
 
@@ -412,9 +412,9 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             CFG_RTSMB_MAX_GROUPNAME_SIZE + 1))
         return FALSE;
 
-    RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseGroupSection: Registering group ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group ");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
     rtsmb_srv_register_group (name);
 
     RTSMB_GetStringValue (section, "shares", shares, RTSMB_ARG_MAX_SECTION_SIZE);
@@ -460,13 +460,11 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             permissions = SECURITY_NONE;
         }
 
-        RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseGroupSection: Setting group ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (" permission's for share ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (s, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (" to ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (permissions);
-        RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Setting group ");
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," permission's for share ");
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,s);
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," to %d\n",permissions);
         rtsmb_srv_set_group_permissions (name, s, (byte) (permissions & 0xFF));
 
 
@@ -543,9 +541,9 @@ RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section)
     if (tc_strstr (flags_str, "dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
-    RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseShareSection:  Adding share ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share ");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
     rtsmb_srv_share_add_tree (name, comment, prtsmb_filesys, path, (byte) flags,
         (byte) permissions, password);
 
@@ -600,9 +598,9 @@ RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section)
     if (tc_strstr (flags_str, "dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
-    RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParsePrinterSection:  Adding printer ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (name, RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer ");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
     rtsmb_srv_share_add_printer (name, comment,
         number, prtsmb_filesys, path,
         (byte) flags, password, drivername);
@@ -621,7 +619,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section)
     else
         password = (PFCHAR)0;
 
-    RTSMB_DEBUG_OUTPUT_STR("RTSMB_ReadArgsFrom:  Adding IPC.\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom:  Adding IPC.\n");
     rtsmb_srv_share_add_ipc (password);
 
     return TRUE;
@@ -658,7 +656,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         char groups [RTSMB_ARG_MAX_SECTION_SIZE];
         char g [RTSMB_ARG_MAX_SECTION_SIZE];
 
-        RTSMB_DEBUG_OUTPUT_STR("RTSMB_ParseGlobalSection:  Adding guest.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");
         rtsmb_srv_register_user (SMB_GUESTNAME, (PFCHAR)0);
 
         /* Now get the guest's groups */
@@ -681,9 +679,9 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
 
         do
         {
-            RTSMB_DEBUG_OUTPUT_STR ("RTSMB_ParseGlobalSection: Adding guest to group ", RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (g, RTSMB_DEBUG_TYPE_ASCII);
-            RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group ");
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,g);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
             rtsmb_srv_add_user_to_group (SMB_GUESTNAME, g);
 
             *g = '\0';
@@ -772,15 +770,6 @@ RTSMB_STATIC BBOOL RTSMB_ParseNextArgSection (int f)
 int RTSMB_ReadArgsFrom (PFRTCHAR filename)
 {
     int f;
-
-#if (CFG_RTSMB_PRINT_SIZES)
-    char buffer[128];
-
-    rtp_sprintf (buffer, "share permission: %i\n", sizeof (SHARE_PERMISSION_T));
-    tm_puts (buffer);
-    rtp_sprintf (buffer, "arg section: %i\n", sizeof (ARG_SECTION_T));
-    tm_puts (buffer);
-#endif
 
     f = -1;
 #if (INCLUDE_RTSMB_UNICODE)

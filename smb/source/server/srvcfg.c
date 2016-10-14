@@ -271,7 +271,7 @@ static void * safemalloc(rtsmb_size bytes)
 
    if (bytes && !Result)
    {
-      RTSMB_DEBUG_OUTPUT_STR("SMB Server: out of heap space\n", RTSMB_DEBUG_TYPE_ASCII);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMB Server: out of heap space\n");
       exit(1);
    }
    tc_memset(Result, 0, bytes);

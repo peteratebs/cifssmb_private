@@ -878,10 +878,7 @@ void *start;
      }
      else
      {
-       rtp_printf("Unhandled dce\n");
-       rtp_printf("packet_type  : %d\n",pdce_header->packet_type);
-       rtp_printf("pdce_header->opnum : %d\n", pdce_header->opnum);
-
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Unhandled dce: packet_type  : %d  pdce_header->opnum : %d\n",pdce_header->packet_type, pdce_header->opnum);
        RTP_FREE(*pRheap_data);
        *pRheap_data = 0;
 

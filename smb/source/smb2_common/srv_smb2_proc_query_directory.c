@@ -198,13 +198,13 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  RtsmbStreamDecodeCommand failed...\n",0);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  RtsmbStreamDecodeCommand failed...\n");
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
     }
     if (command.StructureSize != 33)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  StructureSize invalid...\n",0);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  StructureSize invalid...\n");
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
     }
@@ -275,7 +275,7 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     if (command.FileNameLength > sizeof(user->searches[sid].name))
     {
         user->searches[sid].inUse = FALSE;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  Search string too large\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  Search string too large\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_BUFFER_OVERFLOW);
         return TRUE;
     }
