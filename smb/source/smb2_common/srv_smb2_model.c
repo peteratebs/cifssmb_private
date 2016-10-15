@@ -266,17 +266,17 @@ pSmb2SrvModel_Session r=0;
 PFWCS  RTSmb2_get_stream_username(void *pSmb2Stream)
 {
   if (pSmb2Stream && ((smb2_stream  *)pSmb2Stream)->psmb2Session &&((smb2_stream  *)pSmb2Stream)->psmb2Session->UserName)
-    return ((smb2_stream  *)pSmb2Stream)->psmb2Session->UserName;
+    return (PFWCS) ((smb2_stream  *)pSmb2Stream)->psmb2Session->UserName;
   else
-    return "U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
+    return (PFWCS) "U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
 }
 /* Helper function for security code to access the domain name from the smb2 session structure. */
 PFWCS  RTSmb2_get_stream_authority_name(void *pSmb2Stream)
 {
   if (pSmb2Stream && ((smb2_stream  *)pSmb2Stream)->psmb2Session &&((smb2_stream  *)pSmb2Stream)->psmb2Session->DomainName)
-    return ((smb2_stream  *)pSmb2Stream)->psmb2Session->DomainName;
+    return (PFWCS)((smb2_stream  *)pSmb2Stream)->psmb2Session->DomainName;
   else
-    return "U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
+    return (PFWCS)"U\0N\0K\0N\0O\0W\0N\0\0"; // "UTF16 UNKOWN"
 }
 
 

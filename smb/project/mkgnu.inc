@@ -52,6 +52,8 @@ ifeq ($(targ),LINUX)
 known = "Y"
 # Set the compiler type for later conditionals
 compiler = GNUCOMPILER
+# pointersize = P64
+pointersize = P32
 endif
 
 ifneq ($(known),"Y")

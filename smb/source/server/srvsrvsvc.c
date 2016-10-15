@@ -44,6 +44,7 @@
 #include "rtpsignl.h"
 #include "rtpmem.h"
 #include "smbdebug.h"
+#include "srvutil.h"
 
 #include "com_smb2_wiredefs.h"    // For SMB2_STATUS_NOT_SUPPORTED, is actuall NT_STATUS
 extern PFWCS  RTSmb2_get_stream_username(void *pSmb2Stream);
@@ -239,7 +240,10 @@ static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,
    static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0xf9, 0x3e, 0x4f, 0x7b };
 
 
-static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x00,0x00,0x00,0x01,0x02,0x03,0x04 };
+static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,
+                                       0x03,0x04,0x00,0x00,0x00,
+                                       0x01,0x02,0x03,0x04,0x00,
+                                       0x00,0x00,0x01,0x02,0x03 };
 
 #define DCE_LSARP_CLOSE               0
 #define DCE_LSARP_GET_USER_NAME      45
@@ -287,7 +291,8 @@ int SRVSVC_ProcTransaction (PSMB_SESSIONCTX pCtx,
    pTransactionR->heap_data = 0;
 
 
-   return SRVSVC_Execute ( pTransaction->data, &pTransactionR->data_count, &pTransactionR->heap_data,&pTransactionR->data,&reply_status_code, size_left, 0);
+
+   return SRVSVC_Execute ( pTransaction->data, &pTransactionR->data_count, (void **)&pTransactionR->heap_data,(void **)&pTransactionR->data,&reply_status_code, size_left, 0);
 
 }
 
@@ -355,7 +360,7 @@ static int encode_dce_string(dword *pout, dword Referentid, void *pin, word payl
   *pout++ = payload_size/2;           //                                      MaxCount:Offset:Actual:String
   *pout++ = 0;                      //                                               Offset:Actual:String
   *pout++ = payload_size/2;          //                                                       Actual:String
-   memcpy(pout, pin, payload_size); //   Actual:String
+   tc_memcpy(pout, pin, payload_size); //   Actual:String
    r = (int)payload_size+24;
    // If we null terminate the string ?
 //   pwout = (word *) PADD(((void*)pout),payload_size);
@@ -372,7 +377,7 @@ static int encode_dce_string_stupid(dword *pout, dword Referentid, void *pin, wo
   *pout++ = (dword) payload_size/2;           //            Length:Size:Referentid+4:MaxCount:Offset:Actual:String
   *pout++ = (dword) 0;                     //                                              Offset:Actual:String
   *pout++ = (dword) payload_size/2;           //                   Size:Referentid+4:MaxCount:Offset:Actual:String
-   memcpy(pout, pin, payload_size); //                                                       Actual:String
+   tc_memcpy(pout, pin, payload_size); //                                                       Actual:String
    r = (int)payload_size+16;
    return r;
 }
@@ -395,7 +400,7 @@ static PFWCS SRVSVC_get_stream_authority_name(void *pSmb2Stream)
   if (pSmb2Stream)
     return RTSmb2_get_stream_authority_name(pSmb2Stream);
   else
-    return authority_name_item;
+    return (PFWCS) authority_name_item;
 }
 
 // 0xC00000BB. STATUS_NOT_SUPPORTED
@@ -434,7 +439,7 @@ void *start;
        p->call_id = pdce_header->call_id;
 //      pdw[3] =  pdce_header->call_id;
        *pRdata_count = sizeof(dce_bind_response_capture);
-      memcpy(pRdata, dce_bind_response_capture,sizeof(dce_bind_response_capture));
+      tc_memcpy(pRdata, dce_bind_response_capture,sizeof(dce_bind_response_capture));
       rval = 0;
     }
     else if (pdce_header->packet_type == DCE_PACKET_BIND)
@@ -460,12 +465,12 @@ void *start;
       pout->max_recv_frag = 4280; // pin->max_recv_frag;
       pout->assoc_group = pin->assoc_group;
       pout->secondary_address_length = 13;
-      strcpy(pout->secondary_address, "\\PIPE\\lsarpc"); //  or "\\PIPE\\srvsvc"
+      tc_strcpy(pout->secondary_address, "\\PIPE\\lsarpc"); //  or "\\PIPE\\srvsvc"
       pout->num_results = 1;           // 1
       pout += 1;
       start_results = (void *) pout;
       start_results= ptralign(start_results, 4);
-      memcpy(start_results,bind_accepance_item ,24);           //  0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00
+      tc_memcpy(start_results,bind_accepance_item ,24);           //  0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00
       start_results=PADD(start_results,24);
      *pfraglength = PDIFF(start_results,start);
       *pRdata_count = *pfraglength; // sizeof(DCE_BIND_REPLY_HEADER);
@@ -514,7 +519,7 @@ void *start;
        DCE_LSARP_GET_USER_NAME_REPLY *pout;
        start = *pRheap_data;
        start= ptralign(start, 4);
-       pout = (DCE_LSARP_POLICY2_REPLY *) start;
+       pout = (DCE_LSARP_GET_USER_NAME_REPLY *) start;
 
 //     NTSTATUS LsarOpenPolicy2(
 //     [in, unique, string] wchar_t* SystemName,
@@ -546,7 +551,7 @@ void *start;
        pout += 1;
        results = (void *) pout;
        results= ptralign(results, 4);
-       memcpy(results, policy_handle,sizeof(policy_handle));
+       tc_memcpy(results, policy_handle,sizeof(policy_handle));
        results= PADD(results, sizeof(policy_handle));
        results= ptralign(results, 4);
        // NT error status zero
@@ -612,15 +617,26 @@ void *start;
        *pdw++ = auth_buff_len/2 + 1;             // max count for string
        *pdw++ = 0;                                       //  offset for string
        *pdw++ = auth_buff_len/2;           // actual for string
-       memcpy(pdw, SRVSVC_get_stream_authority_name(pSmb2Stream),auth_buff_len); // String
+       tc_memcpy(pdw, SRVSVC_get_stream_authority_name(pSmb2Stream),auth_buff_len); // String
        results= PADD(pdw, auth_buff_len);
        results= ptralign(results, 4);
        pdw = (dword *) results;
        *pdw++ = 4;           // count for sid type
-       memcpy(pdw, my_sid, sizeof(my_sid)); //   sid type
+       tc_memcpy(pdw, my_sid, sizeof(my_sid)); //   sid type
+
+
+
+
+
 
        results= (PADD(pdw, sizeof(my_sid)));
+
+
+
        results= ptralign(results, 4);
+
+
+
        pdw = (dword *) results;
 
        // Translated sids
@@ -712,7 +728,7 @@ void *start;
          if (pSmb2Stream)
           l = encode_dce_string((dword *)results, Referentid, RTSmb2_get_stream_username(pSmb2Stream), 2*rtsmb_util_wlen(RTSmb2_get_stream_username(pSmb2Stream)));
          else // This won't work send a constant
-           l = encode_dce_string((dword *)results, Referentid, user_name_item, sizeof(user_name_item));
+           l = encode_dce_string((dword *)results, Referentid, (void *) user_name_item, sizeof(user_name_item));
          results = PADD(results,l);
          results= ptralign(results, 4);
          Referentid += 8;
@@ -769,8 +785,8 @@ void *start;
           for(pOutRes = SR_FirstResource(); pOutRes != (PSR_RESOURCE)0; pOutRes = SR_NextResource(pOutRes))
           {
              heap_needed += 36; // Unique pointer and share type. plus max_count, offset, actual caount for conmetn and name
-              heap_needed += 4*(rtsmb_len((PFCHAR)pOutRes->name)+1); // We only need 2X but take 4X in case we allso use the name as the comment
-              heap_needed += 2*(rtsmb_len((PFCHAR)pOutRes->comment)+1);
+              heap_needed += 4*(rtsmb_len((PFRTCHAR)pOutRes->name)+1); // We only need 2X but take 4X in case we allso use the name as the comment
+              heap_needed += 2*(rtsmb_len((PFRTCHAR)pOutRes->comment)+1);
           }
           RELEASE_SHARE();
           if (heap_needed > heap_size)
@@ -834,7 +850,7 @@ void *start;
         for(pOutRes = SR_FirstResource(); pOutRes != (PSR_RESOURCE)0; pOutRes = SR_NextResource(pOutRes))
         {
             dword l;
-            PFCHAR pstring;
+            PFWCS pstring;
            void *p;
             pstring = pOutRes->name;
             l = (rtsmb_len(pstring )+1);

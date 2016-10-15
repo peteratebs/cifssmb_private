@@ -161,7 +161,7 @@ Get_Wire_Session_State(UNCONNECTED);
     {
         if (rtsmb_cli_wire_connect (pSession) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_session_new: socket or connect: (blocking) Failed !!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_session_new: socket or connect: (blocking) Failed !!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             return -1;
         }
         if (!pSession->usingSmbOverTcp)
@@ -181,7 +181,7 @@ Get_Wire_Session_State(NBS_CONNECTED);
         int r = rtsmb_cli_wire_start_connect(pSession);
         if (r < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_session_new: socket or connect failed(nonblocking) !!!!!!!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_session_new: socket or connect failed(nonblocking) !!!!!!!!!\n");
         }
         return r;
 
@@ -797,7 +797,7 @@ rtsmb_debug_echo(pSession, pSession->buffers[i].buffer, (int)pSession->buffers[i
                     Finds the stream associted with the MID in header.
                     Copy the header to the stream's inHdr structure.
                     Set the stream buffer point and size to reflect that the NBSS and SMB headers have been consumed */
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_handle_message: recieved SMB2 message calling: rtsmb_cli_wire_smb2_stream_attach\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_handle_message: recieved SMB2 message calling: rtsmb_cli_wire_smb2_stream_attach\n");
                 rtsmb_cli_wire_smb2_stream_attach (pSession, mid, smb2_header_length-RTSMB_NBSS_HEADER_SIZE, &header_smb2);
                 return 1;
             }
@@ -860,7 +860,7 @@ int rtsmb_cli_wire_read (PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
 
             if (r == -1)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: net_read failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: net_read failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 return -2;
             }
 
@@ -868,7 +868,7 @@ int rtsmb_cli_wire_read (PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
                 prtsmb_cli_ctx->buffer_size, &message);
             if (r == -1)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: rtsmb_nbss_read_header failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: rtsmb_nbss_read_header failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 return -4;
             }
 
@@ -884,7 +884,7 @@ int rtsmb_cli_wire_read (PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
 
         if (r == -1)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: net_read failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: net_read failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
             return -2;
         }
 
@@ -908,7 +908,7 @@ Get_Wire_Session_State(NBS_CONNECTED);
 
                 if (rv == -1)
                 {
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: rtsmb_cli_wire_awaken_requests failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: rtsmb_cli_wire_awaken_requests failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                     rv = -2;
                 }
 
@@ -920,7 +920,7 @@ Get_Wire_Session_State(NBS_CONNECTED);
 #ifdef STATE_DIAGNOSTICS
 Get_Wire_Session_State(DEAD);
 #endif
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_read: RTSMB_NBSS_COM_NEGATIVE_RESPONSE detected !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_read: RTSMB_NBSS_COM_NEGATIVE_RESPONSE detected !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                     rv = -3;
                 }
                 else
@@ -957,7 +957,7 @@ Get_Wire_Session_State(DEAD);
             {
                 if (pSession->buffers[r].state != TIMEOUT)
                 {
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Timing out a buffer  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Timing out a buffer  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                     pSession->buffers[r].state = TIMEOUT;
                 }
                 if (rv == 0)
@@ -984,12 +984,12 @@ Get_Wire_Session_State(DEAD);
 #ifdef STATE_DIAGNOSTICS
 Get_Wire_Session_State(DEAD);
 #endif
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Exceed retry count connecting to a server  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Exceed retry count connecting to a server  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 return -3;
             }
             else
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Re-sending nbss request  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: Re-sending nbss request  !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 rtsmb_cli_wire_send_nbss_request (pSession);
             }
         }

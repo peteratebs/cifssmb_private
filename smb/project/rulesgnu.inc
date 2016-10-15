@@ -1,7 +1,5 @@
 #include $(targ).inc
 
-### COMPILER AND LINKER FLAGS ########################################
-ldflags += -m32 -L/usr/lib32 -lm -lc -lgcc -pthread -Wl,-Map=output.map
 
 DEBUG=1
 
@@ -18,8 +16,23 @@ else
    ldflags +=
 endif
 
+# pointersize = P32
+
+ifeq ($(pointersize),P32)
+### COMPILER AND LINKER FLAGS ########################################
+ldflags += -m32 -L/usr/lib32 -lm -lc -lgcc -pthread -Wl,-Map=output.map
 # cflags  += -Wconversion -Wextra -Werror
-cflags  += -m32 -Wconversion -Wextra
+cflags  += -m32 -DBUILD_SMB_32BIT
+# cflags  += -m64 -DBUILD_SMB_64BIT
+endif
+
+ifeq ($(pointersize),P64)
+### COMPILER AND LINKER FLAGS ########################################
+ldflags += -m64 -L/usr/lib64 -lm -lc -lgcc -pthread -Wl,-Map=output.map
+cflags  += -m64 -DBUILD_SMB_64BIT
+# cflags  += -m64 -DBUILD_SMB_64BIT
+endif
+
 #   cflags  += -Wall -Werror -Wextra
 
 ######################################################################
@@ -37,10 +50,11 @@ $(shell mkdir $(OBJDIR))
 ifeq ($(compiler),GNUCOMPILER)
 %.$(lib):
 	echo ARCHIVING $@
-	ar ru $@ $^
+	@ar ru $@ $^
 
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
+	@echo @gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 $(OBJDIR)/%.$(obj): %.cpp

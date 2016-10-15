@@ -574,7 +574,7 @@ int rtsmb_cli_session_resolve_name (PFCHAR name, PFBYTE broadcast_ip, PFBYTE ip)
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
             return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
         }
     }
@@ -699,7 +699,7 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
             return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
         }
     }
@@ -711,7 +711,7 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
     job_off = rtsmb_cli_session_init (pSession, 0, ip);
     if (job_off < 0)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_session_init failed !!!!\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_session_init failed !!!!\n");
         rtsmb_cli_session_close_session (sid);
         return RTSMB_CLI_SSN_RV_DEAD;
     }
@@ -740,13 +740,13 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
 #ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV2 server\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV2 server\n");
         rtsmb_cli_smb2_session_release (pSession);  /* tbd - move this from below - sprspr */
     }
     else
 #endif
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV1 server\n",0);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV1 server\n");
     }
 
     /*IT WOULD BE COMPATIBLE WITH THE SPEC IF YOU COULD SOMEHOW FIND THE SERVER'S NAME   */
@@ -944,7 +944,7 @@ int rtsmb_cli_session_new_with_name (PFCHAR name, BBOOL blocking, PFBYTE broadca
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
             return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
         }
     }
@@ -1651,7 +1651,7 @@ RTSMB_STATIC
 void rtsmb_cli_session_connect_anon_helper (int job, int rv, PFVOID data)
 {
 #if (DEBUG_SESSION_ON_WIRE)
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_connect_anon_helper: Called \n",0);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_connect_anon_helper: Called \n");
 #endif
 
     /* Try to connect if we didn't already get an error from the server */
@@ -1663,7 +1663,7 @@ void rtsmb_cli_session_connect_anon_helper (int job, int rv, PFVOID data)
         }
         else
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_connect_anon_helper: rtsmb_cli_session_connect_ipc failed !!!!!!!! \n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_connect_anon_helper: rtsmb_cli_session_connect_ipc failed !!!!!!!! \n");
         }
 #if (!INCLUDE_ANON_AUTOMATIC_CARE)
         rtp_printf("PVO rtsmb_cli_session_connect_anon_helper: connect_ipc failed  would set dead: rv = %d \n, rv");
@@ -4130,7 +4130,7 @@ int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_S
             // HERERE - comparing ddword with word
             if (pStream->InHdr.MessageId != pJob->mid)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n");
                 rv = RTSMB_CLI_SSN_RV_MALICE;
             }
             else if (pStream->InHdr.Status_ChannelSequenceReserved)
@@ -4156,7 +4156,7 @@ int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_S
         }
         else
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: No resource. LATER !!!!\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: No resource. LATER !!!!\n");
             rv = RTSMB_CLI_SSN_RV_LATER;
         }
     }
@@ -4564,23 +4564,23 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
         {
             int r;
             pJob->mid = (word) pStream->pBuffer->mid;
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Call send handler\n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Call send handler\n");
             r = (*pJob->send_handler_smb2) (pStream);
             if (r == RTSMB_CLI_SSN_RV_OK)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler success\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler success\n");
                 r = rtsmb_cli_wire_smb2_stream_flush(&pSession->wire, pStream);
                 if (r != 0)
                 {
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_stream_flush failed\n",0);
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_stream_flush failed\n");
                 }
                 ASSURE (r == 0, RTSMB_CLI_SSN_RV_DEAD);
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_stream_flush succeed\n",0);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_stream_flush succeed\n");
             }
         }
         else
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler deferred, stream construct failed. !!!!!!!!!!! \n",0);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler deferred, stream construct failed. !!!!!!!!!!! \n");
             return RTSMB_CLI_SSN_RV_LATER;
 
         }

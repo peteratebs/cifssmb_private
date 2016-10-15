@@ -386,14 +386,14 @@ ioctl_error:
    return -1;
  }
  printf("return == %d\n", r);
- p = &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+ p = (unsigned char *) &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
  printf("ip address: %s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
  pip[0]=p[0]; pip[1]=p[1]; pip[2]=p[2]; pip[3]=p[3];
 
  ioctl(fd, SIOCGIFNETMASK, &ifr);
  if (r < 0)
   goto ioctl_error;
- p = &((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
+ p = (unsigned char *)&((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
  printf("mask:%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
  pmask_ip[0]=p[0]; pmask_ip[1]=p[1]; pmask_ip[2]=p[2]; pmask_ip[3]=p[3];
 

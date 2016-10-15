@@ -298,7 +298,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (decoded_create_context.pQFid)
         wants_extra_pQfid_info = TRUE;
 
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
       tc_memset(&stat, 0, sizeof(stat));
       // Fake stat to return 0 sizes, and directory attribute
 //      stat.f_ctime64 =
@@ -345,7 +345,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
          //         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
          //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
       }
-        r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
+      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR) file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
     }
     if (r != 0)
     {
@@ -385,7 +385,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     unsigned char responsebuff[512];
     if (wants_extra_pMxAc_info)
     {
-      pStream->WriteBufferParms[0].pBuffer = pMxAc_info_response;
+      pStream->WriteBufferParms[0].pBuffer = (byte *) pMxAc_info_response;
       pStream->WriteBufferParms[0].byte_count = sizeof(pMxAc_info_response);;
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
@@ -581,9 +581,10 @@ PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_le
 
   return pdecoded_create_context->n_create_context_request_values;
 error_return:
-  dump_decoded_create_context_request_values(&pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
+  dump_decoded_create_context_request_values(pdecoded_create_context->context_values,pdecoded_create_context->n_create_context_request_values);
   return -1;
 }
+
 
 static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values)
 {

@@ -137,13 +137,14 @@ typedef struct decode_token_stream_s {
 static const dword spnego_flags = DEFAULT_NTLM_RESP_FLAGS; // Should be 0x15828ae2;
 
 // Constant fragments needed for packet construction
-static const byte ntlm_challenge_blob[] =  {
+// these are const buty the compiler complains about passing them if declared const
+static /*const*/ byte ntlm_challenge_blob[] =  {
 0xA0, 0x03, 0x0A, 0x01,0x01, // Element 0 0xA0(l=3, val= negResult 0x0A(l=1,val=1) accept incomplete (0,1,2) see below
 0xa1, 0xc,                   // Element 1 0xA0(l=12, val=supportedMech NTLM
 0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x02, 0x02, 0x0a}; // NTLM 1.3.6.1.4.1.311.2.2.10};
-static const char ntlmssp_str[] = "NTLMSSP";
-static const byte ntlm_reserved[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
-static const byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x0f};   // Version 6.1 (Build 0); NTLM Current Revision 15
+static /*const*/ char ntlmssp_str[] = "NTLMSSP";
+static /*const*/ byte ntlm_reserved[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
+static /*const*/ byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x0f};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
 
 // ================================================================================================================================
@@ -412,7 +413,7 @@ word length_w, max_w;
       return SPNEGO_SYSTEM_ERROR;
     *_presource = presource;
     presource->size = length_w;
-    presource->offset = dw;
+    presource->offset = (word) dw;
     // allocate the buffer, add 2 bytes so we can null terminate in case it's a string since strings are not terminated in the packet
     presource->value_at_offset = rtp_malloc(length_w+2);
     if (!presource->value_at_offset)
@@ -708,8 +709,9 @@ static int decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte
 //   return SPNEGO_OBJCOUNT_TOO_DEEP if too many objects.
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width if all is well
-static int decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, byte *pb, size_t width)
+static int decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, void *_pb, size_t width)
 {
+  byte *pb = (byte *)_pb;
   if (pstream->resolving_widths)
   {
     if (pstream->object_count == MAX_OBJECT_PER_OUTPUT_STREAM)
@@ -917,12 +919,10 @@ static void spnego_output_stream_stream_constructor(spnego_output_stream_t *pstr
   pstream->stream_end=stream_base+stream_len;
 }
 
-
-
-
-static size_t rtsmb_util_unicode_strlen(word *str)
+static word rtsmb_util_unicode_strlen(void *_str)
 {
-size_t l=0;
+word l=0;
+word *str = (word *) _str;
   while (str[l]) l++;
   return l;
 }
@@ -1148,7 +1148,7 @@ int r;
       if (!doing_size)
       {
         dw =  SMB_HTOID((dword) PDIFF (outstream.stream_pointer, security_base));  // ofsset
-        memcpy(resource_strings[fixup].offset_fixup_location,&dw, 4);
+        tc_memcpy(resource_strings[fixup].offset_fixup_location,&dw, 4);
       }
       // Do this in either case because when doing_size we need the length
       decode_token_stream_encode_bytes(&outstream, resource_strings[fixup].content,resource_strings[fixup].content_width);  if (r < 0) return r;
@@ -1211,7 +1211,7 @@ int i;
    // Encode our server name
    // Set length and allocated length the same.
 
-    w = rtsmb_util_unicode_strlen(target_config_unicode.target_name)*2+2;
+    w = (word) rtsmb_util_unicode_strlen(target_config_unicode.target_name)*2+2;
 //    w = (word)rtp_strlen(rtsmb_srv_nbns_get_our_name())*2; // byte width of unicode string we still have to null terminate
     iw = SMB_HTOIW(w);       // w is the unterminated length so add 2
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Length
@@ -1232,13 +1232,10 @@ int i;
     dw =  SMB_HTOID(spnego_flags);  // flags
     // dw =  0x15828ae2;  // flags
     decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;
-
     // ntlm_challenge[]
     decode_token_stream_encode_bytes(&outstream, challenge, 8);  if (r < 0) return r;
-
-
     // ntlm_reserved 8 zeros
-    decode_token_stream_encode_bytes(&outstream, ntlm_reserved, sizeof(ntlm_reserved));  if (r < 0) return r;
+    decode_token_stream_encode_bytes(&outstream, (void *) ntlm_reserved, sizeof(ntlm_reserved));  if (r < 0) return r;
 
     w = decode_token_stream_fill_target_information(target_information_buffer);
    // Encode our target information
@@ -1253,7 +1250,7 @@ int i;
     decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
 
     // ntlm_version
-    decode_token_stream_encode_bytes(&outstream, ntlm_version, sizeof(ntlm_version));  if (r < 0) return r;
+    decode_token_stream_encode_bytes(&outstream, (void *)ntlm_version, sizeof(ntlm_version));  if (r < 0) return r;
 
     // Now the after copy in the resources
     {
@@ -1263,7 +1260,7 @@ int i;
       if (!doing_size)
       {
         dw =  SMB_HTOID((dword) PDIFF (outstream.stream_pointer, security_base));  // ofset
-        memcpy(resource_strings[fixup].offset_fixup_location,&dw, 4);
+        tc_memcpy(resource_strings[fixup].offset_fixup_location,&dw, 4);
       }
       decode_token_stream_encode_bytes(&outstream, resource_strings[fixup].content,resource_strings[fixup].content_width);  if (r < 0) return r;
     }
@@ -1617,6 +1614,4 @@ int spnego_get_client_ntlmssp_negotiate_blob(byte **pblob)
     *pblob = (byte *) spnego_client_ntlmssp_negotiate_blob;
     return sizeof(spnego_client_ntlmssp_negotiate_blob);
 }
-
-
 

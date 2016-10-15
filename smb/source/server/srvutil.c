@@ -70,12 +70,21 @@
 //    INTERFACE FUNCTIONS
 //============================================================================
 
+
+
 void *ptralign(void *ptr, int a)
 {
- ddword dd = (ddword) ptr;
- ddword s = (ddword)(a-1);
- dd=(dd+s)&~s;
- return (void *) dd;
+#ifdef BUILD_SMB_64BIT
+  ddword dd = (ddword) ptr;
+  ddword s = (ddword)(a-1);
+  dd=(dd+s)&~s;
+  return (void *) dd;
+#else
+  dword dd = (dword) ptr;
+  dword s = (dword)(a-1);
+  dd=(dd+s)&~s;
+  return (void *) dd;
+#endif
 }
 
 

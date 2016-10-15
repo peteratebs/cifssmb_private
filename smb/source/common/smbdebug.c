@@ -14,10 +14,11 @@
 #include "smbdebug.h"
 #include "rtpdebug.h"
 
-void rtsmb_dump_bytes(char *prompt, byte *pbytes, int length, int format)
+void rtsmb_dump_bytes(char *prompt, void *_pbytes, int length, int format)
 {
 int i;
 int charno = 0;
+byte *pbytes = (byte *) _pbytes;
     rtp_printf("%-40s:(%4d) bytes:\n", prompt, length);
     for (i=0; i<length; i++)
       if (format==DUMPBIN)
@@ -38,6 +39,7 @@ int charno = 0;
       rtp_printf("\n===\n");
 }
 
+#if (0)
 
 char cnv_msg[100];
 void _rtsmb_debug_output_str(void* msg, int type)
@@ -69,3 +71,4 @@ void _rtsmb_debug_output_dint(unsigned long val)
 {
     rtp_printf("%lu", val);
 }
+#endif

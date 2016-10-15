@@ -300,18 +300,18 @@ BBOOL has_lm_field=FALSE;
     if (decoded_targ_token->domain_name)
     {
       if (display_login_info) rtp_printf("display_login_info: decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);
-      domainname = decoded_targ_token->domain_name->value_at_offset;
+      domainname = (PFRTCHAR) decoded_targ_token->domain_name->value_at_offset;
       tc_memcpy(default_domainname_buffer,decoded_targ_token->domain_name->value_at_offset,decoded_targ_token->domain_name->size);
       default_domainname_buffer[decoded_targ_token->domain_name->size]=0;
       default_domainname_buffer[decoded_targ_token->domain_name->size+1]=0;
-      domainname = default_domainname_buffer;
+      domainname = (PFRTCHAR)default_domainname_buffer;
     }
     else
     {
       rtp_printf("No domain:%d\n");
       default_domainname_buffer[0] = 0;
       default_domainname_buffer[1] = 0;
-      domainname = default_domainname_buffer;
+      domainname = (PFRTCHAR)default_domainname_buffer;
     }
     if (decoded_targ_token->user_name)
     {
@@ -319,14 +319,14 @@ BBOOL has_lm_field=FALSE;
       tc_memcpy(username_buffer,decoded_targ_token->user_name->value_at_offset,decoded_targ_token->user_name->size);
       username_buffer[decoded_targ_token->user_name->size]=0;
       username_buffer[decoded_targ_token->user_name->size+1]=0;
-      username = username_buffer;
+      username = (PFRTCHAR)username_buffer;
     }
     else
     {
       if (display_login_info) rtp_printf("display_login_info: No domain\n");
       default_domainname_buffer[0] = 0;
       default_domainname_buffer[1] = 0;
-      domainname = default_domainname_buffer;
+      domainname = (PFRTCHAR)default_domainname_buffer;
     }
 
     // Try ntlmv2
@@ -551,13 +551,13 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
          access = AUTH_NOACCESS;
          if (pCtx->dialect < NT_LM)
          {
-           access = Auth_AuthenticateUser_lm (pCtx, password_buf, username, &authId);
+           access = Auth_AuthenticateUser_lm (pCtx, (PFBYTE)password_buf, username, &authId);
          }
          else
          {
             if (access == AUTH_NOACCESS)
             {
-              access = Auth_AuthenticateUser_ntlm (pCtx,password_buf, username, &authId);
+              access = Auth_AuthenticateUser_ntlm (pCtx,(PFBYTE)password_buf, (PFRTCHAR)username, &authId);
               if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", access);
             }
          }

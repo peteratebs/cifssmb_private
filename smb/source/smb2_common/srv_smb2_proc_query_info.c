@@ -292,14 +292,14 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
         {
           pStream->WriteBufferParms[0].byte_count = sizeof(fs_info_01_array);
           pStream->WriteBufferParms[0].pBuffer = rtp_malloc(sizeof(fs_info_01_array));
-          memcpy(pStream->WriteBufferParms[0].pBuffer, fs_info_01_array,pStream->WriteBufferParms[0].byte_count);
+          tc_memcpy(pStream->WriteBufferParms[0].pBuffer, fs_info_01_array,pStream->WriteBufferParms[0].byte_count);
         }
         break;
         case SMB2_FS_INFO_05:
         {
           pStream->WriteBufferParms[0].byte_count = sizeof(fs_info_05_array);
           pStream->WriteBufferParms[0].pBuffer = rtp_malloc(sizeof(fs_info_05_array));
-          memcpy(pStream->WriteBufferParms[0].pBuffer, fs_info_05_array,pStream->WriteBufferParms[0].byte_count);
+          tc_memcpy(pStream->WriteBufferParms[0].pBuffer, fs_info_05_array,pStream->WriteBufferParms[0].byte_count);
         }
        break;
        case SMB2_FS_INFO_FSIZE: // 03

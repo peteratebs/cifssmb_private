@@ -137,7 +137,9 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
     {
         // Close the SMB2 session and the SMB1 context and set the
         // session state pSctx->state = NOTCONNECTED; so we respond to bothe types
-        rtsmb_srv_net_connection_close_session(pStream->psmb2Session);
+        PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+        if (pNctxt)
+          rtsmb_srv_net_connection_close_session(pNctxt);
         pStream->psmb2Session = 0;
         pStream->doSessionClose = FALSE;
     }

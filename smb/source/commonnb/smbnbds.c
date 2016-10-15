@@ -109,7 +109,7 @@ int rtsmb_nbds_send_get_backup_list (void)
 
     if (r >= 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_nbds_send_get_backup_list: Requesting backup list.\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_nbds_send_get_backup_list: Requesting backup list.\n");
 
         r = rtsmb_nbds_write (prtsmb_browse_ctx->buffer, (rtsmb_size)r, rtsmb_net_get_broadcast_ip (), rtsmb_nbds_port);
     }
@@ -207,7 +207,7 @@ int rtsmb_nbds_process_backup_list_response (PFVOID buf, rtsmb_size size)
             rtsmb_char name [RTSMB_NB_NAME_SIZE+1];
             READ_STRING (buf, &size, name, (RTSMB_NB_NAME_SIZE+1), (PFVOID)0, -1);
 #if (DEBUG_BACKUP_TABLE)
-            smb_print_unicode("rtsmb_nbds_process_backup_list_response() - writing in backup table", 
+            smb_print_unicode("rtsmb_nbds_process_backup_list_response() - writing in backup table",
                 name);
 #endif
             _add_to_domain (d, name, RTSMB_NB_NAME_SIZE);
@@ -245,12 +245,12 @@ void rtsmb_nbds_init (void)
         {
             if (rtp_net_setbroadcast(rtsmb_nbds_datagram_socket, 1) < 0)
             {
-                RTSMB_DEBUG_OUTPUT_STR("Error occurred while trying to set broadcast on socket\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to set broadcast on socket\n");
             }
         }
         else
         {
-            RTSMB_DEBUG_OUTPUT_STR("Socket alloc failed\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Socket alloc failed\n");
         }
 
         rtsmb_nbds_last_cycle_time = current_time;
@@ -372,7 +372,7 @@ void rtsmb_nbds_shutdown (void)
     {
         if (rtp_net_closesocket(rtsmb_nbds_datagram_socket))
         {
-            RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
         }
     }
 
@@ -417,7 +417,7 @@ int rtsmb_nbds_get_backup_server (int domain_index, PFCHAR dest, int alt_index)
     else
     {
         //sends the request using the Latin codepage
-        rtsmb_util_rtsmb_to_ascii (prtsmb_browse_ctx->domain[domain_index].server_name[alt_index], 
+        rtsmb_util_rtsmb_to_ascii (prtsmb_browse_ctx->domain[domain_index].server_name[alt_index],
                                    dest, RTSMB_CODEPAGE_LATIN1);
         rv = 0;
     }

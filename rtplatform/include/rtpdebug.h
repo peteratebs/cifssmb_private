@@ -33,7 +33,7 @@
 
 /* Uncomment the below code to enable debug information **/
 #ifndef RTP_DEBUG
-// #define RTP_DEBUG 1
+#define RTP_DEBUG 1
 #endif
 
 /************************************************************************
@@ -68,13 +68,15 @@ void _rtp_debug_output_int (
 	long val
 	);
 void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...);
+void _rtp_debug_syslog_open(char *name, unsigned long level_mask);
+#define SYSLOG_TRACE_LVL  1
+#define SYSLOG_INFO_LVL   2
+#define SYSLOG_ERROR_LVL   4
+
 
 #ifdef __cplusplus
 }
 #endif
-
-#define SYSLOG_INFO_LVL  1
-#define SYSLOG_ERROR_LVL 2
 
 
 #ifdef RTP_DEBUG
@@ -84,6 +86,7 @@ void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...);
 #define RTP_DEBUG_OUTPUT_INT(val)  _rtp_debug_output_int(val)
 /* variable arguements in macros are not supported by all compilers..MSVC started supporting with 2005 */
 //#define RTP_DEBUG_OUTPUT_SYSLOG(LVL, FMT, ...)  _rtp_debug_syslog_printf(LVL, FMT, __VA_ARGS__)
+#define RTP_DEBUG_OPEN_SYSLOG  _rtp_debug_syslog_open
 #define RTP_DEBUG_OUTPUT_SYSLOG  _rtp_debug_syslog_printf
 #else
 #define RTP_DEBUG_OUTPUT_NETERRNO(msg,err)

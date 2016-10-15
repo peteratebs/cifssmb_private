@@ -7,7 +7,14 @@
 ########################################################################
 incpath = .
 
+# cflags+= -D SUPPORT_SMB2 -Wno-sign-conversion -Wno-sign-compare -Wno-conversion -Wno-format
 cflags+= -D SUPPORT_SMB2
+# cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format  -Wconversion -Wextra
+cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format
+# -Wno-conversion eliminates 50 of our 150 warning
+cflags+= -Wno-conversion -Wextra
+# don't complain wehn we use #warning
+cflags+= -Wno-cpp
 
 ## SET SMB_PATH
 SMB_PATH = ../..
@@ -168,7 +175,8 @@ all: rtsmbserverapplication.out
 $(OBJDIR)/rtsmbserverapplication.a: $(OUT_OBJS)
 $(OBJDIR)/rtsmbserverapplication.o: rtsmbserverapplication.c
 
-rtsmbserverapplication.out: $(OBJDIR)/rtsmbserverapplication.o $(OBJDIR)/rtsmbserverapplication.a /lib/i386-linux-gnu/libSegFault.so
+# rtsmbserverapplication.out: $(OBJDIR)/rtsmbserverapplication.o $(OBJDIR)/rtsmbserverapplication.a /lib/i386-linux-gnu/libSegFault.so
+rtsmbserverapplication.out: $(OBJDIR)/rtsmbserverapplication.o $(OBJDIR)/rtsmbserverapplication.a
 
 include ../rulesgnu.inc
 #############################################################################

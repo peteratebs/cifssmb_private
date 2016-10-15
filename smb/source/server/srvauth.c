@@ -398,7 +398,7 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
             ret_val = TRUE;
         }
         else if (name && domainname && uni_password &&
-                 (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf,&uni_password[32], name, domainname), ansi_password, 24)==0))
+                 (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf, (PFRTCHAR)&uni_password[32], name, (PFCHAR) domainname), ansi_password, 24)==0))
         {
             ret_val = TRUE;
         }

@@ -37,7 +37,7 @@
 ************************************************************************/
 #include "rtp.h"
 #include "rtpdebug.h"
-
+#include <syslog.h>
 #include <stdio.h>
 
 /************************************************************************
@@ -108,19 +108,30 @@ char buffer[RTP_DEBUG_STRING_LEN];
 }
 
 
+
+
 /*----------------------------------------------------------------------*
                          rtp_debug_output_printf
  *----------------------------------------------------------------------*/
+void _rtp_debug_syslog_open(char *name, unsigned long level_mask)
+{
+//    LOG_PID|LOG_NDELAY|LOG_PERROR
+  openlog (name, LOG_PID|LOG_NDELAY|LOG_PERROR, LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO));
+  syslog (LOG_INFO, "===================\n");
+  syslog (LOG_INFO, "has been started\n");
+  syslog (LOG_INFO, "===================\n");
+}
 
 void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...)
 {
 char buffer[RTP_DEBUG_STRING_LEN];
  va_list argptr;
  va_start(argptr,fmt);
- vsprintf(buffer, fmt, argptr);
+// vsprintf(buffer, fmt, argptr);
+ vsyslog(LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO), fmt, argptr);
  va_end(argptr);
- fprintf(stderr, "%s",buffer);
- fflush(stderr);
+// fprintf(stderr, "%s",buffer);
+// fflush(stderr);
 }
 
 /* ----------------------------------- */

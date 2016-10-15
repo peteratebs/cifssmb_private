@@ -1,3 +1,5 @@
+#warning  cli_util_client_encrypt_password_ntlmv2 is a stack hog
+
 //
 // SMBUTIL.C -
 //
@@ -321,7 +323,7 @@ rtsmb_size rtsmb_util_wlen (PFWCS str)
 
 PFWCS rtsmb_util_wstrmalloc(PFWCS source)
 {
-  int l = rtsmb_util_wlen(source);
+  rtsmb_size l = rtsmb_util_wlen(source);
   PFWCS dest = rtp_malloc((l+1)*2);
   rtp_memcpy(dest, source, l*2);
   dest[l]=0;
@@ -1282,9 +1284,8 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
   BYTE nameDomainname[(CFG_RTSMB_MAX_USERNAME_SIZE + 1) * 4];
   BYTE p21 [21];
   BYTE NTLMv2_Hash[16];
-  int dst, src, ndLen;
-
-    rtp_printf("cli_util_client_encrypt_password_ntlmv2 is a stack hog\n");
+  int dst, src;
+  rtsmb_size ndLen;
 
 	// p21 is actually p16 with 5 null bytes appended.  we just null it now
 	// and fill it as if it were p16
@@ -1433,7 +1434,7 @@ BYTE user_domain[512];
   // Hash the password
   cli_util_nt_password_hash(glpassword, sizeof(glpassword)-2, outowf);
   rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
-  rtsmb_util_string_to_upper (user_name, CFG_RTSMB_USER_CODEPAGE);
+  rtsmb_util_string_to_upper ((PFRTCHAR)user_name, CFG_RTSMB_USER_CODEPAGE);
   rtsmb_dump_bytes("User", user_name,user_name_size, DUMPASCII);
   rtsmb_dump_bytes("Domain", domain_name,domain_name_size, DUMPASCII);
 
@@ -1657,7 +1658,7 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
 //    rtsmb_dump_bytes("NTLMv2 hash: ", NTLMv2_Hash, 16, DUMPBIN);
 //    rtsmb_dump_bytes("NTLMv2 concatChallenge: ", concatChallenge, ntlm_response_blob_length+8, DUMPBIN);
 	hmac_md5(concatChallenge,	/* pointer to data stream */
-               ntlm_response_blob_length+8,		/* length of data stream */
+               (int)ntlm_response_blob_length+8,		/* length of data stream */
                NTLMv2_Hash,		/* pointer to remote authentication key */
                16,				/* length of authentication key */
                (PFBYTE ) output_value);
@@ -1713,7 +1714,7 @@ PFBYTE cli_util_encrypt_password_lmv2 (PFCHAR password, PFBYTE serverChallenge, 
 	// the unicode (username,domainname) using the 16-byte NTLM hash as the key.
 	// This results in a 16-byte value - the NTLMv2 hash.
 	hmac_md5(nameDomainname,    /* pointer to data stream */
-               ndLen,				/* length of data stream */
+               (int)ndLen,				/* length of data stream */
                p21,             /* pointer to remote authentication key */
                16,              /* length of authentication key */
                NTLMv2_Hash);    /* caller digest to be filled in */

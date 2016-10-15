@@ -1,7 +1,7 @@
 
-extern int smbservermain ();
+extern int smbservermain (int argc, char **argv);
 
 int main(int argc, char **argv)
 {
-	return smbservermain ();
+	return smbservermain (argc, argv);
 }

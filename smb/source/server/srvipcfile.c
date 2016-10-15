@@ -184,12 +184,12 @@ void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
 #ifdef SUPPORT_SMB2
 static BBOOL ipcrpc_is_smb2_srvsvc(char RTSMB_FAR * name)
 {
-  return (rtsmb_casecmp (name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
+  return (rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
 }
 #endif
 static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
 {
-  return (rtsmb_casecmp (name, _rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
+  return (rtsmb_casecmp ((PFRTCHAR)name, (PFRTCHAR)_rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
 }
 static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
@@ -207,14 +207,15 @@ static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned shor
     }
     else
     {
-      rtsmb_dump_bytes("IPC$ open unknown file name", name, rtsmb_len(name)*2, DUMPUNICODE);
+      rtsmb_dump_bytes("IPC$ open unknown file name", name, rtsmb_len((PFRTCHAR)name)*2, DUMPUNICODE);
     }
     return fd;
 }
 
 static int ipcrpc_wopen(unsigned short RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
-  return ipcrpc_open(name, flag, mode);
+  return (-1);
+//  return ipcrpc_open((char RTSMB_FAR *)name, flag, mode);
 }
 
 
@@ -412,7 +413,8 @@ static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
 
 static BBOOL ipcrpc_wstat(unsigned short RTSMB_FAR * name, PSMBFSTAT vstat)
 {
-    return ipcrpc_stat(name, vstat);
+    return (-1);
+//    return ipcrpc_stat(name, vstat);
 }
 
 static BBOOL ipcrpc_chmode(char RTSMB_FAR * name, unsigned char attributes)

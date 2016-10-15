@@ -76,7 +76,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
 
-
+    externalFid = *((word *) command.FileId);
     if (externalFid == 0xffff)
     {
       rtp_printf("Close, exfd == 0xffff why after map ?\n");

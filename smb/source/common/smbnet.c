@@ -107,7 +107,7 @@ int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
 
     if(!pData)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: NULL buffer\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read_simple: NULL buffer\n");
         return -1;
     }
 
@@ -120,7 +120,7 @@ int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
 
     if(bytesRead < 0)
     {
-        ; // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Error in recv\n", RTSMB_DEBUG_TYPE_ASCII);
+        ; // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_simple: Error in recv\n");
     }
 
     return bytesRead;
@@ -156,7 +156,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
 
     if ((bytesRead = rtsmb_net_read_simple (sock, buf, (int)length)) < 0)
     {
-        // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error in rtsmb_net_read_simple.\n", RTSMB_DEBUG_TYPE_ASCII);
+        // RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error in rtsmb_net_read_simple.\n");
         return -1;
     }
 
@@ -182,7 +182,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
         else
         {
             // timeout, signal error
-            RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: timed out while trying to read all the data.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read: timed out while trying to read all the data.\n");
             return bytesRead;
         }
     }
@@ -199,7 +199,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
         {
             if (rtsmb_net_read_simple (sock, temp, 128) == -1)
             {
-                RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error while clearing out extra bytes on wire.\n", RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read: error while clearing out extra bytes on wire.\n");
                 return -1;
             }
 
@@ -208,7 +208,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
 
         if (rtsmb_net_read_simple (sock, temp, (int)diff) == -1)
         {
-            RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read: error while clearing out extra bytes on wire.\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read: error while clearing out extra bytes on wire.\n");
             return -1;
         }
     }
@@ -267,7 +267,7 @@ int rtsmb_net_read_datagram (RTP_SOCKET sock, PFVOID pData, int size, PFBYTE rem
 
     if(!pData)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_datagram: NULL buffer\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read_datagram: NULL buffer\n");
         return 0;
     }
 
@@ -280,7 +280,7 @@ int rtsmb_net_read_datagram (RTP_SOCKET sock, PFVOID pData, int size, PFBYTE rem
 
     if(bytesRead < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_read_datagram: Error in recvfrom\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read_datagram: Error in recvfrom\n");
         return 0;
     }
     rtsmb_net_ip_to_str(remoteAddr, (PFCHAR)temp);
@@ -381,24 +381,17 @@ int rtsmb_net_socket_new (RTP_SOCKET* sock_ptr, int port, BBOOL reliable)
 
     if (result < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("rtsmb_net_socket_new: Unable to get new socket\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_socket_new: Unable to get new socket\n");
         return -1;
     }
 
     if (rtp_net_bind(*sock_ptr, (unsigned char*)0, port, 4))
     {
-        RTSMB_DEBUG_OUTPUT_STR ("rtsmb_net_socket_new: bind to port ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (port);
-        RTSMB_DEBUG_OUTPUT_STR (" failed\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_socket_new: bind to port %d failed\n",port);
         return -1;
     }
 
-    RTSMB_DEBUG_OUTPUT_STR ("rtsmb_net_socket_new: Socket ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT ((int) (*sock_ptr));
-    RTSMB_DEBUG_OUTPUT_STR (" bound to port ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT (port);
-    RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
-
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_socket_new: Socket %d  bound to port %d \n", (int) (*sock_ptr), port);
     return 0;
 }
 

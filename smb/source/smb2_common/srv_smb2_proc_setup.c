@@ -265,7 +265,9 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 /* Free the session we came in with and use the one we just found */
                 if (pStreamSession != pCurrSession)
                 {
-                    rtsmb_srv_net_connection_close_session(pStreamSession);
+                  PNET_SESSIONCTX pNctxt = findSessionByContext(pStreamSession-> pSmbCtx);
+                    if (pNctxt)
+                      rtsmb_srv_net_connection_close_session(pNctxt);
                     pStream->psmb2Session = pCurrSession;
                     pStreamSession = pCurrSession;
                 }
@@ -363,9 +365,8 @@ static byte spnego_blob_buffer[512];
             }
 
             // Save off
-            pStream->psmb2Session->UserName = rtsmb_util_wstrmalloc(decoded_targ_token.user_name?decoded_targ_token.user_name->value_at_offset:"U\0N\0K\0N\0O\0W\0N\0\0\0");
-            pStream->psmb2Session->DomainName = rtsmb_util_wstrmalloc(decoded_targ_token.domain_name?decoded_targ_token.domain_name->value_at_offset:"U\0N\0K\0N\0O\0W\0N\0\0\0");
-
+            pStream->psmb2Session->UserName = (byte *) rtsmb_util_wstrmalloc(decoded_targ_token.user_name?(PFWCS)decoded_targ_token.user_name->value_at_offset:(PFWCS)"U\0N\0K\0N\0O\0W\0N\0\0\0");
+            pStream->psmb2Session->DomainName = (byte *) rtsmb_util_wstrmalloc(decoded_targ_token.domain_name?(PFWCS)decoded_targ_token.domain_name->value_at_offset:(PFWCS)"U\0N\0K\0N\0O\0W\0N\0\0\0");
             spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
           }
         }

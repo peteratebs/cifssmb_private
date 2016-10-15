@@ -289,7 +289,7 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
 
     {
       PFRTCHAR name;
-      word externalFid = *((word *) &command.FileId[0]);
+      word externalFid = *((word *) RTSmb2_mapWildFileId(pStream, command.FileId));
       int field_size = sizeof(user->searches[sid].name)/sizeof(name[0]);
 
 	  name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);

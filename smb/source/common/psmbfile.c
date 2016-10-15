@@ -152,9 +152,7 @@ int rtplatform_open(char RTSMB_FAR * name, unsigned short flag, unsigned short m
     rv = rtp_file_open ((RTP_FILE *) &fd, name, flag, mode);
     if (rv < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR ("rtplatform_open: Error on open is ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_INT (rv);
-        RTSMB_DEBUG_OUTPUT_STR ("\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtplatform_open: Error on open is %d\n", rv);
         return -1;
     }
 
