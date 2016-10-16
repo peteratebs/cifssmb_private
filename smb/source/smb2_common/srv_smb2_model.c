@@ -286,7 +286,7 @@ dword Smb2_util_get_global_caps(pSmb2SrvModel_Connection pConnection,PRTSMB2_NEG
 {
 dword global_caps = 0;
 BBOOL is3XXDIALECT = (BBOOL)SMB2IS3XXDIALECT(pConnection->NegotiateDialect);
-    // if (pSmb2SrvGlobal->IsDfsCapable)
+    if (pSmb2SrvGlobal->IsDfsCapable)
         global_caps |= SMB2_GLOBAL_CAP_DFS;
     if (pSmb2SrvGlobal->RTSMBIsLeaseCapable)
         global_caps |= SMB2_GLOBAL_CAP_LEASING;

@@ -181,26 +181,27 @@ void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
     pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
   }
 }
-#ifdef SUPPORT_SMB2
-static BBOOL ipcrpc_is_smb2_srvsvc(char RTSMB_FAR * name)
-{
-  return (rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
-}
-#endif
 static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
+{
+  return ( rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
+}
+static BBOOL ipcrpc_is_smb2_lsarpc(char RTSMB_FAR * name)
+{
+  return (rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_larpc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
+}
+
+static BBOOL ipcrpc_is_lsarpc(char RTSMB_FAR * name)
 {
   return (rtsmb_casecmp ((PFRTCHAR)name, (PFRTCHAR)_rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
 }
 static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
     int fd = -1;
-#ifdef SUPPORT_SMB2
     // lsarpc
-    if (ipcrpc_is_smb2_srvsvc(name))
+    if (ipcrpc_is_lsarpc(name))
     {
        fd = AllocSrvSrvcStreamFid();
     } else
-#endif
     if (ipcrpc_is_srvsvc(name))
     {
        fd = AllocSrvSrvcStreamFid();
@@ -400,7 +401,7 @@ static void ipcrpc_gdone(PSMBDSTAT dirobj)
 
 static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
 {
-    if (ipcrpc_is_srvsvc(name))
+    if (ipcrpc_is_srvsvc(name)||ipcrpc_is_lsarpc(name))
     {
       ipcrpc_translate_fstat(vstat);
       return TRUE;

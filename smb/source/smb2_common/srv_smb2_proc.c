@@ -86,10 +86,11 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream);
 
 static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream);
 static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
+static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream);
+static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream);
+static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream);
 
-static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream){return FALSE;}
-static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream){return FALSE;}
+
 static void DebugOutputSMB2Command(int command);
 
 static BBOOL Proc_smb2_Echo(smb2_stream  *pStream);
@@ -272,8 +273,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
        if (NextCommandOffset == 0)
-//          pOutHeader->CreditRequest_CreditResponse = 1 + AddtoFinalCreditRequest_CreditResponse;
-          pOutHeader->CreditRequest_CreditResponse = 32 + AddtoFinalCreditRequest_CreditResponse;
+          pOutHeader->CreditRequest_CreditResponse = 3 + AddtoFinalCreditRequest_CreditResponse;
+//          pOutHeader->CreditRequest_CreditResponse = 32 + AddtoFinalCreditRequest_CreditResponse;
 //          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
 
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request
@@ -1126,6 +1127,29 @@ static BBOOL Proc_smb2_Echo(smb2_stream  *pStream)
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
 
+}
+
+
+static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
+{
+ RTSMB2_CANCEL_C command;
+ /* Read into command to pull it from the input queue */
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ return FALSE;
+}
+static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
+{
+ RTSMB2_CHANGE_NOTIFY_C command;
+ /* Read into command to pull it from the input queue */
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ return FALSE;
+}
+static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
+{
+ RTSMB2_OPLOCK_BREAK_C command;
+ /* Read into command to pull it from the input queue */
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ return FALSE;
 }
 
 static  rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};

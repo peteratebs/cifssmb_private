@@ -67,6 +67,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     dword r;
     word externalFid;
     PTREE pTree;
+    BBOOL not_implemented=TRUE;
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -110,6 +111,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
       SMBFSTAT stat;
+      not_implemented=FALSE;
       switch (command.FileInfoClass) {
        case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
        {
@@ -273,17 +275,16 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          tc_memcpy(pInfo, stat.filename, file_name_len_bytes);
        }
        default:
-          rtp_printf("Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unkown file class == %X\n", command.FileInfoClass);
+          not_implemented=TRUE;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unknown file class == %X\n", command.FileInfoClass);
          break;
-       break;
       }
     }
     else if (command.InfoType == SMB2_0_INFO_FILESYSTEM)
     {
       BBOOL isFound = FALSE; // did we find a file?
       SMBFSTAT stat;
-
-
+      not_implemented=FALSE;
       if (file_name[0])
         isFound = SMBFIO_GFirst (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, stat, file_name);
 
@@ -314,11 +315,13 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        }
        break;
        default:
-          rtp_printf("Proc_smb2_QueryInfo: Got unkown file class == %X\n", command.FileInfoClass);
+          not_implemented=TRUE;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo SMB2_0_INFO_FILESYSTEM: Got unknown file class == %X\n", command.FileInfoClass);
          break;
       }
     }
-    else
+
+    if (not_implemented)
     {
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NOT_IMPLEMENTED);
         return TRUE;

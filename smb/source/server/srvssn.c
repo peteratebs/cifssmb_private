@@ -59,7 +59,8 @@ rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
 
 #ifdef SUPPORT_SMB2
-rtsmb_char _rtsmb2_srvsvc_pipe_name [7] = {'l','s','a','r','p','c',0};
+rtsmb_char _rtsmb2_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
+rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
 #endif
 
 
@@ -897,48 +898,52 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
      * Bug fix - 12-2009 we were making sure the path to the file existed
      * even if we were not creating. Was moved below to do it in the correct place.
      */
-    if (SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
-    {
-        if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
-        {
-            return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
-        }
 
-        /**
-         * Don't allow clients to open directories (not all file systems can take it).
-         */
-        if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
-        {
-            /* We create a dummy file entry that can only be opened and closed.   */
-            int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags);
-
-
-            if (externalFid < 0)
-            {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"OpenOrCreate: Not enough file handles to pass around for dummy directory!\n");
-                return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
-            }
-
-            *answer_fid = 0;
-            *answer_external_fid = (dword)externalFid;
-            return 0;
-        }
-    }
 #if (HARDWIRED_INCLUDE_DCE == 1)
-    else if (pTree->type == ST_IPC)  // Don't check create for IPC
+    if (pTree->type == ST_IPC)  // Don't check create for IPC
       ;
 #endif
-    else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
+    else // if (pTree->type == ST_DISKTREE || pTree->type == ST_PRINTQ)
     {
-        return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
-    }
-    /**
-     * The Samba client at least, and probably others, expects that if the create
-     * flag is set, we will make the whole directory tree too.  So, here we go.
-    */
-    if (pTree->type == ST_DISKTREE && (ON(flags, RTP_FILE_O_CREAT)))
-    {
-        SMBU_MakePath (pCtx, filename);
+      if (SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
+      {
+          if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
+          {
+              return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
+          }
+
+          /**
+           * Don't allow clients to open directories (not all file systems can take it).
+           */
+          if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
+          {
+              /* We create a dummy file entry that can only be opened and closed.   */
+              int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags);
+
+
+              if (externalFid < 0)
+              {
+                  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"OpenOrCreate: Not enough file handles to pass around for dummy directory!\n");
+                  return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
+              }
+
+              *answer_fid = 0;
+              *answer_external_fid = (dword)externalFid;
+              return 0;
+          }
+      }
+      else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
+      {
+          return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
+      }
+      /**
+       * The Samba client at least, and probably others, expects that if the create
+       * flag is set, we will make the whole directory tree too.  So, here we go.
+      */
+      if (ON(flags, RTP_FILE_O_CREAT))
+      {
+          SMBU_MakePath (pCtx, filename);
+      }
     }
     fid = SMBFIO_Open (pCtx, pCtx->tid, filename, flags, mode);
 

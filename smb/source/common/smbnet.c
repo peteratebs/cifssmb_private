@@ -222,10 +222,19 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
  *
  * Returns -1 if an error occurs, 0 else.
  */
+static unsigned char lzeros [] = {0,0,0,0,0,0,0,0};
 int rtsmb_net_write (RTP_SOCKET socket, PFVOID buf, int size)
 {
     int bytes_sent;
     int rv = 0;
+
+printf("Sending !!! bytes %d\n", size);
+if (size < 32 && tc_memcmp(buf, lzeros, size) == 0)
+{
+printf("right here !!! don't send runt: bytes %d\n", size);
+return 0;
+}
+
 
     do
     {

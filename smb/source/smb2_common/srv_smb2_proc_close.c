@@ -38,7 +38,6 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 {
 	RTSMB2_CLOSE_C command;
 	RTSMB2_CLOSE_R response;
-    SMBFSTAT stat;
     word fidflags=0;
     int fid;
     dword r;
@@ -123,37 +122,35 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
             }
         }
 
-        if (fidflags != FID_FLAG_DIRECTORY)
+        if (command.Flags & 0x01) // Asking for stats
         {
-            if (command.Flags & 0x01) // Asking for stats
-            {
-// We either need to implement SMBFIO_Fstat or cheat and add a file name store to SMBFIO_OpenInternal and use that in stat, being sure to delete it in SMBFIO_Close()
-                PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-                if (file_name)
-                {
-                  SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
-                  response.Flags          = 0x01; // ??? SMB3 only
-                  response.Reserved       = 0; // ??? SMB3 only
-                  response.CreationTime   =  *((ddword *) &stat.f_ctime64);
-                  response.LastAccessTime =  *((ddword *) &stat.f_atime64);
-                  response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
-                  response.ChangeTime     =  *((ddword *) &stat.f_htime64);
-                  response.AllocationSize  = stat.f_size;
-                  response.EndofFile       = stat.f_size;
-                  response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
-                }
-           }
-           SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
+        // We either need to implement SMBFIO_Fstat or cheat and add a file name store to SMBFIO_OpenInternal and use that in stat, being sure to delete it in SMBFIO_Close()
+          SMBFSTAT stat;
+          PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+            if (file_name&&pTree->type == ST_DISKTREE)
+              SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
+            else
+              tc_memset(&stat, 0, sizeof(stat));
+            response.Flags          = 0x01; // ??? SMB3 only
+            response.Reserved       = 0; // ??? SMB3 only
+            response.CreationTime   =  *((ddword *) &stat.f_ctime64);
+            response.LastAccessTime =  *((ddword *) &stat.f_atime64);
+            response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
+            response.ChangeTime     =  *((ddword *) &stat.f_htime64);
+            response.AllocationSize  = stat.f_size;
+            response.EndofFile       = stat.f_size;
+            response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         }
-       // 0xffff is not real resource so don't do any file ops.
-        if ( (externalFid != 0xffff) &&
-           (smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
-       {
-         if (fidflags != FID_FLAG_DIRECTORY)
-           SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
-         else
-           SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
-       }
+        if (fidflags != FID_FLAG_DIRECTORY)
+            SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
+        // 0xffff is not real resource so don't do any file ops.
+        if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
+        {
+          if (fidflags != FID_FLAG_DIRECTORY)
+            SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+          else
+            SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+        }
     }
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
         // Set the status to success
