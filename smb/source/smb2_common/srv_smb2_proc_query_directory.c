@@ -329,6 +329,7 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
+rtsmb_dump_bytes("!!! Gfirst on", user->searches[sid].name, tc_strlen(user->searches[sid].name), DUMPASCII);
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
     }
     else
@@ -462,9 +463,9 @@ typedef struct
 	dword low_allocation_size;
 	dword high_allocation_size;
 
-	dword extended_file_attributes;
-	dword filename_size;
-	dword ea_size;
+	dword  extended_file_attributes;
+	dword  filename_size;
+	dword  ea_size;
 //	PFRTCHAR filename;
 
 } RTSMB2_FILE_FULL_DIRECTORY_INFO;
@@ -557,6 +558,7 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size 
     // Copy the filename just after the small file info
     pinfo->filename_size = filename_size;
     tc_memcpy(byte_pointer, stat->filename, filename_size);
+//    tc_memcpy(&pinfo->FileId, stat->unique_fileid, sizeof(pinfo->FileId));
     return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) + pinfo->filename_size);
 }
 
@@ -581,6 +583,7 @@ static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_siz
 	pinfo->EaSize              =  0;
     // Copy the filename just after the small file info
     tc_memcpy(&pinfo->FileName[0], pstat->filename, filename_size);
+    tc_memcpy(&pinfo->FileId, pstat->unique_fileid, sizeof(pinfo->FileId));
     return (int) (sizeof(FILE_ID_BOTH_DIR_INFORMATION)-1 + filename_size);
 }
 static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)

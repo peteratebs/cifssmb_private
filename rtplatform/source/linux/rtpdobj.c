@@ -268,6 +268,24 @@ void rtp_file_gdone (void * dirobj)
 }
 
 
+
+void rtp_file_get_unique_id(void * dirobj, unsigned char *unique_fileid)
+{
+    memset (unique_fileid,0,8);
+    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    {
+#ifdef RTP_DEBUG
+        RTP_DEBUG_OUTPUT_STR("rtp_file_get_unique_id: error invalid dirobj.\n");
+#endif
+    }
+    else
+    {
+
+      memcpy (unique_fileid,&((FSOBJ *)dirobj)->statdata.st_ino,sizeof(((FSOBJ *)dirobj)->statdata.st_ino));
+    }
+
+}
+
 /*----------------------------------------------------------------------*
                             rtp_file_get_size
  *----------------------------------------------------------------------*/

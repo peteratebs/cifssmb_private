@@ -35,7 +35,8 @@
 [share]
 name = share0
 comment = native fs
-path = /media
+# path = /media
+path = /home/peter/smbtest
 flags = create
 permission = rw
 # password = smb

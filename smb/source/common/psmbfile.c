@@ -597,6 +597,8 @@ void rtplatform_translate_dstat (PSMBDSTAT dstat, void * rtp_dirobj)
 
     rtp_file_get_size(rtp_dirobj, &dstat->fsize);
 
+	rtp_file_get_unique_id(rtp_dirobj, dstat->unique_fileid);
+
     dstat->rtp_dirobj = rtp_dirobj;
 
 }
@@ -627,6 +629,7 @@ void rtplatform_translate_fstat (PSMBFSTAT fstat, void * rtp_dirobj)
     fstat->f_htime64 = htime;
 
     rtp_file_get_attrib(rtp_dirobj, &fstat->f_attributes);
+	rtp_file_get_unique_id(rtp_dirobj, fstat->unique_fileid);
 
 }
 

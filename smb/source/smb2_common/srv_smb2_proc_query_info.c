@@ -326,7 +326,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     response.StructureSize = 9; // 9
     response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
     if (response.OutputBufferLength)
-      response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
+    {
+      word w  = (word) dwordalign((pStream->OutHdr.StructureSize + response.StructureSize-1), 8);
+      response.OutputBufferOffset = w;
+    }
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
 
     if (pStream->WriteBufferParms[0].pBuffer)

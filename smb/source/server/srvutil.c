@@ -72,6 +72,14 @@
 
 
 
+dword dwordalign(dword original, int a)
+{
+  dword dd = (dword) original;
+  dword s = (dword)(a-1);
+  dd=(dd+s)&~s;
+  return  dd;
+}
+
 void *ptralign(void *ptr, int a)
 {
 #ifdef BUILD_SMB_64BIT

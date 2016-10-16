@@ -29,6 +29,7 @@ int  rtp_file_gfirst_smb(void ** dirobj, char * pattern);
 int  rtp_file_gnext      (void * dirobj);
 void rtp_file_gdone      (void * dirobj);
 int  rtp_file_get_size   (void * dirobj, unsigned long * size);
+void rtp_file_get_unique_id(void * dirobj, unsigned char *unique_fileid);
 int  rtp_file_get_attrib (void * dirobj, unsigned char * attributes);
 int  rtp_file_get_name   (void * dirobj, char * name, int size);
 int  rtp_file_get_time   (void * dirobj, RTP_DATE * adate, RTP_DATE * wdate, RTP_DATE * cdate, RTP_DATE * hdate);
