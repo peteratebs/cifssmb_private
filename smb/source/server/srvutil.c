@@ -245,23 +245,6 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
     if (rsmb2flags)
      *rsmb2flags = 0;
 
-#if (HARDWIRED_INCLUDE_DCE)
-    {
-      PTREE pTree;
-      pTree = SMBU_GetTree( pCtx, pCtx->tid);
-      // Special case of ipc just determine that it is a valid handle
-      if (pTree && pTree->type == ST_IPC)
-      {
-        if (IS_SRVSVC_FID(external))
-        {
-          if (rflags) *rflags = 0;
-          return (external&0xf);
-        }
-        else
-          return -2;
-      }
-    }
-#endif
 	if (external >= prtsmb_srv_ctx->max_fids_per_uid)
 		return -1;
 	if (user->fids[external] && user->fids[external]->internal != -1 &&
@@ -365,6 +348,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	tree = SMBU_GetTree (pCtx, pCtx->tid);
 	user = SMBU_GetUser (pCtx, pCtx->uid);
 
+
 	if (!user || !tree)
 	{
 		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: user or tree is not valid.\n");
@@ -441,7 +425,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PUSER user;
 	word i, j, k;
 
-#if (HARDWIRED_INCLUDE_DCE)
+#if (0 && HARDWIRED_INCLUDE_DCE)
     {
       tree = SMBU_GetTree( pCtx, pCtx->tid);
       // Special case of ipc just determine that it is a valid handle
@@ -558,7 +542,6 @@ PTREE SMBU_GetTree (PSMB_SESSIONCTX pCtx, int tid)
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 {
 	int i;
-
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
 	{
 		if (pCtx->fids[i].internal != -1 &&
@@ -567,7 +550,6 @@ PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 			return pCtx->fids[i].name;
 		}
 	}
-
 	return (PFRTCHAR)0;
 }
 

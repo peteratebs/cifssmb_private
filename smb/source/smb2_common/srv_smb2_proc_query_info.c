@@ -105,6 +105,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FS_INFO_05        0x05
 #define SMB2_FILE_INFO_ALL       0x12
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
+#define SMB2_FILE_INFO_STANDARD      0x5
 #define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
     pStream->WriteBufferParms[0].byte_count = 0;
@@ -126,7 +127,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
           // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
           // Map if neccessary
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
-         word externalFid = *((word *) &pFileId[0]);
+         word externalFid = RTSmb2_get_externalFid(pFileId);
 
          filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
          worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
@@ -170,8 +171,11 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 //         word externalFid = *((word *) &command.FileId[0]);
           // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
           // Map if neccessary
+
+
+
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
-         word externalFid = *((word *) &pFileId[0]);
+         word externalFid = RTSmb2_get_externalFid(pFileId);
 
          filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
          worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
@@ -243,7 +247,9 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          MSFSCC_FULL_DIRECTORY_INFO *pInfo;
          BBOOL worked;
          SMBDSTAT stat;
-         word externalFid = *((word *) &command.FileId[0]);
+
+         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+         word externalFid = RTSmb2_get_externalFid(pFileId);
          worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
          if(worked == FALSE)
          {
@@ -274,6 +280,38 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo += 1;
          tc_memcpy(pInfo, stat.filename, file_name_len_bytes);
        }
+       break;
+       case SMB2_FILE_INFO_STANDARD:
+       {
+         int file_name_len_bytes;
+         MSFSCC_STANDARD_DIRECTORY_INFO *pInfo;
+         BBOOL worked;
+         SMBDSTAT stat;
+
+
+         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+         word externalFid = RTSmb2_get_externalFid(pFileId);
+         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
+         if(worked == FALSE)
+         {
+           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+           return TRUE;
+         }
+         pInfo = rtp_malloc(sizeof(MSFSCC_STANDARD_DIRECTORY_INFO));
+         pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_STANDARD_DIRECTORY_INFO);
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = 0;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = 0;
+         pInfo->number_of_links=1;
+         pInfo->delete_pending=0;
+         pInfo->directory = (stat.fattributes & RTP_FILE_ATTRIB_ISDIR)?1:0;
+         pInfo->reserved=0;
+         pInfo += 1;
+       }
+       break;
        default:
           not_implemented=TRUE;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo SMB2_0_INFO_FILE: Got unknown file class == %X\n", command.FileInfoClass);

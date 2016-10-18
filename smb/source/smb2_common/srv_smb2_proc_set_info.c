@@ -78,11 +78,11 @@ RTSMB2_SET_INFO_R response;
     case SMB2_0_INFO_FILE:
     if (command.FileInfoClass== SMB2_0_FileRenameInformation)
     {
-        word externalFid;
         int i;
         byte *b;
         FILE_RENAME_INFORMATION_TYPE_2 *pRenameInfo = (FILE_RENAME_INFORMATION_TYPE_2 *)pStream->ReadBufferParms[0].pBuffer;
-        externalFid = *((word *) &command.FileId[0]);
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
         b = &pRenameInfo->Buffer[0];
         b[pRenameInfo->FileNameLength] =0;
         b[pRenameInfo->FileNameLength+1] =0;

@@ -727,6 +727,58 @@ typedef RTSMB2_CANCEL_C RTSMB_FAR *PRTSMB2_CANCEL_C;
 #define FSCTL_DFS_GET_REFERRALS         0x00060194
 #define FSCTL_PIPE_TRANSCEIVE           0x0011c017
 #define FSCTL_VALIDATE_NEGOTIATE_INFO   0x00140204
+
+// None of these are serviced.
+
+#define FSCTL_GET_OBJECT_ID             0x0009009c
+#define FSCTL_CREATE_OR_GET_OBJECT_ID   0x000900c0
+#define FSCTL_DELETE_OBJECT_ID          0x000900a0
+#define FSCTL_DELETE_REPARSE_POINT              0x900ac
+#define FSCTL_DUPLICATE_EXTENTS_TO_FILE         0x98344
+#define FSCTL_FILE_LEVEL_TRIM         0x98208
+#define FSCTL_FILESYSTEM_GET_STATISTICS         0x90060
+#define FSCTL_FIND_FILES_BY_SID         0x9008f
+#define FSCTL_GET_COMPRESSION         0x9003c
+#define FSCTL_GET_INTEGRITY_INFORMATION         0x9027c
+#define FSCTL_GET_NTFS_VOLUME_DATA         0x90064
+#define FSCTL_GET_REFS_VOLUME_DATA         0x902D8
+#define FSCTL_GET_REPARSE_POINT         0x900a8
+#define FSCTL_LMR_SET_LINK_TRACKING_INFORMATION         0x1400ec
+#define FSCTL_OFFLOAD_READ         0x94264
+#define FSCTL_OFFLOAD_WRITE         0x98268
+#define FSCTL_PIPE_PEEK         0x11400c
+#define FSCTL_PIPE_WAIT         0x110018
+#define FSCTL_QUERY_ALLOCATED_RANGES         0x940cf
+#define FSCTL_QUERY_FAT_BPB         0x90058
+#define FSCTL_QUERY_FILE_REGIONS         0x90284
+#define FSCTL_QUERY_ON_DISK_VOLUME_INFO         0x9013c
+#define FSCTL_QUERY_SPARING_INFO         0x90138
+#define FSCTL_READ_FILE_USN_DATA         0x900eb
+#define FSCTL_RECALL_FILE         0x90117
+#define FSCTL_SET_COMPRESSION         0x9c040
+#define FSCTL_SET_DEFECT_MANAGEMENT         0x98134
+#define FSCTL_SET_ENCRYPTION         0x900D7
+#define FSCTL_SET_INTEGRITY_INFORMATION         0x9C280
+#define FSCTL_SET_OBJECT_ID         0x90098
+#define FSCTL_SET_OBJECT_ID_EXTENDED         0x900bc
+#define FSCTL_SET_REPARSE_POINT         0x900a4
+#define FSCTL_SET_SPARSE         0x900c4
+#define FSCTL_SET_ZERO_DATA         0x980c8
+#define FSCTL_SET_ZERO_ON_DEALLOCATION         0x90194
+#define FSCTL_SIS_COPYFILE         0x90100
+#define FSCTL_WRITE_USN_CLOSE_RECORD         0x900ef
+
+
+
+
+
+
+
+
+
+
+
+
 /* Note: 2.2.31.1 contains formats for IOCTL requests */
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_IOCTL_C
@@ -976,6 +1028,21 @@ typedef struct s_MSFSCC_FULL_DIRECTORY_INFO
 } MSFSCC_FULL_DIRECTORY_INFO;
 PACK_PRAGMA_POP
 
+
+
+PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_STANDARD_DIRECTORY_INFO
+{
+	dword low_allocation_size;
+	dword high_allocation_size;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword number_of_links;
+	byte  delete_pending;
+	byte  directory;
+	word  reserved;
+} MSFSCC_STANDARD_DIRECTORY_INFO;
+PACK_PRAGMA_POP
 
 // See ms-fscc page 98
 PACK_PRAGMA_ONE

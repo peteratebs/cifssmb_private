@@ -62,7 +62,8 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
 
     pargs->pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
     tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
-    pargs->externalFid = *((word *) &pargs->externalFidRaw[0]);
+    pargs->externalFid = RTSmb2_get_externalFid(pargs->externalFidRaw);
+
 
     if (pargs->externalFid == 0xffff)
     {

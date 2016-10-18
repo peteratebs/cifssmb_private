@@ -26,6 +26,54 @@
 #include "srvssn.h"
 #include "smbdebug.h"
 
+
+static BBOOL isAnInvalidFSCTLRequest(dword requestid)
+{
+  switch (requestid) {
+    case FSCTL_GET_OBJECT_ID:
+    case FSCTL_CREATE_OR_GET_OBJECT_ID:
+    case FSCTL_DELETE_OBJECT_ID:
+    case FSCTL_DELETE_REPARSE_POINT:
+    case FSCTL_DUPLICATE_EXTENTS_TO_FILE:
+    case FSCTL_FILE_LEVEL_TRIM:
+    case FSCTL_FILESYSTEM_GET_STATISTICS:
+    case FSCTL_FIND_FILES_BY_SID:
+    case FSCTL_GET_COMPRESSION:
+    case FSCTL_GET_INTEGRITY_INFORMATION:
+    case FSCTL_GET_NTFS_VOLUME_DATA:
+    case FSCTL_GET_REFS_VOLUME_DATA:
+    case FSCTL_GET_REPARSE_POINT:
+    case FSCTL_LMR_SET_LINK_TRACKING_INFORMATION:
+    case FSCTL_OFFLOAD_READ:
+    case FSCTL_OFFLOAD_WRITE:
+    case FSCTL_PIPE_PEEK:
+    case FSCTL_PIPE_WAIT:
+    case FSCTL_QUERY_ALLOCATED_RANGES:
+    case FSCTL_QUERY_FAT_BPB:
+    case FSCTL_QUERY_FILE_REGIONS:
+    case FSCTL_QUERY_ON_DISK_VOLUME_INFO:
+    case FSCTL_QUERY_SPARING_INFO:
+    case FSCTL_READ_FILE_USN_DATA:
+    case FSCTL_RECALL_FILE:
+    case FSCTL_SET_COMPRESSION:
+    case FSCTL_SET_DEFECT_MANAGEMENT:
+    case FSCTL_SET_ENCRYPTION:
+    case FSCTL_SET_INTEGRITY_INFORMATION:
+    case FSCTL_SET_OBJECT_ID:
+    case FSCTL_SET_OBJECT_ID_EXTENDED:
+    case FSCTL_SET_REPARSE_POINT:
+    case FSCTL_SET_SPARSE:
+    case FSCTL_SET_ZERO_DATA:
+    case FSCTL_SET_ZERO_ON_DEALLOCATION:
+    case FSCTL_SIS_COPYFILE:
+    case FSCTL_WRITE_USN_CLOSE_RECORD:
+     return TRUE;
+     break;
+    default:
+     break;
+  }
+  return FALSE;
+}
 extern void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer);
 
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
@@ -73,9 +121,11 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
         goto free_bail;
     }
 
-    fileid = *((int *) &command.FileId[0]);
+    fileid = (int) RTSmb2_get_externalFid(command.FileId);
 
-    if (command.CtlCode == FSCTL_DFS_GET_REFERRALS)
+    if (isAnInvalidFSCTLRequest(command.CtlCode))
+      error_status = SMB2_STATUS_INVALID_DEVICE_REQUEST;  // Return this to continue mounting
+    else if (command.CtlCode == FSCTL_DFS_GET_REFERRALS)
       error_status = SMB2_STATUS_NOT_FOUND;  // Return this to continue mounting
     else if (command.CtlCode == FSCTL_VALIDATE_NEGOTIATE_INFO) //         0x00140204
     {

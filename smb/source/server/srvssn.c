@@ -59,7 +59,7 @@ rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
 
 #ifdef SUPPORT_SMB2
-rtsmb_char _rtsmb2_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
+rtsmb_char _rtsmb2_srvsvc_pipe_name [8] = {'s','r','v','s','v','c',0};
 rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
 #endif
 
@@ -899,6 +899,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
      * even if we were not creating. Was moved below to do it in the correct place.
      */
 
+
 #if (HARDWIRED_INCLUDE_DCE == 1)
     if (pTree->type == ST_IPC)  // Don't check create for IPC
       ;
@@ -955,14 +956,6 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     else
     {
      int externalFid;
-#if (HARDWIRED_INCLUDE_DCE == 1)
-        if (pTree->type == ST_IPC)  // Don't check create for IPC
-        {
-          externalFid = fid;
-        }
-        else
-
-#endif
         externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0,smb2flags);
 
         if (externalFid < 0)

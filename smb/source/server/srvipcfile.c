@@ -138,6 +138,7 @@ int rtsmb_ipcrpc_filesys_init(void)
 // Simple stream model for write command /read result IPC inerface
 static StreamtoSrvSrvc SrvSrvcStreams[10];
 
+static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc);
 static int AllocSrvSrvcStreamFid(void)
 {
 int i;
@@ -151,7 +152,13 @@ int i;
       return i|HARDWIRED_SRVSVC_FID;
      }
    }
-   return -1;
+   // Oops Out of these, probably because they weren't closed
+   // This should not happen so recycle one now and alert
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"AllocSrvSrvcStreamFid:  Force to reuse FID[0].\n");
+   FreeSrvSrvcStream(&SrvSrvcStreams[0]);
+   SrvSrvcStreams[0].in_use = FALSE;
+   return AllocSrvSrvcStreamFid();
+//   return -1;
 }
 
 
@@ -175,11 +182,8 @@ static StreamtoSrvSrvc *FdToSrvSrvcStream(int fd)
 // Bind SMB2 stream pointer to fd file descriptor so we can get to context items from IOCTL calls that are accessed through the file system
 void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
 {
-  if (IS_SRVSVC_FID(fd))
-  {
-    StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
-    pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
-  }
+  StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
+  pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
 }
 static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
 {
@@ -195,6 +199,11 @@ static BBOOL ipcrpc_is_lsarpc(char RTSMB_FAR * name)
   return (rtsmb_casecmp ((PFRTCHAR)name, (PFRTCHAR)_rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
 }
 static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode)
+{
+  return -1; // Do these in unicode
+}
+
+static int ipcrpc_wopen(unsigned short RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
     int fd = -1;
     // lsarpc
@@ -213,12 +222,6 @@ static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned shor
     return fd;
 }
 
-static int ipcrpc_wopen(unsigned short RTSMB_FAR * name, unsigned short flag, unsigned short mode)
-{
-  return (-1);
-//  return ipcrpc_open((char RTSMB_FAR *)name, flag, mode);
-}
-
 
 // Read the results of a write command that actually went to the dce layer.
 // If reply_status_code is non zero, then no return data was stored, just return the 4 byte status.
@@ -227,7 +230,6 @@ static long ipcrpc_read(int fd,  unsigned char RTSMB_FAR * buf, long count)
 {
     long rv = -1;
 
-    if (IS_SRVSVC_FID(fd))
     {  // We are reading the results of a write command that actuall went to the dce layer.
        // If reply_status_code id non zero, then no return data was buffered, just return the 4 byte ststu.
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
@@ -254,7 +256,6 @@ static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
 {
     int r;
     long rv = -1;
-    if (IS_SRVSVC_FID(fd))
     {  // This is hacky, call the srvsrvc call
        StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
        FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
@@ -277,7 +278,6 @@ static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
 static int ipcrpc_close(int fd)
 {
     int rv = -1;
-    if (IS_SRVSVC_FID(fd))
     {
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
       FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
@@ -288,18 +288,13 @@ static int ipcrpc_close(int fd)
 
 static long ipcrpc_lseek(int fd, long offset, int origin)
 {
-    long rv = -1;
-    if (IS_SRVSVC_FID(fd))
-      rv = 0;
+    long rv = 0;
     return rv;
 
 }
 static BBOOL ipcrpc_srvsvc_stub(int fd)
 {
-  if (IS_SRVSVC_FID(fd))
-     return TRUE;
-  else
-     return FALSE;
+  return TRUE;
 }
 
 static BBOOL ipcrpc_truncate(int fd, long offset)
@@ -414,8 +409,8 @@ static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
 
 static BBOOL ipcrpc_wstat(unsigned short RTSMB_FAR * name, PSMBFSTAT vstat)
 {
-    return (-1);
-//    return ipcrpc_stat(name, vstat);
+    return ipcrpc_stat(name, vstat);
+//    return (-1);
 }
 
 static BBOOL ipcrpc_chmode(char RTSMB_FAR * name, unsigned char attributes)

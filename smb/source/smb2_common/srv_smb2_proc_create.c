@@ -122,6 +122,14 @@ typedef RTSMB2_CREATE_DECODED_CREATE_CONTEXTS RTSMB_FAR *PRTSMB2_CREATE_DECODED_
 #define RTSMB2_CREATE_CONTEXT_WIRE_SIZE (sizeof(RTSMB2_CREATE_CONTEXT_WIRE)-1) // -1 because buffer is optional
 
 
+word RTSmb2_get_externalFid(byte *smb2_file_handle)
+{
+  word externalFid;
+  externalFid = *((word *) &smb2_file_handle[8]);
+//  externalFid = *((word *) &smb2_file_handle[0]);
+  return externalFid;
+}
+
 
 
 
@@ -138,6 +146,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     BBOOL wants_read = FALSE, wants_write = FALSE, wants_attr_write = FALSE;
     BBOOL wants_extra_pMxAc_info = FALSE;
     BBOOL wants_extra_pQfid_info = FALSE;
+    BBOOL wants_extra_DHnQ_info = FALSE;
     dword CreateAction = 1; // 1== FILE_OPEN, 0 = SUPER_SEDED, 2=CREATED, 3=OVERWRITTEN
     int flags = 0, mode;
     SMBFSTAT stat;
@@ -332,37 +341,40 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
-      /* If we have a normal filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-    /* We check if the client is trying to make a directory.  If so, make it   */
-      if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
-      {
-          if (ON (flags, RTP_FILE_O_CREAT))
-          {
-              ASSERT_SMB2_PERMISSION (pStream, SECURITY_READWRITE);
-              SMBFIO_Mkdir (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
-              TURN_OFF (flags, RTP_FILE_O_EXCL);
-              CreateAction = 2; // File created
-          }
-      }
+      if (pTree->type == ST_DISKTREE)
+      { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
 
-      if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
-      {
-        if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
-        { // Don't succeed if they are requesting a directory but the object is not one
-          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
-          return TRUE;
+      /* We check if the client is trying to make a directory.  If so, make it   */
+        if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
+        {
+            if (ON (flags, RTP_FILE_O_CREAT))
+            {
+                ASSERT_SMB2_PERMISSION (pStream, SECURITY_READWRITE);
+                SMBFIO_Mkdir (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+                TURN_OFF (flags, RTP_FILE_O_EXCL);
+                CreateAction = 2; // File created
+            }
         }
-        if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
-        { // Don't succeed if they are requesting a non-directory but the object is one
-          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
-          return TRUE;
+
+        if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        {
+          if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
+          { // Don't succeed if they are requesting a directory but the object is not one
+            RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
+            return TRUE;
+          }
+          if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
+          { // Don't succeed if they are requesting a non-directory but the object is one
+            RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
+            return TRUE;
+          }
         }
-      }
-      if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
-      {
-         smb2flags = SMB2DELONCLOSE;
-         //         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
-         //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+        if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
+        {
+           smb2flags = SMB2DELONCLOSE;
+           //         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+           //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+        }
       }
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR) file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
     }
@@ -372,12 +384,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
     }
+    if (decoded_create_context.pDHnQ)
+      wants_extra_DHnQ_info = TRUE;
     if (decoded_create_context.pMxAc)
       wants_extra_pMxAc_info = TRUE;
     if (decoded_create_context.pQFid)
       wants_extra_pQfid_info = TRUE;
-
-
 
     response.StructureSize = 89;
     response.OplockLevel = 0; // command.RequestedOplockLevel;
@@ -393,9 +405,13 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
     // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
     {
-     dword *dw = (dword *)&response.FileId[0];
-     *dw++  = externalFid; // Encode the 32 bit file handle in the reply
-     *dw    = 0xABCD;      // Tag it to identify it, for no particular reason, remove later
+//     tc_memcpy(&response.FileId[8],stat.unique_fileid,8);
+//     dword *dw = (dword *)&response.FileId[0];
+//     *dw  = externalFid; // Encode the 32 bit file handle in the reply
+
+     tc_memcpy(response.FileId,stat.unique_fileid,8);
+     dword *dw = (dword *)&response.FileId[8];
+     *dw  = externalFid; // Encode the 32 bit file handle in the reply
     }
     response.CreateContextsOffset = 0;
     response.CreateContextsLength = 0;
@@ -408,6 +424,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     unsigned char responsebuff[512];
 //printf("!!!! Force pQfid false\n");
 //    wants_extra_pMxAc_info=wants_extra_pQfid_info = FALSE;
+    if (wants_extra_DHnQ_info)
+    {
+      ;
+    }
     if (wants_extra_pMxAc_info && wants_extra_pQfid_info)
     {
       pStream->WriteBufferParms[0].pBuffer = (byte *) responsebuff;
