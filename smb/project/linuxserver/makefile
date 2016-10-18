@@ -9,12 +9,14 @@ incpath = .
 
 # cflags+= -D SUPPORT_SMB2 -Wno-sign-conversion -Wno-sign-compare -Wno-conversion -Wno-format
 cflags+= -D SUPPORT_SMB2
-# cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format  -Wconversion -Wextra
-cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format
+# cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format
 # -Wno-conversion eliminates 50 of our 150 warning
 cflags+= -Wno-conversion -Wextra
 # don't complain wehn we use #warning
-cflags+= -Wno-cpp
+#cflags+= -Wno-cpp
+cflags+=-funsigned-char
+cflags+= -Wno-format
+
 
 ## SET SMB_PATH
 SMB_PATH = ../..

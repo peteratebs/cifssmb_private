@@ -54,7 +54,6 @@ ifeq ($(compiler),GNUCOMPILER)
 
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
-	@echo @gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 $(OBJDIR)/%.$(obj): %.cpp
