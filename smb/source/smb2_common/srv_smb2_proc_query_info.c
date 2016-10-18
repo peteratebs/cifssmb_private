@@ -20,6 +20,11 @@
 #define FAKE_SECTORS_PER_ALLOCATION_UNIT    2
 #define FAKE_BYTES_PER_SECTOR               512
 
+unsigned char FAKE_VOLUME_LABEL[] = "I\0A\0M\0A\0F\0A\0K\0E\0L\0A\0B\0E\0L\0\0\0";
+unsigned char FAKE_VOLUME_CREATION_TIME[] = {0x00, 0x78, 0x6b, 0x02, 0xbf, 0x27, 0xd2, 0x12};
+#define FAKE_VOLUME_SERIAL_NUMBER 0x1234
+
+
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 #include <stdio.h>
@@ -103,6 +108,8 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FS_INFO_01        0x01
 #define SMB2_FS_INFO_FSIZE     0x03  // Size
 #define SMB2_FS_INFO_05        0x05
+#define SMB2_FS_INFO_SIZE_7      0x07
+#define SMB2_FS_INFO_VOLUME    0x08
 #define SMB2_FILE_INFO_ALL       0x12
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
 #define SMB2_FILE_INFO_STANDARD      0x5
@@ -352,6 +359,34 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->BytesPerSector            =  FAKE_BYTES_PER_SECTOR;
        }
        break;
+       case SMB2_FS_INFO_SIZE_7: // 07
+       {
+         MSFSCC_FILE_FS_FULL_SIZE_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO));
+         pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO);
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+         pInfo->TotalAllocationUnits      =  FAKE_ALLOCATION_UNITS;
+         pInfo->CallerAvailableAllocationUnits  =  FAKE_AVAILABLE_UNITS;
+         pInfo->ActualAvailableAllocationUnits  =  FAKE_AVAILABLE_UNITS;
+         pInfo->SectorsPerAllocationUnit  =  FAKE_SECTORS_PER_ALLOCATION_UNIT ;
+         pInfo->BytesPerSector            =  FAKE_BYTES_PER_SECTOR;
+       }
+       break;
+       case SMB2_FS_INFO_VOLUME: // 08
+       {
+         int volume_label_bytes = 2+ (2*rtsmb_len(FAKE_VOLUME_LABEL));
+         MSFSCC_FILE_FS_VOLUME_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_VOLUME_INFO)+volume_label_bytes);
+         pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_VOLUME_INFO)+volume_label_bytes;
+         pStream->WriteBufferParms[0].pBuffer = pInfo;
+         tc_memcpy((void *)&pInfo->VolumeCreationTime, FAKE_VOLUME_CREATION_TIME, sizeof(pInfo->VolumeCreationTime));
+         pInfo->VolumeSerialNumber            =  FAKE_VOLUME_SERIAL_NUMBER;
+         pInfo->VolumeLabelLength             =  volume_label_bytes;
+         pInfo->SupportsObjects               =  0;
+         pInfo->Reserved                      =  0;
+         pInfo++;
+         tc_memcpy((void *) pInfo, FAKE_VOLUME_LABEL, volume_label_bytes);
+       }
+       break;
+
        default:
           not_implemented=TRUE;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo SMB2_0_INFO_FILESYSTEM: Got unknown file class == %X\n", command.FileInfoClass);

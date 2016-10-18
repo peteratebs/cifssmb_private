@@ -1006,6 +1006,30 @@ typedef struct s_MSFSCC_FILE_FS_SIZE_INFO
 PACK_PRAGMA_POP
 
 PACK_PRAGMA_ONE
+// Possible errors STATUS_INFO_LENGTH_MISMATCH 0xC0000004
+typedef struct s_MSFSCC_FILE_FS_FULL_SIZE_INFO
+{
+	ddword TotalAllocationUnits;
+	ddword CallerAvailableAllocationUnits;
+	ddword ActualAvailableAllocationUnits;
+	dword SectorsPerAllocationUnit;
+	dword BytesPerSector;
+} MSFSCC_FILE_FS_FULL_SIZE_INFO;
+PACK_PRAGMA_POP
+
+PACK_PRAGMA_ONE
+// Possible errors STATUS_INFO_LENGTH_MISMATCH 0xC0000004
+typedef struct s_MSFSCC_FILE_FS_VOLUME_INFO
+{
+	ddword VolumeCreationTime;
+	dword VolumeSerialNumber;
+	dword VolumeLabelLength;
+	byte  SupportsObjects;
+	byte  Reserved;
+} MSFSCC_FILE_FS_VOLUME_INFO;
+PACK_PRAGMA_POP
+
+PACK_PRAGMA_ONE
 typedef struct s_MSFSCC_FULL_DIRECTORY_INFO
 {
 	dword file_index;
