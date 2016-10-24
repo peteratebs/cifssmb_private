@@ -126,6 +126,11 @@
 #define SMB2_STATUS_NETWORK_SESSION_EXPIRED     0xC000035C /* The client's session has expired; therefore, the client MUST re-authenticate to continue accessing remote resources. */
 #define SMB2_STATUS_SMB_TOO_MANY_GUIDS_REQUESTED 0xC0000082
 
+#define SMB2_STATUS_DISK_FULL                   0xC000007F
+#define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
+
+
+
 
 #define  STG_E_WRITEFAULT  0x8003001D
 
@@ -201,6 +206,8 @@
 
 
 #define SMB2_0_FileRenameInformation       0x0a
+#define SMB2_0_FileSetDisposition          0x0d
+#define SMB2_0_FileEndofFile               0x14
 
 
 //============================================================================
@@ -927,7 +934,18 @@ typedef struct s_FILE_RENAME_INFORMATION_TYPE_2
     byte    Buffer[1];
 } PACK_ATTRIBUTE FILE_RENAME_INFORMATION_TYPE_2;
 PACK_PRAGMA_POP
-typedef RTSMB2_SET_INFO_C RTSMB_FAR *PRTSMB2_SET_INFO_C;
+typedef FILE_RENAME_INFORMATION_TYPE_2 RTSMB_FAR *PFILE_RENAME_INFORMATION_TYPE_2;
+
+
+PACK_PRAGMA_ONE
+typedef struct s_FILE_DISPOSITION_INFO
+{
+  byte    DeletePending; // 2
+} PACK_ATTRIBUTE FILE_DISPOSITION_INFO;
+PACK_PRAGMA_POP
+
+
+
 
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_SET_INFO_R
@@ -1120,10 +1138,10 @@ typedef struct s_MSFSCC_FILE_NETWORK_OPEN_INFORMATION
 	dword high_last_write_time;
 	dword low_change_time;
 	dword high_change_time;
-	dword low_end_of_file;
-	dword high_end_of_file;
 	dword low_allocation_size;
 	dword high_allocation_size;
+	dword low_end_of_file;
+	dword high_end_of_file;
 	dword extended_file_attributes;
 	dword reserved;
 } MSFSCC_FILE_NETWORK_OPEN_INFORMATION;

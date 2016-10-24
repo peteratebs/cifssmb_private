@@ -313,6 +313,26 @@ int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error
 	return -1; // not found
 }
 
+
+// returns 0 on success
+void SMBU_SetFidSmb2Flags (PSMB_SESSIONCTX pCtx, word external,   dword smb2flags )
+{
+	int i;
+	PUSER user;
+	user = SMBU_GetUser (pCtx, pCtx->uid);
+	if (user == (PUSER)0)
+		return;
+
+	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+		if (user->fids[i] && user->fids[i]->internal >= 0 &&
+			user->fids[i]->external == external)
+		{
+            user->fids[i]->smb2flags = smb2flags;
+            return 0; // not found
+		}
+	return -1; // not found
+}
+
 // returns 0 on success
 int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 {
@@ -415,6 +435,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	return k;
 }
+
 
 
 // uid, tid, external must be valid

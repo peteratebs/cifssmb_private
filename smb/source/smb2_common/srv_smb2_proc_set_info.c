@@ -101,6 +101,66 @@ RTSMB2_SET_INFO_R response;
         }
         break;
     }
+    else if (command.FileInfoClass==SMB2_0_FileSetDisposition)
+    {
+        int i;
+        byte *b;
+        dword smb2flags=0;
+        word fidflags=0;
+        FILE_DISPOSITION_INFO *pInfo = (FILE_DISPOSITION_INFO *)pStream->ReadBufferParms[0].pBuffer;
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
+       // Set the status to success
+        int fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+        if (fid >= 0)
+        {
+          if (pInfo->DeletePending)
+          {
+            smb2flags |= (SMB2FIDSIG|SMB2DELONCLOSE);
+          }
+          else
+            smb2flags&=~(SMB2FIDSIG|SMB2DELONCLOSE);
+          SMBU_SetFidSmb2Flags (pStream->psmb2Session->pSmbCtx,externalFid ,smb2flags );
+          break;
+        }
+        else
+        {
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+          goto free_bail;
+        }
+        break;
+    }
+    else if (command.FileInfoClass==SMB2_0_FileEndofFile)
+    {
+        int i;
+        byte *b;
+        dword smb2status = 0;
+        dword smb2flags = 0;
+        word fidflags=0;
+        ddword *pInfo = (ddword *)pStream->ReadBufferParms[0].pBuffer;
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
+       // Set the status to success
+        int fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+//        smb2status = SMB2_STATUS_INVALID_PARAMETER;
+//        smb2status = SMB2_STATUS_DISK_FULL;
+//        smb2status = SMB2_STATUS_INFO_LENGTH_MISMATCH;
+
+        if (fid >= 0)
+        {
+           if (!SMBFIO_Truncate (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid, (dword) *pInfo))
+           {
+             RtsmbWriteSrvStatus(pStream,SMB2_STATUS_ACCESS_DENIED);
+             goto free_bail;
+           }
+        }
+        else
+        {
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+          goto free_bail;
+        }
+        break; // Success
+    }
     // Fall through
     case SMB2_0_INFO_FILESYSTEM:
     case SMB2_0_INFO_SECURITY  :
