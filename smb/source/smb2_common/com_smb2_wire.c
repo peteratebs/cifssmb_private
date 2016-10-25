@@ -260,7 +260,10 @@ PFVOID s=buf;
             }
 	    }
         if (!pStream->ReadBufferParms[0].pBuffer || BufferLength > pStream->ReadBufferParms[0].byte_count)
+        {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"RtsmbWireVarDecode  failed(pBuffer, Length, bytes alloced)): %ld %ld %ld\n", pStream->ReadBufferParms[0].pBuffer,BufferLength,pStream->ReadBufferParms[0].byte_count);
             return -1;
+        }
         pStream->ReadBufferParms[0].byte_count = BufferLength;
         RTSMB_READ_ITEM  (pStream->ReadBufferParms[0].pBuffer, pStream->ReadBufferParms[0].byte_count);
     }

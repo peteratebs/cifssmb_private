@@ -404,7 +404,7 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
             return &Smb2Sessions[i];
         }
     }
-    rtp_printf("Leak: - Force session aloc\n");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Leak: - Force session aloc\n");
     return &Smb2Sessions[0];
 }
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)

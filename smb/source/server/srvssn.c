@@ -44,6 +44,8 @@
 
 #include "rtptime.h"
 
+#define DOPUSH 1
+
 #ifdef SUPPORT_SMB2
 #include "com_smb2_wiredefs.h"
 extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
@@ -4458,6 +4460,51 @@ void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
 }
 
 /* this changes the permenant buffers used by this session   */
+BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave, dword inSize, dword outSize)
+{
+
+    pCtxSave->smallReadBuffer = pCtx->smallReadBuffer;
+    pCtxSave->smallWriteBuffer = pCtx->smallWriteBuffer;
+    pCtxSave->readBuffer = pCtx->readBuffer;
+    pCtxSave->readBufferSize = pCtx->readBufferSize;
+    pCtxSave->writeBuffer = pCtx->writeBuffer;
+    pCtxSave->writeBufferSize = pCtx->writeBufferSize;
+
+    pCtx->readBufferSize = inSize;
+    pCtx->writeBufferSize = outSize;
+
+    pCtx->readBuffer  = rtp_malloc(inSize);
+    pCtx->writeBuffer = rtp_malloc(outSize);
+    if (!pCtx->readBuffer || !pCtx->writeBuffer)
+    {
+      SMBS_PopContextBuffers (pCtx, pCtxSave);
+      return FALSE;
+    }
+printf("pCtx %X Alloced %X and %X\n",pCtx,pCtx->readBuffer, pCtx->writeBuffer );
+    pCtx->smallReadBuffer = pCtx->readBuffer;
+    pCtx->smallWriteBuffer =  pCtx->writeBuffer;
+
+    return TRUE;
+}
+
+/* this changes the permanent buffers used by this session   */
+void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave)
+{
+printf("pCtx %X Free %X and %X\n", pCtx->readBuffer, pCtx->readBuffer, pCtx->writeBuffer );
+    if (pCtx->readBuffer)  rtp_free(pCtx->readBuffer);
+    if (pCtx->writeBuffer)  rtp_free(pCtx->writeBuffer);
+
+    pCtx->smallReadBuffer  = pCtxSave->smallReadBuffer;
+    pCtx->smallWriteBuffer = pCtxSave->smallWriteBuffer;
+    pCtx->readBuffer       = pCtxSave->readBuffer;
+    pCtx->readBufferSize   = pCtxSave->readBufferSize;
+    pCtx->writeBuffer      = pCtxSave->writeBuffer;
+    pCtx->writeBufferSize  = pCtxSave->writeBufferSize;
+}
+
+
+
+/* this changes the permenant buffers used by this session   */
 void SMBS_SetBuffers (PSMB_SESSIONCTX pCtx, PFBYTE inBuf, dword inSize, PFBYTE outBuf, dword outSize, PFBYTE tmpBuf, dword tmpSize)
 {
     pCtx->smallReadBuffer = inBuf;
@@ -4493,6 +4540,13 @@ void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
     for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
         if (pSmbCtx->trees[i].inUse)
             Tree_Shutdown (pSmbCtx, &pSmbCtx->trees[i]);
+#if (DOPUSH)
+    if (pSmbCtx->protocol_version == 2)
+    {
+       SMBS_PopContextBuffers (pSmbCtx, &pSmbCtx->CtxSave);
+       pSmbCtx->protocol_version = 1;
+    }
+#endif
 }
 
 #if (INCLUDE_RTSMB_DC)
@@ -4613,20 +4667,26 @@ static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
 #endif
     return 0;
 }
+SMB_SESSIONCTX_SAVE_T CtxSave;
 
 BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 {
-    PFBYTE pInBuf;
+    PFBYTE pInBuf,pSavedreadBuffer;
     PFVOID pOutBuf;
     BBOOL doSend = FALSE;
     BBOOL doSocketClose = FALSE;
     int length;
+    int protocol_version = 0;
+
+
 
     pSctx->doSocketClose = FALSE;
     /**
      * If they are sending larger packets than we told them to, shut off contact.
      */
-    if (packetSize > pSctx->readBufferSize)
+
+    if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
+//    if (packetSize > pSctx->readBufferSize)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
         return TRUE; /* eat the packet */
@@ -4644,14 +4704,18 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     /**
      * Set up incoming and outgoing header.
      */
+
     pInBuf = (PFBYTE) SMB_INBUF (pSctx);
     pOutBuf = SMB_OUTBUF (pSctx);
+    pSavedreadBuffer =  pInBuf;
+    pSavedreadBuffer -= RTSMB_NBSS_HEADER_SIZE;
+rtsmb_dump_bytes("Top: ", pSavedreadBuffer, 5+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
 
     switch (pSctx->state)
     {
     case WRITING_RAW:
 
-        pSctx->in_packet_size = (word) packetSize;
+        pSctx->in_packet_size =  packetSize;
         pSctx->current_body_size = 0;
         pSctx->in_packet_timeout_base = rtp_get_system_msec();
 
@@ -4708,18 +4772,19 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
 #ifdef SUPPORT_SMB2
     case NOTCONNECTED:
 #endif
+#define SMBSIGSIZE 4
     case IDLE:
     {
         /**
          * Read starting bytes from the wire.
          */
-        if ((length = rtsmb_net_read (pSctx->sock, pInBuf,
-            pSctx->readBufferSize, 5)) < 0)
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"cycle IDLE: call rtsmb_net_read. %d\n",SMBSIGSIZE);
+        if ((length = rtsmb_net_read (pSctx->sock, pInBuf, pSctx->readBufferSize, SMBSIGSIZE)) < 0)
         {
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
             return FALSE;
         }
-        int protocol_version = SMBS_CheckPacketVersion(pInBuf);
+        protocol_version = SMBS_CheckPacketVersion(pInBuf);
         /**
          * If the packet is not an SMB, end connection.
          */
@@ -4737,8 +4802,32 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         }
         // If
 #ifdef SUPPORT_SMB2
+        if (!pSctx->protocol_version)
+           pSctx->protocol_version=1;
         if (protocol_version == 2 && gl_disablesmb2)
           return FALSE;
+        if (pSctx->protocol_version != protocol_version)
+        {
+#if (DOPUSH)
+rtsmb_dump_bytes("Swap start saved: ", pSavedreadBuffer, SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
+          if (protocol_version == 2)
+          {
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
+            if (!SMBS_PushContextBuffers (pSctx, &pSctx->CtxSave, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE))
+                return FALSE;
+             // Copy the start of the frame to to smb2 buffer we hjust allocated
+             tc_memcpy(pSctx->readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
+rtsmb_dump_bytes("Swap start after: ", pSctx->readBuffer, SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
+          }
+          else
+          {  // Copy the smb2 buffer to the originginla buffer befroe we release the smb2 buffer
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopContextBuffers.\n");
+             tc_memcpy(pSctx->CtxSave.readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
+             SMBS_PopContextBuffers (pSctx, &pSctx->CtxSave);
+          }
+#endif
+        }
+        pSctx->protocol_version = protocol_version;
         // Start a new session if we are connected and the current protocol doesn't match the incoming packet
         if (pSctx->state == IDLE)
         {
@@ -4762,9 +4851,14 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
                 SMBS_InitSessionCtx_smb2(pSctx);
                 /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
                 pSctx->isSMB2 = TRUE;
+//            pSctx->in_packet_size = packetSize;
+//            pSctx->current_body_size = 0;
+//..RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_PushContextBuffers.\n");
+               // The buffer changed but we rely on the NBSS_HEADER being present
             }
             else
             {
+                // SMBS_PopContextBuffers (pSctx, &CtxSave);
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n");
                 SMBS_InitSessionCtx_smb1(pSctx);
                 pSctx->isSMB2 = FALSE;
@@ -4776,8 +4870,8 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
 #endif
         }
 #endif
-        pSctx->in_packet_size = (word) (packetSize);
-        pSctx->current_body_size = 5;
+        pSctx->in_packet_size = packetSize;
+        pSctx->current_body_size = SMBSIGSIZE;
         pSctx->in_packet_timeout_base = rtp_get_system_msec();
     }
     case READING:
@@ -4804,6 +4898,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     {
         return SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
     }
+
     if (pSctx->doSocketClose)
         return FALSE;
     else
@@ -4875,8 +4970,9 @@ RTSMB_GET_SRV_SESSION_STATE (WAIT_ON_PDC_IP);
     /**
      * Read remaining bytes from wire (there should be a header there already).
      */
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody : call rtsmb_net_read. %d, %d %d\n",pSctx->in_packet_size,pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size);
     if ((length = rtsmb_net_read (pSctx->sock, (PFBYTE) PADD (pInBuf, pSctx->current_body_size),
-        (word) (pSctx->readBufferSize - pSctx->current_body_size), pSctx->in_packet_size - pSctx->current_body_size)) < 0)
+        pSctx->readBufferSize - pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size)) < 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Error on read.\n");
         return FALSE;

@@ -305,7 +305,7 @@ int rtsmb_server_config(void)
    PNET_SESSIONCTX  * sessionList    = safemalloc(sizeof(PNET_SESSIONCTX ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_MAX_SESSIONS);
    byte             * inBuffer       = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE);
    byte             * outBuffer      = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE);
-   byte             * tmpBuffer      = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE);
+   byte             * tmpBuffer      = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_TEMP_BUFFER_SIZE);
    byte             * namesrvBuffer  = safemalloc(sizeof(byte            ) * CFG_RTSMB_SMALL_BUFFER_SIZE);
    byte             * client_buffer  = safemalloc(sizeof(byte            ) * CFG_RTSMB_SMALL_BUFFER_SIZE);
    SR_RESOURCE_T    * shareTable     = safemalloc(sizeof(SR_RESOURCE_T   ) * CFG_RTSMB_MAX_SHARES);
@@ -327,7 +327,13 @@ int rtsmb_server_config(void)
    prtsmb_srv_ctx->max_shares            = CFG_RTSMB_MAX_SHARES;
    prtsmb_srv_ctx->max_groups            = CFG_RTSMB_MAX_GROUPS;
    prtsmb_srv_ctx->max_users             = CFG_RTSMB_MAX_USERS;
-   prtsmb_srv_ctx->small_buffer_size     = CFG_RTSMB_SMALL_BUFFER_SIZE;
+   prtsmb_srv_ctx->max_smb2_transaction_size  = HARDWIRED_SMB2_MAX_TRANSACTION_SIZE;
+   prtsmb_srv_ctx->max_smb1_transaction_size  = (HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE);
+   prtsmb_srv_ctx->small_buffer_size     = CFG_RTSMB_SMALL_BUFFER_SIZE_VETTED;
+   prtsmb_srv_ctx->in_buffer_size        = CFG_RTSMB_IN_BUFFER_SIZE_VETTED;
+   prtsmb_srv_ctx->out_buffer_size       = CFG_RTSMB_OUT_BUFFER_SIZE_VETTED;
+   prtsmb_srv_ctx->temp_buffer_size      = CFG_RTSMB_TEMP_BUFFER_SIZE;
+
    prtsmb_srv_ctx->big_buffer_size       = CFG_RTSMB_BIG_BUFFER_SIZE;
    prtsmb_srv_ctx->num_big_buffers       = CFG_RTSMB_NUM_BIG_BUFFERS;
    prtsmb_srv_ctx->max_fids_per_uid      = CFG_RTSMB_MAX_FIDS_PER_UID;

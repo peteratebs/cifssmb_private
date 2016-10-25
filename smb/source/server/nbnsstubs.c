@@ -229,8 +229,11 @@ RTP_SOCKET rtsmb_nbds_get_socket (void) {return 0;};
 int rtsmb_nbss_fill_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct)
 {
     PACK_BYTE (buf, &size, pStruct->type, -1);
-    PACK_BYTE (buf, &size, (byte) ((size > 0xFFFF) ? 0x1 : 0), -1);
-    PACK_WORD (buf, &size, (word) (pStruct->size & 0xFFFF), TRUE, -1);
+//    PACK_BYTE (buf, &size, (byte) ((size > 0xFFFF) ? 0x1 : 0), -1);
+    PACK_BYTE (buf, &size, (byte) (pStruct->size>>16 & 0xFF), -1);
+    PACK_BYTE (buf, &size, (byte) (pStruct->size>>8 & 0xFF), -1);
+    PACK_BYTE (buf, &size, (byte) (pStruct->size & 0xFF), -1);
+//    PACK_WORD (buf, &size, (word) (pStruct->size & 0xFFFF), TRUE, -1);
 
     return RTSMB_NBSS_HEADER_SIZE;
 }
@@ -321,15 +324,21 @@ void rtsmb_srv_nbns_init (PFCHAR net_name, PFCHAR group_name)
  */
 int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct)
 {
-    byte command, flags;
-    word datasize;
+    byte header_bytes[4];
+//    byte command, flags;
+//    word datasize;
+//    READ_BYTE (buf, &size, &command, -1);
+//    READ_BYTE (buf, &size, &flags, -1);
+//    READ_WORD (buf, &size, &datasize, TRUE, -1);
+//    pStruct->type = command;
+//    pStruct->size = (dword) (datasize + (word)((flags & 0x1) ? 0xFFFF : 0));
+    READ_BYTE (buf, &size, &header_bytes[0], -1);
+    READ_BYTE (buf, &size, &header_bytes[1], -1);
+    READ_BYTE (buf, &size, &header_bytes[2], -1);
+    READ_BYTE (buf, &size, &header_bytes[3], -1);
 
-    READ_BYTE (buf, &size, &command, -1);
-    READ_BYTE (buf, &size, &flags, -1);
-    READ_WORD (buf, &size, &datasize, TRUE, -1);
-
-    pStruct->type = command;
-    pStruct->size = (dword) (datasize + (word)((flags & 0x1) ? 0xFFFF : 0));
+    pStruct->type = header_bytes[0];
+    pStruct->size = ((dword)header_bytes[1]<<16) +  ((dword)header_bytes[2]<<8) +((dword)header_bytes[3]);
 
     return RTSMB_NBSS_HEADER_SIZE;
 }
@@ -342,10 +351,11 @@ int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStr
  * Returns FALSE if we should end the session.
  */
 
-BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)
+BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_net_session_cycle
 {
 	RTSMB_NBSS_HEADER header;
-
+    byte header_bytes[4];
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: call rtsmb_net_read.\n");
 	if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
 	{
 		return FALSE;
@@ -357,10 +367,17 @@ BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)
 	switch (header.type)
 	{
 		case RTSMB_NBSS_COM_MESSAGE:	/* Session Message */
-
-			if (!SMBS_ProcSMBPacket (pSCtx, header.size))
-			{
-				return FALSE;
+            if (!header.size)
+            {
+               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_nbss_process_packet ignoring 0-length packet\n");
+            }
+            else
+            {
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet : call SMBS_ProcSMBPacket(%d).\n",header.size);
+			  if (!SMBS_ProcSMBPacket (pSCtx, header.size))   //rtsmb_srv_nbss_process_packet stubs ?
+			  {
+			    return FALSE;
+			  }
 			}
 			break;
 

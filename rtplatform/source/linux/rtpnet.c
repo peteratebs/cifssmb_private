@@ -640,7 +640,21 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
     }
 
     *connectSock = (RTP_HANDLE)conSocket;
+#if (0)
+int rcvbuf;
+socklen_t len;
+len = sizeof(rcvbuf);
+getsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &len);
+//len = sizeof(mss);
+//getsockopt(conSocket, IPPROTO_TCP, TCP_MAXSEG, &mss, &len);
+//printf("defaults: SO_RCVBUF = %d, MSS = %d\n", rcvbuf, mss);
 
+rcvbuf = 131072;      /* a prime number */
+setsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+len = sizeof(rcvbuf);
+getsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &len);
+printf("SO_RCVBUF = %d (after setting it to 9973)\n\n\n\n", rcvbuf);
+#endif
     getnameinfo((struct sockaddr *)&clientAddr, clientLen,
                     clientHost, sizeof(clientHost),
                     0, 0, NI_NUMERICHOST);
@@ -981,17 +995,27 @@ int result;
 /*----------------------------------------------------------------------*
                            rtp_net_send
  *----------------------------------------------------------------------*/
+
+#define MAX_SEND_SIZE 32768
+#define MAX_RECV_SIZE 32768
+
 long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long size)
 {
     ssize_t result;
+    ssize_t return_result = 0;
 
     /* ----------------------------------- */
     /*  Clear the error state by setting   */
     /*  to 0.                              */
     /* ----------------------------------- */
     errno = 0;
+    while (size)
+    {
+     size_t ssize = MAX_SEND_SIZE;
 
-    result = send((int) sockHandle, (const char *) buffer, (size_t) size, 0);
+     if (size < ssize)
+       ssize = size;
+     result = send((int) sockHandle, (const char *) buffer, (size_t) ssize, 0);
 
     if (result == -1)
     {
@@ -1011,7 +1035,11 @@ long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long siz
 #endif
         return (-1);
     }
-    return ((long) result);
+    size -= result;
+    buffer += result;
+    return_result += result;
+    }
+    return ((long) return_result);
 }
 
 
@@ -1021,6 +1049,7 @@ long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long siz
 long rtp_net_recv (RTP_HANDLE sockHandle, unsigned char * buffer, long size)
 {
     ssize_t result;
+    ssize_t return_result = 0;
 
     /* ----------------------------------- */
     /*  Clear the error state by setting   */
@@ -1028,31 +1057,41 @@ long rtp_net_recv (RTP_HANDLE sockHandle, unsigned char * buffer, long size)
     /* ----------------------------------- */
     errno = 0;
 
-    result = recv((int) sockHandle, (char *) buffer, (size_t) size, 0);
-
-    if (result == -1)
+    while (size)
     {
-        if ((errno == EINTR) || (errno == EAGAIN))
-        {
-#ifdef RTP_DEBUG
-            RTP_DEBUG_OUTPUT_STR("rtp_net_recv: non-fatal error returned ");
+      size_t ssize = MAX_RECV_SIZE;
+
+      if (size < ssize)
+        ssize = size;
+      result = recv((int) sockHandle, (char *) buffer, (size_t) ssize, 0);
+printf ("Reciev reqest:%ld Acltual:%ld\n", ssize,result);
+      if (result == -1)
+      {
+          if ((errno == EINTR) || (errno == EAGAIN))
+          {
+    #ifdef RTP_DEBUG
+                RTP_DEBUG_OUTPUT_STR("rtp_net_recv: non-fatal error returned ");
+                RTP_DEBUG_OUTPUT_INT(errno);
+              RTP_DEBUG_OUTPUT_STR(".\n");
+    #endif
+                return (-2);
+            }
+  #ifdef RTP_DEBUG
+            RTP_DEBUG_OUTPUT_STR("rtp_net_recv: error returned ");
             RTP_DEBUG_OUTPUT_INT(errno);
             RTP_DEBUG_OUTPUT_STR(".\n");
-#endif
-            return (-2);
-        }
-#ifdef RTP_DEBUG
-        RTP_DEBUG_OUTPUT_STR("rtp_net_recv: error returned ");
-        RTP_DEBUG_OUTPUT_INT(errno);
-        RTP_DEBUG_OUTPUT_STR(".\n");
-#endif
-        return (-1);
+    #endif
+          return (-1);
+      }
+      size -= result;
+      buffer += result;
+      return_result += result;
     }
-    return ((long) result);
+    return ((long) return_result);
 }
 
 
-/*----------------------------------------------------------------------*
+  /*----------------------------------------------------------------------*
                            rtp_net_sendto
  *----------------------------------------------------------------------*/
 long rtp_net_sendto (RTP_HANDLE sockHandle,

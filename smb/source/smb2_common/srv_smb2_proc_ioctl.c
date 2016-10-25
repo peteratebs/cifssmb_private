@@ -30,8 +30,6 @@
 static BBOOL isAnInvalidFSCTLRequest(dword requestid)
 {
   switch (requestid) {
-    case FSCTL_GET_OBJECT_ID:
-    case FSCTL_CREATE_OR_GET_OBJECT_ID:
     case FSCTL_DELETE_OBJECT_ID:
     case FSCTL_DELETE_REPARSE_POINT:
     case FSCTL_DUPLICATE_EXTENTS_TO_FILE:
@@ -127,6 +125,41 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       error_status = SMB2_STATUS_INVALID_DEVICE_REQUEST;  // Return this to continue mounting
     else if (command.CtlCode == FSCTL_DFS_GET_REFERRALS)
       error_status = SMB2_STATUS_NOT_FOUND;  // Return this to continue mounting
+    else if (command.CtlCode == FSCTL_GET_OBJECT_ID || command.CtlCode == FSCTL_CREATE_OR_GET_OBJECT_ID)
+    {
+      BBOOL worked = FALSE;
+      SMBFSTAT stat;
+      PFRTCHAR filepath;
+      byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+      word externalFid = RTSmb2_get_externalFid(pFileId);
+      filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+      if (filepath && SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat))
+         worked = TRUE;
+      if(worked == FALSE)
+      {
+
+        if (command.CtlCode == FSCTL_CREATE_OR_GET_OBJECT_ID)
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_DUPLICATE_NAME);
+        else
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_OBJECTID_NOT_FOUND);
+        return TRUE;
+      }
+      unsigned char *p = (unsigned char *) pStream->WriteBufferParms[0].pBuffer;
+      // Memset so uninitialized fields are zeros
+      tc_memset(p, 0, 64);
+//      ObjectId (16 bytes)
+      tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
+//      BirthVolumeId (16 bytes)  // 0
+//      BirthObjectId (16 bytes)
+      tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+//      DomainId (16 bytes)       // 0
+      response.OutputCount = 64;
+      // The extended type is this..
+//      ObjectId (16 bytes)
+//      ExtendedInfo (48 bytes)
+
+
+    }
     else if (command.CtlCode == FSCTL_VALIDATE_NEGOTIATE_INFO) //         0x00140204
     {
       VALIDATE_NEGOTIATE_INFO_R *answer = (VALIDATE_NEGOTIATE_INFO_R *) pStream->WriteBufferParms[0].pBuffer;

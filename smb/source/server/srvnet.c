@@ -139,7 +139,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
         pNetCtx->lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->smbCtx), pNetCtx->sock);
 
-        SMBS_SetBuffers (&pNetCtx->smbCtx, pThread->inBuffer, prtsmb_srv_ctx->small_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->small_buffer_size, pThread->tmpBuffer, prtsmb_srv_ctx->small_buffer_size);
+        SMBS_SetBuffers (&pNetCtx->smbCtx, pThread->inBuffer, prtsmb_srv_ctx->in_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->out_buffer_size, pThread->tmpBuffer, prtsmb_srv_ctx->temp_buffer_size);
 
         return pNetCtx;
     }
@@ -379,8 +379,8 @@ RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD p
          * We must also switch buffer pointers to correct place.
          */
         SMBS_SetBuffers (&pThread->sessionList[k]->smbCtx, pThread->inBuffer,
-            prtsmb_srv_ctx->small_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->small_buffer_size,
-            pThread->tmpBuffer, prtsmb_srv_ctx->small_buffer_size);
+            prtsmb_srv_ctx->in_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->out_buffer_size,
+            pThread->tmpBuffer, prtsmb_srv_ctx->temp_buffer_size);
 
         k++;
 
@@ -481,11 +481,15 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
 
     case READING:
     case WRITING_RAW_READING:
-        /* finish reading what we started. */
-        SMBS_ProcSMBPacket (&(*session)->smbCtx,
-            (*session)->smbCtx.in_packet_size - (*session)->smbCtx.current_body_size);
+    {
+        int pcktsize = (int) ((*session)->smbCtx.in_packet_size - (*session)->smbCtx.current_body_size);
+        if (pcktsize = 0)
+        {
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_nbss_process_packet ignoring 0-length packet: %d \n", pcktsize);
+        } else
+           SMBS_ProcSMBPacket (&(*session)->smbCtx, pcktsize);/* rtsmb_srv_net_session_cycle finish reading what we started. */
         break;
-
+    }
     default:
         if (ready)
         {

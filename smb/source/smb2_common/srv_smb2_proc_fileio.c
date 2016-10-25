@@ -42,7 +42,6 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     ASSERT_SMB2_UID(pStream)   // Returns TRUE if the UID is not valid
     ASSERT_SMB2_TID (pStream)  // Returns TRUE if the TID is not valid
 
-
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, command);
 
@@ -63,7 +62,6 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     pargs->pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
     tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
     pargs->externalFid = RTSmb2_get_externalFid(pargs->externalFidRaw);
-
 
     if (pargs->externalFid == 0xffff)
     {
@@ -109,81 +107,54 @@ RTSMB2_READ_R response;       //  17
 RTSMB2_FILEIOARGS fileioargs;
 dword toRead;
 long bytesRead;
-#if(0)
-PACK_PRAGMA_ONE
-typedef struct s_RTSMB2_READ_C
-{
-    word    StructureSize; // 49
-	byte    Padding;
-	byte    Flags;
-	dword   Length;
-	ddword  Offset;
-	byte    FileId[16];
-	dword   MinimumCount;
-	dword   Channel;
-	dword   RemainingBytes;
-	word    ReadChannelInfoOffset;
-	word    ReadChannelInfoLength;
-	byte    Buffer;
-} PACK_ATTRIBUTE RTSMB2_READ_C;
-PACK_PRAGMA_POP
-typedef RTSMB2_READ_C RTSMB_FAR *PRTSMB2_READ_C;
-
-PACK_PRAGMA_ONE
-typedef struct s_RTSMB2_READ_R
-{
-    word  StructureSize; // 17
-	byte  DataOffset;
-	byte  Reserved;
-	dword DataLength;
-	dword DataRemaining;
-	dword Reserved2;
-	byte  Buffer;
-} PACK_ATTRIBUTE RTSMB2_READ_R;
-PACK_PRAGMA_POP
-typedef RTSMB2_READ_R RTSMB_FAR *PRTSMB2_READ_R;
-RTSMB2_FILEIOARGS fileioargs;
-#endif
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
+
     if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,49))
     {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! prolog Failed\n");
       return TRUE;
     }
-
     pStream->WriteBufferParms[0].byte_count = pStream->psmb2Session->Connection->MaxReadSize;
     pStream->WriteBufferParms[0].pBuffer = rtp_malloc(pStream->psmb2Session->Connection->MaxReadSize);
 
-
-    // Set the status to success
-    // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
-
-     toRead = (dword) MIN (pStream->psmb2Session->pSmbCtx->tmpSize, command.Length);
-    // note: command.Flags &0x01 == unbuffered;
-    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
+    if (pStream->write_buffer_remaining <= 512)
     {
-       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
-       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
-       return TRUE;
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! buffer full\n");
+       goto unsuccessful;
+    }
+     // Clip it to the maximum we allocated to read to
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !!Requested: %d \n",command.Length);
+     toRead = (dword) MIN(pStream->WriteBufferParms[0].byte_count,command.Length);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! Clip Requested 1: %d \n",toRead);
+     // Clip it to the maximum size we have for sending data
+     toRead = (dword) MIN (toRead,(pStream->write_buffer_remaining-512));
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! Clip Requested 2: %d \n",toRead);
+
+    // note: command.Flags &0x01 == unbuffered;
+    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
+    {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! seek failed\n");
+       goto unsuccessful;
     }
     else if ((bytesRead = SMBFIO_Read (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->WriteBufferParms[0].pBuffer, toRead)) < 0)
     {
-       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
-       pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
-       return TRUE;
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! read failedd\n");
+       goto unsuccessful;
     }
 	if (bytesRead < command.MinimumCount)
     {
+unsuccessful:
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Read failed\n");
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
        pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
        return TRUE;
     }
-
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize  = 17;
 	response.DataOffset     = sizeof(RTSMB2_HEADER) + 16;
 	response.DataLength     = bytesRead;
-	response.DataRemaining  = 0;
+	response.DataRemaining  = bytesRead;
 
     pStream->WriteBufferParms[0].byte_count = bytesRead;
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
@@ -191,6 +162,7 @@ free_and_out:
     RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
     return TRUE;
 }
+
 BBOOL Proc_smb2_Write(smb2_stream  *pStream)
 {
 RTSMB2_WRITE_C command;
@@ -201,55 +173,30 @@ long bytesWritten;
 #define SMB2_WRITEFLAG_WRITE_THROUGH 0x00000001
 #define SMB2_WRITEFLAG_WRITE_UNBUFFERED 0x00000002
 
-#if(0)
-PACK_PRAGMA_ONE
-typedef struct s_RTSMB2_WRITE_C
-{
-    word    StructureSize; // 49
-	dword   DataOffset;
-	dword   Length;
-	ddword  Offset;
-	byte    FileId[16];
-	dword   Channel;
-	dword   RemainingBytes;
-	word    WriteChannelInfoOffset;
-	word    WriteChannelInfoLength;
-	dword   Flags;
-	byte    Buffer;
-} PACK_ATTRIBUTE RTSMB2_WRITE_C;
-PACK_PRAGMA_POP
-typedef RTSMB2_WRITE_C RTSMB_FAR *PRTSMB2_WRITE_C;
-PACK_PRAGMA_ONE
-typedef struct s_RTSMB2_WRITE_R
-{
-    word  StructureSize; // 17
-	word  Reserved;
-	dword Count;
-	dword Remaining;
-	word  WriteChannelInfoOffset;
-	word  WriteChannelInfoLength;
-} PACK_ATTRIBUTE RTSMB2_WRITE_R;
-PACK_PRAGMA_POP
-typedef RTSMB2_WRITE_R RTSMB_FAR *PRTSMB2_WRITE_R;
-#endif
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
     pStream->ReadBufferParms[0].byte_count = pStream->psmb2Session->Connection->MaxWriteSize;
     pStream->ReadBufferParms[0].pBuffer = rtp_malloc(pStream->psmb2Session->Connection->MaxWriteSize);
 
+
     if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,49))
     {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Write !! prolog Failed with maxB %ld \n",  pStream->ReadBufferParms[0].byte_count);
       goto free_and_out;
     }
-    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
+
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Write !! to offset: %ld cmd size: %ld  byte count: %ld \n",  command.Offset, command.Length, pStream->ReadBufferParms[0].byte_count);
+
+    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
     {
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
        pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
        goto free_and_out;
     }
-    else if ((bytesWritten = SMBFIO_Write(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->ReadBufferParms[0].pBuffer, command.Length)) < 0)
+    else if ((bytesWritten = SMBFIO_Write(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->ReadBufferParms[0].pBuffer, pStream->ReadBufferParms[0].byte_count)) < 0)
     {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Write failed\n");
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
        pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
        goto free_and_out;

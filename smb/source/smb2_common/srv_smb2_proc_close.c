@@ -32,6 +32,22 @@
 #include "srvauth.h"
 #include "smbdebug.h"
 
+extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat);
+
+
+BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat)
+{
+  BBOOL r=FALSE;
+  PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+  if (file_name&&pTree->type == ST_DISKTREE)
+  {
+    if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, pstat))
+    r = TRUE;
+  }
+  if (!r)
+    tc_memset(pstat, 0, sizeof(*pstat));
+  return r;
+}
 
 
 BBOOL Proc_smb2_Close(smb2_stream  *pStream)
@@ -126,20 +142,16 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         {
         // We either need to implement SMBFIO_Fstat or cheat and add a file name store to SMBFIO_OpenInternal and use that in stat, being sure to delete it in SMBFIO_Close()
           SMBFSTAT stat;
-          PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-            if (file_name&&pTree->type == ST_DISKTREE)
-              SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat);
-            else
-              tc_memset(&stat, 0, sizeof(stat));
-            response.Flags          = 0x01; // ??? SMB3 only
-            response.Reserved       = 0; // ??? SMB3 only
-            response.CreationTime   =  *((ddword *) &stat.f_ctime64);
-            response.LastAccessTime =  *((ddword *) &stat.f_atime64);
-            response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
-            response.ChangeTime     =  *((ddword *) &stat.f_htime64);
-            response.AllocationSize  = stat.f_size;
-            response.EndofFile       = stat.f_size;
-            response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+          RTSmb2_get_stat_from_fid(pStream,pTree, externalFid, &stat);
+          response.Flags          = 0x01; // ??? SMB3 only
+          response.Reserved       = 0; // ??? SMB3 only
+          response.CreationTime   =  *((ddword *) &stat.f_ctime64);
+          response.LastAccessTime =  *((ddword *) &stat.f_atime64);
+          response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
+          response.ChangeTime     =  *((ddword *) &stat.f_htime64);
+          response.AllocationSize  = stat.f_size;
+          response.EndofFile       = stat.f_size;
+          response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         }
         if (fidflags != FID_FLAG_DIRECTORY)
             SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);

@@ -138,7 +138,7 @@ BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)
 	{
 		case RTSMB_NBSS_COM_MESSAGE:	/* Session Message */
 
-			if (!SMBS_ProcSMBPacket (pSCtx, header.size))
+			if (!SMBS_ProcSMBPacket (pSCtx, header.size))  // rtsmb_srv_nbss_process_packet
 			{
 				return FALSE;
 			}

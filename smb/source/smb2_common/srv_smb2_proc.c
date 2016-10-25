@@ -181,6 +181,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	if ((header_size = cmd_read_header_raw_smb2 (smb2stream.read_origin, smb2stream.read_origin, smb2stream.InBodySize, &smb2stream.InHdr)) == -1)
 	{
 		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body: Badly formed header");
+rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBIN);
 		return FALSE;
 	}
 	smb2stream.pOutBuf = smb2stream.write_origin;
@@ -273,7 +274,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
        if (NextCommandOffset == 0)
-          pOutHeader->CreditRequest_CreditResponse = 3 + AddtoFinalCreditRequest_CreditResponse;
+          pOutHeader->CreditRequest_CreditResponse = 2 + AddtoFinalCreditRequest_CreditResponse;
 //          pOutHeader->CreditRequest_CreditResponse = 32 + AddtoFinalCreditRequest_CreditResponse;
 //          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
 
@@ -292,7 +293,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
           }
           if (SkipCount > smb2stream.read_buffer_remaining)
           {
-             rtp_printf("SMBS_ProcSMB2_Body: Bad Compound request:\n");
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: Bad Compound request:\n");
+             isCompoundReply = FALSE;
           }
           else
           {
@@ -423,7 +425,7 @@ unsigned int SkipCount;
     SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
     if (SkipCount > (rtsmb_size)pStream->write_buffer_remaining)
     {
-      rtp_printf("SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: Compound request: write buffer full\n");
       return FALSE;
     }
     else
@@ -607,6 +609,10 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
     pStream->psmb2Session->Connection->MaxTransactSize = pSctx->readBufferSize;
     pStream->psmb2Session->Connection->MaxWriteSize = pSctx->writeBufferSize;
     pStream->psmb2Session->Connection->MaxReadSize = pSctx->readBufferSize;
+
+    pStream->psmb2Session->Connection->MaxTransactSize =
+    pStream->psmb2Session->Connection->MaxWriteSize =
+    pStream->psmb2Session->Connection->MaxReadSize = prtsmb_srv_ctx->max_smb2_transaction_size;
 	/**
 	 * Set up outgoing header.
 	 */
@@ -794,6 +800,9 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
     response.MaxReadSize        =  pStream->psmb2Session->Connection->MaxReadSize;
     /* MaxWriteSize is set to the maximum size,<223> in bytes, of the Length in an SMB2 WRITE Request */
     response.MaxWriteSize       =  pStream->psmb2Session->Connection->MaxWriteSize;
+    response.MaxTransactSize    =
+    response.MaxReadSize        =
+    response.MaxWriteSize       =  prtsmb_srv_ctx->max_smb2_transaction_size;
     /* SystemTime is set to the current time */
     response.SystemTime         =  rtsmb_util_get_current_filetime();
     /* ServerStartTime is set to the global ServerStartTime value */

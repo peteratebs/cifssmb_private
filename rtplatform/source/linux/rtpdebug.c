@@ -116,8 +116,8 @@ char buffer[RTP_DEBUG_STRING_LEN];
 void _rtp_debug_syslog_open(char *name, unsigned long level_mask)
 {
 //    LOG_PID|LOG_NDELAY|LOG_PERROR
-//  openlog (name, LOG_PID|LOG_NDELAY|LOG_PERROR, LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO));
-  openlog (name, LOG_PID|LOG_NDELAY, LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO));
+  openlog (name, LOG_PID|LOG_NDELAY|LOG_PERROR, LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO));
+//  openlog (name, LOG_PID|LOG_NDELAY, LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO));
   syslog (LOG_INFO, "===================\n");
   syslog (LOG_INFO, "has been started\n");
   syslog (LOG_INFO, "===================\n");

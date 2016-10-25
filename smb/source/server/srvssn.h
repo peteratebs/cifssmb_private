@@ -152,6 +152,19 @@ typedef struct write_raw_info
 } WRITE_RAW_INFO_T;
 
 
+
+typedef struct smb_sessionCtx_sessionCtxSave_s
+{
+    PFBYTE readBuffer;
+    PFBYTE writeBuffer;
+    dword readBufferSize;
+    dword writeBufferSize;
+    PFBYTE smallReadBuffer;
+    PFBYTE smallWriteBuffer;
+} SMB_SESSIONCTX_SAVE_T;
+typedef SMB_SESSIONCTX_SAVE_T RTSMB_FAR *PSMB_SESSIONCTX_SAVE;
+
+
 typedef struct smb_sessionCtx_s
 {
     RTP_SOCKET sock;
@@ -275,8 +288,13 @@ typedef struct smb_sessionCtx_s
     /* fids for this session   */
     FID_T  *fids;
 
+    /* session defaults to smb1 but we push saved buffers here when we assing and SMB2 seesion */
+    int protocol_version;
+    SMB_SESSIONCTX_SAVE_T CtxSave;
+
 } SMB_SESSIONCTX_T;
 typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;
+
 
 
 #define READ_SMB(A) \
@@ -318,6 +336,10 @@ typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;
 /*============================================================================   */
 /*    INTERFACE FUNCTION PROTOTYPES                                              */
 /*============================================================================   */
+
+BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave, dword inSize, dword outSize);
+void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave);
+
 void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock);
 void SMBS_CloseSession (PSMB_SESSIONCTX pSmbCtx);
 void SMBS_CloseShare (PSMB_SESSIONCTX pCtx, word handle);

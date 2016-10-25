@@ -380,7 +380,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     }
     if (r != 0)
     {
-//        r = SMB_NT_STATUS_NO_SUCH_FILE;
+        if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
+          r = SMB_NT_STATUS_NO_SUCH_FILE;
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
     }

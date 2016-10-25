@@ -42,6 +42,8 @@ unsigned char FAKE_VOLUME_CREATION_TIME[] = {0x00, 0x78, 0x6b, 0x02, 0xbf, 0x27,
 #include "srvauth.h"
 #include "smbdebug.h"
 
+extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat);
+
 
 
 // Created: No time specified (0)    // 8
@@ -71,7 +73,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     int fid;
     dword r;
     word externalFid;
-    PTREE pTree;
     BBOOL not_implemented=TRUE;
 
     tc_memset(&response,0, sizeof(response));
@@ -104,28 +105,29 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-
-#define SMB2_FS_INFO_01        0x01
-#define SMB2_FS_INFO_FSIZE     0x03  // Size
-#define SMB2_FS_INFO_05        0x05
+//  see ms-fscc section 2.5
+#define SMB2_FS_INFO_01          0x01
+#define SMB2_FS_INFO_FSIZE       0x03  // Size
+#define SMB2_FS_INFO_05          0x05
 #define SMB2_FS_INFO_SIZE_7      0x07
-#define SMB2_FS_INFO_VOLUME    0x08
+#define SMB2_FS_INFO_VOLUME      0x2d  // 45
+#define SMB2_FS_OBJECT_ID_INFO   0x08
 #define SMB2_FILE_INFO_ALL       0x12
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
 #define SMB2_FILE_INFO_STANDARD      0x5
 #define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
+
+
     pStream->WriteBufferParms[0].byte_count = 0;
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
-      SMBFSTAT stat;
       not_implemented=FALSE;
       switch (command.FileInfoClass) {
        case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
        {
          MSFSCC_FILE_NETWORK_OPEN_INFORMATION *pInfo;
          BBOOL worked;
-//         SMBDSTAT stat;
          SMBFSTAT stat;
          PFRTCHAR filepath;
          PFRTCHAR filename;
@@ -295,7 +297,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          BBOOL worked;
          SMBDSTAT stat;
 
-
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
          worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
@@ -327,11 +328,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
     }
     else if (command.InfoType == SMB2_0_INFO_FILESYSTEM)
     {
-      BBOOL isFound = FALSE; // did we find a file?
-      SMBFSTAT stat;
       not_implemented=FALSE;
-      if (file_name[0])
-        isFound = SMBFIO_GFirst (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, stat, file_name);
 
       switch (command.FileInfoClass) {
         case SMB2_FS_INFO_01:
@@ -371,7 +368,30 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->BytesPerSector            =  FAKE_BYTES_PER_SECTOR;
        }
        break;
-       case SMB2_FS_INFO_VOLUME: // 08
+
+       case SMB2_FS_OBJECT_ID_INFO: // 08
+       {
+          SMBFSTAT stat;
+          BBOOL isFound; // did we find a file?
+          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+          word externalFid = RTSmb2_get_externalFid(pFileId);
+          PTREE pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+           // Look up the stat structure for the object on disk fills stat with nulls if no find
+          isFound =  RTSmb2_get_stat_from_fid(pStream, pTree, externalFid, &stat);
+          unsigned char *p = (unsigned char *) rtp_malloc(64);
+         pStream->WriteBufferParms[0].byte_count = 64;
+         pStream->WriteBufferParms[0].pBuffer = p;
+          // Memset so uninitialized fields are zeros
+          tc_memset(p, 0, 64);
+  //      ObjectId (16 bytes)
+            tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
+  //      BirthVolumeId (16 bytes)  // 0
+  //      BirthObjectId (16 bytes)
+            tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+  //      DomainId (16 bytes)       // 0
+       }
+       break;
+       case SMB2_FS_INFO_VOLUME: // 45
        {
          int volume_label_bytes = 2+ (2*rtsmb_len(FAKE_VOLUME_LABEL));
          MSFSCC_FILE_FS_VOLUME_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_VOLUME_INFO)+volume_label_bytes);
@@ -396,8 +416,8 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 
     if (not_implemented)
     {
-        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NOT_IMPLEMENTED);
-        return TRUE;
+      RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_IMPLEMENTED);
+      return TRUE;
     }
     response.StructureSize = 9; // 9
     response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
