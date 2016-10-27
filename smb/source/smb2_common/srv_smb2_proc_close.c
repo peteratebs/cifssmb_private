@@ -90,16 +90,9 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 
     pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
 
-
-    externalFid = RTSmb2_get_externalFid(command.FileId);
-    if (externalFid == 0xffff)
-    {
-      rtp_printf("Close, exfd == 0xffff why after map ?\n");
-//      fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
-//      fid = -1;
-    }
     byte *MappedFileId =  RTSmb2_mapWildFileId(pStream, command.FileId);
-    externalFid = RTSmb2_get_externalFid(command.FileId);
+    externalFid = RTSmb2_get_externalFid(MappedFileId);
+
 //    else
     {
       // Set the status to success

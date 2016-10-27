@@ -189,15 +189,11 @@ static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
 {
   return ( rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
 }
-static BBOOL ipcrpc_is_smb2_lsarpc(char RTSMB_FAR * name)
+static BBOOL ipcrpc_is_lsarpc(char RTSMB_FAR * name)
 {
   return (rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_larpc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
 }
 
-static BBOOL ipcrpc_is_lsarpc(char RTSMB_FAR * name)
-{
-  return (rtsmb_casecmp ((PFRTCHAR)name, (PFRTCHAR)_rtsmb_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0);
-}
 static int ipcrpc_open(char RTSMB_FAR * name, unsigned short flag, unsigned short mode)
 {
   return -1; // Do these in unicode
@@ -217,7 +213,7 @@ static int ipcrpc_wopen(unsigned short RTSMB_FAR * name, unsigned short flag, un
     }
     else
     {
-      rtsmb_dump_bytes("IPC$ open unknown file name", name, rtsmb_len((PFRTCHAR)name)*2, DUMPUNICODE);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ipcrpc unkown file name");
     }
     return fd;
 }

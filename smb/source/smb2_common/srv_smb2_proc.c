@@ -274,7 +274,19 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
        if (NextCommandOffset == 0)
-          pOutHeader->CreditRequest_CreditResponse = 2 + AddtoFinalCreditRequest_CreditResponse;
+       {
+//          pOutHeader->CreditRequest_CreditResponse = 2 + AddtoFinalCreditRequest_CreditResponse;
+          // Negotiate requires 1 Credit
+          // Otherwise give 1 credit if the client request > 0
+          // give zero if it requests 0
+          if (pOutHeader->Command == SMB2_NEGOTIATE)
+            pOutHeader->CreditRequest_CreditResponse = 1;
+          else if (smb2stream.InHdr.CreditRequest_CreditResponse==0)
+            pOutHeader->CreditRequest_CreditResponse = 0;
+          else
+            pOutHeader->CreditRequest_CreditResponse = smb2stream.InHdr.CreditRequest_CreditResponse;
+       }
+//          pOutHeader->CreditRequest_CreditResponse = smb2stream.OutHdr.CreditRequest_CreditResponse;
 //          pOutHeader->CreditRequest_CreditResponse = 32 + AddtoFinalCreditRequest_CreditResponse;
 //          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
 

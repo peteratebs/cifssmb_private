@@ -60,10 +60,8 @@ rtsmb_char pipe_lanman[13]   = {'\\','P','I','P','E','\\','L', 'A', 'N', 'M', 'A
 rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
 
-#ifdef SUPPORT_SMB2
 rtsmb_char _rtsmb2_srvsvc_pipe_name [8] = {'s','r','v','s','v','c',0};
 rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
-#endif
 
 
 #endif

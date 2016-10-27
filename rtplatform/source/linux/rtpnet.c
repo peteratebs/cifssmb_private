@@ -640,21 +640,6 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
     }
 
     *connectSock = (RTP_HANDLE)conSocket;
-#if (0)
-int rcvbuf;
-socklen_t len;
-len = sizeof(rcvbuf);
-getsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &len);
-//len = sizeof(mss);
-//getsockopt(conSocket, IPPROTO_TCP, TCP_MAXSEG, &mss, &len);
-//printf("defaults: SO_RCVBUF = %d, MSS = %d\n", rcvbuf, mss);
-
-rcvbuf = 131072;      /* a prime number */
-setsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
-len = sizeof(rcvbuf);
-getsockopt(conSocket, SOL_SOCKET, SO_RCVBUF, &rcvbuf, &len);
-printf("SO_RCVBUF = %d (after setting it to 9973)\n\n\n\n", rcvbuf);
-#endif
     getnameinfo((struct sockaddr *)&clientAddr, clientLen,
                     clientHost, sizeof(clientHost),
                     0, 0, NI_NUMERICHOST);
@@ -1017,8 +1002,13 @@ long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long siz
        ssize = size;
      result = send((int) sockHandle, (const char *) buffer, (size_t) ssize, 0);
 
-    if (result == -1)
-    {
+     if (result == 0)
+     {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_net_send: result: 0\n");
+       break;
+     }
+     if (result == -1)
+     {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK) || (errno == EINTR))
         {
 #ifdef RTP_DEBUG
@@ -1034,10 +1024,10 @@ long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long siz
         RTP_DEBUG_OUTPUT_STR(".\n");
 #endif
         return (-1);
-    }
-    size -= result;
-    buffer += result;
-    return_result += result;
+     }
+     size -= result;
+     buffer += result;
+     return_result += result;
     }
     return ((long) return_result);
 }
@@ -1064,7 +1054,6 @@ long rtp_net_recv (RTP_HANDLE sockHandle, unsigned char * buffer, long size)
       if (size < ssize)
         ssize = size;
       result = recv((int) sockHandle, (char *) buffer, (size_t) ssize, 0);
-printf ("Reciev reqest:%ld Acltual:%ld\n", ssize,result);
       if (result == -1)
       {
           if ((errno == EINTR) || (errno == EAGAIN))
@@ -1083,6 +1072,8 @@ printf ("Reciev reqest:%ld Acltual:%ld\n", ssize,result);
     #endif
           return (-1);
       }
+      if (result<=0)
+        break;
       size -= result;
       buffer += result;
       return_result += result;

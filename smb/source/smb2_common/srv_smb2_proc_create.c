@@ -195,6 +195,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       rtsmb_char s = '\\';               // Return INVALID_PARAMETER If the first character is a path separator.
       if (*p==s)
       {
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  Filename invalid...\n");
          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_INVALID_PARAMETER);
          return TRUE;
       }
@@ -360,11 +361,13 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         {
           if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
           { // Don't succeed if they are requesting a directory but the object is not one
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: requesting a directory but the object is not one...\n");
             RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
             return TRUE;
           }
           if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
           { // Don't succeed if they are requesting a non-directory but the object is one
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: SMB2_STATUS_FILE_IS_A_DIRECTORY\n");
             RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
             return TRUE;
           }
@@ -382,6 +385,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
         if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
           r = SMB_NT_STATUS_NO_SUCH_FILE;
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
     }
