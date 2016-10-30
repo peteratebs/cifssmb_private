@@ -416,6 +416,8 @@ int SMBFIO_Close (PSMB_SESSIONCTX pCtx, word tid, int fd)
 BBOOL SMBFIO_Rename (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR oldname, PFRTCHAR newname)
 {
 	PTREE tree;
+	if (!oldname || !newname)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 
 	if (!tree)
@@ -428,6 +430,8 @@ BBOOL SMBFIO_Rename (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR oldname, PFRTCHAR 
 BBOOL SMBFIO_Delete (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 
 	if (!tree)
@@ -440,6 +444,8 @@ BBOOL SMBFIO_Delete (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 BBOOL SMBFIO_Mkdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 
 	if (!tree)
@@ -452,6 +458,8 @@ BBOOL SMBFIO_Mkdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 BBOOL SMBFIO_Rmdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 
 	if (!tree)
@@ -468,6 +476,8 @@ BBOOL SMBFIO_Rmdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 BBOOL SMBFIO_GFirst (PSMB_SESSIONCTX pCtx, word tid, PSMBDSTAT dirobj, PFRTCHAR name)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 	if (!tree)
 	{
@@ -502,6 +512,8 @@ void SMBFIO_GDone (PSMB_SESSIONCTX pCtx, word tid, PSMBDSTAT dirobj)
 BBOOL SMBFIO_Stat (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name, PSMBFSTAT stat)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 	if (!tree)
 	{
@@ -513,6 +525,8 @@ BBOOL SMBFIO_Stat (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name, PSMBFSTAT stat
 BBOOL SMBFIO_Chmode (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name, byte attributes)
 {
 	PTREE tree;
+	if (!name)
+      return FALSE;
 	tree = SMBU_GetTree (pCtx, tid);
 	if (!tree)
 	{

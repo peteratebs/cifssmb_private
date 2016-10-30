@@ -345,6 +345,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
 
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of (file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
         {
@@ -356,7 +357,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
                 CreateAction = 2; // File created
             }
         }
-
         if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
         {
           if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
@@ -380,15 +380,31 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         }
       }
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR) file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
+      if (pTree->type == ST_DISKTREE)
+      {
+        // Stat the file
+        if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: requesting a directory but the object is not one...\n");
+          RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
+          return TRUE;
+        }
+      }
     }
+
     if (r != 0)
     {
         if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
-          r = SMB_NT_STATUS_NO_SUCH_FILE;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
+        {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
+//          r = SMB_NT_STATUS_NO_SUCH_FILE;
+//          r = SMB2_STATUS_OBJECT_NAME_NOT_FOUND;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate remapped status == %X\n", r);
+        }
         RtsmbWriteSrvStatus(pStream, r);
         return TRUE;
     }
+
     if (decoded_create_context.pDHnQ)
       wants_extra_DHnQ_info = TRUE;
     if (decoded_create_context.pMxAc)

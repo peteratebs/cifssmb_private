@@ -84,7 +84,11 @@ int fileHandle;
     errno = 0;
 #endif
 
-    fileHandle = open (name, _rtp_flag_to_operation(flag), _rtp_mode_to_permission(mode));
+
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_file_open: name %s\n", name);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_file_open: rtp_file_open mode: mode %x mapped mode: %x flag:%x mapped flag:%x\n", mode, _rtp_flag_to_operation(flag) ,flag, _rtp_flag_to_operation(flag));
+//    fileHandle = open (name, _rtp_flag_to_operation(flag), 0777); // _rtp_mode_to_permission(mode));
+    fileHandle = open (name, _rtp_flag_to_operation(flag),_rtp_mode_to_permission(mode));
 
     if (fileHandle == (-1))
     {
@@ -390,7 +394,7 @@ int rtp_file_mkdir (const char * name)
 #endif
 
     /* Owner of file is granted all permissions. */
-    if (mkdir ((const char *)name, 0700) != 0)
+    if (mkdir ((const char *)name, 0777) != 0)
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_mkdir: error returned ");
@@ -666,7 +670,6 @@ int result = 0;
     {
       	result |=  S_IRUSR|S_IRGRP|S_IROTH;
     }
-
     return (result);
 }
 

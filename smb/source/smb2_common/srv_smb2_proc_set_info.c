@@ -161,7 +161,12 @@ RTSMB2_SET_INFO_R response;
         }
         break; // Success
     }
-    // Fall through
+    else
+    {
+       // Fake success for other operations.
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SetInfo: SMB2_0_INFO_FILE: Infoclass not supported: %d\n", command.FileInfoClass);
+       break;
+    }
     case SMB2_0_INFO_FILESYSTEM:
     case SMB2_0_INFO_SECURITY  :
     case SMB2_0_INFO_QUOTA     :

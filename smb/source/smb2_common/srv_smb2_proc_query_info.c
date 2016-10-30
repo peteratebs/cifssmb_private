@@ -42,7 +42,6 @@ unsigned char FAKE_VOLUME_CREATION_TIME[] = {0x00, 0x78, 0x6b, 0x02, 0xbf, 0x27,
 #include "srvauth.h"
 #include "smbdebug.h"
 
-extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat);
 
 
 
@@ -62,6 +61,21 @@ const byte fs_info_01_array[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x89,0x
 
 const byte fs_info_05_array[] = {0x07,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x4e,0x00,0x54,0x00,0x46,0x00,0x53,0x00};
 
+
+static PFRTCHAR RTSmb2_get_path_and_stat_from_fid(smb2_stream  *pStream, word externalFid, PSMBFSTAT pstat)
+{
+PFRTCHAR filepath=0;
+PTREE pTree =  SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+  if (pTree)
+  {
+    filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+    if (filepath && SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, pstat))
+      return filepath;
+    else
+      filepath=0;
+  }
+  return filepath;
+}
 
 
 BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
@@ -118,7 +132,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
 
-
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo Type: %X class == %X\n", command.InfoType,command.FileInfoClass);
     pStream->WriteBufferParms[0].byte_count = 0;
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
@@ -127,10 +141,8 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
        {
          MSFSCC_FILE_NETWORK_OPEN_INFORMATION *pInfo;
-         BBOOL worked;
          SMBFSTAT stat;
          PFRTCHAR filepath;
-         PFRTCHAR filename;
 
 //         word externalFid = *((word *) &command.FileId[0]);
           // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
@@ -138,9 +150,8 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
 
-         filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
-         if(worked == FALSE)
+         filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+         if(!filepath)
          {
            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
            return TRUE;
@@ -181,14 +192,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
           // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
           // Map if neccessary
 
-
-
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
-
-         filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat);
-         if(worked == FALSE)
+         filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+         if(!filepath)
          {
            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
            return TRUE;
@@ -256,16 +263,18 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          MSFSCC_FULL_DIRECTORY_INFO *pInfo;
          BBOOL worked;
          SMBDSTAT stat;
+//         SMBFSTAT stat;
 
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
-         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
-         if(worked == FALSE)
+         PFRTCHAR filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+         if(!filepath)
          {
            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
            return TRUE;
          }
-         file_name_len_bytes = (rtsmb_len (stat.filename)+1)*sizeof(rtsmb_char);
+         PFRTCHAR filename =  SMBU_GetFilename (filepath);
+         file_name_len_bytes = (rtsmb_len (filename)+1)*sizeof(rtsmb_char);
          pInfo = rtp_malloc(sizeof(MSFSCC_FULL_DIRECTORY_INFO)+file_name_len_bytes);
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FULL_DIRECTORY_INFO)+file_name_len_bytes;
          pStream->WriteBufferParms[0].pBuffer = pInfo;
@@ -296,11 +305,12 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          MSFSCC_STANDARD_DIRECTORY_INFO *pInfo;
          BBOOL worked;
          SMBDSTAT stat;
+//         SMBFSTAT stat;
 
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
-         worked = SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), &stat);
-         if(worked == FALSE)
+         PFRTCHAR filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+         if(!filepath)
          {
            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
            return TRUE;
@@ -372,23 +382,29 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        case SMB2_FS_OBJECT_ID_INFO: // 08
        {
           SMBFSTAT stat;
-          BBOOL isFound; // did we find a file?
           byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
           word externalFid = RTSmb2_get_externalFid(pFileId);
-          PTREE pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
-           // Look up the stat structure for the object on disk fills stat with nulls if no find
-          isFound =  RTSmb2_get_stat_from_fid(pStream, pTree, externalFid, &stat);
-          unsigned char *p = (unsigned char *) rtp_malloc(64);
-         pStream->WriteBufferParms[0].byte_count = 64;
-         pStream->WriteBufferParms[0].pBuffer = p;
-          // Memset so uninitialized fields are zeros
-          tc_memset(p, 0, 64);
-  //      ObjectId (16 bytes)
-            tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
-  //      BirthVolumeId (16 bytes)  // 0
-  //      BirthObjectId (16 bytes)
-            tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
-  //      DomainId (16 bytes)       // 0
+          PFRTCHAR filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+
+          if (!filepath)
+          {
+            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+            return TRUE;
+          }
+          else
+          {
+            unsigned char *p = (unsigned char *) rtp_malloc(64);
+            pStream->WriteBufferParms[0].byte_count = 64;
+            pStream->WriteBufferParms[0].pBuffer = p;
+            // Memset so uninitialized fields are zeros
+            tc_memset(p, 0, 64);
+    //      ObjectId (16 bytes)
+             tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
+    //      BirthVolumeId (16 bytes)  // 0
+    //      BirthObjectId (16 bytes)
+              tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+    //      DomainId (16 bytes)       // 0
+          }
        }
        break;
        case SMB2_FS_INFO_VOLUME: // 45

@@ -431,8 +431,12 @@ rtsmb_dump_bytes("!!! Gfirst on", user->searches[sid].name, tc_strlen(user->sear
     if (numFound == 0)
     { // Send back an error status if this is the first reply in the reply chain
       // - Pack a header and response packet set status in header to STATUS_NO_MORE_FILES (0x80000006)
-      RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NO_MORE_FILES);
-      pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_NO_MORE_FILES;
+      // - Send NO_SUCH_FILE if this is was the initial query
+      dword rstatus = SMB2_STATUS_NO_MORE_FILES;
+      if (searchFound==FALSE)
+       rstatus= SMB2_STATUS_NO_SUCH_FILE;
+      RtsmbWriteSrvStatus(pStream,rstatus);
+      pStream->OutHdr.Status_ChannelSequenceReserved = rstatus;
       pStream->compound_output_index=0; // Force a send, and make him query again for a response
 	}
     return TRUE;

@@ -331,16 +331,19 @@ BBOOL has_lm_field=FALSE;
     }
 
     // Try ntlmv2
-    Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
-    if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    if (decoded_targ_token->ntlm_response)
+    {
+      Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
+      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    }
     // Try lmv2 - not tested yet.
-    if (Access == AUTH_NOACCESS)
+    if (Access == AUTH_NOACCESS && decoded_targ_token->ntlm_response)
     {
       Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
       if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);
     }
     // Try ntlm2
-    if (Access == AUTH_NOACCESS)
+    if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
     {
       if (has_lm_field)
       { // The client key is in lm_response
@@ -362,12 +365,12 @@ BBOOL has_lm_field=FALSE;
         if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
       }
     }
-    if (Access == AUTH_NOACCESS)
+    if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
     {
       Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
       if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", Access);
     }
-    if (Access == AUTH_NOACCESS)
+    if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
     {
       // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
@@ -2258,6 +2261,7 @@ BBOOL ProcQueryInformation2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
 
     ASSERT_FID (pCtx, command.fid, FID_FLAG_DIRECTORY)
 
+    // SMBFIO_Stat will fail if name maps to null
     worked = SMBFIO_Stat (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid), &stat);
 
     if(worked == FALSE)
@@ -2847,6 +2851,7 @@ BBOOL ProcClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
         if (SMBU_PrintFile (pCtx, fid))
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n");
         SMBFIO_Close (pCtx, pCtx->tid, fid);
+      // SMBFIO_Delete will fail if name maps to null
         SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
     }
     else
@@ -2892,6 +2897,7 @@ BBOOL ProcClosePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     if (SMBU_PrintFile (pCtx, fid))
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClosePrintFile: Printing file on close failed.\n");
     SMBFIO_Close (pCtx, pCtx->tid, fid);
+    // SMBFIO_Delete will fail if name maps to null
     SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
 
     SMBU_ClearInternalFid (pCtx, command.fid);
@@ -3869,7 +3875,7 @@ BBOOL ProcSetInformation2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pI
     READ_SMB (srv_cmd_read_set_information2);
 
     name = SMBU_GetFileNameFromFid (pCtx, command.fid);
-
+    // SMBFIO_stat will fail if name maps to null
     /**
      * We should return badfile error if file doesn't exist.
      */
