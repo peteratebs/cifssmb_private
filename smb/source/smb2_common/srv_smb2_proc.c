@@ -200,9 +200,16 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
     }
 	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n");
-        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
-		return TRUE;
+	   if (smb2stream.InHdr.Command == SMB2_ECHO)
+       {
+		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Allow SMB2_ECHO with no dialect.\n");
+       }
+       else
+       {
+		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n");
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+		  return TRUE;
+       }
 	}
 
     // Fill in by create so we can replace 0xffffff with the last created FD.

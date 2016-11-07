@@ -237,7 +237,7 @@ NextUID:  ;
 }
 
 
-BBOOL display_login_info=FALSE;
+BBOOL display_login_info=TRUE;
 
 
 #if (HARDWIRED_EXTENDED_SECURITY)
@@ -334,13 +334,26 @@ BBOOL has_lm_field=FALSE;
     if (decoded_targ_token->ntlm_response)
     {
       Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
-      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+      if (display_login_info) { rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);   }
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
+    }
+    if (Access == AUTH_NOACCESS)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Not authenticated after User_ntlmv2. Give up %X\n", Access);
+      goto resume_with_access;
     }
     // Try lmv2 - not tested yet.
     if (Access == AUTH_NOACCESS && decoded_targ_token->ntlm_response)
     {
-      Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
-      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+      if (!decoded_targ_token->ntlm_response)
+      {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: not processing lmv2 decoded_targ_token->ntlm_response is null \n");
+      }
+      else
+      {
+        Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
+        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+      }
     }
     // Try ntlm2
     if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
@@ -376,6 +389,8 @@ BBOOL has_lm_field=FALSE;
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
       if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lm returned %X\n", Access);
     }
+// Jump past all but ntlmv2. The rest are not supported and may be buggy
+resume_with_access:
     if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser should be removed \n");
     {
     int i;
