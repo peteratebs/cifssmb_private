@@ -159,6 +159,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     tc_memset(&command,0, sizeof(command));
     tc_memset(file_name,0, sizeof(file_name));
     tc_memset(create_content,0, sizeof(create_content));
+    tc_memset(&decoded_create_context,0, sizeof(decoded_create_context));
 
 
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
