@@ -47,6 +47,7 @@
 #define SMB2_INDEX_SPECIFIED            0x04
 #define SMB2_REOPEN                     0x10
 
+static int glFile_index;   // Temporary patch for debugging, needs to be built into the GFIRST/GNEXT code
 
 
 static int SMB2_FILLFileDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
@@ -150,6 +151,24 @@ typedef struct s_FILE_NAMES_INFORMATION
 } PACK_ATTRIBUTE FILE_FILE_NAMES_INFORMATION;
 PACK_PRAGMA_POP
 
+static BBOOL find_smb2_sid_from_fid(int *psid, byte * pFileId, PUSER user, int fidsize)
+// See if we have a match for this file id
+{
+  BBOOL searchFound=FALSE;
+  int _sid;
+  *psid = 0;
+  for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
+  {
+    if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, pFileId, fidsize)==0)
+    {
+      searchFound=TRUE;
+      *psid = _sid;
+      break;
+    }
+  }
+  return searchFound;
+}
+
 
 // OutputBufferLength;  HEREHERE need to honor user's requested max OutputBufferLength
 
@@ -208,13 +227,10 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
       return TRUE;
     }
-rtsmb_dump_bytes("PATTERN- ARG", file_name, command.FileNameLength, DUMPUNICODE);
 
     // == Borrowed from srvtrans2 ==
 
     user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
-
-rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId),  DUMPBIN);
     // Compound requests send 0xffff ffff ffff ffff to mean the last file id returned by create
 //    byte * pFileId = command.FileId;
 //    if (tc_memcmp(command.FileId, FileIdWildcard, sizeof(command.FileId))==0)
@@ -223,24 +239,14 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
 
     // See if we have a match for this file id
-    {
-        int _sid;
-        sid = 0;
-        for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
-        {
-          if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, pFileId, sizeof(command.FileId))==0)
-          {
-            searchFound=TRUE;
-            sid = _sid;
-            break;
-          }
-        }
-    }
+    sid = 0;
+    searchFound = find_smb2_sid_from_fid(&sid, pFileId, user, sizeof(command.FileId));
     if (searchFound)
     {
       if ((command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN)) )
       {   // Make sure to start over if we found an open directory on a rescan
           SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+          glFile_index = 0;
           user->searches[sid].inUse=FALSE;
           searchFound=FALSE;
       }
@@ -250,7 +256,9 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     {
     	for (sid = 0; sid < prtsmb_srv_ctx->max_searches_per_uid; sid++)
     		if (!user->searches[sid].inUse)
+            {
     			break;
+            }
     	if (sid == prtsmb_srv_ctx->max_searches_per_uid) // no free searches
     	{
     		word i;
@@ -260,6 +268,7 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
     				sid = i;
     		SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+            glFile_index = 0;
     	}
 	}
 
@@ -271,6 +280,14 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
     // Save the ID
     tc_memcpy(user->searches[sid].FileId, pFileId, sizeof(command.FileId));
 
+{
+int check_sid;
+  printf("Check if we can find Sid # %x\n", sid);
+  if (find_smb2_sid_from_fid(&check_sid, pFileId, user, sizeof(command.FileId)))
+    printf("Hooray: found Check Sid # is %x match ?: %x \n",check_sid, sid);
+  else
+    printf("Failed to find Sid # %x\n", sid);
+}
     // == Done Borrowed from srvtrans2 ==
     if (command.FileNameLength > sizeof(user->searches[sid].name))
     {
@@ -329,12 +346,13 @@ rtsmb_dump_bytes("PATTERN- INPUT FILID",  command.FileId, sizeof(command.FileId)
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
-rtsmb_dump_bytes("!!! Gfirst on", user->searches[sid].name, tc_strlen(user->searches[sid].name), DUMPASCII);
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
+       glFile_index = 0;
     }
     else
     {
 	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
+       glFile_index += 1;
     }
 
     if (!isFound)
@@ -383,6 +401,7 @@ rtsmb_dump_bytes("!!! Gfirst on", user->searches[sid].name, tc_strlen(user->sear
             {
                dword *prev_byte_pointer = byte_pointer;
                *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
+               glFile_index += 1;
                byte_pointer = PADD(byte_pointer, bytes_consumed);
                rtsmb_size SkipCount = ( ((bytes_consumed+7)/8) *8 ) - bytes_consumed;
                if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
@@ -496,7 +515,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	pinfo->high_allocation_size = 0;
 	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 	pinfo->filename_size = filename_size;
-	pinfo->file_index = 0;
+	pinfo->file_index = glFile_index;
 	pinfo->ea_size = 0;
     return (int) sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO);
 }
@@ -529,9 +548,6 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
     // Copy the filename just after the size
     pinfo->filename_size = filename_size;
     tc_memcpy(byte_pointer, stat->filename, filename_size);
-    rtsmb_dump_bytes("FILENAME", byte_pointer, filename_size, DUMPUNICODE);
-
-
 
     return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + pinfo->filename_size);
 }
