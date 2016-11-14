@@ -4696,10 +4696,12 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     BBOOL doSocketClose = FALSE;
     int length;
     int protocol_version = 0;
+    BBOOL returnVal  = TRUE;
 
 
 
     pSctx->doSocketClose = FALSE;
+    pSctx->doSessionClose = FALSE;
     /**
      * If they are sending larger packets than we told them to, shut off contact.
      */
@@ -4915,13 +4917,20 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
 
     if (doSend)
     {
-        return SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
+        returnVal = SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
     }
-
+    if (pSctx->doSessionClose)
+    { // Do it if a session close is requested and return false so we close the socket
+       pSctx->doSessionClose = FALSE;
+       PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
+       if (pNctxt)
+          rtsmb_srv_net_connection_close_session(pNctxt);
+       returnVal = FALSE;    // So we return to close the socket
+    }
     if (pSctx->doSocketClose)
         return FALSE;
     else
-        return TRUE;
+        return returnVal;
 }
 
 

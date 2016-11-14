@@ -129,21 +129,13 @@ void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession)
     /* All the tree connects in Session.TreeConnectTable MUST be removed and freed. */
     Smb2SrvModel_Free_Session(pStreamSession);
 }
+
 static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 {
     pSctx->outBodySize      = pStream->OutBodySize;
     pSctx->pCtxtsmb2Session = pStream->psmb2Session;
     pSctx->doSocketClose    = pStream->doSocketClose;
-    if (pStream->doSessionClose && pStream->psmb2Session)
-    {
-        // Close the SMB2 session and the SMB1 context and set the
-        // session state pSctx->state = NOTCONNECTED; so we respond to bothe types
-        PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
-        if (pNctxt)
-          rtsmb_srv_net_connection_close_session(pNctxt);
-        pStream->psmb2Session = 0;
-        pStream->doSessionClose = FALSE;
-    }
+    pSctx->doSessionClose   = pStream->doSessionClose;
 }
 
 /**

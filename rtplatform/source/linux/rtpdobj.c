@@ -444,9 +444,16 @@ int rtp_file_get_time (void * dirobj, RTP_DATE * adate, RTP_DATE * wdate, RTP_DA
 static int _rtp_lindate_to_date (time_t * lindate, RTP_DATE * rtpdate)
 {
 struct tm * ptime;
-
+time_t utclindate = *lindate;
+    // Subtract the tzoffset from the linux epoch date and convert to local time
+    // Similar to how make_dos_date() works in smaba
+    utclindate -= timezone;
+    ptime = gmtime((const time_t *)&utclindate);
+#if(0)
+    // this is basically the same thsing.
     ptime = localtime((const time_t *)lindate);
-
+#endif
+    // Fall through using localtime((const time_t *)lindate);
     if (!ptime)
     {
 #ifdef RTP_DEBUG

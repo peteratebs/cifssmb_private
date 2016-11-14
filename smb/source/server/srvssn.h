@@ -172,6 +172,8 @@ typedef struct smb_sessionCtx_s
     SMB_DIALECT_T dialect;      /* dialect we are speaking */
     BBOOL isSMB2;               /* Set true when SMB2 negotiated */
     BBOOL doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
+    BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
+
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
 
     /**
