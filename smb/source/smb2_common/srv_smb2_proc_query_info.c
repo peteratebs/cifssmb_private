@@ -173,7 +173,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->high_end_of_file = 0;
          pInfo->low_allocation_size = stat.f_size;
          pInfo->high_allocation_size = 0;
-
          pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
          pInfo->reserved = 0;
          break;
@@ -183,7 +182,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          int file_name_len_bytes;
          MSFSCC_ALL_DIRECTORY_INFO *pInfo;
          BBOOL worked;
-//         SMBDSTAT stat;
          SMBFSTAT stat;
          PFRTCHAR filepath;
          PFRTCHAR filename;
@@ -262,8 +260,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          int file_name_len_bytes;
          MSFSCC_FULL_DIRECTORY_INFO *pInfo;
          BBOOL worked;
-         SMBDSTAT stat;
-//         SMBFSTAT stat;
+         SMBFSTAT stat;
 
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
@@ -280,23 +277,23 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pStream->WriteBufferParms[0].pBuffer = pInfo;
 
          pInfo->file_index = 0;       // dword file_index;
-         pInfo->low_last_access_time = stat.fatime64.low_time;
-         pInfo->high_last_access_time = stat.fatime64.high_time;
-         pInfo->low_creation_time = stat.fctime64.low_time;
-         pInfo->high_creation_time = stat.fctime64.high_time;
-         pInfo->low_last_write_time = stat.fwtime64.low_time;
-         pInfo->high_last_write_time = stat.fwtime64.high_time;
-         pInfo->low_change_time = stat.fhtime64.low_time;
-         pInfo->high_change_time = stat.fhtime64.high_time;
-         pInfo->low_end_of_file = stat.fsize;
+         pInfo->low_last_access_time = stat.f_atime64.low_time;
+         pInfo->high_last_access_time = stat.f_atime64.high_time;
+         pInfo->low_creation_time = stat.f_ctime64.low_time;
+         pInfo->high_creation_time = stat.f_ctime64.high_time;
+         pInfo->low_last_write_time = stat.f_wtime64.low_time;
+         pInfo->high_last_write_time = stat.f_wtime64.high_time;
+         pInfo->low_change_time = stat.f_htime64.low_time;
+         pInfo->high_change_time = stat.f_htime64.high_time;
+         pInfo->low_end_of_file = stat.f_size;
          pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.fsize;
+         pInfo->low_allocation_size = stat.f_size;
          pInfo->high_allocation_size = 0;
-         pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.fattributes);
+         pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
          pInfo->filename_size = file_name_len_bytes/sizeof(rtsmb_char);       // dword filename_size;
          pInfo->ea_size = 0;       // dword ea_size;
          pInfo += 1;
-         tc_memcpy(pInfo, stat.filename, file_name_len_bytes);
+         tc_memcpy(pInfo, filename, file_name_len_bytes);
        }
        break;
        case SMB2_FILE_INFO_STANDARD:
@@ -304,8 +301,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          int file_name_len_bytes;
          MSFSCC_STANDARD_DIRECTORY_INFO *pInfo;
          BBOOL worked;
-         SMBDSTAT stat;
-//         SMBFSTAT stat;
+         SMBFSTAT stat;
 
          byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
          word externalFid = RTSmb2_get_externalFid(pFileId);
@@ -319,13 +315,14 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_STANDARD_DIRECTORY_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
 
-         pInfo->low_end_of_file = stat.fsize;
+         pInfo->low_end_of_file = stat.f_size;
          pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.fsize;
+         pInfo->low_allocation_size = stat.f_size;
          pInfo->high_allocation_size = 0;
          pInfo->number_of_links=1;
          pInfo->delete_pending=0;
-         pInfo->directory = (stat.fattributes & RTP_FILE_ATTRIB_ISDIR)?1:0;
+
+         pInfo->directory =  rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes)&SMB_FA_D?1:0;
          pInfo->reserved=0;
          pInfo += 1;
        }

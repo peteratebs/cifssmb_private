@@ -391,6 +391,14 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
           return TRUE;
         }
       }
+      else // IPC
+      { // Call stat, it sould work but if it doesn just zero
+        if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        {
+          tc_memset(&stat, 0, sizeof(stat));
+        }
+        // stat.f_attributes = RTP_FILE_ATTRIB_ISDIR;
+      }
     }
 
     if (r != 0)

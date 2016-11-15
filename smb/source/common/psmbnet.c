@@ -24,8 +24,7 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     int result;
     RTP_FD_SET readList;
     RTP_FD_SET errorList;
-
-    int tempList[10];
+    int tempList[256];
 
     for(n=0; n<listSize; n++)
     {
@@ -44,12 +43,13 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     for (n=0; n<listSize; n++)
     {
         rtp_fd_set(&readList, socketList[n]);
+        rtp_fd_set(&errorList, socketList[n]);
 #if 0
         readList.fdArray[n] = socketList[n];
         readList.fdCount++;
 #endif
     }
-    
+
     if (timeoutMsec < 0)
     {
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, -1);
@@ -63,14 +63,19 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     {
         return (0);
     }
-    
+
     c = 0;
 
     for (n=0; n<listSize; n++)
     {
+        if (rtp_fd_isset(&errorList, tempList[n]))
+        {
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
+           socketList[c++] = tempList[n];
+        }
         if (rtp_fd_isset(&readList, tempList[n]))
         {
-            socketList[c++] = tempList[n];
+           socketList[c++] = tempList[n];
         }
     }
 
@@ -91,7 +96,5 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     }
 
     return (listSize);
-#endif  
+#endif
 }
-
-

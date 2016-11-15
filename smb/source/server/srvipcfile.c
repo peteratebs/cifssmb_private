@@ -392,9 +392,11 @@ static void ipcrpc_gdone(PSMBDSTAT dirobj)
 
 static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
 {
+    tc_memset(vstat, 0, sizeof (*vstat));
     if (ipcrpc_is_srvsvc(name)||ipcrpc_is_lsarpc(name))
     {
       ipcrpc_translate_fstat(vstat);
+      tc_memcpy(vstat->unique_fileid,name,8);
       return TRUE;
     }
     else

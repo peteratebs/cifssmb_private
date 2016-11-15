@@ -463,9 +463,12 @@ void *start;
       pout->call_id = pin->call_id;
       pout->max_xmit_frag = 4280; // pin->max_xmit_frag;
       pout->max_recv_frag = 4280; // pin->max_recv_frag;
-      pout->assoc_group = pin->assoc_group;
+//    Samba returns  000053f0 - use captured values
+      pout->assoc_group = 0x53f0;
+//       pout->assoc_group = 0xf053; This would work too, may just require to not be zero
       pout->secondary_address_length = 13;
-      tc_strcpy(pout->secondary_address, "\\PIPE\\lsarpc"); //  or "\\PIPE\\srvsvc"
+//      tc_strcpy(pout->secondary_address, "\\PIPE\\lsarpc"); //  or "\\PIPE\\srvsvc"
+      tc_strcpy(pout->secondary_address, "\\PIPE\\srvsvc");
       pout->num_results = 1;           // 1
       pout += 1;
       start_results = (void *) pout;
