@@ -185,11 +185,11 @@ void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
   StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
   pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
 }
-static BBOOL ipcrpc_is_srvsvc(char RTSMB_FAR * name)
+static BBOOL ipcrpc_is_srvsvc(PFRTCHAR name)
 {
   return ( rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
 }
-static BBOOL ipcrpc_is_lsarpc(char RTSMB_FAR * name)
+static BBOOL ipcrpc_is_lsarpc(PFRTCHAR name)
 {
   return (rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_larpc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
 }
@@ -390,25 +390,24 @@ static void ipcrpc_gdone(PSMBDSTAT dirobj)
 }
 
 
-static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
-{
-    tc_memset(vstat, 0, sizeof (*vstat));
-    if (ipcrpc_is_srvsvc(name)||ipcrpc_is_lsarpc(name))
-    {
-      ipcrpc_translate_fstat(vstat);
-      tc_memcpy(vstat->unique_fileid,name,8);
-      return TRUE;
-    }
-    else
-    {
-      return FALSE;
-    }
-}
-
 static BBOOL ipcrpc_wstat(unsigned short RTSMB_FAR * name, PSMBFSTAT vstat)
 {
-    return ipcrpc_stat(name, vstat);
-//    return (-1);
+  tc_memset(vstat, 0, sizeof (*vstat));
+  if (ipcrpc_is_srvsvc(name)||ipcrpc_is_lsarpc(name))
+  {
+    ipcrpc_translate_fstat(vstat);
+    tc_memcpy(vstat->unique_fileid,name,8);
+    return TRUE;
+  }
+  else
+  {
+    return FALSE;
+  }
+}
+
+static BBOOL ipcrpc_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
+{
+  return FALSE;
 }
 
 static BBOOL ipcrpc_chmode(char RTSMB_FAR * name, unsigned char attributes)

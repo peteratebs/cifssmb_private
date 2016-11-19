@@ -346,7 +346,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
 
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of (file_name,0));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
         {
@@ -550,7 +550,7 @@ int current_create_context_buffer_length = create_context_buffer_length;
 PFVOID p_data_buffer_end = PADD(pcreate_context_buffer, create_context_buffer_length);
 
   tc_memset(pdecoded_create_context,0,sizeof(*pdecoded_create_context));
-  while (current_create_context_buffer_length>=RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
+  while (current_create_context_buffer_length>=(int)RTSMB2_CREATE_CONTEXT_WIRE_SIZE)
   {
     BBOOL is_error_record = FALSE;
     BBOOL take_next_record = TRUE;

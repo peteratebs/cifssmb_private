@@ -142,7 +142,7 @@ long bytesRead;
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! read failedd\n");
        goto unsuccessful;
     }
-	if (bytesRead < command.MinimumCount)
+	if ((dword)bytesRead < command.MinimumCount)
     {
 unsuccessful:
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Read failed\n");

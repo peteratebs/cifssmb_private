@@ -314,7 +314,6 @@ int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error
 }
 
 
-// returns 0 on success
 void SMBU_SetFidSmb2Flags (PSMB_SESSIONCTX pCtx, word external,   dword smb2flags )
 {
 	int i;
@@ -328,9 +327,8 @@ void SMBU_SetFidSmb2Flags (PSMB_SESSIONCTX pCtx, word external,   dword smb2flag
 			user->fids[i]->external == external)
 		{
             user->fids[i]->smb2flags = smb2flags;
-            return 0; // not found
+            return;
 		}
-	return -1; // not found
 }
 
 // returns 0 on success

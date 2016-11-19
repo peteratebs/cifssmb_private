@@ -23,6 +23,7 @@
 #include "smbutil.h"
 #include "smbpack.h"
 #include "smbread.h"
+#include "rtpmem.h"
 
 /* Set signing rules on the stream. The message finalize process will sign the outgoing messge. */
 void  smb2_stream_set_signing_rule(smb2_stream *pstream, byte  *SigningKey, byte SigningRule)
@@ -30,6 +31,52 @@ void  smb2_stream_set_signing_rule(smb2_stream *pstream, byte  *SigningKey, byte
     pstream->SigningKey =SigningKey;
     pstream->SigningRule=SigningRule;
 }
+
+// This is referenced but it is never called. Needs more work to support packet encrytion.
+static int RTSmb2_Encryption_Encrypt_Buffer(byte *Dest, rtsmb_size dest_size, PRTSMB2_TRANSFORM_HEADER ptransform_header, byte *Source, rtsmb_size source_size)
+{
+rtsmb_size i;
+    /* Fake encrypt by placing space after every byte */
+    for(i =0; i < source_size; i++)
+    {
+        *Dest++=*Source++;
+        *Dest++=32;
+    }
+//   rtp_memcpy(Dest, Source, source_size);
+   rtp_memcpy(ptransform_header->Signature , "SIGNATURE9ABCDEF" , 16);
+   rtp_memcpy(ptransform_header->Nonce,      "NONCE0123456789A" , 16);
+   return source_size*2;
+}
+
+// This is never called. Needs more work to support packet encrytion.
+static byte *RTSmb2_Encryption_Get_Decrypted_Buffer(byte *origin, int buffer_size,RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
+{
+int i;
+byte *Dest = origin;
+byte *Source = origin;
+    /* Fake decrypt by taking every other byte */
+    for(i =0; i < (int)ptransform_header_smb2->OriginalMessageSize; i++)
+    {
+        *Dest++=*Source++;
+        Source++;
+    }
+    return origin;
+}
+// This is never called. Needs more work to support packet encrytion.
+void  RTSmb2_Encryption_Release_Decrypted_Buffer(byte *origin)
+{
+}
+
+
+static byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size  buffer_size)
+{
+    return (byte *)rtp_malloc(buffer_size*2);
+}
+static void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
+{
+    RTP_FREE(buffer);
+}
+
 
 /* Start encryption. Called on a stream from the top level dispatch if the session is set up and known to be encrypted.
    Wraps the stream in a buffer with an SMB2 transform header prepended. The message finalize process will encrypt the outgoing messge. */

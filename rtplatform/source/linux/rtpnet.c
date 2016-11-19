@@ -998,8 +998,8 @@ long rtp_net_send (RTP_HANDLE sockHandle, const unsigned char * buffer, long siz
     {
      size_t ssize = MAX_SEND_SIZE;
 
-     if (size < ssize)
-       ssize = size;
+     if ((size_t)size < ssize)
+       ssize = (size_t)size;
      result = send((int) sockHandle, (const char *) buffer, (size_t) ssize, 0);
 
      if (result == 0)
@@ -1051,8 +1051,8 @@ long rtp_net_recv (RTP_HANDLE sockHandle, unsigned char * buffer, long size)
     {
       size_t ssize = MAX_RECV_SIZE;
 
-      if (size < ssize)
-        ssize = size;
+      if ((size_t)size < ssize)
+       ssize = (size_t)size;
       result = recv((int) sockHandle, (char *) buffer, (size_t) ssize, 0);
       if (result == -1)
       {

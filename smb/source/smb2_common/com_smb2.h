@@ -37,7 +37,6 @@ extern void Smb2SrvModel_Global_Init(void);
 
 
 #define TYPELESS int /* Types currently unresolved design */
-#define HEREHERE
 #define CLAIM_SEMAPHORE
 #define RELEASE_SEMAPHORE
 
@@ -48,15 +47,10 @@ extern void Smb2SrvModel_Global_Init(void);
 
 /*  Returns a list of supported Encryption algorithms */
 extern void RTSmb2_Encryption_Release_Spnego_Default(byte *pBuffer);
-extern byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size);
 extern byte *RTSmb2_Encryption_Get_Spnego_Next_token(dword SessionGlobalId,TYPELESS SecurityContext,rtsmb_size *buffer_size,int *isLast_token,dword *status, byte *InToken, int InTokenLength);
-extern byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size buffer_size);
-extern void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer);
-int RTSmb2_Encryption_Encrypt_Buffer(byte *Dest, rtsmb_size dest_size, PRTSMB2_TRANSFORM_HEADER ptransform_header, byte *Source, rtsmb_size source_size);
 extern dword RTSmb2_Encryption_Get_Spnego_New_SessionGlobalId(void);
 extern void  RTSmb2_Encryption_Spnego_Clear_SessionGlobalId(dword SessionId);
 extern byte *RTSmb2_Encryption_Get_Spnego_Default(rtsmb_size *buffer_size);
-extern byte **RTSmb2_Encryption_Get_AlgorithmList(void);
 extern BBOOL RTSmb2_Encryption_SignatureVerify(dword SessionGlobalId,TYPELESS SecurityContext,byte *Key, byte *Signature);
 extern void  RTSmb2_Encryption_Sign_message(byte *Signature,byte *Key,byte SigningRule, byte *Message, rtsmb_size messageLength);
 extern TYPELESS RTSmb2_Encryption_GetSecurityContext(dword SessionGlobalId);
@@ -66,9 +60,6 @@ extern BBOOL RTSmb2_Encryption_InquireContextAnon(dword SessionGlobalId,TYPELESS
 extern BBOOL RTSmb2_Encryption_InquireContextGuest(dword SessionGlobalId,TYPELESS SecurityContext);
 
 extern void RTSmb2_Encryption_Release_Spnego_Next_token(byte *Buffer);
-extern void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *pBuffer);
-extern void  RTSmb2_Encryption_Release_Decrypted_Buffer(byte *origin);
-byte *RTSmb2_Encryption_Get_Decrypted_Buffer(byte *origin, int buffer_size,RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2);
 
 extern void  RTSmb2_Encryption_SetSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey);
 extern void  RTSmb2_Encryption_Get_Session_SigningKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *pSigningKey, byte *pSessionKey);

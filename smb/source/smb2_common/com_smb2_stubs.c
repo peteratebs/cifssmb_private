@@ -25,7 +25,6 @@
 #include "com_smb2_wiredefs.h"
 #include "rtpnet.h"
 #include "rtpstr.h"
-#include "rtpmem.h"
 #include "rtprand.h"
 
 
@@ -55,24 +54,6 @@ dword RTSmb2_Encryption_Get_Spnego_New_SessionGlobalId(void)
     return 99;
 }
 
-// Sends this in constant NTLM reponse to evoke an NTLMSSP_NEGOTIATE response from the client.
-// Contents:
-// OID: 1.3.6.1.5.5.2 (SPNEGO - Simple Protected Negotiation)
-// MechType: 1.3.6.1.4.1.311.2.2.10 (NTLMSSP - Microsoft NTLM Security Support Provider)
-// principal: not_defined_in_RFC4178@please_ignore
-int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
-byte *RTSmb2_Encryption_Get_Spnego_Default(rtsmb_size *buffer_size)
-{
-byte *b;
-    *buffer_size = spnego_get_negotiate_ntlmssp_blob(&b);
-    return (byte *) b;
-}
-void RTSmb2_Encryption_Release_Spnego_Default(byte *pBuffer){}
-
-
-// assigned to an unused function pointer
-static char *algs[] = {"Algorithm1", "Algorith2","Algorithm3", 0};
-byte **RTSmb2_Encryption_Get_AlgorithmList(void){ return (byte **)algs; }
 
 
 // These are all called but they are not needed for basic NTLMV2 login support without signing
@@ -90,63 +71,10 @@ void  RTSmb2_Encryption_Get_Session_EncryptionKeyFromSessionKey(dword SessionGlo
 void  RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext, byte *DecryptionKey, byte *SessionKey){DecryptionKey=(byte*)"ENC_KEY";}
 void  RTSmb2_Encryption_SignMessage(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey, byte *Signature) {Signature=(byte*)"SIGNATURE";}
 
-static byte spnegobuffer_in[1024];
-byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size)
-{
-    *buffer_size=1024;
-    return (byte *)rtp_malloc(1024);
 
-}
-byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size  buffer_size)
-{
-    return (byte *)rtp_malloc(buffer_size*2);
-}
-void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
-{
-    RTP_FREE(buffer);
-}
 
-void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer)
-{
-    RTP_FREE(buffer);
-}
-
-// This is referenced but it is never called. Needs more work to support packet encrytion.
-int RTSmb2_Encryption_Encrypt_Buffer(byte *Dest, rtsmb_size dest_size, PRTSMB2_TRANSFORM_HEADER ptransform_header, byte *Source, rtsmb_size source_size)
-{
-rtsmb_size i;
-    /* Fake encrypt by placing space after every byte */
-    for(i =0; i < source_size; i++)
-    {
-        *Dest++=*Source++;
-        *Dest++=32;
-    }
-//   rtp_memcpy(Dest, Source, source_size);
-   rtp_memcpy(ptransform_header->Signature , "SIGNATURE9ABCDEF" , 16);
-   rtp_memcpy(ptransform_header->Nonce,      "NONCE0123456789A" , 16);
-   return source_size*2;
-}
-
-// This is never called. Needs more work to support packet encrytion.
-byte *RTSmb2_Encryption_Get_Decrypted_Buffer(byte *origin, int buffer_size,RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
-{
-int i;
-byte *Dest = origin;
-byte *Source = origin;
-    /* Fake decrypt by taking every other byte */
-    for(i =0; i < ptransform_header_smb2->OriginalMessageSize; i++)
-    {
-        *Dest++=*Source++;
-        Source++;
-    }
-    return origin;
-}
-// This is never called. Needs more work to support packet encrytion.
-void  RTSmb2_Encryption_Release_Decrypted_Buffer(byte *origin)
-{
-}
-
-// This is referenced but it is never called. Needs more work to support packet signing.
+// This is referenced for SMB3 fetures but it is never called.
+// A function signing algorithm is provided by calculate_smb2_signing_key().
 void  RTSmb2_Encryption_Sign_message(byte *Signature,byte *Key,byte SigningRule, byte *Message, rtsmb_size messageLength)
 {
    rtp_memcpy(Signature , "IMSIGNEDBABYYAYA" , 16);

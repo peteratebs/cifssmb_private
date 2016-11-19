@@ -182,7 +182,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     SMBFSTAT stat;
     dword r;
 	PUSER user;
-	word sid;
+	int sid;
     BBOOL searchFound=FALSE;
     BBOOL isFound;
     int numFound=0;

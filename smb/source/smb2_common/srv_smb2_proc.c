@@ -165,6 +165,7 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
     BBOOL isCompoundReply=FALSE;
     pStream = &smb2stream;
     word AddtoFinalCreditRequest_CreditResponse = 0;
+    dword *pPreviousNextOutCommand = 0;
     /* Initialize memory stream pointers from the v1 contect structure
        set pStream->psmb2Session from the smb2 value saved in the session context structure  */
     Smb1SrvCtxtToStream(&smb2stream, pSctx);
@@ -210,6 +211,8 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
 
     // Process one or more SMB2 packets
     smb2stream.compound_output_index = 0;
+
+
     do
     {
       PFVOID   pInBufStart;
@@ -261,7 +264,13 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
          }
        }
        // Process this one smb packet
-       doSend |= SMBS_ProcSMB2_Packet (&smb2stream);
+       BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&smb2stream);
+       doSend |= SendCommandResponse;
+       // Must be a compound input to a command that does not respond, we'll null it out so the frame isn't bad
+       if (!SendCommandResponse && pPreviousNextOutCommand)
+       {
+         *pPreviousNextOutCommand = 0;
+       }
 
 
        // See if there are more input commands to process if the packet doesn't require compound_output_index
@@ -272,6 +281,7 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        // Set out process id to input \n");
        pOutHeader->Reserved = smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
+       pPreviousNextOutCommand     =   &pOutHeader->NextCommand; // Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
        if (NextCommandOffset == 0)
        {
 //          pOutHeader->CreditRequest_CreditResponse = 2 + AddtoFinalCreditRequest_CreditResponse;
@@ -338,7 +348,6 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          sign_packet = TRUE;
-
        if (pStream->InHdr.Command == SMB2_SESSION_SETUP && pStream->OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
          sign_packet = TRUE;
@@ -346,20 +355,10 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
 #endif
        if (sign_packet)
        { // sign if dialact == 2100 and session id != 0
-            uint8_t digest[SHA256_DIGEST_LENGTH];
             if (pStream->psmb2Session->SessionId != 0)
             {
                unsigned int PrevLength;
                unsigned int SkipCount;
-               int i;
-               SHA256_CTX ctx;
-               SHA256_CTX ctx_o;
-               uint8_t ipad[65];
-               uint8_t opad[65];
-
-               MEMCLEAROBJ(ctx);
-               MEMCLEAROBJ(ctx_o);
-
                // Now see if we have to pad the output to get to an 8 byte boundary
                PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
                SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
@@ -377,47 +376,6 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
                 size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
                 calculate_smb2_signing_key(pStream->psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
                }
-#if (0)
-               tc_memset(ipad, 0, sizeof(ipad));
-               tc_memset(opad, 0, sizeof(opad));
-//	if (session_key.length == 0) {
-//		DEBUG(2,("Wrong session key length %u for SMB2 signing\n",
-//			 (unsigned)session_key.length));
-//		return NT_STATUS_ACCESS_DENIED;
-//	}
-
-//               tc_memcpy( ipad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
-//               tc_memcpy( opad, pStream->psmb2Session->pSmbCtx->encryptionKey, 8);
-
-
-               tc_memcpy( ipad, pStream->psmb2Session->SigningKey, 16);
-               tc_memcpy( opad, pStream->psmb2Session->SigningKey, 16);
-
-               /* XOR key with ipad and opad values */
-               for (i=0; i<64; i++)
-	           {
-                ipad[i] ^= 0x36;
-                opad[i] ^= 0x5c;
-               }
-               SHA256_Init(&ctx);
-               SHA256_Update(&ctx, ipad, 64);
-
-               //=====
-               // SHA256_Update (SHA256_CTX *m, const void *v, size_t len)]
-               {
-                void *data = pOutBufStart;
-                size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
-                SHA256_Update(&ctx, data, data_len); /* then text of datagram */
-               }
-               SHA256_Final(digest, &ctx);
-               //
-               //SHA256_Init(&ctx_o);
-               //SHA256_Update(&ctx_o, opad, 64);
-               //SHA256_Update(&ctx_o, digest, SHA256_DIGEST_LENGTH);
-               //SHA256_Final(digest, &ctx_o);
-               tc_memcpy(pOutHdr->Signature, digest, 16);
-               // tc_memset(&pOutHdr->Signature[8], 0x12, 4);
-#endif
             }
         }
 #endif
@@ -937,7 +895,6 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
      /* Set up a temporary buffer to hold incoming share name */
     pStream->ReadBufferParms[0].pBuffer = share_name;
     pStream->ReadBufferParms[0].byte_count = sizeof(share_name);
-    /* Read into command, share name will be placed in command_args.pBuffer which came from RTSmb2_Encryption_Get_Spnego_InBuffer */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
@@ -1052,18 +1009,6 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
     }
     else
     {
-#if (0&&HARDWIRED_INCLUDE_DCE)    // HEREHERE not sure what the issue is. comment i "We need to get IPC out of string"
-       if (command.flags & 0x08)
-       {
-          response.optional_support = 1;
-          WRITE_SMB_AND_X (srv_cmd_fill_tree_connect_options_and_x_lanman);
-       }
-       else
-       {
-          RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-       }
-
-#endif
         /* Passes cmd_fill_negotiate_response_smb2 pOutHdr, and &response */
         RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     }

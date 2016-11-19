@@ -1517,7 +1517,7 @@ int srv_cmd_read_transaction (PFVOID origin, PFVOID buf, rtsmb_size size,
       {
         PFVOID  pname;
         PFVOID  pdata;
-        int namelength;
+        rtsmb_size namelength;
         pTransaction->name_size = pTransaction->byte_count;
 
         // Name should be on 2 byte boundary so skip if we have to

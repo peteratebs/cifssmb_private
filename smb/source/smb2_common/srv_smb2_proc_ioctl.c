@@ -25,7 +25,7 @@
 #include "rtpmem.h"
 #include "srvssn.h"
 #include "smbdebug.h"
-
+#include "srvutil.h"
 
 static BBOOL isAnInvalidFSCTLRequest(dword requestid)
 {

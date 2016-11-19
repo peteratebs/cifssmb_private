@@ -2935,6 +2935,7 @@ int srv_cmd_fill_nt_transaction_cmd (PFVOID origin, PFVOID buf, rtsmb_size size,
 {
   PFVOID s, e,psmb_header;
   int i;
+  dword di;
   psmb_header = pHeader;
   s = buf;
   RTSMB_PACK_BYTE (pTransaction->SetupCount+0x12);  /* word count */
@@ -2969,9 +2970,9 @@ int srv_cmd_fill_nt_transaction_cmd (PFVOID origin, PFVOID buf, rtsmb_size size,
   {
     RTSMB_PACK_BYTE  (0); //  byte Pad2[];
   }
-  for (i = 0; i < pTransaction->DataCount; i++)
+  for (di = 0; di < pTransaction->DataCount; di++)
   {
-     RTSMB_PACK_BYTE(pTransaction->NT_Trans_Data[i]);
+     RTSMB_PACK_BYTE(pTransaction->NT_Trans_Data[di]);
   }
   e = buf;  /* measure end of data section */
   return PDIFF (e, s);

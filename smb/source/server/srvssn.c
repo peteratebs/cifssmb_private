@@ -5127,7 +5127,6 @@ rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
          * send a response or not.
          */
 //HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)
-//HEREHERE  - echo replies don't seem right
         switch (inCliHdr.command)
         {
         case SMB_COM_NEGOTIATE:

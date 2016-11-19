@@ -47,16 +47,17 @@
 #include "srvcfg.h"
 #include "smbnet.h"
 #include "smbspnego.h"
-
 #include "wchar.h"
 #include "rtptime.h"
+#include "rtpmem.h"
 
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 extern word NewUID(const PUSER u, int Max);
 static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream);
-
+static byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size);
+static void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer);
 /*
 Proccess SESSION_SETUP requests.
 
@@ -65,6 +66,7 @@ Proccess SESSION_SETUP requests.
 
 
 */
+
 void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *user_name, int user_name_size, BYTE *domain_name, int domain_name_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result);
 
 BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
@@ -685,6 +687,16 @@ release_and_return_TRUE:
     return TRUE;
 } // End Proc_smb2_SessionSetup
 
+static byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size)
+{
+    *buffer_size=1024;
+    return (byte *)rtp_malloc(1024);
+}
+
+static void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer)
+{
+    RTP_FREE(buffer);
+}
 
 
 static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)

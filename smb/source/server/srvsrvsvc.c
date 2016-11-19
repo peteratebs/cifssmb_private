@@ -197,6 +197,26 @@ typedef struct s_DCE_LSARP_LOOKUP_NAMES_REPLY
 PACK_PRAGMA_POP
 
 
+PACK_PRAGMA_ONE
+typedef struct s_DCE_LSARP_GET_SHARE_INFO_REPLY
+{
+    byte  version;        // 5
+    byte  version_minor;  // 0
+	byte  packet_type;
+	byte  packet_flags;
+	dword data_representation;
+	word  frag_length;
+	word  auth_length;
+	dword call_id;
+	dword alloc_hint;
+	word  context_id;
+	byte  cancel_count;
+	byte  pad;
+    /* end common fields */
+
+} DCE_LSARP_GET_SHARE_INFO_REPLY;
+PACK_PRAGMA_POP
+
 
 //============================================================================
 //    IMPLEMENTATION REQUIRED EXTERNAL REFERENCES (AVOID)
@@ -758,16 +778,37 @@ void *start;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_PACKET_GETSHARE_INFO)
      {
-     dword len;
-     dword * pdata = (dword *) (pdce_header + 1);
-       pdata = ptralign(pdata, 4);
-        len = *pdata++;
-        pdata = (dword *) PADD(pdata,len*2);
+#warning  D C E _PACKET_GETSHARE_INFO is not implemented
+        dword len;
+        void *start;
+        DCE_ENUM_REPLY_HEADER *p;
+        int l;
+        dword Referentid, MaxCount, Offset,Length;
+
+
+        dword * pdata = (dword *) (pdce_header + 1);
         pdata = ptralign(pdata, 4);
-        len = *pdata++;
-        pdata = (dword *) PADD(pdata,len*2);
-        pdata = ptralign(pdata, 4);
-        rval = 0;
+
+        // Consume the Server name
+        l =  consume_full_dce_pointer((dword *)pdata, &Referentid, &MaxCount, &Offset, &Length);
+        pdata = PADD(pdata,l);
+        if (Length)
+        {
+          rtsmb_dump_bytes("Server name", pdata, Length*2, DUMPUNICODE);
+          pdata = PADD(pdata,Length);
+          pdata = ptralign(pdata, 4);
+        }
+        // Consume the Share name
+        l =  consume_full_dce_pointer((dword *)pdata, &Referentid, &MaxCount, &Offset, &Length);
+        pdata = PADD(pdata,l);
+        if (Length)
+        {
+          rtsmb_dump_bytes("Share name", pdata, Length*2, DUMPUNICODE);
+          pdata = PADD(pdata,Length);
+          pdata = ptralign(pdata, 4);
+        }
+
+        goto got_nothing;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_PACKET_ENUM_ALL_SHARES)
      {  // Fake a shares reply from captured data
@@ -804,7 +845,6 @@ void *start;
        p = (DCE_ENUM_REPLY_HEADER *) start;
 
         // Fill the dce header
-
         p->version              = pdce_header->version;
         p->version_minor        = pdce_header->version_minor;   // 0
         p->packet_type          = DCE_PACKET_REPLY;                    // Response
@@ -897,6 +937,7 @@ void *start;
      }
      else
      {
+got_nothing:
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Unhandled dce: packet_type  : %d  pdce_header->opnum : %d\n",pdce_header->packet_type, pdce_header->opnum);
        RTP_FREE(*pRheap_data);
        *pRheap_data = 0;

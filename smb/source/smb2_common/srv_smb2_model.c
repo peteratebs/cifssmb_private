@@ -129,7 +129,8 @@ void Smb2SrvModel_Global_Init(void)
     pSmb2SrvGlobal->ServerSideCopyMaxDataSize          = RTSMB2_CFG_COPY_MAX_DATA_SIZE;
     pSmb2SrvGlobal->ServerHashLevel                    = RTSMB2_CFG_SERVER_HASH_LEVEL;
     pSmb2SrvGlobal->MaxResiliencyTimeout               = RTSMB2_CFG_MAX_RESILIENCY_TIMEOUT;
-    pSmb2SrvGlobal->EncryptionAlgorithmList            = RTSmb2_Encryption_Get_AlgorithmList();
+static char *algs[] = {"Algorithm1", "Algorith2","Algorithm3", 0};
+    pSmb2SrvGlobal->EncryptionAlgorithmList            = (byte  **)algs;
     pSmb2SrvGlobal->EncryptData                        = RTSMB2_CFG_ENCRYPT_DATA;
     pSmb2SrvGlobal->RejectUnencryptedAccess            = RTSMB2_CFG_REJECT_UNENCRYPTED_ACCESS;
     pSmb2SrvGlobal->IsMultiChannelCapable              = RTSMB2_CFG_MULTI_CHANNEL_CAPABLE;

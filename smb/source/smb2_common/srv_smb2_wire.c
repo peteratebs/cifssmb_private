@@ -130,7 +130,6 @@ int rv = -1;
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 32, RtsmbWireVarDecodeSetInfoCommandCb);
             break;
         case SMB2_OPLOCK_BREAK   :
-            HEREHERE // Lease break. How do we do this (by size ?) LEASE is 36 .
             rv = RtsmbWireDecodeSmb2(pStream, pItem, 24, 0);
             break;
     	default:
