@@ -137,10 +137,9 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
          worked = TRUE;
       if(worked == FALSE)
       {
-
         if (command.CtlCode == FSCTL_CREATE_OR_GET_OBJECT_ID)
           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_DUPLICATE_NAME);
-        else
+        else // if (command.CtlCode == FSCTL_CREATE_OR_GET_OBJECT_ID)
           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_OBJECTID_NOT_FOUND);
         return TRUE;
       }
@@ -158,7 +157,6 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
 //      ObjectId (16 bytes)
 //      ExtendedInfo (48 bytes)
 
-
     }
     else if (command.CtlCode == FSCTL_VALIDATE_NEGOTIATE_INFO) //         0x00140204
     {
@@ -169,7 +167,6 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       if (pSmb2SrvGlobal->RequireMessageSigning)
          answer->SecurityMode |=  SMB2_NEGOTIATE_SIGNING_REQUIRED;
 #if (HARDWIRED_DISABLE_SIGNING)
-      printf("Force signing off\n"); //  #if (HARDWIRED_DISABLE_SIGNING)
       answer->SecurityMode =  0;
 #endif
       answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;
@@ -182,7 +179,6 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
          long l;
          // srvsvc layer will need the stream pointer to get to session info like user name and domain so pass it through the FD
          rtsmb_ipcrpc_bind_stream_pointer(fileid, (void *)pStream);
-
          l = SMBFIO_Write (pStream->psmb2Session->pSmbCtx,
               pStream->psmb2Session->pSmbCtx->tid,
               fileid,

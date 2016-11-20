@@ -122,6 +122,8 @@ typedef RTSMB2_CREATE_DECODED_CREATE_CONTEXTS RTSMB_FAR *PRTSMB2_CREATE_DECODED_
 #define RTSMB2_CREATE_CONTEXT_WIRE_SIZE (sizeof(RTSMB2_CREATE_CONTEXT_WIRE)-1) // -1 because buffer is optional
 
 
+// We encode the 16 bit external fid # that we use to access our fid table in the 16 byte FID that is shared with the client.
+// that intern in the 16 byte file handle that is encoded in the FID field
 word RTSmb2_get_externalFid(byte *smb2_file_handle)
 {
   word externalFid;
@@ -129,10 +131,6 @@ word RTSmb2_get_externalFid(byte *smb2_file_handle)
 //  externalFid = *((word *) &smb2_file_handle[0]);
   return externalFid;
 }
-
-
-
-
 
 BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
@@ -150,7 +148,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     dword CreateAction = 1; // 1== FILE_OPEN, 0 = SUPER_SEDED, 2=CREATED, 3=OVERWRITTEN
     int flags = 0, mode;
     SMBFSTAT stat;
-    byte permissions = 5; /* HAD TO SET IT TO A USELESS VALUE _YI_ */
+    byte permissions = 5; /* SET IT TO A USELESS VALUE  */
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
     dword smb2flags = 0;
@@ -161,7 +159,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     tc_memset(create_content,0, sizeof(create_content));
     tc_memset(&decoded_create_context,0, sizeof(decoded_create_context));
 
-
     ASSERT_SMB2_UID(pStream)   // Returns if the UID is not valid
     ASSERT_SMB2_TID (pStream)  // Returns if the TID is not valid
 
@@ -171,24 +168,20 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     pStream->ReadBufferParms[1].pBuffer = create_content;
     pStream->ReadBufferParms[1].byte_count = sizeof(create_content);
 
-
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
-
     if (!pStream->Success)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  RtsmbStreamDecodeCommand failed...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-
     if (command.StructureSize != 57)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-
 
     if (command.NameLength!=0)
     {
@@ -228,9 +221,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     {
         wants_attr_write = TRUE;
     }
-
-
-//=====
     /* do we make the file if it doesn't exist?   */
     switch (command.CreateDisposition)
     {
@@ -257,7 +247,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     }
     // Make sure we have write permission if we are deleting
     if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
-      wants_write = TRUE;
+        wants_write = TRUE;
     if (wants_read && wants_write)
     {
         /* reading and writing   */
@@ -276,19 +266,16 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         flags |= RTP_FILE_O_WRONLY; /* was RTP_FILE_O_RDWR _YI_ */
         permissions = SECURITY_WRITE;
     }
-
     if (wants_attr_write)
     {
         permissions = SECURITY_READWRITE;
     }
     ASSERT_SMB2_PERMISSION(pStream, permissions);  // Checks permission on pCtx->tid
 
-
-
     if (command.FileAttributes & 0x80)
     {
-            mode = RTP_FILE_S_IWRITE | RTP_FILE_S_IREAD |
-                   RTP_FILE_ATTRIB_ARCHIVE; /* VM */
+       mode = RTP_FILE_S_IWRITE | RTP_FILE_S_IREAD |
+              RTP_FILE_ATTRIB_ARCHIVE; /* VM */
     }
     else
     {
@@ -303,7 +290,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
 
     if (pTree->type == ST_PRINTQ)
-    { // Don't open IPCs or printers yet.
+    { // Don't open printers.
       RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
       return TRUE;
     }
@@ -392,7 +379,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         }
       }
       else // IPC
-      { // Call stat, it sould work but if it doesn just zero
+      { // Call stat, it should work but if it doesn't just zero
         if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
         {
           tc_memset(&stat, 0, sizeof(stat));
@@ -465,7 +452,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       pStream->WriteBufferParms[0].byte_count = sizeof(pMxAc_and_pQfid_info_response);
       // Copy the inode number into the FileId field
       byte * p = (byte *)pStream->WriteBufferParms[0].pBuffer;
-      tc_memcpy(p+sizeof(pMxAc_info_response)+64, stat.unique_fileid, sizeof(stat.unique_fileid));
+      tc_memcpy(p+sizeof(pMxAc_info_response)+24, stat.unique_fileid, sizeof(stat.unique_fileid));
+//      tc_memcpy(p+sizeof(pMxAc_info_response)+64, stat.unique_fileid, sizeof(stat.unique_fileid));
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
@@ -493,7 +481,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         tc_memcpy(presponse ,pQfid_info_response, sizeof(pQfid_info_response));
         pStream->WriteBufferParms[0].byte_count += sizeof(pQfid_info_response);
         byte * p = (byte *)presponse;
-        tc_memcpy(p+64, stat.unique_fileid, sizeof(stat.unique_fileid));
+//        tc_memcpy(p+64, stat.unique_fileid, sizeof(stat.unique_fileid));
+        tc_memcpy(p+24, stat.unique_fileid, sizeof(stat.unique_fileid));
         presponse +=sizeof(pQfid_info_response);
       }
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);

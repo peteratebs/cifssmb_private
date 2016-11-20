@@ -292,7 +292,6 @@ static int RtsmbWireVarCreateCommandCb (smb2_stream *pStream, PFVOID origin, PFV
 PRTSMB2_CREATE_C pCommand = (PRTSMB2_CREATE_C) pItem;
 int rv;
     rv = RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->NameOffset, pCommand->NameLength, pCommand->StructureSize);
-
     if (rv >= 0)
     {
       if (pCommand->CreateContextsLength)
@@ -320,8 +319,6 @@ int rv;
     }
     return rv;
 }
-
-
 
 static int RtsmbWireVarDecodeLockCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem)
 {
@@ -405,7 +402,6 @@ PFVOID StartS  = pStream->pOutBuf;
       pStream->write_buffer_remaining-=consumed;
 //      pStream->OutBodySize += (rtsmb_size) (write_header_size + consumed);
     }
-printf("_smb2_stream_write_error   pStream->OutBodySize after:%d\n", pStream->OutBodySize);
     pStream->OutBodySize = StartOutBodySize + (PDIFF(pStream->pOutBuf, StartS));
 	pStream->Success=TRUE; // This says whether to encrypt or not
     return 0;

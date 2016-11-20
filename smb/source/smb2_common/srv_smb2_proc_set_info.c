@@ -15,10 +15,6 @@
 #include "smbdefs.h"
 #include "rtpmem.h"
 
-#define FAKE_ALLOCATION_UNITS               0x10000000
-#define FAKE_AVAILABLE_UNITS                0x01000000
-#define FAKE_SECTORS_PER_ALLOCATION_UNIT    2
-#define FAKE_BYTES_PER_SECTOR               512
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
