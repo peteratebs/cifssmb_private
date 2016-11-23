@@ -10,8 +10,8 @@
 #define RTSMB_NBSS_COM_POSITIVE_RESPONSE  0x82
 #define RTSMB_NBSS_COM_NEGATIVE_RESPONSE  0x83
 
-#define RTSMB_NBSS_DIRECT_PORT_ALT        9445 
-#define RTSMB_NBSS_PORT_ALT               9139 
+#define RTSMB_NBSS_DIRECT_PORT_ALT        9445
+#define RTSMB_NBSS_PORT_ALT               9139
 #define RTSMB_NBSS_DIRECT_PORT            445  // well-known port number
 #define RTSMB_NBSS_PORT                   139  // well-known port number
 
@@ -21,6 +21,7 @@
 //#define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     60000  /* in milliseconds */
 #define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     30000  /* in milliseconds */
 #define RTSMB_NBNS_RETRY_COUNT            4
+
 
 
 typedef struct

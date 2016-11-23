@@ -46,6 +46,7 @@ void rtsmb_util_ascii_to_unicode (PFCHAR str, PFWCS dest, int codepage);
 void rtsmb_util_ascii_to_rtsmb (PFCHAR str, PFRTCHAR dest, int codepage);
 void rtsmb_util_rtsmb_to_ascii (PFRTCHAR str, PFCHAR dest, int codepage);
 void rtsmb_util_rtsmb_to_unicode (PFRTCHAR str, PFWCS dest, int codepage);
+char *rtsmb_ascii_of (PFRTCHAR str, int instance);
 
 //CODEPAGE CONVERSION FUNCTIONS
 void rtsmb_util_n_unicode_to_ascii (PFWCS str, PFCHAR dest, int inMax, int outMax, int codepage);

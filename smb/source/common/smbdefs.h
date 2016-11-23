@@ -34,7 +34,20 @@
                                                               // for mac based client, 8 for windows client
 // #define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    16384 // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
 // At least 64K required for SMB2
-#define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    ((32768*2)+4) // Improves performance. tried (32768-512) but this breaks DIR *.* on very large directories, that specific procedure should be debugged with a larger buffer.
+// #define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    ((32768*2)+512) // Set this large enough to hold a 64 K Read or Write transaction + header size
+#define HARDWIRED_MAX_SMALL_BUFFER_SIZE                    ((32768*2)+512) // Set this large enough to hold a 64 K Read or Write transaction + header size
+#define CFG_RTSMB_SMALL_BUFFER_SIZE        HARDWIRED_MAX_SMALL_BUFFER_SIZE // 4096 // (32768-512) // 2924
+#define CFG_RTSMB_SMALL_BUFFER_SIZE_VETTED  ((32768*2)+512)
+#define CFG_RTSMB_IN_BUFFER_SIZE_VETTED  ((32768*2)+4)
+#define CFG_RTSMB_OUT_BUFFER_SIZE_VETTED  ((32768*2)+4)
+
+#define CFG_RTSMB_TEMP_BUFFER_SIZE  ((32768*2)+4)
+
+#define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE                (32768*16)      // 512 K for now
+
+
+#define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*2)       // Advertize this as maximum transaction size
+#define HARDWIRED_SMB1_MAX_TRANSACTION_SIZE                0xffff     //   HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE Advertize this as maximum transaction size
 #define HARDWIRE_USE_CONFIG_FILE                           1  // 1 to read user and share info from "smb_config.txt" in the launch directory.
                                                               // These values are then used instead of HARDWIRED_USER_NAME, HARDWIRED_PASSWORD, HARDWIRED_SHARE_NAME, HARDWIRED_SHARE_PATH
                                                               // Note: Should add EXTENDED security, min-dialect, max-dialect, others.

@@ -213,6 +213,7 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
         }
     }
 
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read: bytes read: %d\n",bytesRead);
     return bytesRead;
 }
 
@@ -228,12 +229,11 @@ int rtsmb_net_write (RTP_SOCKET socket, PFVOID buf, int size)
     int bytes_sent;
     int rv = 0;
 
-printf("Sending !!! bytes %d\n", size);
-if (size < 32 && tc_memcmp(buf, lzeros, size) == 0)
-{
-printf("right here !!! don't send runt: bytes %d\n", size);
-return 0;
-}
+    if (size < 32 && tc_memcmp(buf, lzeros, size) == 0)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Not sending a runt: bytes %d\n", size);
+      return 0;
+    }
 
 
     do
@@ -249,7 +249,7 @@ return 0;
         size -= bytes_sent;
         buf = PADD (buf, bytes_sent);
 
-    } while (size > 0);
+    } while (bytes_sent > 0 && size > 0);
 
     return rv;
 }

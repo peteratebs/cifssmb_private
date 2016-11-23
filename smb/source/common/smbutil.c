@@ -289,6 +289,7 @@ void rtsmb_util_ascii_to_rtsmb (PFCHAR str, PFRTCHAR dest, int codepage)
 #endif
 }
 
+
 void rtsmb_util_rtsmb_to_ascii (PFRTCHAR str, PFCHAR dest, int codepage)
 {
 #if (INCLUDE_RTSMB_UNICODE)
@@ -296,6 +297,13 @@ void rtsmb_util_rtsmb_to_ascii (PFRTCHAR str, PFCHAR dest, int codepage)
 #else
 	tc_strcpy (dest, str);
 #endif
+}
+
+char *rtsmb_ascii_of (PFRTCHAR str, int instance)
+{
+static char asciidest[4][256];
+  rtsmb_util_unicode_to_ascii ((PFWCS) str, asciidest[instance], CFG_RTSMB_USER_CODEPAGE);
+  return asciidest[instance];
 }
 
 void rtsmb_util_rtsmb_to_unicode (PFRTCHAR str, PFWCS dest, int codepage)

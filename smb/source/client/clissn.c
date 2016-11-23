@@ -4696,7 +4696,6 @@ int rtsmb_cli_session_send_session_setup_pre_nt (PRTSMB_CLI_SESSION pSession, PR
     return RTSMB_CLI_SSN_RV_OK;
 }
 
-// extern dword HEREHERE;
 
 RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {

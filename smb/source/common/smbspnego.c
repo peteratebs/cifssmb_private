@@ -67,38 +67,38 @@ typedef struct decode_token_stream_s {
 
 // NTLM_RESP_FLAGS
 
-#define NEGOTIATE_56                0b10000000000000000000000000000000
-#define NEGOTIATE_KEYEX             0b01000000000000000000000000000000
-#define NEGOTIATE_128               0b00100000000000000000000000000000
-#define NEGOTIATE_XX0               0b00010000000000000000000000000000
-#define NEGOTIATE_XX1               0b00001000000000000000000000000000
-#define NEGOTIATE_XX2               0b00000100000000000000000000000000
-#define NEGOTIATE_VERSION           0b00000010000000000000000000000000
-#define NEGOTIATE_XX3               0b00000001000000000000000000000000
-#define NEGOTIATE_TARGINFO          0b00000000100000000000000000000000
-#define NEGOTIATE_NONNT             0b00000000010000000000000000000000
-#define NEGOTIATE_XX3A              0b00000000001000000000000000000000
-#define NEGOTIATE_IDENTITY          0b00000000000100000000000000000000
-#define NEGOTIATE_EXTENDED_SECURITY 0b00000000000010000000000000000000
-#define NEGOTIATE_TYPE_SHARE        0b00000000000001000000000000000000
-#define NEGOTIATE_TYPE_SERVER       0b00000000000000100000000000000000
-#define NEGOTIATE_TYPE_DOMAIN       0b00000000000000010000000000000000
-#define NEGOTIATE_ALWAYS_SIGN       0b00000000000000001000000000000000
-#define NEGOTIATE_XX4               0b00000000000000000100000000000000
-#define NEGOTIATE_OEM_WS_SUPPLIED   0b00000000000000000010000000000000
-#define NEGOTIATE_OEM_DOM_SUPPLIED  0b00000000000000000001000000000000
-#define NEGOTIATE_ANONYMOUS         0b00000000000000000000100000000000
-#define NEGOTIATE_NT_ONLY           0b00000000000000000000010000000000
-#define NEGOTIATE_NTLM_KEY          0b00000000000000000000001000000000
-#define NEGOTIATE_XX5               0b00000000000000000000000100000000
-#define NEGOTIATE_LAN_MAN           0b00000000000000000000000010000000
-#define NEGOTIATE_DATAGRAM          0b00000000000000000000000001000000
-#define NEGOTIATE_SEAL              0b00000000000000000000000000100000
-#define NEGOTIATE_SIGN              0b00000000000000000000000000010000
-#define NEGOTIATE_XX6               0b00000000000000000000000000001000
-#define NEGOTIATE_REQUEST_TARGET    0b00000000000000000000000000000100
-#define NEGOTIATE_NEGOTIATE_OEM     0b00000000000000000000000000000010
-#define NEGOTIATE_NEGOTIATE_UNICODE 0b00000000000000000000000000000001
+#define NEGOTIATE_56                (1Ull << 31)
+#define NEGOTIATE_KEYEX             (1Ull << 30)
+#define NEGOTIATE_128               (1Ull << 29)
+#define NEGOTIATE_XX0               (1Ull << 28)
+#define NEGOTIATE_XX1               (1Ull << 27)
+#define NEGOTIATE_XX2               (1Ull << 26)
+#define NEGOTIATE_VERSION           (1Ull << 25)
+#define NEGOTIATE_XX3               (1Ull << 24)
+#define NEGOTIATE_TARGINFO          (1Ull << 23)
+#define NEGOTIATE_NONNT             (1Ull << 22)
+#define NEGOTIATE_XX3A              (1Ull << 21)
+#define NEGOTIATE_IDENTITY          (1Ull << 20)
+#define NEGOTIATE_EXTENDED_SECURITY (1Ull << 19)
+#define NEGOTIATE_TYPE_SHARE        (1Ull << 18)
+#define NEGOTIATE_TYPE_SERVER       (1Ull << 17)
+#define NEGOTIATE_TYPE_DOMAIN       (1Ull << 16)
+#define NEGOTIATE_ALWAYS_SIGN       (1Ull << 15)
+#define NEGOTIATE_XX4               (1Ull << 14)
+#define NEGOTIATE_OEM_WS_SUPPLIED   (1Ull << 13)
+#define NEGOTIATE_OEM_DOM_SUPPLIED  (1Ull << 12)
+#define NEGOTIATE_ANONYMOUS         (1Ull << 11)
+#define NEGOTIATE_NT_ONLY           (1Ull << 10)
+#define NEGOTIATE_NTLM_KEY          (1Ull << 9)
+#define NEGOTIATE_XX5               (1Ull << 8)
+#define NEGOTIATE_LAN_MAN           (1Ull << 7)
+#define NEGOTIATE_DATAGRAM          (1Ull << 6)
+#define NEGOTIATE_SEAL              (1Ull << 5)
+#define NEGOTIATE_SIGN              (1Ull << 4)
+#define NEGOTIATE_XX6               (1Ull << 3)
+#define NEGOTIATE_REQUEST_TARGET    (1Ull << 2)
+#define NEGOTIATE_NEGOTIATE_OEM     (1Ull << 1)
+#define NEGOTIATE_NEGOTIATE_UNICODE (1Ull << 0)
 
   // NEGOTIATE_LAN_MAN was NEGOTIATE_NTLM_KEY
 
@@ -942,8 +942,8 @@ static byte *decode_token_stream_fill_target_information_item(word item_type, wo
 {
  word *winbuffer = (word *) inbuffer;
  word iw = item_string?rtsmb_util_unicode_strlen(item_string)*2+2:0;  // item_string null is terminator record
- *winbuffer = SMB_HTOIW(item_type); *winbuffer++;
- *winbuffer = SMB_HTOIW(iw); *winbuffer++;
+ *winbuffer = SMB_HTOIW(item_type); winbuffer++;
+ *winbuffer = SMB_HTOIW(iw); winbuffer++;
  byte *pstrinbuffer = (byte *) winbuffer;
  if (item_string)
  { // if not it's a terminator
@@ -1578,6 +1578,14 @@ int spnego_get_negotiate_ntlmssp_blob(byte **pblob)
     *pblob = spnego_ntlmssp_blob;
     return sizeof(spnego_ntlmssp_blob);
 }
+// Alternate API for spnego_get_negotiate_ntlmssp_blob() used in several places.
+byte *RTSmb2_Encryption_Get_Spnego_Default(rtsmb_size *buffer_size)
+{
+byte *b;
+    *buffer_size = spnego_get_negotiate_ntlmssp_blob(&b);
+    return (byte *) b;
+}
+void RTSmb2_Encryption_Release_Spnego_Default(byte *pBuffer){}
 
 
 
@@ -1614,4 +1622,3 @@ int spnego_get_client_ntlmssp_negotiate_blob(byte **pblob)
     *pblob = (byte *) spnego_client_ntlmssp_negotiate_blob;
     return sizeof(spnego_client_ntlmssp_negotiate_blob);
 }
-
