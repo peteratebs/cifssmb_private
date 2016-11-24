@@ -878,9 +878,9 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
 
 dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid)
 {
-    SMBFSTAT stat;
     int fid;
-
+    SMBFSTAT stat;
+    BBOOL stat_valid = FALSE;
     /**
      * Here we handle pipes.
      */
@@ -924,8 +924,10 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
 #endif
     else // if (pTree->type == ST_DISKTREE || pTree->type == ST_PRINTQ)
     {
+      SMBFSTAT stat;
       if (SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
       {
+          stat_valid = TRUE;
           if (ON (flags, RTP_FILE_O_CREAT | RTP_FILE_O_EXCL))
           {
               return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_FILEEXISTS);
@@ -937,8 +939,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
           if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
           {
               /* We create a dummy file entry that can only be opened and closed.   */
-              int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags);
-
+              int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags, stat.unique_fileid);
 
               if (externalFid < 0)
               {
@@ -974,7 +975,14 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
     else
     {
      int externalFid;
-        externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0,smb2flags);
+        // Stat the file to get its unique_fileid
+        if (!stat_valid && !SMBFIO_Stat (pCtx, pCtx->tid, filename, &stat))
+        {
+          SMBFIO_Close (pCtx, pCtx->tid, fid);
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "OpenOrCreate: Stat failed!\n");
+          return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
+        }
+        externalFid = SMBU_SetInternalFid (pCtx, fid, filename, 0,smb2flags, stat.unique_fileid);
 
         if (externalFid < 0)
         {
@@ -2714,6 +2722,7 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     RTSMB_OPEN command;
     RTSMB_OPEN_R response;
     SMBFSTAT stat;
+    BBOOL stat_valid = FALSE;
     PFRTCHAR string;
     word flags = 0, mode;
     int imode;
@@ -2790,6 +2799,7 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
      */
     if (SMBFIO_Stat (pCtx, pCtx->tid, string, &stat))
     {
+        stat_valid = TRUE;
         if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
         {
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS);
@@ -2811,8 +2821,13 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     else
     {
         int external;
-
-        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0)) < 0)
+        if (!stat_valid && !SMBFIO_Stat (pCtx, pCtx->tid, string, &stat))
+        {
+            SMBFIO_Close (pCtx, pCtx->tid, fid);
+            SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS);
+            return TRUE;
+        }
+        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0, stat.unique_fileid)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -3748,9 +3763,14 @@ BBOOL ProcCreate (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRT
     }
     else
     {
+        SMBFSTAT stat;
         int external;
-
-        if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0)) < 0)
+        if (!SMBFIO_Stat (pCtx, pCtx->tid, string, &stat))
+        {
+          SMBFIO_Close (pCtx, pCtx->tid, fid);
+          SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS);
+        }
+        else if ((external = SMBU_SetInternalFid (pCtx, fid, string, 0,0, stat.unique_fileid)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -3802,8 +3822,13 @@ BBOOL ProcCreateTemporary (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pI
     else
     {
         int external;
-
-        if ((external = SMBU_SetInternalFid (pCtx, fid, (PFRTCHAR) pCtx->tmpBuffer, 0, 0)) < 0)
+        SMBFSTAT stat;
+        if (!SMBFIO_Stat (pCtx, pCtx->tid, (PFRTCHAR) pCtx->tmpBuffer, &stat))
+        {
+          SMBFIO_Close (pCtx, pCtx->tid, fid);
+          SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
+        }
+        else if ((external = SMBU_SetInternalFid (pCtx, fid, (PFRTCHAR) pCtx->tmpBuffer, 0, 0, stat.unique_fileid)) < 0)
         {
             SMBFIO_Close (pCtx, pCtx->tid, fid);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOFIDS);
@@ -4232,8 +4257,15 @@ BBOOL ProcOpenPrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInB
     }
     else
     {
+        SMBFSTAT stat;
+        if (!SMBFIO_Stat (pCtx, pCtx->tid, string, &stat))
+        {
+          SMBFIO_Close (pCtx, pCtx->tid, fid);
+          SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRDOS, SMB_ERRDOS_NOACCESS); /* dunno what went wrong... */
+          return TRUE;
+        }
 
-        int externalFid = SMBU_SetInternalFid (pCtx, fid, string, 0, 0);
+        int externalFid = SMBU_SetInternalFid (pCtx, fid, string, 0, 0, stat.unique_fileid);
 
         if (externalFid < 0)
         {

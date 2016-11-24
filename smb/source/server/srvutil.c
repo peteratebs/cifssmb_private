@@ -357,7 +357,7 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 // finds free slot and
 // returns external fid associated with this internal one
 // returns -1 if not found
-int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags)
+int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags, byte *unique_fileid)
 {
 	PTREE tree;
 	PUSER user;
@@ -428,12 +428,15 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	pCtx->fids[k].error = 0;
 	pCtx->fids[k].flags = flags;
 	pCtx->fids[k].smb2flags = smb2flags;
+	pCtx->fids[k].held_oplock_level = 0;
+	pCtx->fids[k].requested_oplock_level = 0;
+    pCtx->fids[k].smb2waitexpiresat = 0;
+	tc_memcpy(pCtx->fids[k].unique_fileid,unique_fileid,sizeof(pCtx->fids[k].unique_fileid));
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
 
 	return k;
 }
-
 
 
 // uid, tid, external must be valid

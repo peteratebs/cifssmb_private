@@ -78,12 +78,19 @@ typedef struct fid_s
     word flags;
 #define SMB2FIDSIG 0x11000000
 #define SMB2DELONCLOSE SMB2FIDSIG|0x01
+#define SMB2SENDOPLOCKBREAK  0x02
+#define SMB2WAITOPLOCKREPLY  0x04
+#define SMB2OPLOCKHELD       0x08
+#define SMB2WAITLOCKREGION   0x10   /* not used yet */
     dword smb2flags;
-
+    byte held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
+    byte requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
+    dword smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
     word tid;       /* owning tree */
     word uid;       /* owning user */
     dword pid;      /* owning process */
     dword error;    /* delayed error */
+    unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
     rtsmb_char name[SMBF_FILENAMESIZE + 1];
 } FID_T;
 typedef FID_T RTSMB_FAR *PFID;
@@ -289,6 +296,12 @@ typedef struct smb_sessionCtx_s
 
     /* fids for this session   */
     FID_T  *fids;
+
+    /* number of fids currently queued for oplock break send */
+    int sendOplockBreakCount;
+
+    /* number of fids currently queued for sending a notify request */
+    int sendNotifyCount;
 
     /* session defaults to smb1 but we push saved buffers here when we assing and SMB2 seesion */
     int protocol_version;

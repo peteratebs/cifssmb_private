@@ -338,6 +338,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
         /**
          * Block on input.
          */
+        // HEREHERE - We need to reduce timeout and send alerts from thread cycle.
         len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT);
     }
     while (rtsmb_srv_net_thread_cycle (pThread, readList, len));
@@ -520,6 +521,19 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
         // Set to not connected so we allow reception of SMB2 negotiate packets.
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Session closed\n");
         (*session)->smbCtx.state = NOTCONNECTED;
+    }
+    else
+    {
+       if ((*session)->smbCtx.sendOplockBreakCount)
+       {
+          // HEREHERE -  send any oplock break alerts
+          (*session)->smbCtx.sendOplockBreakCount = 0;
+       }
+       if ((*session)->smbCtx.sendNotifyCount)
+       {
+           // HEREHERE -  send any notify alerts
+          (*session)->smbCtx.sendNotifyCount = 0;
+       }
     }
     releaseSession (*session);
 

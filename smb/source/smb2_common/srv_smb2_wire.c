@@ -31,7 +31,7 @@
 
 #include "com_smb2.h"
 #include "com_smb2_wiredefs.h"
-
+#include "srv_smb2_model.h"   // for smb2 session description. pStream->psmb2Session.SessionId
 
 #include "srvcmds.h"
 #include "srvutil.h"
@@ -141,6 +141,42 @@ int rv = -1;
 }
 
 
+
+
+int RtsmbStreamEncodeAlert(smb2_stream *pStream, word Command, PFVOID pItem)
+{
+int rv = -1;
+    pStream->Success = FALSE;
+
+    tc_memset(&pStream->OutHdr, 0, sizeof(pStream->OutHdr));
+    pStream->OutHdr.ProtocolId[0] = 0xFE;
+    pStream->OutHdr.ProtocolId[1]=(byte) 'S'; pStream->OutHdr.ProtocolId[2]=(byte) 'M'; pStream->OutHdr.ProtocolId[3]=(byte) 'B';
+    pStream->OutHdr.CreditCharge = 0;
+    pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+    pStream->OutHdr.Command = Command;
+    pStream->OutHdr.CreditRequest_CreditResponse = 0;
+    pStream->OutHdr.Flags    = 0;
+    pStream->OutHdr.MessageId = 0xffffffffffffffffULL;
+    pStream->OutHdr.TreeId    = 0;
+    pStream->OutHdr.SessionId = pStream->psmb2Session->SessionId;
+
+    switch (Command)
+    {
+        case SMB2_CHANGE_NOTIFY  :
+            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  8, RtsmbWireVarEncodeChangeNotifyResponseCb);
+            break;
+        case SMB2_OPLOCK_BREAK   :
+// HEREHERE Tree id
+            // pStream->OutHdr.TreeId    = TreeId;
+            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  24, 0);
+            break;
+    	default:
+    	break;
+    }
+    if (rv >= 0)
+        pStream->Success = TRUE;
+    return rv;
+}
 
 int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem)
 {

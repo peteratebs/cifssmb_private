@@ -12,6 +12,60 @@
 // Handles most of the actual processing of packets for the RTSMB server.
 //
 
+
+// A level 1 opportunistic lock on a file allows a client to read ahead in the file and cache both read-ahead and write data from the file locally. As long as the client has sole access to a file,
+// there is no danger to data coherency in providing a level 1 opportunistic lock.
+
+// A level 2 opportunistic lock informs a client that there are multiple concurrent clients of a file and that none has yet modified it. This lock allows the client to perform read operations and
+// obtain file attributes using cached or read-ahead local information, but the client must send all other requests (such as for write operations) to the server. Your application should use the level 2
+// opportunistic lock when you expect other applications to write to the file at random or read the file at random or sequentially.
+
+// A batch opportunistic lock manipulates file openings and closings. For example, in the execution of a batch file, the batch file may be opened and closed once for each line of the file.
+// A batch opportunistic lock opens the batch file on the server and keeps it open. As the command processor "opens" and "closes" the batch file, the network redirector intercepts the open and close commands.
+// All the server receives are the seek and read commands. If the client is also reading ahead, the server receives a particular read request at most one time.
+
+
+// Breaking an opportunistic lock is the process of degrading the lock that one client has on a file so that another client can open the file, with or without an opportunistic lock. When the other client requests the
+// open operation, the server delays the open operation and notifies the client holding the opportunistic lock.
+// The client holding the lock then takes actions appropriate to the type of lock, for example abandoning read buffers, closing the file, and so on. Only when the client holding the opportunistic lock notifies the
+// server that it is done does the server open the file for the client requesting the open operation. However, when a level 2 lock is broken, the server reports to the client that it has been broken but does not wait
+// for any acknowledgment, as there is no cached data to be flushed to the server.
+// In acknowledging a break of any exclusive lock (filter, level 1, or batch), the holder of a broken lock cannot request another exclusive lock. It can degrade an exclusive lock to a level 2 lock or no lock at all.
+// The holder typically releases the lock and closes the file when it is about to close the file anyway.
+
+//  EXISTING LEVEL                                    NEW FILE OPEN LEVEL            RESULT
+// SMB2_OPLOCK_LEVEL_EXCLUSIVE                       SMB2_OPLOCK_LEVEL_NONE          SEND BREAK&WAIT (SMB2_OPLOCK_LEVEL_II||SMB2_OPLOCK_LEVEL_NONE)  - fid.uid, session et al find the socket to send to and wait on
+// SMB2_OPLOCK_LEVEL_EXCLUSIVE                       SMB2_OPLOCK_BATCH               SEND BREAK&WAIT (SMB2_OPLOCK_LEVEL_II||SMB2_OPLOCK_LEVEL_NONE)
+// SMB2_OPLOCK_LEVEL_EXCLUSIVE                       SMB2_OPLOCK_LEVEL_II            SEND BREAK&WAIT (SMB2_OPLOCK_LEVEL_II)
+// SMB2_OPLOCK_LEVEL_EXCLUSIVE                       SMB2_OPLOCK_LEVEL_LEASE         NOT SURE.
+//
+// SMB2_OPLOCK_LEVEL_BATCH                           SMB2_OPLOCK_LEVEL_NONE          SEND BREAK&WAIT
+// SMB2_OPLOCK_LEVEL_BATCH                           SMB2_OPLOCK_BATCH               SEND BREAK&WAIT
+// SMB2_OPLOCK_LEVEL_BATCH                           SMB2_OPLOCK_LEVEL_II            SEND BREAK&WAIT
+// SMB2_OPLOCK_LEVEL_BATCH                           SMB2_OPLOCK_LEVEL_LEASE         NOT SURE.
+//
+// SMB2_OPLOCK_LEVEL_II                              SMB2_OPLOCK_LEVEL_NONE          SEND BREAK but dont WAIT
+// SMB2_OPLOCK_LEVEL_II                              SMB2_OPLOCK_BATCH               SEND BREAK but dont WAIT
+// SMB2_OPLOCK_LEVEL_II                              SMB2_OPLOCK_LEVEL_II            Do Nothing
+// SMB2_OPLOCK_LEVEL_II                              SMB2_OPLOCK_LEVEL_LEASE         NOT SURE.
+//
+// SMB2_OPLOCK_LEVEL_NONE                            SMB2_OPLOCK_LEVEL_NONE          Do Nothing
+// SMB2_OPLOCK_LEVEL_NONE                            SMB2_OPLOCK_BATCH               SEND BREAK&WAIT
+// SMB2_OPLOCK_LEVEL_NONE                            SMB2_OPLOCK_LEVEL_II            SEND BREAK&WAIT
+// SMB2_OPLOCK_LEVEL_NONE                            SMB2_OPLOCK_LEVEL_LEASE         NOT SURE.
+//
+//
+#define SMB2_OPLOCK_LEVEL_NONE              0x00 //No oplock is requested.
+#define SMB2_OPLOCK_LEVEL_II                0x01 // A level II oplock is requested.
+#define SMB2_OPLOCK_LEVEL_EXCLUSIVE         0x08 // An exclusive oplock is requested.
+#define SMB2_OPLOCK_LEVEL_BATCH             0x09   // A batch oplock is requested.
+#define SMB2_OPLOCK_LEVEL_LEASE             0xFF   // A lease is requested. If set, the request packet MUST contain an SMB2_CREATE_REQUEST_LEASE (section 2.2.13.2.8) create context. This value is not valid for the SMB 2.0.2 dialect.
+
+
+#define SMB2_OPLOCK_MAX_WAIT_MILLIS          20000 // Don't know what this shold be
+
+
+
 #include "smbdefs.h"
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
@@ -63,6 +117,69 @@ RTSMB2_FILEIOARGS fileioargs;
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
 }
+
+
+BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
+{
+ RTSMB2_OPLOCK_BREAK_C command;
+ RTSMB2_OPLOCK_BREAK_R response;
+
+ /* Read into command to pull it from the input queue */
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ return FALSE;
+}
+
+BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
+{
+ RTSMB2_CANCEL_C command;
+ /* Read into command to pull it from the input queue */
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ if (pStream->Success)
+ {
+// HEREHERE Cancel these guys
+    pStream->InHdr.MessageId; // ddword
+    pStream->InHdr.TreeId;    // dword
+    pStream->InHdr.SessionId; // ddword
+ }
+  return FALSE;
+}
+
+void SMBU_queue_oplock_break_send (PSMB_SESSIONCTX pCtx, word external, int oplocklevel)
+{
+	int i;
+	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
+	{
+		if (pCtx->fids[i].internal != -1 &&
+			pCtx->fids[i].external == external)
+		{
+			pCtx->fids[i].requested_oplock_level = oplocklevel;
+			switch (pCtx->fids[i].held_oplock_level) {
+			    case SMB2_OPLOCK_LEVEL_NONE     :
+                  // Set it and forget it
+			      pCtx->fids[i].held_oplock_level = pCtx->fids[i].requested_oplock_level;
+			      break;
+			    case SMB2_OPLOCK_LEVEL_II       :
+                  // Stepping from level II. Just send requested_oplock_level in a break message but don't wait
+                  pCtx->fids[i].smb2flags |= SMB2SENDOPLOCKBREAK;
+                  pCtx->sendOplockBreakCount += 1;
+			      break;
+			    case SMB2_OPLOCK_LEVEL_EXCLUSIVE:
+			    case SMB2_OPLOCK_LEVEL_BATCH    :
+                 // Send requested_oplock_level in a break message.
+                 // Queue up a wait for reponse.
+                  pCtx->fids[i].smb2flags |= (SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY);
+                  pCtx->fids[i].smb2waitexpiresat = rtp_get_system_msec()+SMB2_OPLOCK_MAX_WAIT_MILLIS;
+                  pCtx->sendOplockBreakCount += 1;
+			      break;
+			    case SMB2_OPLOCK_LEVEL_LEASE    :
+			      break;
+            }
+            break;
+		}
+	}
+}
+
+
 
 #endif
 #endif

@@ -316,6 +316,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         wants_extra_pQfid_info = TRUE;
 
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
+
+
       tc_memset(&stat, 0, sizeof(stat));
       // Fake stat to return 0 sizes, and directory attribute
 //      stat.f_ctime64 =
@@ -401,6 +403,14 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         return TRUE;
     }
 
+    // register RequestedOplockLevel an oplock
+    if (command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
+    {
+     // HEREHERE - If this is requires a send we must implement a yield capability.
+
+     ; // PETERPETER
+    }
+
     if (decoded_create_context.pDHnQ)
       wants_extra_DHnQ_info = TRUE;
     if (decoded_create_context.pMxAc)
@@ -409,7 +419,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       wants_extra_pQfid_info = TRUE;
 
     response.StructureSize = 89;
-    response.OplockLevel = 0; // command.RequestedOplockLevel;
+    response.OplockLevel = command.RequestedOplockLevel; // or = 0;
     response.Flags = 0; // SMB3 only
     response.CreateAction = CreateAction;
 

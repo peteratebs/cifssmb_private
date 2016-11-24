@@ -74,8 +74,9 @@ extern BBOOL Proc_smb2_Flush(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Read(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Write(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Lock(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_Cancel(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream);
-
 
 
 static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[]);
@@ -86,9 +87,7 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream);
 
 static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream);
 static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
-static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream);
 static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream);
-static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream);
 
 
 static void DebugOutputSMB2Command(int command);
@@ -112,6 +111,7 @@ static void Smb1SrvCtxtToStream(smb2_stream * pStream, PSMB_SESSIONCTX pSctx)
     pStream->write_buffer_size = pSctx->writeBufferSize;
 	pStream->pOutBuf = pStream->write_origin;
 	pStream->write_buffer_remaining = pStream->write_buffer_size;
+    pStream->OutBodySize = 0;
     pStream->psmb2Session = pSctx->pCtxtsmb2Session;
 }
 
@@ -160,10 +160,8 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 	BBOOL doFinalize = FALSE;
 	BBOOL doFirstPacket = TRUE;
     smb2_stream  smb2stream;
-    smb2_stream * pStream;
     PRTSMB2_HEADER pHeaderInBuffer;
     BBOOL isCompoundReply=FALSE;
-    pStream = &smb2stream;
     word AddtoFinalCreditRequest_CreditResponse = 0;
     dword *pPreviousNextOutCommand = 0;
     /* Initialize memory stream pointers from the v1 contect structure
@@ -177,18 +175,16 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBIN);
 		return FALSE;
 	}
+    // These lines were done in Smb1SrvCtxtToStream, should remove
 	smb2stream.pOutBuf = smb2stream.write_origin;
 	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
 	smb2stream.OutBodySize = 0;
-	/**
-	 * Do a quick check here that the first command we receive is a negotiate.
-	 */
 
-
+	/**  Do a quick check here that the first command we receive is a negotiate.*/
 	if (!smb2stream.psmb2Session)
     {
 	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n");
-        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
+        RtsmbWriteSrvStatus(&smb2stream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
 		return TRUE;
     }
 	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
@@ -200,18 +196,15 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        else
        {
 		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n");
-          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
+          RtsmbWriteSrvStatus(&smb2stream,SMB2_STATUS_INVALID_PARAMETER);
 		  return TRUE;
        }
 	}
-
     // Fill in by create so we can replace 0xffffff with the last created FD.
     // Cleared before processing a packet (compound request)
-    tc_memset(pStream->LastFileId,0, sizeof( pStream->LastFileId));
-
+    tc_memset(smb2stream.LastFileId,0, sizeof( smb2stream.LastFileId));
     // Process one or more SMB2 packets
     smb2stream.compound_output_index = 0;
-
 
     do
     {
@@ -271,8 +264,6 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        {
          *pPreviousNextOutCommand = 0;
        }
-
-
        // See if there are more input commands to process if the packet doesn't require compound_output_index
        if (!smb2stream.compound_output_index)
          NextCommandOffset = smb2stream.InHdr.NextCommand;
@@ -322,11 +313,11 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
 //             AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
              AddtoFinalCreditRequest_CreditResponse += 1; // pOutHeader->CreditRequest_CreditResponse;
              pOutHeader->CreditRequest_CreditResponse = 0;
-             pStream->pInBuf+=SkipCount;
-             pStream->read_buffer_remaining-=SkipCount;
+             smb2stream.pInBuf+=SkipCount;
+             smb2stream.read_buffer_remaining-=SkipCount;
              isCompoundReply = TRUE;
              // Now see if we have to pad the output to get to an 8 byte boundary
-             if (!SMBS_Frame_Compound_Output(pStream, pOutBufStart))
+             if (!SMBS_Frame_Compound_Output(&smb2stream, pOutBufStart))
                isCompoundReply = FALSE;
           }
        }
@@ -342,45 +333,45 @@ rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBI
        sign_packet = FALSE;
 #else
        // Always sign if signing is required.
-       if (pStream->psmb2Session->SigningRequired)
+       if (smb2stream.psmb2Session->SigningRequired)
          sign_packet = TRUE;
          sign_packet = TRUE;
        // Sign outgoing if incoming was signed basically
-       if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
+       if (smb2stream.InHdr.Flags&SMB2_FLAGS_SIGNED && smb2stream.psmb2Session && smb2stream.psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          sign_packet = TRUE;
-       if (pStream->InHdr.Command == SMB2_SESSION_SETUP && pStream->OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
+       if (smb2stream.InHdr.Command == SMB2_SESSION_SETUP && smb2stream.OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
          sign_packet = TRUE;
        }
 #endif
        if (sign_packet)
        { // sign if dialact == 2100 and session id != 0
-            if (pStream->psmb2Session->SessionId != 0)
+            if (smb2stream.psmb2Session->SessionId != 0)
             {
                unsigned int PrevLength;
                unsigned int SkipCount;
                // Now see if we have to pad the output to get to an 8 byte boundary
-               PrevLength = (unsigned int) PDIFF (pStream->pOutBuf, pOutBufStart);
+               PrevLength = (unsigned int) PDIFF (smb2stream.pOutBuf, pOutBufStart);
                SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
-               if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
+               if (SkipCount && SkipCount < (rtsmb_size)smb2stream.write_buffer_remaining)
                {
-                  tc_memset(pStream->pOutBuf,0,SkipCount);
-                  pStream->write_buffer_remaining -= SkipCount;
-                  pStream->pOutBuf = PADD (pStream->pOutBuf, SkipCount);
-                  pStream->OutBodySize += SkipCount;
+                  tc_memset(smb2stream.pOutBuf,0,SkipCount);
+                  smb2stream.write_buffer_remaining -= SkipCount;
+                  smb2stream.pOutBuf = PADD (smb2stream.pOutBuf, SkipCount);
+                  smb2stream.OutBodySize += SkipCount;
                }
                pOutHdr->Flags |= SMB2_FLAGS_SIGNED;
 
                {
                 void *data = pOutBufStart;
-                size_t  data_len =  PDIFF(pStream->pOutBuf,pOutBufStart);
-                calculate_smb2_signing_key(pStream->psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
+                size_t  data_len =  PDIFF(smb2stream.pOutBuf,pOutBufStart);
+                calculate_smb2_signing_key(smb2stream.psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
                }
             }
         }
 #endif
     }  while (isCompoundReply);
-    Smb1SrvCtxtFromStream(pSctx, pStream);
+    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
     return TRUE;
 //    return doSend;
 }
@@ -1094,24 +1085,9 @@ static BBOOL Proc_smb2_Echo(smb2_stream  *pStream)
 
 }
 
-
-static BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
-{
- RTSMB2_CANCEL_C command;
- /* Read into command to pull it from the input queue */
- RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
- return FALSE;
-}
 static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
 {
  RTSMB2_CHANGE_NOTIFY_C command;
- /* Read into command to pull it from the input queue */
- RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
- return FALSE;
-}
-static BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
-{
- RTSMB2_OPLOCK_BREAK_C command;
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
  return FALSE;
