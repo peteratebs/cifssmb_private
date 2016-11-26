@@ -332,14 +332,15 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
         /* build list */
         for(i = 0; i < pThread->numSessions && len < 256; i++)
         {
-            readList[len++] = pThread->sessionList[i]->sock;
+            if (pThread->sessionList[i]->smbCtx.yieldTimeout==0)
+              readList[len++] = pThread->sessionList[i]->sock;
         }
 
         /**
          * Block on input.
          */
         // HEREHERE - We need to reduce timeout and send alerts from thread cycle.
-        len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT);
+        len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
     }
     while (rtsmb_srv_net_thread_cycle (pThread, readList, len));
 
@@ -434,6 +435,46 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
         return FALSE;
 }
 
+
+RTSMB_STATIC BBOOL rtsmb_srv_net_session_yield_cycle (PNET_SESSIONCTX *session)
+{
+BBOOL doCB=FALSE;
+    if ((*session)->smbCtx.isSMB2)
+    {
+       if ((*session)->smbCtx.yieldFlags & YIELDSIGNALLED)
+          doCB=TRUE;
+       else
+       {
+          if (rtp_get_system_msec() > (*session)->smbCtx.yieldTimeout)
+          {
+             (*session)->smbCtx.yieldFlags |= YIELDTIMEDOUT;
+             doCB=TRUE;
+           }
+       }
+
+
+    }
+    if (doCB)
+    {  // We either timed out or we got signalled so clear the timeout,
+       // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
+       (*session)->smbCtx.yieldTimeout = 0;
+        int pcktsize = (int) ((*session)->smbCtx.in_packet_size - (*session)->smbCtx.current_body_size);
+        if (pcktsize = 0)
+        {
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_net_session_yield_cycle ignoring 0-length packet: %d \n", pcktsize);
+        } else
+        {
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_net_session_yield_cycle replaying a packet of length: %d \n", pcktsize);
+           SMBS_ProcSMBPacket (&(*session)->smbCtx, pcktsize);/* rtsmb_srv_net_session_cycle finish reading what we started. */
+        }
+        // Clear the flags now that the command handler had a change to look at them
+        (*session)->smbCtx.yieldFlags &= ~(YIELDSIGNALLED|YIELDTIMEDOUT);
+
+      // Needs session->smbCtx->pSctx->smb2flags &= (SMB2TIMEDOUT|SMB2SIGNALED) );
+    }
+  // session->smbCtx.state
+  // Now check session->yieldTimeout for a countdown
+}
 
 RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int ready)
 {
@@ -592,6 +633,14 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
             }
         }
 
+        // A yielded session's socket won't be in the socket list so check
+        // if it is yileded and then check the countdown and wakup triggers
+        if ((*session)->smbCtx.yieldTimeout !=0)
+        {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YILED::: call rtsmb_srv_net_session_yield_cycle: %dwith tmo\n", (*session)->smbCtx.yieldTimeout);
+          rtsmb_srv_net_session_yield_cycle (session);
+        }
+
         if (n == readListSize)
         {
             rtsmb_srv_net_session_cycle (session, FALSE);
@@ -667,7 +716,8 @@ void rtsmb_srv_net_cycle (long timeout)
 
     for (i = 0; i < mainThread->numSessions && len < 256; i++)
     {
-        readList[len++] = mainThread->sessionList[i]->sock;
+        if (mainThread->sessionList[i]->smbCtx.yieldTimeout==0)
+          readList[len++] = mainThread->sessionList[i]->sock;
     }
 
     len = rtsmb_netport_select_n_for_read (readList, len, timeout);

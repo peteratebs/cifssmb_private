@@ -51,6 +51,7 @@ typedef struct smb2_stream_s {
     BBOOL    Success;                               // Indicates the current state of read or write operation is succesful.
     BBOOL    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     BBOOL    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
+    BBOOL    doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -70,11 +71,25 @@ typedef struct smb2_stream_s {
 
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
-
-
-
-
 } smb2_stream;
+
+typedef struct ProcSMB2_BodyContext_s {
+  dword *pPreviousNextOutCommand;
+  BBOOL isCompoundReply;
+  BBOOL doFirstPacket;
+  dword NextCommandOffset;
+  smb2_stream  smb2stream;
+  PFVOID   pInBufStart;
+  PFVOID   pOutBufStart;
+  BBOOL    sign_packet;
+#define ST_INIT        0
+#define ST_INPROCESS   1
+#define ST_FALSE       2
+#define ST_TRUE        3
+#define ST_YIELD       4
+  int      stackcontext_state;
+} ProcSMB2_BodyContext;
+
 
 
 
@@ -102,10 +117,16 @@ extern int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size Fi
 typedef int (* pVarDecodeFn_t) (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);;
 int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarDecodeFn_t pVarDecodeFn);
 int RtsmbWriteFinalizeSmb2(smb2_stream *pStream,ddword SessionId);
-
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 
+typedef struct StreamInputPointerState_s
+{
+  void *pInBuf;
+  rtsmb_size read_buffer_remaining;
+} StreamInputPointerState_t;
 
+void RtsmbStreamPushInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState);
+void RtsmbStreamPopInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState);
 
 
 

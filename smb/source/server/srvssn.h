@@ -181,6 +181,11 @@ typedef struct smb_sessionCtx_s
     BBOOL doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
 
+#define YIELDSIGNALLED         0x01   /* if a yielded event was signaled */
+#define YIELDTIMEDOUT          0x02   /* if a yielded event timed out without being signaled */
+	word  yieldFlags;
+	dword yieldTimeout;   // If not zero the session is yielding
+
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
 
     /**

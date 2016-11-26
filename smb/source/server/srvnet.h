@@ -16,9 +16,7 @@ typedef struct
 {
 	RTP_SOCKET    sock;
 	unsigned long lastActivity;
-
 	SMB_SESSIONCTX_T smbCtx;
-
 } NET_SESSIONCTX_T;
 typedef NET_SESSIONCTX_T RTSMB_FAR *PNET_SESSIONCTX;
 

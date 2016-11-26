@@ -418,6 +418,18 @@ BBOOL doSign = FALSE;
 }
 
 
+void RtsmbStreamPushInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState)
+{
+  pStreamInputPointerState->pInBuf = pStream->pInBuf;
+  pStreamInputPointerState->read_buffer_remaining = pStream->read_buffer_remaining;
+}
+
+void RtsmbStreamPopInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState)
+{
+  pStream->pInBuf = pStreamInputPointerState->pInBuf;
+  pStream->read_buffer_remaining = pStreamInputPointerState->read_buffer_remaining;
+
+}
 
 int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarDecodeFn_t pVarDecodeFn)
 {
