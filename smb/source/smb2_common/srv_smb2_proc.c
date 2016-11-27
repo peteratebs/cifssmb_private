@@ -151,229 +151,304 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream);
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
 
+void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
 
-BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
+
+BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx, ProcSMB2_BodyContext *pstackcontext)
 {
-	int header_size;
-	int length;
-	BBOOL doSend = FALSE;
-	BBOOL doFinalize = FALSE;
-	BBOOL doFirstPacket = TRUE;
-    smb2_stream  smb2stream;
-    PRTSMB2_HEADER pHeaderInBuffer;
-    BBOOL isCompoundReply=FALSE;
-    word AddtoFinalCreditRequest_CreditResponse = 0;
-    dword *pPreviousNextOutCommand = 0;
+  BBOOL r=FALSE;
+  // Initialize the handling of a compound packet containing one or more SMB2 commands
+  if (pstackcontext->stackcontext_state == ST_INIT)
+    _SMBS_ProcSMB2_Body (pSctx, pstackcontext);
+
+  while (pstackcontext->stackcontext_state == ST_INPROCESS)
+    _SMBS_ProcSMB2_Body (pSctx, pstackcontext);
+
+  if (pstackcontext->stackcontext_state == ST_YIELD)
+  {
+    r = FALSE;
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body: YIELDED:: r=:%d", r);
+  }
+  else if (pstackcontext->stackcontext_state == ST_FALSE)
+    r = FALSE;
+  else if (pstackcontext->stackcontext_state == ST_TRUE)
+  {
+    Smb1SrvCtxtFromStream(pSctx, &pstackcontext->smb2stream);
+    r = TRUE;
+  }
+  return r;
+}
+
+static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+{
+    // SMBS_ProcSMB2_BodyPhaseOne sets
+    //  pstackcontext->stackcontext_state:
+    //    ST_INPROCESS - Still looping proccessing compund input or output
+    //    ST_TRUE      - Done parameter error or failure of somekind return TRUE to send the buffered reply.
+    //    ST_FALSE     - Failed pqrsing input, send no reply.
+    if (pstackcontext->stackcontext_state == ST_INIT)
+    {  // This is the beginning of a compound packet containing one or more SMB2 commands
+       SMBS_ProcSMB2_BodyPhaseOne (pSctx, pstackcontext);
+
+       // SMBS_ProcSMB2_BodyPhaseOne setting these states indicate we it wants to return and on true/false send/notsend the output buffer
+       if (pstackcontext->stackcontext_state == ST_FALSE)
+         return;
+       else if (pstackcontext->stackcontext_state == ST_TRUE)
+          return;
+//       else if (pstackcontext->stackcontext_state = ST_INPROCESS)
+          ;
+       // Fall through and execute the first command in the compound statement
+    }
+    // SMBS_ProcSMB2_BodyPhaseLoop sets
+    //    ST_INPROCESS - Keep looping proccessing compund input or output
+    //    ST_YIELD     - ?? not sure if needed. We have to yield and wait for an external event to continue.
+    //    ST_TRUE      - Done parameter success or failure it returns TRUE to send the buffered reply.
+    SMBS_ProcSMB2_BodyPhaseLoop(pSctx,pstackcontext);
+}
+
+
+void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+{
+	pstackcontext->doFirstPacket = TRUE;
+    pstackcontext->pPreviousNextOutCommand = 0;
+    pstackcontext->isCompoundReply=FALSE;
+    pstackcontext->NextCommandOffset=0;
+    pstackcontext->pInBufStart=0;
+    pstackcontext->pOutBufStart=0;
+    pstackcontext->sign_packet = FALSE;
+    pstackcontext->stackcontext_state = ST_INPROCESS;
+
     /* Initialize memory stream pointers from the v1 contect structure
        set pStream->psmb2Session from the smb2 value saved in the session context structure  */
-    Smb1SrvCtxtToStream(&smb2stream, pSctx);
+    Smb1SrvCtxtToStream(&pstackcontext->smb2stream, pSctx);
 
 	/* read header and advance the stream pointer */
-	if ((header_size = cmd_read_header_raw_smb2 (smb2stream.read_origin, smb2stream.read_origin, smb2stream.InBodySize, &smb2stream.InHdr)) == -1)
+	if (cmd_read_header_raw_smb2 (pstackcontext->smb2stream.read_origin, pstackcontext->smb2stream.read_origin, pstackcontext->smb2stream.InBodySize, &pstackcontext->smb2stream.InHdr) == -1)
 	{
 		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body: Badly formed header");
-rtsmb_dump_bytes("RAWH",  smb2stream.read_origin, smb2stream.InBodySize,  DUMPBIN);
-		return FALSE;
+		rtsmb_dump_bytes("RAWH",  pstackcontext->smb2stream.read_origin, pstackcontext->smb2stream.InBodySize,  DUMPBIN);
+        pstackcontext->stackcontext_state = ST_FALSE;
+		return;
 	}
     // These lines were done in Smb1SrvCtxtToStream, should remove
-	smb2stream.pOutBuf = smb2stream.write_origin;
-	smb2stream.write_buffer_remaining = smb2stream.write_buffer_size;
-	smb2stream.OutBodySize = 0;
+	pstackcontext->smb2stream.pOutBuf = pstackcontext->smb2stream.write_origin;
+	pstackcontext->smb2stream.write_buffer_remaining = pstackcontext->smb2stream.write_buffer_size;
+	pstackcontext->smb2stream.OutBodySize = 0;
 
 	/**  Do a quick check here that the first command we receive is a negotiate.*/
-	if (!smb2stream.psmb2Session)
+	if (!pstackcontext->smb2stream.psmb2Session)
     {
 	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_ProcSMB2_Body:  No Session structures available !!!!!.\n");
-        RtsmbWriteSrvStatus(&smb2stream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
-		return TRUE;
+        RtsmbWriteSrvStatus(&pstackcontext->smb2stream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
+        pstackcontext->stackcontext_state = ST_TRUE;
+		return;
     }
-	else if (smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && smb2stream.InHdr.Command != SMB2_NEGOTIATE)
+	else if (pstackcontext->smb2stream.psmb2Session->Connection->NegotiateDialect == 0 && pstackcontext->smb2stream.InHdr.Command != SMB2_NEGOTIATE)
 	{
-	   if (smb2stream.InHdr.Command == SMB2_ECHO)
+	   if (pstackcontext->smb2stream.InHdr.Command == SMB2_ECHO)
        {
 		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Allow SMB2_ECHO with no dialect.\n");
        }
        else
        {
 		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProcSMB2_Body:  Bad first packet -- was not a NEGOTIATE.\n");
-          RtsmbWriteSrvStatus(&smb2stream,SMB2_STATUS_INVALID_PARAMETER);
-		  return TRUE;
+          RtsmbWriteSrvStatus(&pstackcontext->smb2stream,SMB2_STATUS_INVALID_PARAMETER);
+          pstackcontext->stackcontext_state = ST_TRUE;
        }
 	}
     // Fill in by create so we can replace 0xffffff with the last created FD.
     // Cleared before processing a packet (compound request)
-    tc_memset(smb2stream.LastFileId,0, sizeof( smb2stream.LastFileId));
+    tc_memset(pstackcontext->smb2stream.LastFileId,0, sizeof( pstackcontext->smb2stream.LastFileId));
     // Process one or more SMB2 packets
-    smb2stream.compound_output_index = 0;
+    pstackcontext->smb2stream.compound_output_index = 0;
+    return;
+}
 
-    do
+static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+
+static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+{
+    // do
     {
-      PFVOID   pInBufStart;
-      PFVOID   pOutBufStart;
-      dword NextCommandOffset = 0;
-      BBOOL sign_packet = FALSE;
-       pInBufStart = smb2stream.pInBuf;
-       pOutBufStart = smb2stream.pOutBuf;
+      pstackcontext->sign_packet = FALSE;
+      pstackcontext->NextCommandOffset = 0;
 
-       if (smb2stream.compound_output_index == 0)
+       pstackcontext->pInBufStart = pstackcontext->smb2stream.pInBuf;
+       pstackcontext->pOutBufStart = pstackcontext->smb2stream.pOutBuf;
+
+       if (pstackcontext->smb2stream.compound_output_index == 0)
        {
            // Read the header into smb2stream.inHdr
-           if (cmd_read_header_smb2(&smb2stream) != 64)
-           {
-             break;
+           if (cmd_read_header_smb2(&pstackcontext->smb2stream) != 64)
+           { // Not quite sure why returning TRUE here, if there's anything to send, from previous calls, then send
+             pstackcontext->stackcontext_state = ST_TRUE;
+             return;
 //              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: cmd_read_header_smb2 failed\n");
 //             return TRUE;
            }
        }
        // Why do we do this I wonder
-       smb2stream.psmb2Session->pSmbCtx->tid = (word)smb2stream.InHdr.TreeId;
+       pstackcontext->smb2stream.psmb2Session->pSmbCtx->tid = (word)pstackcontext->smb2stream.InHdr.TreeId;
 
        // Set up outgoing header.
-       smb2stream.OutHdr = smb2stream.InHdr;
+       pstackcontext->smb2stream.OutHdr = pstackcontext->smb2stream.InHdr;
 //       smb2stream.OutHdr.Flags &= ~SMB2_FLAGS_SIGNED; // XXX - disable signing in header here
 
-       smb2stream.OutHdr.NextCommand = 0;
+       pstackcontext->smb2stream.OutHdr.NextCommand = 0;
        // Check if it's a compound field
-       isCompoundReply = FALSE; // Process this packet and then drop out of the do loop.
-	   if (doFirstPacket)
+       pstackcontext->isCompoundReply = FALSE; // Process this packet and then drop out of the do loop.
+	   if (pstackcontext->doFirstPacket)
        {
-          NextCommandOffset = 0;
-          doFirstPacket = FALSE;
+          pstackcontext->NextCommandOffset = 0;
+          pstackcontext->doFirstPacket = FALSE;
        }
-       else if (smb2stream.compound_output_index!=0)
+       else if (pstackcontext->smb2stream.compound_output_index!=0)
        {
-          isCompoundReply = TRUE; // Process this packet and then drop out of the do loop.
-          NextCommandOffset = 0;
+          pstackcontext->isCompoundReply = TRUE; // Process this packet and then drop out of the do loop.
+          pstackcontext->NextCommandOffset = 0;
        }
        else
        {
-         if (smb2stream.InHdr.NextCommand == 0)
+         if (pstackcontext->smb2stream.InHdr.NextCommand == 0)
          {
-            NextCommandOffset = 0;
+            pstackcontext->NextCommandOffset = 0;
          }
          else
          {
-           NextCommandOffset = smb2stream.InHdr.NextCommand;
+           pstackcontext->NextCommandOffset = pstackcontext->smb2stream.InHdr.NextCommand;
          }
        }
+       //=====================================
        // Process this one smb packet
-       BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&smb2stream);
-       doSend |= SendCommandResponse;
-       // Must be a compound input to a command that does not respond, we'll null it out so the frame isn't bad
-       if (!SendCommandResponse && pPreviousNextOutCommand)
+       // Make sure yield state is cleared. The command processor may set it
+       pstackcontext->smb2stream.doSessionYield=FALSE;
+       BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&pstackcontext->smb2stream);
+       // If the command process requested a yield.
+       // rewind the stream and return with pstackcontext->stackcontext_state == ST_INPROCESS; to start the yield
+       if (pstackcontext->smb2stream.doSessionYield)
        {
-         *pPreviousNextOutCommand = 0;
+         pstackcontext->stackcontext_state = ST_YIELD;
+         return;
+       }
+
+       // Must be a compound input to a command that does not respond, we'll null it out so the frame isn't bad
+       if (!SendCommandResponse && pstackcontext->pPreviousNextOutCommand)
+       {
+         *pstackcontext->pPreviousNextOutCommand = 0;
        }
        // See if there are more input commands to process if the packet doesn't require compound_output_index
-       if (!smb2stream.compound_output_index)
-         NextCommandOffset = smb2stream.InHdr.NextCommand;
+       if (!pstackcontext->smb2stream.compound_output_index)
+         pstackcontext->NextCommandOffset = pstackcontext->smb2stream.InHdr.NextCommand;
 
-       PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
+
+       SMBS_ProcSMB2_BodyPhaseTwo (pSctx,pstackcontext);
+       if (pstackcontext->isCompoundReply)
+         pstackcontext->stackcontext_state = ST_INPROCESS;
+       else
+         pstackcontext->stackcontext_state = ST_TRUE;
+    } //  while (pstackcontext->isCompoundReply);
+}
+
+static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+{
+       PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pstackcontext->pOutBufStart;
        // Set out process id to input \n");
-       pOutHeader->Reserved = smb2stream.InHdr.Reserved;
+       pOutHeader->Reserved = pstackcontext->smb2stream.InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
-       pPreviousNextOutCommand     =   &pOutHeader->NextCommand; // Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
-       if (NextCommandOffset == 0)
+       pstackcontext->pPreviousNextOutCommand     =   &pOutHeader->NextCommand; // Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
+       if (pstackcontext->NextCommandOffset == 0)
        {
-//          pOutHeader->CreditRequest_CreditResponse = 2 + AddtoFinalCreditRequest_CreditResponse;
           // Negotiate requires 1 Credit
           // Otherwise give 1 credit if the client request > 0
           // give zero if it requests 0
           if (pOutHeader->Command == SMB2_NEGOTIATE)
             pOutHeader->CreditRequest_CreditResponse = 1;
-          else if (smb2stream.InHdr.CreditRequest_CreditResponse==0)
+          else if (pstackcontext->smb2stream.InHdr.CreditRequest_CreditResponse==0)
             pOutHeader->CreditRequest_CreditResponse = 0;
           else
-            pOutHeader->CreditRequest_CreditResponse = smb2stream.InHdr.CreditRequest_CreditResponse;
+            pOutHeader->CreditRequest_CreditResponse = pstackcontext->smb2stream.InHdr.CreditRequest_CreditResponse;
        }
-//          pOutHeader->CreditRequest_CreditResponse = smb2stream.OutHdr.CreditRequest_CreditResponse;
-//          pOutHeader->CreditRequest_CreditResponse = 32 + AddtoFinalCreditRequest_CreditResponse;
-//          pOutHeader->CreditRequest_CreditResponse = pOutHeader->CreditRequest_CreditResponse + AddtoFinalCreditRequest_CreditResponse;
-
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request
-       if (smb2stream.compound_output_index!=0 || NextCommandOffset != 0)
+       if (pstackcontext->smb2stream.compound_output_index!=0 || pstackcontext->NextCommandOffset != 0)
        {
           unsigned int SkipCount = 0;
           // First advance the input request
-          if (smb2stream.compound_output_index!=0)
+          if (pstackcontext->smb2stream.compound_output_index!=0)
             SkipCount = 0;
           else
           {
-            unsigned int consumed = (unsigned int) PDIFF (smb2stream.pInBuf, pInBufStart);
-            if (NextCommandOffset > consumed)
-              SkipCount = NextCommandOffset - consumed;
+            unsigned int consumed = (unsigned int) PDIFF (pstackcontext->smb2stream.pInBuf, pstackcontext->pInBufStart);
+            if (pstackcontext->NextCommandOffset > consumed)
+              SkipCount = pstackcontext->NextCommandOffset - consumed;
           }
-          if (SkipCount > smb2stream.read_buffer_remaining)
+          if (SkipCount > pstackcontext->smb2stream.read_buffer_remaining)
           {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: Bad Compound request:\n");
-             isCompoundReply = FALSE;
+             pstackcontext->isCompoundReply = FALSE;
           }
           else
           {
-//             AddtoFinalCreditRequest_CreditResponse += pOutHeader->CreditRequest_CreditResponse;
-             AddtoFinalCreditRequest_CreditResponse += 1; // pOutHeader->CreditRequest_CreditResponse;
              pOutHeader->CreditRequest_CreditResponse = 0;
-             smb2stream.pInBuf+=SkipCount;
-             smb2stream.read_buffer_remaining-=SkipCount;
-             isCompoundReply = TRUE;
+             pstackcontext->smb2stream.pInBuf+=SkipCount;
+             pstackcontext->smb2stream.read_buffer_remaining-=SkipCount;
+             pstackcontext->isCompoundReply = TRUE;
              // Now see if we have to pad the output to get to an 8 byte boundary
-             if (!SMBS_Frame_Compound_Output(&smb2stream, pOutBufStart))
-               isCompoundReply = FALSE;
+             if (!SMBS_Frame_Compound_Output(&pstackcontext->smb2stream, pstackcontext->pOutBufStart))
+               pstackcontext->isCompoundReply = FALSE;
           }
        }
        // sign
 #if (1)
 
 
-        PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
+        PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pstackcontext->pOutBufStart;
         pOutHdr->Flags &= ~SMB2_FLAGS_SIGNED;
         tc_memset(pOutHdr->Signature, 0, 16);
 
 #if (HARDWIRED_DISABLE_SIGNING)
-       sign_packet = FALSE;
+        pstackcontext->sign_packet = FALSE;
 #else
        // Always sign if signing is required.
-       if (smb2stream.psmb2Session->SigningRequired)
-         sign_packet = TRUE;
-         sign_packet = TRUE;
+       if (pstackcontext->smb2stream.psmb2Session->SigningRequired)
+         pstackcontext->sign_packet = TRUE;
+#warning Note that we are overriding and always signing.
+       pstackcontext->sign_packet = TRUE;
        // Sign outgoing if incoming was signed basically
-       if (smb2stream.InHdr.Flags&SMB2_FLAGS_SIGNED && smb2stream.psmb2Session && smb2stream.psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
-         sign_packet = TRUE;
-       if (smb2stream.InHdr.Command == SMB2_SESSION_SETUP && smb2stream.OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
+       if (pstackcontext->smb2stream.InHdr.Flags&SMB2_FLAGS_SIGNED && pstackcontext->smb2stream.psmb2Session && pstackcontext->smb2stream.psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
+         pstackcontext->sign_packet = TRUE;
+       if (pstackcontext->smb2stream.InHdr.Command == SMB2_SESSION_SETUP && pstackcontext->smb2stream.OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
-         sign_packet = TRUE;
+         pstackcontext->sign_packet = TRUE;
        }
 #endif
-       if (sign_packet)
+       if (pstackcontext->sign_packet)
        { // sign if dialact == 2100 and session id != 0
-            if (smb2stream.psmb2Session->SessionId != 0)
+            if (pstackcontext->smb2stream.psmb2Session->SessionId != 0)
             {
                unsigned int PrevLength;
                unsigned int SkipCount;
                // Now see if we have to pad the output to get to an 8 byte boundary
-               PrevLength = (unsigned int) PDIFF (smb2stream.pOutBuf, pOutBufStart);
+               PrevLength = (unsigned int) PDIFF (pstackcontext->smb2stream.pOutBuf, pstackcontext->pOutBufStart);
                SkipCount = ((PrevLength+7)&~((unsigned int)0x7))-PrevLength;
-               if (SkipCount && SkipCount < (rtsmb_size)smb2stream.write_buffer_remaining)
+               if (SkipCount && SkipCount < (rtsmb_size)pstackcontext->smb2stream.write_buffer_remaining)
                {
-                  tc_memset(smb2stream.pOutBuf,0,SkipCount);
-                  smb2stream.write_buffer_remaining -= SkipCount;
-                  smb2stream.pOutBuf = PADD (smb2stream.pOutBuf, SkipCount);
-                  smb2stream.OutBodySize += SkipCount;
+                  tc_memset(pstackcontext->smb2stream.pOutBuf,0,SkipCount);
+                  pstackcontext->smb2stream.write_buffer_remaining -= SkipCount;
+                  pstackcontext->smb2stream.pOutBuf = PADD (pstackcontext->smb2stream.pOutBuf, SkipCount);
+                  pstackcontext->smb2stream.OutBodySize += SkipCount;
                }
                pOutHdr->Flags |= SMB2_FLAGS_SIGNED;
 
                {
-                void *data = pOutBufStart;
-                size_t  data_len =  PDIFF(smb2stream.pOutBuf,pOutBufStart);
-                calculate_smb2_signing_key(smb2stream.psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
+                void *data = pstackcontext->pOutBufStart;
+                size_t  data_len =  PDIFF(pstackcontext->smb2stream.pOutBuf,pstackcontext->pOutBufStart);
+                calculate_smb2_signing_key(pstackcontext->smb2stream.psmb2Session->SigningKey, data, data_len, pOutHdr->Signature);
                }
             }
         }
 #endif
-    }  while (isCompoundReply);
-    Smb1SrvCtxtFromStream(pSctx, &smb2stream);
-    return TRUE;
-//    return doSend;
 }
 
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart)

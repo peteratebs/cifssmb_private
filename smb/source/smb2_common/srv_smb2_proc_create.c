@@ -132,6 +132,8 @@ word RTSmb2_get_externalFid(byte *smb2_file_handle)
   return externalFid;
 }
 
+static int testingYield=0;
+
 BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
 	RTSMB2_CREATE_C command;
@@ -152,6 +154,21 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
     dword smb2flags = 0;
+    StreamInputPointerState_t StreamInputPointerState;
+
+#include "srvnet.h"
+if (testingYield == 1)
+{
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Rentering ... \n");
+  PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+  if (pNctxt)
+  {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Rentering yieldFlags %X %s\n",pNctxt->smbCtx.yieldFlags, pNctxt->smbCtx.yieldFlags|YIELDTIMEDOUT?"timeout":pNctxt->smbCtx.yieldFlags|YIELDSIGNALLED?"signalled":"neither"); //  (YIELDSIGNALLED|);
+  }
+//  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Rentering ... %X\n",pStream->psmb2Session->smbCtx.yieldFlags);
+  //&= ~(YIELDSIGNALLED|YIELDTIMEDOUT);
+
+}
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -169,6 +186,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     pStream->ReadBufferParms[1].byte_count = sizeof(create_content);
 
     /* Read into command, TreeId will be present in the input header */
+
+    RtsmbStreamPushInputPointers(pStream, &StreamInputPointerState);
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
@@ -301,6 +320,37 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
        int decode_r;
        decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
     }
+    if (command.NameLength)
+    {
+      file_name[command.NameLength] = 0;
+      file_name[command.NameLength+1] = 0;
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Scan  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+    }
+    if (command.NameLength && command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
+    {
+      file_name[command.NameLength] = 0;
+      file_name[command.NameLength+1] = 0;
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Test for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+       // Force a test of restarting from an oplock if the file exists
+#warning Force yield here to test, needs more processing
+      if (testingYield == 1)
+        testingYield = 0;
+      else if (testingYield == 0)
+      {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+        if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        {
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+         testingYield = 1;
+         RtsmbStreamPopInputPointers(pStream, &StreamInputPointerState);
+         pStream->doSessionYield = TRUE;
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+         testingYield = 1;
+         return FALSE;
+        }
+      }
+    }
+
     if (command.NameLength==0)
     { // opening the root of the share
       PFRTCHAR p = (PFRTCHAR) file_name;
@@ -316,7 +366,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         wants_extra_pQfid_info = TRUE;
 
       r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
-
 
       tc_memset(&stat, 0, sizeof(stat));
       // Fake stat to return 0 sizes, and directory attribute
@@ -334,7 +383,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       file_name[command.NameLength+1] = 0;
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
@@ -403,13 +451,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         return TRUE;
     }
 
-    // register RequestedOplockLevel an oplock
-    if (command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
-    {
-     // HEREHERE - If this is requires a send we must implement a yield capability.
-
-     ; // PETERPETER
-    }
 
     if (decoded_create_context.pDHnQ)
       wants_extra_DHnQ_info = TRUE;

@@ -47,7 +47,7 @@
 #include "smbnbss.h"
 #include "srvcfg.h"
 #include "smbnet.h"
-
+#include "rtpmem.h"
 #include "rtptime.h"
 
 static pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
@@ -151,6 +151,7 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
 {
     /* Initialize the SMB1 pSmbCtx->uids[i] and pSmbCtx->tree[i] and fid structures */
     SMBS_InitSessionCtx_smb1(pSmbCtx);
+
     /* Allocate the smb2 session stuff */
     pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_InitSessionCtx_smb2 created session:  pSession == %X \n",(int)pSmbCtx->pCtxtsmb2Session);
@@ -385,10 +386,7 @@ void Smb2SrvModel_Global_Stats_Open_Update(int change)
 void Smb2SrvModel_Global_Stats_Error_Update(void)
 {
    pSmb2SrvGlobal->ServerStatistics.sts0_pwerrors += 1;
-
 }
-
-
 
 static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 {
@@ -396,21 +394,38 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
     int i;
     for (i = 0; i < (int)(sizeof(Smb2Sessions)/sizeof(Smb2Sessions[0])); i++)
     {
-        if (!Smb2Sessions[i].RTSMBisAllocated)
-        {
-            MEMCLEAROBJ(Smb2Sessions[i]);
-            Smb2Sessions[i].SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
-            Smb2Sessions[i].RTSMBisAllocated=TRUE;
-            Smb2Sessions[i].pSmbCtx = pSmbCtx;
-            return &Smb2Sessions[i];
-        }
+      if (!Smb2Sessions[i].RTSMBisAllocated)
+        break;
     }
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Leak: - Force session aloc\n");
-    return &Smb2Sessions[0];
+    if (i == (int)(sizeof(Smb2Sessions)/sizeof(Smb2Sessions[0])))
+    {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Leak:- Force session aloc\n");
+       i = 0;
+    }
+    MEMCLEAROBJ(Smb2Sessions[i]);
+    Smb2Sessions[i].SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
+    Smb2Sessions[i].RTSMBisAllocated=TRUE;
+    Smb2Sessions[i].pSmbCtx = pSmbCtx;
+    Smb2Sessions[i].SMB2_BodyContext=0;
+    return &Smb2Sessions[i];
 }
+
+extern void Smb2SrvModel_Free_BodyContext(pSmb2SrvModel_Session pSession)
+{
+  if (pSession->SMB2_BodyContext) rtp_free(pSession->SMB2_BodyContext);
+  pSession->SMB2_BodyContext = 0;
+//  Smb2Sessions[i].SMB2_BodyContext=(void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
+}
+extern void Smb2SrvModel_Alloc_BodyContext(pSmb2SrvModel_Session pSession)
+{
+  Smb2SrvModel_Free_BodyContext(pSession); // Does nothing if already free
+  pSession->SMB2_BodyContext=             (void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
+}
+
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
     if (pSession->Connection) pSession->Connection->RTSMBisAllocated = FALSE;
+    Smb2SrvModel_Free_BodyContext(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
     pSession->RTSMBisAllocated=FALSE;
 }
 

@@ -39,7 +39,6 @@ typedef struct smb2_stream_s {
 #define SIGN_HMAC_SHA256  2                         // - Used for 2.002 and 2.100 generates 32 byte hash over entire message including Header and padding. Copy low 16 bytes into the keyfield
     byte     SigningRule;
     struct s_Smb2SrvModel_Session  *psmb2Session;   // For a server. points to the session
-    struct smb2_sessionCtx_s *psmb2Ctxt;            // For a server. points to the context
     struct RTSMB_CLI_WIRE_BUFFER_s *pBuffer;        // For a client. points to the controlling SMBV1 buffer structure.
     struct RTSMB_CLI_SESSION_T     *pSession;       // For a client. points to the controlling SMBV1 session structure.
 //    struct Rtsmb2ClientSession_s   *psmb2Session;   // For a client. points to smb2 session structure

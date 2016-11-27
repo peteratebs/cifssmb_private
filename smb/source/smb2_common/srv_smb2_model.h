@@ -261,7 +261,7 @@ typedef struct s_Smb2SrvModel_Session
                                            is sent to clients as the SessionId in the SMB2 header. */
     BBOOL   RTSMBisAllocated;
     struct smb_sessionCtx_s *pSmbCtx;   /* Temporary - Point back to the SMB1 session that links to this session */
-
+    void *SMB2_BodyContext;             /* Dynamically allocated saved cmntext if the session is preempted so it can wait for a client to  clear an oplock and reply */
 
 #define Smb2SrvModel_Session_State_InProgress  1
 #define Smb2SrvModel_Session_State_Valid       2
@@ -472,6 +472,8 @@ void Smb2SrvModel_Global_Stats_Open_Update(int change);
 void Smb2SrvModel_Global_Stats_Error_Update(void);
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
+extern void Smb2SrvModel_Free_BodyContext(pSmb2SrvModel_Session pSession);
+extern void Smb2SrvModel_Alloc_BodyContext(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
 
 void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
