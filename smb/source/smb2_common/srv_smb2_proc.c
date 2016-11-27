@@ -151,20 +151,21 @@ static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream)
 static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream);
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
 
-void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
-static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
-static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx);
+static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx);
+static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 
 
-BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx, ProcSMB2_BodyContext *pstackcontext)
+BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
   BBOOL r=FALSE;
+  ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
   // Initialize the handling of a compound packet containing one or more SMB2 commands
   if (pstackcontext->stackcontext_state == ST_INIT)
-    _SMBS_ProcSMB2_Body (pSctx, pstackcontext);
+    _SMBS_ProcSMB2_Body (pSctx);
 
   while (pstackcontext->stackcontext_state == ST_INPROCESS)
-    _SMBS_ProcSMB2_Body (pSctx, pstackcontext);
+    _SMBS_ProcSMB2_Body (pSctx);
 
   if (pstackcontext->stackcontext_state == ST_YIELD)
   {
@@ -181,8 +182,9 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx, ProcSMB2_BodyContext *pstackcon
   return r;
 }
 
-static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
+    ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
     // SMBS_ProcSMB2_BodyPhaseOne sets
     //  pstackcontext->stackcontext_state:
     //    ST_INPROCESS - Still looping proccessing compund input or output
@@ -190,7 +192,7 @@ static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pst
     //    ST_FALSE     - Failed pqrsing input, send no reply.
     if (pstackcontext->stackcontext_state == ST_INIT)
     {  // This is the beginning of a compound packet containing one or more SMB2 commands
-       SMBS_ProcSMB2_BodyPhaseOne (pSctx, pstackcontext);
+       SMBS_ProcSMB2_BodyPhaseOne (pSctx);
 
        // SMBS_ProcSMB2_BodyPhaseOne setting these states indicate we it wants to return and on true/false send/notsend the output buffer
        if (pstackcontext->stackcontext_state == ST_FALSE)
@@ -205,12 +207,13 @@ static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pst
     //    ST_INPROCESS - Keep looping proccessing compund input or output
     //    ST_YIELD     - ?? not sure if needed. We have to yield and wait for an external event to continue.
     //    ST_TRUE      - Done parameter success or failure it returns TRUE to send the buffered reply.
-    SMBS_ProcSMB2_BodyPhaseLoop(pSctx,pstackcontext);
+    SMBS_ProcSMB2_BodyPhaseLoop(pSctx);
 }
 
 
-void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx)
 {
+    ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
 	pstackcontext->doFirstPacket = TRUE;
     pstackcontext->pPreviousNextOutCommand = 0;
     pstackcontext->isCompoundReply=FALSE;
@@ -266,10 +269,12 @@ void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pst
     return;
 }
 
-static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx);
 
-static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx)
 {
+    ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
+
     // do
     {
       pstackcontext->sign_packet = FALSE;
@@ -324,12 +329,14 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyConte
        // Process this one smb packet
        // Make sure yield state is cleared. The command processor may set it
        pstackcontext->smb2stream.doSessionYield=FALSE;
+       pstackcontext->smb2stream.yield_duration=0;
        BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&pstackcontext->smb2stream);
        // If the command process requested a yield.
        // rewind the stream and return with pstackcontext->stackcontext_state == ST_INPROCESS; to start the yield
        if (pstackcontext->smb2stream.doSessionYield)
        {
          pstackcontext->stackcontext_state = ST_YIELD;
+         pstackcontext->yield_duration = pstackcontext->smb2stream.yield_duration;
          return;
        }
 
@@ -343,7 +350,7 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyConte
          pstackcontext->NextCommandOffset = pstackcontext->smb2stream.InHdr.NextCommand;
 
 
-       SMBS_ProcSMB2_BodyPhaseTwo (pSctx,pstackcontext);
+       SMBS_ProcSMB2_BodyPhaseTwo (pSctx);
        if (pstackcontext->isCompoundReply)
          pstackcontext->stackcontext_state = ST_INPROCESS;
        else
@@ -351,8 +358,9 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx,ProcSMB2_BodyConte
     } //  while (pstackcontext->isCompoundReply);
 }
 
-static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext)
+static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx)
 {
+    ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
        PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pstackcontext->pOutBufStart;
        // Set out process id to input \n");
        pOutHeader->Reserved = pstackcontext->smb2stream.InHdr.Reserved;

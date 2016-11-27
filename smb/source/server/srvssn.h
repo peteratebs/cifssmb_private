@@ -357,8 +357,6 @@ typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;
 /*    INTERFACE FUNCTION PROTOTYPES                                              */
 /*============================================================================   */
 
-BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave, dword inSize, dword outSize);
-void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave);
 
 void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock);
 void SMBS_CloseSession (PSMB_SESSIONCTX pSmbCtx);
@@ -372,6 +370,9 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize);
 
 BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx);
 BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
+
+
+
 
 /*============================================================================   */
 /*    INTERFACE TRAILING HEADERS                                                 */

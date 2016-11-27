@@ -1,5 +1,7 @@
 #ifndef __SMB2_COMMONNBSS_H__
 #define __SMB2_COMMONNBSS_H__
+#include "srv_smb2_model.h"
+
 
 //****************************************************************************
 //**
@@ -31,6 +33,15 @@ typedef struct
 typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
 
 
+// These two routines save the necessary pointers in the stream structure
+// So that SMB2 create and write commands can exit and leave the stream strcuture usable in a replay
+typedef struct StreamInputPointerState_s
+{
+  void *pInBuf;
+  rtsmb_size read_buffer_remaining;
+} StreamInputPointerState_t;
+
+
 typedef struct smb2_stream_s {
      // Signing rules. Set by calling smb2_stream_set_signing_rule
     byte     *SigningKey;                           // For writes, the key for signing, For reads the key for checking the signature
@@ -51,6 +62,7 @@ typedef struct smb2_stream_s {
     BBOOL    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     BBOOL    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
     BBOOL    doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
+    dword    yield_duration;                         // If doSessionYield, this is the duration to wait for a signal before timing out
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -67,9 +79,10 @@ typedef struct smb2_stream_s {
     rtsmb_size InBodySize;
     byte     LastFileId[16];                        // Filled in by create so we can replace 0xffffff with the last created FD.
                                                     // Cleared before processing a packet (compound request)
-
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
+    StreamInputPointerState_t StreamInputPointerState;
+
 } smb2_stream;
 
 typedef struct ProcSMB2_BodyContext_s {
@@ -87,9 +100,8 @@ typedef struct ProcSMB2_BodyContext_s {
 #define ST_TRUE        3
 #define ST_YIELD       4
   int      stackcontext_state;
+  dword  yield_duration; // Timneout in milliseconds if ST_YIELD is requested
 } ProcSMB2_BodyContext;
-
-
 
 
 
@@ -118,14 +130,7 @@ int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize
 int RtsmbWriteFinalizeSmb2(smb2_stream *pStream,ddword SessionId);
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 
-typedef struct StreamInputPointerState_s
-{
-  void *pInBuf;
-  rtsmb_size read_buffer_remaining;
-} StreamInputPointerState_t;
 
-void RtsmbStreamPushInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState);
-void RtsmbStreamPopInputPointers(smb2_stream *pStream, StreamInputPointerState_t  *pStreamInputPointerState);
 
 
 

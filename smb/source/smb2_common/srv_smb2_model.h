@@ -14,8 +14,12 @@
 
 
 #if (INCLUDE_RTSMB_SERVER)
-
+#include "com_smb2.h"
 #include "srvshare.h"
+
+#ifndef TYPELESS
+#define TYPELESS int
+#endif
 
 //============================================================================
 //    INTERFACE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS
@@ -472,8 +476,8 @@ void Smb2SrvModel_Global_Stats_Open_Update(int change);
 void Smb2SrvModel_Global_Stats_Error_Update(void);
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
-extern void Smb2SrvModel_Free_BodyContext(pSmb2SrvModel_Session pSession);
-extern void Smb2SrvModel_Alloc_BodyContext(pSmb2SrvModel_Session pSession);
+extern void RtsmbYieldFreeBodyContext(pSmb2SrvModel_Session pSession);
+extern void RtsmbYieldAllocBodyContext(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
 
 void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);

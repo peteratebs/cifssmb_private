@@ -132,7 +132,7 @@ word RTSmb2_get_externalFid(byte *smb2_file_handle)
   return externalFid;
 }
 
-static int testingYield=0;
+static int testingYield=3; // set to 0; to force every create with aj oplock to yield
 
 BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
@@ -154,7 +154,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
     dword smb2flags = 0;
-    StreamInputPointerState_t StreamInputPointerState;
 
 #include "srvnet.h"
 if (testingYield == 1)
@@ -187,7 +186,7 @@ if (testingYield == 1)
 
     /* Read into command, TreeId will be present in the input header */
 
-    RtsmbStreamPushInputPointers(pStream, &StreamInputPointerState);
+    RtsmbYieldPushFrame(pStream);
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
@@ -320,16 +319,20 @@ if (testingYield == 1)
        int decode_r;
        decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
     }
-    if (command.NameLength)
-    {
-      file_name[command.NameLength] = 0;
-      file_name[command.NameLength+1] = 0;
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Scan  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+    if (command.NameLength==0)
+    { // opening the root of the share
+      PFRTCHAR p = (PFRTCHAR) file_name;
+      rtsmb_char s = '\\';     // pass file_name[0] = \. so it stats the root.
+      rtsmb_char d = '.';     // pass file_name[0] = \\ so it stats the root.
+      *p++ = s; *p++ = d; *p = 0;
     }
-    if (command.NameLength && command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
+    else
     {
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
+    }
+    if (command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
+    {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Test for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
        // Force a test of restarting from an oplock if the file exists
 #warning Force yield here to test, needs more processing
@@ -337,26 +340,30 @@ if (testingYield == 1)
         testingYield = 0;
       else if (testingYield == 0)
       {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
         if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
         {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
-         testingYield = 1;
-         RtsmbStreamPopInputPointers(pStream, &StreamInputPointerState);
-         pStream->doSessionYield = TRUE;
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
-         testingYield = 1;
-         return FALSE;
+          int i,tp;
+          char temp[80];
+          tp = 0;
+          tp += sprintf(&temp[tp],"  Check oplock for UUID ==:[ ");
+          for (i = 0; i < (int)sizeof(stat.unique_fileid);i++)
+          {
+             tp += sprintf(&temp[tp], "%X,",stat.unique_fileid[i]);
+          }
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%s]\n", temp);
+          testingYield = 1;
+          RtsmbYieldPopFrame(pStream);
+          RtsmbYieldYield(pStream, rtp_get_system_msec()+1);
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+          testingYield = 1;
+          return FALSE;
         }
       }
     }
 
     if (command.NameLength==0)
     { // opening the root of the share
-      PFRTCHAR p = (PFRTCHAR) file_name;
-      rtsmb_char s = '\\';     // pass file_name[0] = \. so it stats the root.
-      rtsmb_char d = '.';     // pass file_name[0] = \\ so it stats the root.
-      *p++ = s; *p++ = d; *p = 0;
       flags = RTP_FILE_O_RDONLY;
       TURN_ON(command.FileAttributes, 0x80);
       // Hack, include extra info in stream if no file
@@ -721,6 +728,8 @@ int i;
     printf("p_decoded_create_context_request_values[i].p_context_entry_wire->p_payload: %X\n", p_decoded_create_context_request_values[i].p_payload);
   }
 }
+
+
 
 #endif
 #endif

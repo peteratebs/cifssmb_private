@@ -49,6 +49,7 @@
 #include "smbnet.h"
 #include "rtpmem.h"
 #include "rtptime.h"
+#include "srv_smb2_yield.h"
 
 static pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 
@@ -410,22 +411,11 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
     return &Smb2Sessions[i];
 }
 
-extern void Smb2SrvModel_Free_BodyContext(pSmb2SrvModel_Session pSession)
-{
-  if (pSession->SMB2_BodyContext) rtp_free(pSession->SMB2_BodyContext);
-  pSession->SMB2_BodyContext = 0;
-//  Smb2Sessions[i].SMB2_BodyContext=(void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
-}
-extern void Smb2SrvModel_Alloc_BodyContext(pSmb2SrvModel_Session pSession)
-{
-  Smb2SrvModel_Free_BodyContext(pSession); // Does nothing if already free
-  pSession->SMB2_BodyContext=             (void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
-}
 
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
     if (pSession->Connection) pSession->Connection->RTSMBisAllocated = FALSE;
-    Smb2SrvModel_Free_BodyContext(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
+    RtsmbYieldFreeBodyContext(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
     pSession->RTSMBisAllocated=FALSE;
 }
 

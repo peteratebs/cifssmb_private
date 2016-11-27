@@ -78,6 +78,7 @@ cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 #RTSMB COMMON FILES USED
 
 
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_yield.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_model.c
 cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc.c

@@ -51,7 +51,7 @@
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
 extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
-extern void Smb2SrvModel_Free_BodyContext(pSmb2SrvModel_Session pSession);
+#include "srv_smb2_yield.h"
 #endif
 /*============================================================================   */
 /*    SERVER STATE DIAGNOSTICS (COMPILE TIME)                                    */
@@ -104,6 +104,8 @@ void Get_Srv_Session_State(int a)
 static char *trans2Commandname(int command);
 static void DebugOutputSMBCommand(int command);
 static void DebugOutputTrans2Command(int command);
+static void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
+static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, dword inSize, dword outSize);
 
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS        */
@@ -168,6 +170,9 @@ SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE FUNCTION PROTOTYPES                                 */
 /*============================================================================   */
+
+extern BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
+BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout);
 
 void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
 
@@ -4515,9 +4520,9 @@ void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
 }
 
 /* this changes the permenant buffers used by this session   */
-BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave, dword inSize, dword outSize)
+static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, dword inSize, dword outSize)
 {
-
+PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
     pCtxSave->smallReadBuffer = pCtx->smallReadBuffer;
     pCtxSave->smallWriteBuffer = pCtx->smallWriteBuffer;
     pCtxSave->readBuffer = pCtx->readBuffer;
@@ -4532,20 +4537,18 @@ BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSa
     pCtx->writeBuffer = rtp_malloc(outSize);
     if (!pCtx->readBuffer || !pCtx->writeBuffer)
     {
-      SMBS_PopContextBuffers (pCtx, pCtxSave);
+     SMBS_PopContextBuffers(pCtx);
       return FALSE;
     }
-printf("pCtx %X Alloced %X and %X\n",pCtx,pCtx->readBuffer, pCtx->writeBuffer );
     pCtx->smallReadBuffer = pCtx->readBuffer;
     pCtx->smallWriteBuffer =  pCtx->writeBuffer;
-
     return TRUE;
 }
 
 /* this changes the permanent buffers used by this session   */
-void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx, PSMB_SESSIONCTX_SAVE pCtxSave)
+static void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx)
 {
-printf("pCtx %X Free %X and %X\n", pCtx->readBuffer, pCtx->readBuffer, pCtx->writeBuffer );
+PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
     if (pCtx->readBuffer)  rtp_free(pCtx->readBuffer);
     if (pCtx->writeBuffer)  rtp_free(pCtx->writeBuffer);
 
@@ -4598,7 +4601,7 @@ void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
 #if (DOPUSH)
     if (pSmbCtx->protocol_version == 2)
     {
-       SMBS_PopContextBuffers (pSmbCtx, &pSmbCtx->CtxSave);
+       SMBS_PopContextBuffers (pSmbCtx);
        pSmbCtx->protocol_version = 1;
     }
 #endif
@@ -4708,7 +4711,7 @@ This function processes one smb packet.
 
 extern void SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSctx);
 #ifdef SUPPORT_SMB2
-extern BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx,ProcSMB2_BodyContext *pstackcontext);
+extern BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #endif
 
 
@@ -4722,9 +4725,28 @@ static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
 #endif
     return 0;
 }
-SMB_SESSIONCTX_SAVE_T CtxSave;
+BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
+{  // We either timed out or we got signalled so clear the timeout,
+BBOOL dosend = TRUE;
+ // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
+  pSctx->yieldTimeout = 0;
+  int pcktsize = (int) (pSctx->in_packet_size - pSctx->current_body_size);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELDcb: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
+  dword yieldTimeout = 0;
+  dosend = SMBS_ProcSMBBodyPacketExecute (pSctx, &yieldTimeout);/* rtsmb_srv_net_session_cycle finish reading what we started. */
+  // Clear the flags now that the command handler had a change to look at them
+  pSctx->yieldFlags &= ~(YIELDSIGNALLED|YIELDTIMEDOUT);
+  if (yieldTimeout)
+  {
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_net_session_yield_cycle reset: %ld \n", yieldTimeout);
+    // It's possible but this may not be right, need to test
+    pSctx->yieldTimeout = yieldTimeout;
+  }
+  // Send output if there is any or process socket closure
+  return SMBS_ProcSMBBodyPacketEpilog (pSctx, dosend);
+}
 
-BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
+
 
 BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 {
@@ -4770,12 +4792,9 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     pSavedreadBuffer -= RTSMB_NBSS_HEADER_SIZE;
     saved_body_size = pSctx->current_body_size - RTSMB_NBSS_HEADER_SIZE;
     saved_in_packet_size = pSctx->in_packet_size;
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  Top  saved_body_size:%d\n",saved_body_size);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  Top in_packet_size:%d \n",saved_in_packet_size );
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  Top pSavedreadBuffer:%X \n",pSavedreadBuffer );
 
 
-rtsmb_dump_bytes("Top: ", pSavedreadBuffer, 5+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
+    rtsmb_dump_bytes("Top: ", pSavedreadBuffer, 5+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
 
     switch (pSctx->state)
     {
@@ -4879,7 +4898,7 @@ rtsmb_dump_bytes("Swap start saved: ", pSavedreadBuffer, SMBSIGSIZE+RTSMB_NBSS_H
           if (protocol_version == 2)
           {
 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
-            if (!SMBS_PushContextBuffers (pSctx, &pSctx->CtxSave, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE))
+            if (!SMBS_PushContextBuffers (pSctx, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE, HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE))
                 return FALSE;
              // Copy the start of the frame to to smb2 buffer we hjust allocated
              tc_memcpy(pSctx->readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
@@ -4889,7 +4908,7 @@ rtsmb_dump_bytes("Swap start after: ", pSctx->readBuffer, SMBSIGSIZE+RTSMB_NBSS_
           {  // Copy the smb2 buffer to the originginla buffer befroe we release the smb2 buffer
 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopContextBuffers.\n");
              tc_memcpy(pSctx->CtxSave.readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
-             SMBS_PopContextBuffers (pSctx, &pSctx->CtxSave);
+             SMBS_PopContextBuffers (pSctx);
           }
 #endif
         }
@@ -4920,12 +4939,10 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopCont
             }
             else
             {
-                // SMBS_PopContextBuffers (pSctx, &CtxSave);
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n");
-
                 if (pSctx->pCtxtsmb2Session && pSctx->pCtxtsmb2Session->SMB2_BodyContext)
                 {
-                  Smb2SrvModel_Free_BodyContext(pSctx->pCtxtsmb2Session);
+                  RtsmbYieldFreeBodyContext(pSctx->pCtxtsmb2Session);
                 }
                 SMBS_InitSessionCtx_smb1(pSctx);
                 pSctx->isSMB2 = FALSE;
@@ -4950,17 +4967,11 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         if (doYield)
         {
 #warning  Faking a yield timeout
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:: SMBS_ProcSMBBodyWithYield set tmo to %d\n", doYield);
           pSctx->yieldFlags &=  ~(YIELDSIGNALLED|YIELDTIMEDOUT);
           pSctx->yieldTimeout = doYield;             // Clear the yield status bits and set the yield timeout fence
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  Bottom  saved_body_size:%d\n",pSctx->current_body_size);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  bottom in_packet_size:%d \n",pSctx->in_packet_size );
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  Bottom pSavedreadBuffer:%X \n",pSctx->readBuffer );
-        int pcktsize = (int) (pSctx->in_packet_size - pSctx->current_body_size);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  saved pktsize now   :%d \n",pcktsize );
         }
         if (pSctx->state == NOTCONNECTED)
         {
@@ -5006,7 +5017,6 @@ BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
 }
 
 
-BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout);
 
 BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx)
 {
@@ -5109,9 +5119,9 @@ RTSMB_GET_SRV_SESSION_STATE (READING);
 RTSMB_GET_SRV_SESSION_STATE (IDLE);
 #endif
     pSctx->state = IDLE;
-    return SMBS_ProcSMBBodyPacketReplay (pSctx, yieldTimeout);
+    return SMBS_ProcSMBBodyPacketExecute (pSctx, yieldTimeout);
 }
-BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
+BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 // BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 {
     RTSMB_HEADER inCliHdr;
@@ -5134,7 +5144,7 @@ BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
         BBOOL r = FALSE; // Don't reply
 
         // make sure theres a pSctx->pCtxtsmb2Session->SMB2_BodyContext
-        Smb2SrvModel_Alloc_BodyContext(pSctx->pCtxtsmb2Session);
+        RtsmbYieldAllocBodyContext(pSctx->pCtxtsmb2Session);
         // Keep all moving parts (pointers, indeces etc) and manage a state machine trhrough the context structure.
         // State machine which may reenter and restart in phase 2
         //                  phase 1                  |        phase 2
@@ -5145,7 +5155,7 @@ BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
         ProcSMB2_BodyContext *pSMB2_BodyContext = (ProcSMB2_BodyContext *) pSctx->pCtxtsmb2Session->SMB2_BodyContext;
         pSMB2_BodyContext->stackcontext_state = ST_INIT;
 
-        SMBS_ProcSMB2_Body (pSctx,pSctx->pCtxtsmb2Session->SMB2_BodyContext);
+        SMBS_ProcSMB2_Body (pSctx);
         if (pSMB2_BodyContext->stackcontext_state == ST_FALSE)
           r = FALSE;
         else if (pSMB2_BodyContext->stackcontext_state == ST_TRUE)
@@ -5155,13 +5165,13 @@ BBOOL SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
         else if (pSMB2_BodyContext->stackcontext_state == ST_YIELD)
         {
           r = FALSE;
-          *yieldTimeout = rtp_get_system_msec()+1; // TBD - need timeouts
+          *yieldTimeout = pSMB2_BodyContext->yield_duration; // yield_duration is set by the thread yielding
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:: SMBS_ProcSMBBodyWithYield inside set tmo to %lu\n", *yieldTimeout);
         }
         // Hold onto the context in a suspended state if we're yielding
         // Otherwise we can free the context and grab another one when we enter again
         if (*yieldTimeout == 0)
-          Smb2SrvModel_Free_BodyContext(pSctx->pCtxtsmb2Session);
+          RtsmbYieldFreeBodyContext(pSctx->pCtxtsmb2Session);
         return r;
     }
 #endif
