@@ -283,6 +283,8 @@ static void * safemalloc(rtsmb_size bytes)
 RTSMB_STATIC RTSMB_SERVER_CONTEXT rtsmb_srv_cfg_core;
 PRTSMB_SERVER_CONTEXT prtsmb_srv_ctx = &rtsmb_srv_cfg_core;
 
+extern BBOOL RtsmbYieldBindSignalSocket(NET_THREAD_T  * pThread);
+
 int rtsmb_server_config(void)
 {
    int i;
@@ -410,6 +412,13 @@ int rtsmb_server_config(void)
       threads[i].inBuffer    = &inBuffer    [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].tmpBuffer   = &tmpBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
+#warning If rtsmb_server_config doesnt YIELD_BASE_PORTNUMBER
+      threads[i].yield_sock_portnumber  = YIELD_BASE_PORTNUMBER + i;
+      if (!RtsmbYieldBindSignalSocket(&threads[i]))
+      {
+#warning If rtsmb_server_config doesnt work we should exit
+          ; // It didn;t work, we're screwed
+      }
    }
 
    tc_strcpy (prtsmb_srv_ctx->local_master, "");

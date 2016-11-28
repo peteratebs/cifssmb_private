@@ -4967,7 +4967,6 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         if (doYield)
         {
 #warning  Faking a yield timeout
-          pSctx->yieldFlags &=  ~(YIELDSIGNALLED|YIELDTIMEDOUT);
           pSctx->yieldTimeout = doYield;             // Clear the yield status bits and set the yield timeout fence
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
@@ -5121,6 +5120,8 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     pSctx->state = IDLE;
     return SMBS_ProcSMBBodyPacketExecute (pSctx, yieldTimeout);
 }
+extern void RtsmbYieldSendSignalSocketTest(PNET_SESSIONCTX pNctxt);
+
 BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 // BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 {
@@ -5167,6 +5168,10 @@ BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
           r = FALSE;
           *yieldTimeout = pSMB2_BodyContext->yield_duration; // yield_duration is set by the thread yielding
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:: SMBS_ProcSMBBodyWithYield inside set tmo to %lu\n", *yieldTimeout);
+          PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
+          // Don't wait to time out, force a wakeup here to see if it works
+          if (pNctxt)
+             RtsmbYieldSendSignalSocketTest(pNctxt);
         }
         // Hold onto the context in a suspended state if we're yielding
         // Otherwise we can free the context and grab another one when we enter again

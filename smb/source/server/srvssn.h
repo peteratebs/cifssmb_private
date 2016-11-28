@@ -84,6 +84,7 @@ typedef struct fid_s
 #define SMB2WAITLOCKREGION   0x10   /* not used yet */
     dword smb2flags;
     byte held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
+    word held_oplock_uid;
     byte requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
     dword smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
     word tid;       /* owning tree */

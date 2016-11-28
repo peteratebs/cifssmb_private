@@ -13,6 +13,11 @@
 //============================================================================
 //    INTERFACE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS
 //============================================================================
+
+// #define YIELD_DEFAULT_DURATION 30                 // for testing
+#define YIELD_DEFAULT_DURATION 3000                 // for testing
+#include "srvnet.h"
+
 void RtsmbYieldPushFrame(smb2_stream *pStream);
 void RtsmbYieldPopFrame(smb2_stream *pStream);
 void RtsmbYieldYield(smb2_stream *pStream, dword yield_duration);

@@ -8,6 +8,7 @@
 
 #include "srvssn.h"
 
+#define YIELD_BASE_PORTNUMBER 9999
 
 /*============================================================================   */
 /*    INTERFACE STRUCTURES / UTILITY CLASSES                                     */
@@ -17,11 +18,12 @@ typedef struct
 	RTP_SOCKET    sock;
 	unsigned long lastActivity;
 	SMB_SESSIONCTX_T smbCtx;
+    struct net_thread_s *pThread;
 } NET_SESSIONCTX_T;
 typedef NET_SESSIONCTX_T RTSMB_FAR *PNET_SESSIONCTX;
 
 
-typedef struct
+typedef struct net_thread_s
 {
 	/**
 	 * This list points to all the sessions this thread manages.
@@ -37,6 +39,9 @@ typedef struct
 	 * A value of -1 means no session is blocking.
 	 */
 	int blocking_session;
+
+	int yield_sock_portnumber;
+    RTP_SOCKET yield_sock;
 
 	/**
 	 * Index stores the index of the last session we serviced.

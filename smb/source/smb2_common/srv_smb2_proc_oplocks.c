@@ -143,42 +143,66 @@ BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
  }
   return FALSE;
 }
-
-void SMBU_queue_oplock_break_send (PSMB_SESSIONCTX pCtx, word external, int oplocklevel)
+void RtsmbYieldSendOplockBreaks (PSMB_SESSIONCTX pCtx)
 {
-	int i;
-	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
+  PFID pfid;
+  PTREE tree;
+  PUSER user;
+
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: RtsmbYieldSendOplockBreaks\n");
+
+  tree = SMBU_GetTree (pCtx, pCtx->tid);
+  if (!tree)
+  {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"RtsmbYieldSendOplockBreaks: tree is not valid.\n");
+	return;
+  }
+// user has space for fid, but does tree?
+  int j;
+  for (j = 0; j < prtsmb_srv_ctx->max_fids_per_tree; j++)
+  {
+	if (tree->fids[j] && tree->fids[j]->internal != -1)
 	{
-		if (pCtx->fids[i].internal != -1 &&
-			pCtx->fids[i].external == external)
-		{
-			pCtx->fids[i].requested_oplock_level = oplocklevel;
-			switch (pCtx->fids[i].held_oplock_level) {
-			    case SMB2_OPLOCK_LEVEL_NONE     :
-                  // Set it and forget it
-			      pCtx->fids[i].held_oplock_level = pCtx->fids[i].requested_oplock_level;
-			      break;
-			    case SMB2_OPLOCK_LEVEL_II       :
-                  // Stepping from level II. Just send requested_oplock_level in a break message but don't wait
-                  pCtx->fids[i].smb2flags |= SMB2SENDOPLOCKBREAK;
-                  pCtx->sendOplockBreakCount += 1;
-			      break;
-			    case SMB2_OPLOCK_LEVEL_EXCLUSIVE:
-			    case SMB2_OPLOCK_LEVEL_BATCH    :
-                 // Send requested_oplock_level in a break message.
-                 // Queue up a wait for reponse.
-                  pCtx->fids[i].smb2flags |= (SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY);
-                  pCtx->fids[i].smb2waitexpiresat = rtp_get_system_msec()+SMB2_OPLOCK_MAX_WAIT_MILLIS;
-                  pCtx->sendOplockBreakCount += 1;
-			      break;
-			    case SMB2_OPLOCK_LEVEL_LEASE    :
-			      break;
-            }
-            break;
-		}
+      if (tree->fids[j]->smb2flags & SMB2SENDOPLOCKBREAK)
+      {
+        tree->fids[j]->smb2flags &= ~SMB2SENDOPLOCKBREAK;
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  RtsmbYieldSendOplockBreaks sending: %d\n", j);
+      }
+      else
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  RtsmbYieldSendOplockBreaks not sending: %d\n", j);
+
 	}
+  }
 }
 
+void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel)
+{
+	pfid->requested_oplock_level = oplocklevel;
+	switch (pfid->held_oplock_level) {
+	    case SMB2_OPLOCK_LEVEL_NONE     :
+          // Set it and forget it
+	      pfid->held_oplock_level = pfid->requested_oplock_level;
+pfid->smb2flags |= SMB2SENDOPLOCKBREAK;
+pCtx->sendOplockBreakCount += 1;
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  RtsmbYieldQueueOplockBreakSend hack:\n");
+	      break;
+	    case SMB2_OPLOCK_LEVEL_II       :
+          // Stepping from level II. Just send requested_oplock_level in a break message but don't wait
+          pfid->smb2flags |= SMB2SENDOPLOCKBREAK;
+          pCtx->sendOplockBreakCount += 1;
+	      break;
+	    case SMB2_OPLOCK_LEVEL_EXCLUSIVE:
+	    case SMB2_OPLOCK_LEVEL_BATCH    :
+         // Send requested_oplock_level in a break message.
+         // Queue up a wait for reponse.
+          pfid->smb2flags |= (SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY);
+          pfid->smb2waitexpiresat = rtp_get_system_msec()+SMB2_OPLOCK_MAX_WAIT_MILLIS;
+          pCtx->sendOplockBreakCount += 1;
+	      break;
+	    case SMB2_OPLOCK_LEVEL_LEASE    :
+	      break;
+    }
+}
 
 
 #endif

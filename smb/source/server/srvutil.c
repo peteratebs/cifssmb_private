@@ -353,6 +353,47 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 	return -1; // bad external
 }
 
+void SMBU_SetOplockLevel (PTREE tree, word uid, word externalfid, int oplocklevel)
+{
+int j;
+	for (j = 0; j < prtsmb_srv_ctx->max_fids_per_tree; j++)
+	{
+		if (tree->fids[j] && tree->fids[j]->internal != -1 && tree->fids[j]->external == externalfid)
+		{
+          tree->fids[j]->held_oplock_level = oplocklevel;
+          tree->fids[j]->held_oplock_uid = uid;
+          break;
+		}
+	}
+}
+
+PFID SMBU_SeardFidByUniqueId (PTREE tree, byte *unique_fileid)
+{
+int j;
+// user has space for fid, but does tree?
+  for (j = 0; j < prtsmb_srv_ctx->max_fids_per_tree; j++)
+  {
+	if (tree->fids[j] && tree->fids[j]->internal != -1)
+	{
+	  if (tc_memcmp(tree->fids[j]->unique_fileid,unique_fileid,sizeof(tree->fids[j]->unique_fileid)) == 0)
+       return tree->fids[j];
+	}
+  }
+  return 0;
+}
+
+PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel)
+{
+// user has space for fid, but does tree?
+PFID pfid = SMBU_SeardFidByUniqueId (tree, unique_fileid);
+  if (pfid)
+  {
+    *pCurrentOplockLevel = pfid->held_oplock_level;
+     return pfid;
+  }
+  return FALSE;
+}
+
 // uid, tid must be valid
 // finds free slot and
 // returns external fid associated with this internal one
@@ -382,11 +423,13 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 		{
 			break;
 		}
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: list xfid: %u \n",user->fids[i]->external);
+        rtsmb_dump_bytes("FID: list file name", user->fids[i]->name, 80, DUMPUNICODE);
 	}
 
 	if (i == prtsmb_srv_ctx->max_fids_per_uid) // no space found
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in user data.\n");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: Not enough space for new file in user data.\n");
 		return -1;
 	}
 
@@ -401,7 +444,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (j == prtsmb_srv_ctx->max_fids_per_tree)	// no space on tree
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in tree data.\n");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: Not enough space for new file in tree data.\n");
 		return -1;
 	}
 
@@ -411,7 +454,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	if (k == prtsmb_srv_ctx->max_fids_per_session)	// no space on session
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBU_SetInternalFid: Not enough space for new file in session data.\n");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: Not enough space for new file in session data.\n");
 		return -1;
 	}
 
@@ -429,11 +472,14 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	pCtx->fids[k].flags = flags;
 	pCtx->fids[k].smb2flags = smb2flags;
 	pCtx->fids[k].held_oplock_level = 0;
+    pCtx->fids[k].held_oplock_uid = 0;
 	pCtx->fids[k].requested_oplock_level = 0;
     pCtx->fids[k].smb2waitexpiresat = 0;
 	tc_memcpy(pCtx->fids[k].unique_fileid,unique_fileid,sizeof(pCtx->fids[k].unique_fileid));
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u\n",pCtx->fids[k].external);
+        rtsmb_dump_bytes("FID: set file name", pCtx->fids[k].name, 80, DUMPUNICODE);
 
 	return k;
 }
@@ -446,6 +492,8 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PTREE tree;
 	PUSER user;
 	word i, j, k;
+
+	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: clear fids:%u\n",external);
 
 #if (0 && HARDWIRED_INCLUDE_DCE)
     {
@@ -468,7 +516,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 	if (k == prtsmb_srv_ctx->max_fids_per_session)	// bad external
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBU_ClearInternalFid: Bad external fid.\n");
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: Bad external fid: %d\n",external);
 		return;
 	}
 
@@ -480,6 +528,9 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	 * We need to find the fid in the tree and user and
 	 * nullify them
 	 */
+
+	if (!user)
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No user for fid:%d\n",external);
 
 	if (user)
 	{
@@ -496,8 +547,14 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		{
 			user->fids[i] = (PFID)0;
 		}
+        else
+        {
+		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: Not in user list of fids:%d\n",external);
+        }
 	}
 
+	if (!tree)
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No user for fid:%d\n",external);
 	if (tree)
 	{
 		// find fid in tree list and nullify
@@ -513,6 +570,10 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		{
 			tree->fids[j] = (PFID)0;
 		}
+        else
+        {
+		  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: Not in tree  of fids:%d\n",external);
+        }
 	}
 
 	// clear the fid in master list

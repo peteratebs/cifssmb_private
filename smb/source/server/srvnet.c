@@ -65,6 +65,8 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
 extern BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout);
 extern BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
 extern BBOOL  SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
+extern void RtsmbYieldRecvSignalSocket(RTP_SOCKET sock);
+extern void RtsmbYieldSendOplockBreaks (PSMB_SESSIONCTX pCtx);
 
 RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void)
 {
@@ -326,7 +328,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
 {
     dword i;
     RTP_SOCKET readList[256];
-    int len;
+    int j,len;
 
     do
     {
@@ -335,15 +337,27 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
         /* build list */
         for(i = 0; i < pThread->numSessions && len < 256; i++)
         {
+           /* make sure we bind the thread to the net session context */
+            pThread->sessionList[i]->pThread = pThread;
             if (pThread->sessionList[i]->smbCtx.yieldTimeout==0)
+            {
               readList[len++] = pThread->sessionList[i]->sock;
+            }
         }
-
+        readList[len++] = pThread->yield_sock;
         /**
          * Block on input.
          */
         // HEREHERE - We need to reduce timeout and send alerts from thread cycle.
         len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
+        for (j = 0; j < len; j++)
+        {
+          if (readList[j] == pThread->yield_sock)
+          {
+            RtsmbYieldRecvSignalSocket(pThread->yield_sock);
+            break;
+          }
+        }
     }
     while (rtsmb_srv_net_thread_cycle (pThread, readList, len));
 
@@ -365,6 +379,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions)
     p->blocking_session = -1;
     p->numSessions = numSessions;
     p->srand_is_initialized = FALSE;
+    p->yield_sock = 0;          // A udp socket dedicated to signalling yield sessions to run
 }
 
 RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread)
@@ -558,7 +573,8 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
     {
        if ((*session)->smbCtx.sendOplockBreakCount)
        {
-          // HEREHERE -  send any oplock break alerts
+          // Send any oplock break alerts
+           RtsmbYieldSendOplockBreaks (&(*session)->smbCtx);
           (*session)->smbCtx.sendOplockBreakCount = 0;
        }
        if ((*session)->smbCtx.sendNotifyCount)
@@ -616,7 +632,8 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
         session = &pThread->sessionList[current_session_index];
         if (!*session)
           continue;
-
+        /* make sure we bind the thread to the net session context */
+        (*session)->pThread = pThread;
         starting_state = (*session)->smbCtx.state;
         for (n = 0; n < readListSize; n++)
         {
@@ -691,7 +708,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
 void rtsmb_srv_net_cycle (long timeout)
 {
     RTP_SOCKET readList[256];
-    int len;
+    int len,signal_socket_index;
     word i;
 
     if (!mainThread)
@@ -711,18 +728,25 @@ void rtsmb_srv_net_cycle (long timeout)
 
     for (i = 0; i < mainThread->numSessions && len < 256; i++)
     {
+        /* make sure we bind the thread to the net session context */
+        mainThread->sessionList[i]->pThread = mainThread;
+
         if (!RtsmbYieldCheckBlocked(&mainThread->sessionList[i]->smbCtx) )
           readList[len++] = mainThread->sessionList[i]->sock;
     }
+    signal_socket_index = len;
+    readList[len++] = mainThread->yield_sock;
 
     len = rtsmb_netport_select_n_for_read (readList, len, timeout);
-
     /**
      * Handle name requests, etc.
      */
 
     for (i = 0; i < len; i++)
     {
+        if (readList[i] == mainThread->yield_sock)
+          RtsmbYieldRecvSignalSocket(mainThread->yield_sock);
+
         if (readList[i] == net_nsSock)
         {
             byte datagram[RTSMB_NB_MAX_DATAGRAM_SIZE];

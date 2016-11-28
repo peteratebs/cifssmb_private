@@ -67,6 +67,9 @@ void SMBU_SetFidSmb2Flags (PSMB_SESSIONCTX pCtx, word external,   dword smb2flag
 int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error);
 int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags, dword *rsmb2flags);
 int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags, byte *unique_fileid);
+void SMBU_SetOplockLevel (PTREE tree, word uid, word externalfid, int oplocklevel);
+PFID SMBU_SeardFidByUniqueId (PTREE tree, byte *unique_fileid);
+PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel);
 void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external);
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external);
 int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);
