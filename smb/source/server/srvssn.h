@@ -306,6 +306,9 @@ typedef struct smb_sessionCtx_s
     /* number of fids currently queued for oplock break send */
     int sendOplockBreakCount;
 
+    /* number of fids currently blocked waiting for oplock break ack */
+    int waitOplockAckCount;
+
     /* number of fids currently queued for sending a notify request */
     int sendNotifyCount;
 

@@ -353,45 +353,134 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 	return -1; // bad external
 }
 
+// Scans all open FIDS
+int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs)
+{
+    word i, j;
+    PSMB_SESSIONCTX pCtx;
+    /* find all resources claimed by us and free them   */
+    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+    {
+        pCtx = &prtsmb_srv_ctx->sessions[i].smbCtx;
+        for (j = 0; j < prtsmb_srv_ctx->max_fids_per_session; j++)
+        {
+            if (pCtx->fids[j].internal >= 0 && pCtx->fids[j].pid == pCtx->pid)
+            {
+               int r = fn(&pCtx->fids[j], &prtsmb_srv_ctx->sessions[i], pCtx,enumargs);
+               if (r != 0)
+                 return r;
+            }
+        }
+    }
+    return 0;
+}
+struct enumFidArgsType_s {
+  PTREE tree; word uid; word externalfid; int oplocklevel;
+};
+static int SMBU_SetOplockLevelCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
+{
+  struct enumFidArgsType_s * pArgs = (struct enumFidArgsType_s *) pargs;
+  if (fid->external == pArgs->externalfid)
+  {
+     fid->held_oplock_level = pArgs->oplocklevel;
+     fid->held_oplock_uid = pArgs->uid;
+     return 1;
+  }
+  return 1;
+}
+
 void SMBU_SetOplockLevel (PTREE tree, word uid, word externalfid, int oplocklevel)
 {
 int j;
-	for (j = 0; j < prtsmb_srv_ctx->max_fids_per_tree; j++)
-	{
-		if (tree->fids[j] && tree->fids[j]->internal != -1 && tree->fids[j]->external == externalfid)
-		{
-          tree->fids[j]->held_oplock_level = oplocklevel;
-          tree->fids[j]->held_oplock_uid = uid;
-          break;
-		}
-	}
+struct enumFidArgsType_s args;
+    args.tree = tree;
+    args.uid  = uid;
+    args.externalfid = externalfid;
+    args.oplocklevel = oplocklevel;
+    SMBU_EnumerateFids(SMBU_SetOplockLevelCB, (void *) &args);
+	return;
 }
 
-PFID SMBU_SeardFidByUniqueId (PTREE tree, byte *unique_fileid)
+
+struct SMBU_Fid2Session_s {
+PNET_SESSIONCTX netsession;
+PFID pfid;
+};
+static int SMBU_Fid2SessionCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
 {
-int j;
-// user has space for fid, but does tree?
-  for (j = 0; j < prtsmb_srv_ctx->max_fids_per_tree; j++)
+  if ( ((struct SMBU_Fid2Session_s*)pargs)->pfid == fid )
   {
-	if (tree->fids[j] && tree->fids[j]->internal != -1)
-	{
-	  if (tc_memcmp(tree->fids[j]->unique_fileid,unique_fileid,sizeof(tree->fids[j]->unique_fileid)) == 0)
-       return tree->fids[j];
-	}
+    ((struct SMBU_Fid2Session_s*)pargs)->netsession = pnCtx;
+    return 1;
   }
   return 0;
+}
+PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
+{
+  struct SMBU_Fid2Session_s args;
+  args.netsession = 0;
+  args.pfid = pfid;
+  SMBU_EnumerateFids(SMBU_Fid2SessionCB, (void *) &args);
+  return args.netsession;
+}
+
+
+
+static char *format_fileid(byte *unique_fileid, int size, char *temp)
+{
+  int i,tp;
+  tp = 0;
+  tp &temp[0];
+  for (i = 0; i < size;i++)
+  {
+     tp += sprintf(&temp[tp], "%X,", unique_fileid[i]);
+  }
+  return temp;
+}
+
+struct enumFidSearchUniqueidType_s {
+  byte *unique_fileid;
+  PFID result;
+};
+
+static int _SMBU_SearchUniqueidCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
+{
+  struct enumFidSearchUniqueidType_s * pArgs = (struct enumFidSearchUniqueidType_s *) pargs;
+  if (tc_memcmp(fid->unique_fileid,pArgs->unique_fileid,sizeof(fid->unique_fileid)) == 0)
+  {
+    pArgs->result = fid;
+    return 1;
+  }
+  return 0;
+}
+static PFID SMBU_SeardFidByUniqueId (byte *unique_fileid)
+{
+
+ struct enumFidSearchUniqueidType_s args;
+   args.result = 0;
+   args.unique_fileid = unique_fileid;
+  char temp0[80];
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId %d files for %s\n", prtsmb_srv_ctx->max_fids_per_tree, format_fileid(unique_fileid, 8, temp0));
+  args.result = 0;
+  if (SMBU_EnumerateFids(_SMBU_SearchUniqueidCB, (void *) &args))
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", format_fileid(unique_fileid, 8, temp0));
+  else
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", format_fileid(unique_fileid, 8, temp0));
+
+  return args.result;
 }
 
 PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel)
 {
-// user has space for fid, but does tree?
-PFID pfid = SMBU_SeardFidByUniqueId (tree, unique_fileid);
+PFID pfid = SMBU_SeardFidByUniqueId (unique_fileid);
   if (pfid)
   {
+    char temp0[80];
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_CheckOplockLevel fake return for %s\n", format_fileid(unique_fileid, 8, temp0));
     *pCurrentOplockLevel = pfid->held_oplock_level;
      return pfid;
   }
-  return FALSE;
+  return 0;
 }
 
 // uid, tid must be valid
@@ -478,8 +567,8 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	tc_memcpy(pCtx->fids[k].unique_fileid,unique_fileid,sizeof(pCtx->fids[k].unique_fileid));
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u\n",pCtx->fids[k].external);
-        rtsmb_dump_bytes("FID: set file name", pCtx->fids[k].name, 80, DUMPUNICODE);
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u tid:%u\n",pCtx->fids[k].external, pCtx->tid);
+    rtsmb_dump_bytes("FID: set file name", pCtx->fids[k].name, 80, DUMPUNICODE);
 
 	return k;
 }

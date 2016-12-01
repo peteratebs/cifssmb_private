@@ -66,7 +66,9 @@ extern BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldT
 extern BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
 extern BBOOL  SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
 extern void RtsmbYieldRecvSignalSocket(RTP_SOCKET sock);
-extern void RtsmbYieldSendOplockBreaks (PSMB_SESSIONCTX pCtx);
+extern void RtsmbYieldSendOplockBreaks (PNET_SESSIONCTX session);
+extern void RtsmbYieldNetSessionInit(PNET_SESSIONCTX pNetCtx);
+extern void RtsmbYieldProcOplockTimers (PNET_SESSIONCTX session);
 
 RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void)
 {
@@ -140,6 +142,8 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     if(pNetCtx)
     {
         pNetCtx->sock = sock;
+
+        RtsmbYieldNetSessionInit(pNetCtx);
 
         pNetCtx->lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->smbCtx), pNetCtx->sock);
@@ -266,8 +270,13 @@ RTSMB_STATIC PNET_THREAD tempThread;
         return;
     }
 
+    // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
+    word saved_yield_sock_portnumber = prtsmb_srv_ctx->threads[0].yield_sock_portnumber;
+    RTP_SOCKET saved_yield_sock = prtsmb_srv_ctx->threads[0].yield_sock;
     mainThread = tempThread;
     rtsmb_srv_net_thread_init (mainThread, 0);
+    prtsmb_srv_ctx->threads[0].yield_sock_portnumber = saved_yield_sock_portnumber;
+    prtsmb_srv_ctx->threads[0].yield_sock = saved_yield_sock;
 
     /* -------------------- */
     /* get the three major sockets */
@@ -328,7 +337,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
 {
     dword i;
     RTP_SOCKET readList[256];
-    int j,len;
+    int j,len,in_len;
 
     do
     {
@@ -349,9 +358,12 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
          * Block on input.
          */
         // HEREHERE - We need to reduce timeout and send alerts from thread cycle.
+        in_len = len;
+
         len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
         for (j = 0; j < len; j++)
         {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle rtsmb_srv_net_thread_main readliostsock:%d yield_sock: %d \n",readList[j],pThread->yield_sock);
           if (readList[j] == pThread->yield_sock)
           {
             RtsmbYieldRecvSignalSocket(pThread->yield_sock);
@@ -379,7 +391,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions)
     p->blocking_session = -1;
     p->numSessions = numSessions;
     p->srand_is_initialized = FALSE;
-    p->yield_sock = 0;          // A udp socket dedicated to signalling yield sessions to run
+    // p->yield_sock; A udp socket dedicated to signalling yield sessions was initialized at startup
 }
 
 RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread)
@@ -542,7 +554,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
         if (ready)
         {
             (*session)->lastActivity = rtp_get_system_msec ();
-
             if (rtsmb_srv_nbss_process_packet (&(*session)->smbCtx) == FALSE)
             {
                 isDead = TRUE;
@@ -551,11 +562,18 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
         else
         {
             /*check for time out */
-            if(IS_PAST ((*session)->lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
+            if(IS_PAST ((*session)->lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT*4))
             {
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_net_session_cycle: Connection timed out on socket %ld ",(*session)->sock);
                 (*session)->lastActivity = rtp_get_system_msec ();
                 isDead = TRUE;
+            }
+            else if (prtsmb_srv_ctx->enable_oplocks)
+            { // run down any oplock timers
+              if ((*session)->smbCtx.waitOplockAckCount)
+              {
+                RtsmbYieldProcOplockTimers (*session);
+              }
             }
         }
         break;
@@ -571,11 +589,11 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
     }
     else
     {
-       if ((*session)->smbCtx.sendOplockBreakCount)
+       if (prtsmb_srv_ctx->enable_oplocks && (*session)->smbCtx.sendOplockBreakCount)
        {
           // Send any oplock break alerts
-           RtsmbYieldSendOplockBreaks (&(*session)->smbCtx);
-          (*session)->smbCtx.sendOplockBreakCount = 0;
+           RtsmbYieldSendOplockBreaks (*session);
+           (*session)->smbCtx.sendOplockBreakCount = 0;
        }
        if ((*session)->smbCtx.sendNotifyCount)
        {
@@ -713,6 +731,8 @@ void rtsmb_srv_net_cycle (long timeout)
 
     if (!mainThread)
     {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle sock: lost mainTread %x \n",mainThread);
+        int iCrash = 13 / 0;      // trap to the debugger
         return;
     }
 
@@ -730,23 +750,29 @@ void rtsmb_srv_net_cycle (long timeout)
     {
         /* make sure we bind the thread to the net session context */
         mainThread->sessionList[i]->pThread = mainThread;
-
         if (!RtsmbYieldCheckBlocked(&mainThread->sessionList[i]->smbCtx) )
           readList[len++] = mainThread->sessionList[i]->sock;
     }
     signal_socket_index = len;
     readList[len++] = mainThread->yield_sock;
-
+    int in_len = len;
     len = rtsmb_netport_select_n_for_read (readList, len, timeout);
     /**
      * Handle name requests, etc.
      */
+    int j;
+    for (j = 0; j < len; j++)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle readliostsock:%d yield_sock: %d \n",readList[j],mainThread->yield_sock);
+      if (readList[j] == mainThread->yield_sock)
+      {
+        RtsmbYieldRecvSignalSocket(mainThread->yield_sock);
+        break;
+      }
+    }
 
     for (i = 0; i < len; i++)
     {
-        if (readList[i] == mainThread->yield_sock)
-          RtsmbYieldRecvSignalSocket(mainThread->yield_sock);
-
         if (readList[i] == net_nsSock)
         {
             byte datagram[RTSMB_NB_MAX_DATAGRAM_SIZE];

@@ -11,6 +11,7 @@
 //    INTERFACE REQUIRED HEADERS
 //============================================================================
 #include "smbdefs.h"
+#include "srvnet.h"
 
 #if (INCLUDE_RTSMB_SERVER)
 
@@ -68,13 +69,16 @@ int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error
 int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, word *rflags, dword *rsmb2flags);
 int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags, byte *unique_fileid);
 void SMBU_SetOplockLevel (PTREE tree, word uid, word externalfid, int oplocklevel);
-PFID SMBU_SeardFidByUniqueId (PTREE tree, byte *unique_fileid);
 PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel);
 void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external);
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external);
 int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);
-
 int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid);
+typedef int(*enumFidFnType)(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs);
+int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs);
+extern PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid);
+
+
 
 void *ptralign(void *ptr, int a);
 dword dwordalign(dword original, int a);

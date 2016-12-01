@@ -19,6 +19,7 @@
 #if (INCLUDE_RTSMB_SERVER)
 
 #include "srvarg.h"
+#include "srvcfg.h"
 #include "srvauth.h"
 #include "smbutil.h"
 #include "psmbfile.h"
@@ -629,8 +630,17 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
 {
     char mode_str [10];
     char guest_str [10];
+    char oplocks_str[10];
     int index;
     int gIndex;
+
+    if (RTSMB_GetStringValue (section, "enable_oplocks", oplocks_str, 10))
+    {
+      if (!rtsmb_strcasecmp (oplocks_str, "yes", CFG_RTSMB_USER_CODEPAGE))
+        prtsmb_srv_ctx->enable_oplocks       = TRUE;
+      else
+        prtsmb_srv_ctx->enable_oplocks       = FALSE;
+    }
 
     if (!RTSMB_GetStringValue (section, "mode", mode_str, 10))
     {

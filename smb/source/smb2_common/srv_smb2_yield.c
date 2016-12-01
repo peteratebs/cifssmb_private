@@ -34,16 +34,17 @@ static const byte local_ip_mask[] = {0xff,0,0,0};
 
 BBOOL RtsmbYieldBindSignalSocket(NET_THREAD_T  * pThread)
 {
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD: RtsmbYieldBindSignalSocket: calling socket on portnumber: %u\n",pThread->yield_sock_portnumber);
   rtsmb_net_socket_new (&pThread->yield_sock, pThread->yield_sock_portnumber, FALSE);
 //    int rtsmb_net_socket_new (RTP_SOCKET* sock_ptr, int port, BBOOL reliable)
   return TRUE;
 }
 // HEREHERE
-void RtsmbYieldSendSignalSocketTest(PNET_SESSIONCTX pNctxt)
+void RtsmbYieldSendSignalSocketSession(PNET_SESSIONCTX pNctxt)
 {
   pNctxt->smbCtx.yieldFlags |= YIELDSIGNALLED;
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldSendSignalSocketTest %X -> %X\n", &pNctxt->smbCtx,pNctxt->smbCtx.yieldFlags);
-  rtsmb_net_write_datagram (pNctxt->pThread->yield_sock, local_ip_address, pNctxt->pThread->yield_sock_portnumber, "SIG", 4);  // Four is the minimum size might as well send something
+  int r = rtsmb_net_write_datagram (pNctxt->pThread->yield_sock, local_ip_address, pNctxt->pThread->yield_sock_portnumber, "SIG", 4);  // Four is the minimum size might as well send something
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: r:%d sock[%d] RtsmbYieldSendSignalSocketTest %X -> %X\n", r, pNctxt->pThread->yield_sock,&pNctxt->smbCtx,pNctxt->smbCtx.yieldFlags);
 }
 
 void RtsmbYieldSendSignalSocket(smb2_stream  *pStream)
@@ -52,8 +53,7 @@ void RtsmbYieldSendSignalSocket(smb2_stream  *pStream)
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldSendSignalSocket to %X\n", pStream->psmb2Session->pSmbCtx);
   if (pNctxt)
   {
-    pStream->psmb2Session->pSmbCtx->yieldFlags |= YIELDSIGNALLED;
-    rtsmb_net_write_datagram (pNctxt->pThread->yield_sock, local_ip_address, pNctxt->pThread->yield_sock_portnumber, "SIG", 4);  // Four is the minimum size might as well send something
+    RtsmbYieldSendSignalSocketSession(pNctxt);
   }
 }
 
@@ -65,8 +65,9 @@ void RtsmbYieldRecvSignalSocket(RTP_SOCKET sock)
 
   size = rtsmb_net_read_datagram (sock, messagebuffer, 4, remote_ip, &remote_port);
   messagebuffer[4]=0;
-  printf("Yeah recved %s\n", (char *)messagebuffer);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldRecvSignalSocket recved %s\n", (char *)messagebuffer);
 }
+
 int rtsmb_net_read_datagram (RTP_SOCKET sock, PFVOID pData, int size, PFBYTE remoteAddr, PFINT remotePort);
 
 

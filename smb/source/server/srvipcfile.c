@@ -135,20 +135,22 @@ int rtsmb_ipcrpc_filesys_init(void)
     return (0);
 }
 
+#define NUMSRVCSTREAMFILES 10
 // Simple stream model for write command /read result IPC inerface
-static StreamtoSrvSrvc SrvSrvcStreams[10];
+static StreamtoSrvSrvc SrvSrvcStreams[NUMSRVCSTREAMFILES];
 
 static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc);
 static int AllocSrvSrvcStreamFid(void)
 {
 int i;
 
-   for (i = 0; i < 10; i++)
+   for (i = 0; i < NUMSRVCSTREAMFILES; i++)
    {
      if (!SrvSrvcStreams[i].in_use)
      {
       SrvSrvcStreams[i].in_use = TRUE;
       SrvSrvcStreams[i].bound_stream_pointer = 0;
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"AllocSrvSrvcStreamFid:  Allocated FID[%d].\n", i);
       return i|HARDWIRED_SRVSVC_FID;
      }
    }
@@ -176,14 +178,21 @@ static void FreeSrvSrvcStream(StreamtoSrvSrvc *pStreamtoSrvSrvc)
 
 static StreamtoSrvSrvc *FdToSrvSrvcStream(int fd)
 {
-   return &SrvSrvcStreams[fd&0xf];
+int ifd = fd&0xf;
+   if (ifd >= NUMSRVCSTREAMFILES)
+   {
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FdToSrvSrvcStream: invalid fileid: %d\n", fd);
+     return 0;
+   }
+   return &SrvSrvcStreams[ifd];
 }
 
 // Bind SMB2 stream pointer to fd file descriptor so we can get to context items from IOCTL calls that are accessed through the file system
 void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
 {
   StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
-  pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
+  if (pStreamtoSrvSrvc)
+    pStreamtoSrvSrvc->bound_stream_pointer = stream_pointer;
 }
 static BBOOL ipcrpc_is_srvsvc(PFRTCHAR name)
 {
@@ -229,17 +238,20 @@ static long ipcrpc_read(int fd,  unsigned char RTSMB_FAR * buf, long count)
     {  // We are reading the results of a write command that actuall went to the dce layer.
        // If reply_status_code id non zero, then no return data was buffered, just return the 4 byte ststu.
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
-      if (pStreamtoSrvSrvc->reply_status_code!=0)
+      if (pStreamtoSrvSrvc)
       {
-        tc_memcpy(buf, &pStreamtoSrvSrvc->reply_status_code, 4);
-        rv = 4;
+        if (pStreamtoSrvSrvc->reply_status_code!=0)
+        {
+          tc_memcpy(buf, &pStreamtoSrvSrvc->reply_status_code, 4);
+          rv = 4;
+        }
+        else if (pStreamtoSrvSrvc->reply_data_count <= count)
+        {
+          tc_memcpy(buf, pStreamtoSrvSrvc->reply_response_data, pStreamtoSrvSrvc->reply_data_count);
+          rv = pStreamtoSrvSrvc->reply_data_count;
+        }
+        FreeSrvSrvcStream(pStreamtoSrvSrvc);
       }
-      else if (pStreamtoSrvSrvc->reply_data_count <= count)
-      {
-        tc_memcpy(buf, pStreamtoSrvSrvc->reply_response_data, pStreamtoSrvSrvc->reply_data_count);
-        rv = pStreamtoSrvSrvc->reply_data_count;
-      }
-      FreeSrvSrvcStream(pStreamtoSrvSrvc);
     }
     return rv;
 }
@@ -254,6 +266,8 @@ static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
     long rv = -1;
     {  // This is hacky, call the srvsrvc call
        StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
+       if (!pStreamtoSrvSrvc)
+         return -1;
        FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
        pStreamtoSrvSrvc->reply_status_code=0;
        r = SMBU_StreamWriteToSrvcSrvc ( buf, count,pStreamtoSrvSrvc);
@@ -275,10 +289,14 @@ static int ipcrpc_close(int fd)
 {
     int rv = -1;
     {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SrvSrvcStreamFid:ipcrpc_close  Freeing %d : FID[%d].\n", fd, fd&0xf);
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
-      FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
-      pStreamtoSrvSrvc->in_use=FALSE;
-      rv = 0;
+      if (pStreamtoSrvSrvc)
+      {
+        FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
+        pStreamtoSrvSrvc->in_use=FALSE;
+        rv = 0;
+      }
     }
 }
 

@@ -20,8 +20,7 @@
 #define RTSMB_NBNS_CLOSE_TIMEOUT          30000  /* in milliseconds */
 //#define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     60000  /* in milliseconds */
 #define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     30000  /* in milliseconds */
-#define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD    RTSMB_NBNS_KEEP_ALIVE_TIMEOUT  /* in milliseconds */
-// #define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD    10  /* in milliseconds */
+#define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD    100  /* in milliseconds */
 #define RTSMB_NBNS_RETRY_COUNT            4
 
 

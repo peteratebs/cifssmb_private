@@ -36,6 +36,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	BBOOL             enum_results_in_use;
 	int               server_table_size;
 	int               domain_table_size;
+    BBOOL             enable_oplocks;
 
 	/* MUTEX HANDLES */
 	unsigned long     bufsem;

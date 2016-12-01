@@ -143,7 +143,7 @@ groups = marketing
 [end]
 
 
-# The global section has three variables:  mode, guest, and guestgroups.
+# The global section has four variables:  mode, guest, and guestgroups, enable_oplocks.
 # If mode is set to "user", user-mode authentication will occur.
 # If mode is set to "share", share-based authentication will occur.
 # The default is share.
@@ -161,4 +161,6 @@ groups = marketing
 mode = user
 guest = yes
 guestgroups = trusted
+# Set enable_oplocks to no or yes. If no oplocks are ignored and breaks are not sent
+enable_oplocks = no
 [end]

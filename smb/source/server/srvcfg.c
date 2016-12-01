@@ -214,6 +214,11 @@
 #define CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS                 5
 #endif
 
+#ifndef CFG_RTSMB_ENABLE_OPLOCKS
+#define CFG_RTSMB_ENABLE_OPLOCKS    FALSE
+#endif
+
+
 
 #if ALLOC_FROM_HEAP == 0
 
@@ -344,6 +349,10 @@ int rtsmb_server_config(void)
    prtsmb_srv_ctx->server_table_size     = CFG_RTSMB_BROWSE_MAX_SERVER_INFOS;
    prtsmb_srv_ctx->domain_table_size     = CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS;
    prtsmb_srv_ctx->enum_results_size     = MAX (CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS, CFG_RTSMB_BROWSE_MAX_SERVER_INFOS);
+
+
+   prtsmb_srv_ctx->enable_oplocks       = CFG_RTSMB_ENABLE_OPLOCKS;
+
 
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->bufsem, (const char*)0);
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->authsem, (const char*)0);

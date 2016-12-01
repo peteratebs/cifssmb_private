@@ -13,6 +13,7 @@
 //
 
 #include "smbdefs.h"
+#include "srvcfg.h"
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
@@ -27,6 +28,7 @@
 
 extern void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel);
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid);
+extern void RtsmbYieldChangeOplockBreakLevel(PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel);
 
 const unsigned char pMxAc_info_response[] =
 {0x00,0x00,0x00,0x00,
@@ -335,12 +337,12 @@ if (testingYield == 1)
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
     }
-    if (command.RequestedOplockLevel && pTree->type == ST_DISKTREE)
+
+    if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Test for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
        // Force a test of restarting from an oplock if the file exists
-#warning Force yield here to test, needs more processing
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings [%u]:%s\n",pStream->psmb2Session->pSmbCtx->tid,  rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
       {
         int i,tp;
@@ -351,19 +353,37 @@ if (testingYield == 1)
         {
            tp += sprintf(&temp[tp], "%X,",stat.unique_fileid[i]);
         }
+        // if (testingYield != 3)
+        {
         int CurrentOplockLevel;
         PFID pfid;
         pfid =  SMBU_CheckOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, stat.unique_fileid, &CurrentOplockLevel);
+//        command.RequestedOplockLevel &&
         // If testing force a send
-        if (pfid && (testingYield == 0 || (CurrentOplockLevel != (int) command.RequestedOplockLevel)) )
+        if (pfid)
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%s]\n", temp);
-          testingYield = 1;
-          RtsmbYieldQueueOplockBreakSend (pStream->psmb2Session->pSmbCtx, pfid,(int) command.RequestedOplockLevel);
-          RtsmbYieldPopFrame(pStream);
-          RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
-          return FALSE;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  level change %d -> %d\n",CurrentOplockLevel,command.RequestedOplockLevel );
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  fid.tid: %u -> pSmbCtx->tid: %u\n",pfid->tid, pStream->psmb2Session->pSmbCtx->tid);
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  cuurent lock level: %u -> new level: %u\n",CurrentOplockLevel,command.RequestedOplockLevel);
+          if (CurrentOplockLevel != (int) command.RequestedOplockLevel)
+          { // Don't send any breaks if we already own the file.
+            if (pfid->tid ==  pStream->psmb2Session->pSmbCtx->tid)
+            {
+               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  tids the same %u -> %u\n",pfid->tid, pfid->tid);
+               RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfid,(int) command.RequestedOplockLevel);
+            }
+            else
+            {
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%s]\n", temp);
+              testingYield = 1;
+              RtsmbYieldQueueOplockBreakSend (pStream->psmb2Session->pSmbCtx, pfid,(int) command.RequestedOplockLevel);
+              RtsmbYieldPopFrame(pStream);
+              RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+              return FALSE;
+            }
+          }
+        }
         }
       }
     }
@@ -552,9 +572,8 @@ if (testingYield == 1)
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
-    if (command.RequestedOplockLevel)
+    if (prtsmb_srv_ctx->enable_oplocks && command.RequestedOplockLevel)
       SMBU_SetOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, RTSmb2_get_externalFid(&response.FileId[0]), (int) command.RequestedOplockLevel);
-
 
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
