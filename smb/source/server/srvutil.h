@@ -73,6 +73,7 @@ PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCu
 void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external);
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external);
 int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);
+PFID SMBU_GetInternalFidPtr (PSMB_SESSIONCTX pCtx,  word external);
 int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid);
 typedef int(*enumFidFnType)(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs);
 int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs);

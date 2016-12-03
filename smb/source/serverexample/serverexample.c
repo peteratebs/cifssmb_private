@@ -38,6 +38,7 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "psmbfile.h"
 #include "rtpscnv.h"
 #include "rtpthrd.h"
+#include "srvobjectsc.h"
 
 
 
@@ -83,10 +84,21 @@ void rtsmb_main (void)
 
 
 volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
+volatile print_diags = 0;
+volatile int keyboard_break_pressed_count;
 
 #include<signal.h>
+#include "srvobjectsc.h"
 // #include <unistd.h>
 
+void sig_quit_handler(int signo)
+{
+  if (signo == SIGQUIT)
+  {
+    print_diags = 1;
+    keyboard_break_pressed_count = 1;
+  }
+}
 void sig_handler(int signo)
 {
   if (signo == SIGINT)
@@ -109,6 +121,8 @@ int smbservermain (int argc, char **argv)
 
     // Control C handler for setting go = 0
     signal(SIGINT, sig_handler);
+    // Control \ prints diags
+    signal(SIGQUIT, sig_quit_handler);
 
  	if (rtp_net_init () < 0)
 	{
@@ -179,6 +193,11 @@ int smbservermain (int argc, char **argv)
 	/*************************************************************************************/
 	while(go){
 		rtsmb_main ();
+        if (print_diags)
+        {
+          srvobject_display_diags();
+          print_diags = 0;
+        }
 
 #if (HARDWIRE_SERVER_SETTINGS==0)
 		if (rtsmb_server_interactive () < 0)
@@ -188,6 +207,9 @@ int smbservermain (int argc, char **argv)
 	/************************************************************************************/
 
 	//Shutdown
+	rtp_printf("main: display fids\n");
+    srvobject_display_fids();
+
 	rtp_printf("main: shutting down\n");
 #if (HARDWIRED_EXTENDED_SECURITY)
     spnego_free_extended_security();

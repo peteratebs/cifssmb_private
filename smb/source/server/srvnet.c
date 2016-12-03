@@ -44,7 +44,6 @@
 #include "srv_smb2_yield.h"
 #endif
 
-RTSMB_STATIC PNET_THREAD mainThread;
 
 
 #if INCLUDE_RTSMB_DC
@@ -273,8 +272,8 @@ RTSMB_STATIC PNET_THREAD tempThread;
     // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
     word saved_yield_sock_portnumber = prtsmb_srv_ctx->threads[0].yield_sock_portnumber;
     RTP_SOCKET saved_yield_sock = prtsmb_srv_ctx->threads[0].yield_sock;
-    mainThread = tempThread;
-    rtsmb_srv_net_thread_init (mainThread, 0);
+    prtsmb_srv_ctx->mainThread = tempThread;
+    rtsmb_srv_net_thread_init (prtsmb_srv_ctx->mainThread, 0);
     prtsmb_srv_ctx->threads[0].yield_sock_portnumber = saved_yield_sock_portnumber;
     prtsmb_srv_ctx->threads[0].yield_sock = saved_yield_sock;
 
@@ -639,19 +638,23 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
         int current_session_index = (i + (int)pThread->index) % (int)pThread->numSessions;
         SMBS_SESSION_STATE starting_state;
 
-        /* Shouldn't run if a blocking session exists and we aren't it. */
-        if (pThread->blocking_session != -1 &&
-            pThread->blocking_session != current_session_index)
-        {
-            continue;
-        }
-
         /* session can be null here */
         session = &pThread->sessionList[current_session_index];
         if (!*session)
           continue;
+
+        /* Shouldn't run if a blocking session exists and we aren't it. */
+        if (pThread->blocking_session != -1 &&
+            pThread->blocking_session != current_session_index)
+        {
+            srvobject_session_blocked(pThread,session); // marks an ended session
+            continue;
+        }
+
         /* make sure we bind the thread to the net session context */
-        (*session)->pThread = pThread;
+       (*session)->pThread = pThread;
+
+        srvobject_session_enter(pThread,session);
         starting_state = (*session)->smbCtx.state;
         for (n = 0; n < readListSize; n++)
         {
@@ -662,6 +665,8 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
             }
         }
         /* session can be null here */
+        if (!*session)
+           srvobject_session_enter(pThread,session); // marks an ended session
         if (!*session)
           continue;
 
@@ -701,6 +706,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
             }
         }
     }
+    srvobject_session_exit(pThread,session);
 
     rtsmb_srv_net_thread_condense_sessions (pThread);
 
@@ -729,9 +735,9 @@ void rtsmb_srv_net_cycle (long timeout)
     int len,signal_socket_index;
     word i;
 
-    if (!mainThread)
+    if (!prtsmb_srv_ctx->mainThread)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle sock: lost mainTread %x \n",mainThread);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle sock: lost mainTread %x \n",prtsmb_srv_ctx->mainThread);
         int iCrash = 13 / 0;      // trap to the debugger
         return;
     }
@@ -746,15 +752,15 @@ void rtsmb_srv_net_cycle (long timeout)
     readList[len++] = rtsmb_nbds_get_socket (); /* Datagram Service Socket */
     readList[len++] = net_ssnSock; /* Session Service Socket */
 
-    for (i = 0; i < mainThread->numSessions && len < 256; i++)
+    for (i = 0; i < prtsmb_srv_ctx->mainThread->numSessions && len < 256; i++)
     {
         /* make sure we bind the thread to the net session context */
-        mainThread->sessionList[i]->pThread = mainThread;
-        if (!RtsmbYieldCheckBlocked(&mainThread->sessionList[i]->smbCtx) )
-          readList[len++] = mainThread->sessionList[i]->sock;
+        prtsmb_srv_ctx->mainThread->sessionList[i]->pThread = prtsmb_srv_ctx->mainThread;
+        if (!RtsmbYieldCheckBlocked(&prtsmb_srv_ctx->mainThread->sessionList[i]->smbCtx) )
+          readList[len++] = prtsmb_srv_ctx->mainThread->sessionList[i]->sock;
     }
     signal_socket_index = len;
-    readList[len++] = mainThread->yield_sock;
+    readList[len++] = prtsmb_srv_ctx->mainThread->yield_sock;
     int in_len = len;
     len = rtsmb_netport_select_n_for_read (readList, len, timeout);
     /**
@@ -763,10 +769,10 @@ void rtsmb_srv_net_cycle (long timeout)
     int j;
     for (j = 0; j < len; j++)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle readliostsock:%d yield_sock: %d \n",readList[j],mainThread->yield_sock);
-      if (readList[j] == mainThread->yield_sock)
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle readliostsock:%d yield_sock: %d \n",readList[j],prtsmb_srv_ctx->mainThread->yield_sock);
+      if (readList[j] == prtsmb_srv_ctx->mainThread->yield_sock)
       {
-        RtsmbYieldRecvSignalSocket(mainThread->yield_sock);
+        RtsmbYieldRecvSignalSocket(prtsmb_srv_ctx->mainThread->yield_sock);
         break;
       }
     }
@@ -792,12 +798,12 @@ void rtsmb_srv_net_cycle (long timeout)
          */
         else if (readList[i] == net_ssnSock)
         {
-            rtsmb_srv_net_thread_new_session (mainThread);
+            rtsmb_srv_net_thread_new_session (prtsmb_srv_ctx->mainThread);
         }
     }
 
     /* handle sessions we own */
-    rtsmb_srv_net_thread_cycle (mainThread, readList, len);
+    rtsmb_srv_net_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
 
 #if INCLUDE_RTSMB_DC
     /* now see if we need to query for the pdc again */
@@ -821,7 +827,7 @@ void rtsmb_srv_net_shutdown (void)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
     }
 
-    rtsmb_srv_net_thread_close (mainThread);
+    rtsmb_srv_net_thread_close (prtsmb_srv_ctx->mainThread);
 }
 
 

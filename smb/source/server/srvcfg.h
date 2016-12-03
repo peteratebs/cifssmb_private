@@ -69,6 +69,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	GROUPS_T          groupList;
 	USERLIST_T        userList;
 	PFCHAR            local_master;
+    PNET_THREAD       mainThread;
 }
 RTSMB_SERVER_CONTEXT;
 

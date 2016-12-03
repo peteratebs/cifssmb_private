@@ -353,6 +353,7 @@ int rtsmb_server_config(void)
 
    prtsmb_srv_ctx->enable_oplocks       = CFG_RTSMB_ENABLE_OPLOCKS;
 
+    prtsmb_srv_ctx->mainThread          = 0;
 
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->bufsem, (const char*)0);
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->authsem, (const char*)0);

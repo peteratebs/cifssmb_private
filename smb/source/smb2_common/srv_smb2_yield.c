@@ -118,9 +118,10 @@ void RtsmbYieldSetTimeOut(PSMB_SESSIONCTX pSctx,dword yieldTimeout)
 }
 BBOOL RtsmbYieldCheckTimeOut(PSMB_SESSIONCTX pSctx)
 {
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut Check %lu > %lu\n", rtp_get_system_msec(), pSctx->yieldTimeout);
  if (rtp_get_system_msec() > pSctx->yieldTimeout)
  {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut TRUE %lu > %lu\n", rtp_get_system_msec(), pSctx->yieldTimeout);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut TRUE\n");
     pSctx->yieldFlags |= YIELDTIMEDOUT;
  }
  else

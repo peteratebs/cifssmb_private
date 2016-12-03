@@ -79,7 +79,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 
     if (command.StructureSize != 24)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  StructureSize invalid...\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close:  StructureSize invalid...\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
@@ -157,7 +157,17 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
             SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
         }
     }
+    // Get a copy of the fid for diags
+    PFID pfid = SMBU_GetInternalFidPtr (pStream->psmb2Session->pSmbCtx, externalFid);
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close: fID: %X pfid->internal after should be -1:%d -99 == no fid\n", pfid, pfid?pfid->internal:-99);
+
+
+//    pfid->held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
+//    pfid->held_oplock_uid;
+//    pfid->requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
+//    pfid->smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
+
         // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize = 60;

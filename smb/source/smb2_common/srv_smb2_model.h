@@ -109,10 +109,10 @@ typedef struct s_Smb2SrvModel_Global {
     BBOOL ServerEnabled;                    /*  Indicates whether the SMB2 server is accepting incoming connections or requests. */
         /*  A list of available shares for the system. The structure of a share is as specified in
             section 3.3.1.6 and is uniquely indexed by the tuple <Share.ServerName, Share.Name>. */
-    pSmb2SrvModel_Share ShareList[RTSMB2_CFG_MAX_SHARES];
+// UNUSED    pSmb2SrvModel_Share ShareList[RTSMB2_CFG_MAX_SHARES];
         /*  A table containing all the files opened by remote clients on the server, indexed by Open.DurableFileId. The structure of
             an open is as specified in section 3.3.1.10. The table MUST support enumeration of all entries in the table. */
-    pSmb2SrvModel_Open OpenTable[RTSMB2_CFG_MAX_OPENS];
+// UNUSED    pSmb2SrvModel_Open OpenTable[RTSMB2_CFG_MAX_OPENS];
         /*  A list of all the active sessions established to this server, indexed by the Session.SessionId. */
     pSmb2SrvModel_Session  SessionTable[RTSMB2_CFG_MAX_SESSIONS];   // See: Smb2Sessions
         /*  A list of all open connections on the server, indexed by the connection endpoint addresses. */
@@ -134,7 +134,7 @@ typedef struct s_Smb2SrvModel_Global {
 #define HashDisableAll  2       /*  Indicates that caching is disabled for all shares on the server. */
 #define HashEnableShare 3       /*  Indicates that caching is enabled or disabled on a per-share basis */
     byte ServerHashLevel;       /*  A state that indicates the caching level configured on the server. It takes any of the following three values: */
-    pSmb2SrvModel_LeaseTable GlobalLeaseTableList[RTSMB2_CFG_MAX_CONNECTIONS]; /*  A list of all the lease tables as described in 3.3.1.11, indexed by the ClientGuid. */
+// UNUSED    pSmb2SrvModel_LeaseTable GlobalLeaseTableList[RTSMB2_CFG_MAX_CONNECTIONS]; /*  A list of all the lease tables as described in 3.3.1.11, indexed by the ClientGuid. */
     dword MaxResiliencyTimeout;             /*  The maximum resiliency time-out in milliseconds, for the TimeOut field of NETWORK_RESILIENCY_REQUEST Request as specified in section 2.2.31.3. */
     ddword ResilientOpenScavengerExpiryTime;/*  The time at which the Resilient Open Scavenger Timer, as specified in section 3.3.2.4, is currently set to expire. */
     /* If the server implements the SMB 3.x dialect family, it MUST implement the following; */
@@ -205,10 +205,10 @@ typedef struct s_Smb2SrvModel_Share
 typedef struct s_Smb2SrvModel_Connection
 {
     BBOOL  RTSMBisAllocated;
-    ddword CommandSequenceWindow[2];    /*  A list of the sequence numbers that is valid to receive from the client at this time.
-                                            For more information, see section 3.3.1.1. */
-    pSmb2SrvModel_Request RequestList;     /*  A list of requests, as specified in section 3.3.1.13, that are currently
-                                            being processed by the server. This list is indexed by the MessageId field. */
+// UNUSED    ddword CommandSequenceWindow[2];    /*  A list of the sequence numbers that is valid to receive from the client at this time.
+//                                            For more information, see section 3.3.1.1. */
+// UNUSED    pSmb2SrvModel_Request RequestList;     /*  A list of requests, as specified in section 3.3.1.13, that are currently
+//                                            being processed by the server. This list is indexed by the MessageId field. */
     dword   ClientCapabilities;        /*  The capabilities of the client of this connection in a form that MUST
                                              follow the syntax as specified in section 2.2.3. */
     word    NegotiateDialect;          /*  A numeric value representing the current state of dialect negotiation
@@ -219,12 +219,12 @@ typedef struct s_Smb2SrvModel_Connection
                                             generalization in the server processing rules, the condition that
                                             Connection.Dialect is equal to "3.000" or "3.002" is referred to as
                                             Connection.Dialect belongs to the SMB 3.x dialect family¡¨. */
-    pSmb2SrvModel_Request AsyncCommandList;/*  A list of client requests being handled asynchronously. Each request MUST
-                                            have been assigned an AsyncId. */
+// UNUSED    pSmb2SrvModel_Request AsyncCommandList;/*  A list of client requests being handled asynchronously. Each request MUST
+//                                            have been assigned an AsyncId. */
     BBOOL ShouldSign;                   /*  Indicates that all sessions on this connection (with the exception of
                                             anonymous and guest sessions) MUST have signing enabled. */
                             /*  A null-terminated Unicode UTF-16 IP address string, or NetBIOS host name of the client machine. */
-    byte ClientName[RTSMB2_MAX_QUALIFIED_CLIENTNAME_SIZE];
+// UNUSED    byte ClientName[RTSMB2_MAX_QUALIFIED_CLIENTNAME_SIZE];
     dword MaxTransactSize;              /*  The maximum buffer size, in bytes, that the server allows on the transport
                                             that established this connection for QUERY_INFO, QUERY_DIRECTORY, SET_INFO
                                             and CHANGE_NOTIFY operations. This field is applicable only for buffers sent
@@ -237,7 +237,7 @@ typedef struct s_Smb2SrvModel_Connection
 
     BBOOL SupportsMultiCredit;          /*  Indicates whether the connection supports multi-credit operations. */
 
-    byte TransportName;                   /*  An implementation-specific name of the transport used by this connection. */
+    byte TransportName;                 /*  UNUSED (RTSMB2_TRANSPORT_SMB_OVER_RDMA|RTSMB2_TRANSPORT_SMB_OVER_TCP) An implementation-specific name of the transport used by this connection. */
                                         /*  A table of authenticated sessions, as specified in section 3.3.1.8,
                                             established on this SMB2 transport connection. The table MUST allow lookup
                                             by both Session.SessionId and by the security context of the user that
@@ -281,10 +281,10 @@ typedef struct s_Smb2SrvModel_Session
     byte SessionKey[16];                /* The first 16 bytes of the cryptographic key for this authenticated context. If the cryptographic key is less than
                                            16 bytes, it is right-padded with zero bytes. */
     BBOOL SigningRequired;              /* Indicates that all of the messages for this session MUST be signed. */
-    pSmb2SrvModel_Open OpenTable;          /* A table of opens of files or named pipes, as specified in section 3.3.1.10, that have been opened by this
-                                           authenticated session and indexed by Open.FileId. The server MUST support enumeration of all entries in the table. */
-    pSmb2SrvModel_TreeConnect TreeConnectTable; /* A table of tree connects that have been established by this authenticated session to
-                                                shares on this server, indexed by TreeConnect.TreeId. The server MUST allow enumeration of all entries in the table. */
+// UNUSED    pSmb2SrvModel_Open OpenTable;          /* A table of opens of files or named pipes, as specified in section 3.3.1.10, that have been opened by this
+//                                           authenticated session and indexed by Open.FileId. The server MUST support enumeration of all entries in the table. */
+// UNUSED    pSmb2SrvModel_TreeConnect TreeConnectTable; /* A table of tree connects that have been established by this authenticated session to
+//                                                shares on this server, indexed by TreeConnect.TreeId. The server MUST allow enumeration of all entries in the table. */
     ddword   ExpirationTime;            /* A value that specifies the time after which the client must reauthenticate with the server.*/
     pSmb2SrvModel_Connection Connection;   /* The connection on which this session was established (see also section 3.3.5.5.1). */
     dword    SessionGlobalId;           /* A numeric 32-bit value obtained via registration with [MS-SRVS], as specified in [MS-SRVS] section 3.1.6.2. */
@@ -293,12 +293,12 @@ typedef struct s_Smb2SrvModel_Session
     byte    *UserName;                  /* The name of the user who established the session. */
     byte    *DomainName;                /* The domain of the user who established the session. */
         /* If the server implements the SMB 3.x dialect family, it MUST implement the following  */
-    pSmb2SrvModel_Channel ChannelList[RTSMB2_CFG_MAX_CHANNELS_PER_SESSION];/* A list of channels that have been established on this authenticated session, as specified in section 3.3.1.14. */
+// UNUSED    pSmb2SrvModel_Channel ChannelList[RTSMB2_CFG_MAX_CHANNELS_PER_SESSION];/* A list of channels that have been established on this authenticated session, as specified in section 3.3.1.14. */
     BBOOL EncryptData;                  /* Indicates that the messages on this session SHOULD be encrypted. */
     byte EncryptionKey[16];             /* A 128-bit key used for encrypting the messages sent by the server. */
     byte DecryptionKey[16];             /* A 128-bit key used for decrypting the messages received from the client. */
     byte SigningKey[16];                /* A 128 bit key used for signing the SMB2 messages. */
-    byte ApplicationKey[16];            /* A 128-bit key, for the authenticated context, that is queried by the higher-layer applications. */
+// UNUSED    byte ApplicationKey[16];            /* A 128-bit key, for the authenticated context, that is queried by the higher-layer applications. */
 } Smb2SrvModel_Session;
 
 

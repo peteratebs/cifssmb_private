@@ -71,7 +71,7 @@ dirs += $(lib_to_rtsmb_nbserver_path)
 defines += donbserver
 endif
 
-cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
+#cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
 cpmodules := $(patsubst %.cpp,%,$(cpfiles))
 cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 
@@ -169,7 +169,6 @@ blah1 = $(modules:%=%.$(obj))
 objects = $(notdir $(blah1))
 OBJDIR=./bin
 OUT_OBJS = $(addprefix $(OBJDIR)/,$(objects))
-
 #############################################################################
 # RULES
 #############################################################################

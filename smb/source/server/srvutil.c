@@ -22,6 +22,7 @@
 #include "rtpchar.h"  /* _YI_ 9/27/2004 */
 #include "smbdebug.h" /* _VM_ 12/23/2004 */
 #include "rtpprint.h"
+#include "srvobjectsc.h"
 
 #if (INCLUDE_RTSMB_SERVER)
 #define PRINT_VIA_CUPS 0//enable this only if you want to print via CUPS
@@ -38,10 +39,13 @@
 #ifdef SUPPORT_SMB2
 #include "com_smb2_wiredefs.h"
 #endif
+#include "srvobjectsc.h"
+
 
 #if (INCLUDE_RTSMB_ENCRYPTION)
 #include "smb_md4.h"
 #endif
+
 
 //============================================================================
 //    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS
@@ -338,7 +342,6 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 	PUSER user;
 
 	user = SMBU_GetUser (pCtx, pCtx->uid);
-
 	if (user == (PUSER)0)
 		return -1;
 
@@ -352,6 +355,8 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 
 	return -1; // bad external
 }
+
+
 
 // Scans all open FIDS
 int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs)
@@ -565,6 +570,8 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	pCtx->fids[k].requested_oplock_level = 0;
     pCtx->fids[k].smb2waitexpiresat = 0;
 	tc_memcpy(pCtx->fids[k].unique_fileid,unique_fileid,sizeof(pCtx->fids[k].unique_fileid));
+    srvobject_add_fid(&pCtx->fids[k]);
+
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u tid:%u\n",pCtx->fids[k].external, pCtx->tid);
@@ -574,6 +581,23 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u
 }
 
 
+// returns a pointer to fid or null
+PFID SMBU_GetInternalFidPtr (PSMB_SESSIONCTX pCtx,  word external)
+{
+	int k;
+	// find fid in master list
+	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session; k++)
+	{
+		if (pCtx->fids[k].internal != -1 &&
+			pCtx->fids[k].external == external)
+		{
+            return &pCtx->fids[k];
+			break;
+		}
+	}
+	return 0; // not found
+}
+
 // uid, tid, external must be valid
 // sets the internal fid for this external to unused
 void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
@@ -581,6 +605,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PTREE tree;
 	PUSER user;
 	word i, j, k;
+    PFID pFid = 0;
 
 	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: clear fids:%u\n",external);
 
@@ -599,6 +624,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		if (pCtx->fids[k].internal != -1 &&
 			pCtx->fids[k].external == external)
 		{
+            pFid = &pCtx->fids[k];
 			break;
 		}
 	}
@@ -666,7 +692,11 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	}
 
 	// clear the fid in master list
+#warning SMBU_ClearInternalFid needs to call void RtsmbYieldOplockCloseFile(PSMB_SESSIONCTX pCtx, PFID pfid)
+   srvobject_tag_oplock(&pCtx->fids[k],"SMBU_ClearInternalFid freed"); // Level Changed from two
    pCtx->fids[k].internal = -1;
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_ClearInternalFid: fID: %X pfid->internal after should be -1:%d \n", &pCtx->fids[k], pCtx->fids[k].internal);
+
 }
 
 

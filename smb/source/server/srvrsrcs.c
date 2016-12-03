@@ -103,6 +103,7 @@ PNET_SESSIONCTX allocateSession (void)
 	CLAIM_NET ();
 	for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
 	{
+        prtsmb_srv_ctx->sessions[i].heap_index = i;
 		if (!prtsmb_srv_ctx->sessionsInUse[i])
 		{
 			prtsmb_srv_ctx->sessionsInUse[i] = 1;

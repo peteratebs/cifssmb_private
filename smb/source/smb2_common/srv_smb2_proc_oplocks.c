@@ -65,7 +65,6 @@
 #define SMB2_OPLOCK_MAX_WAIT_MILLIS          20000 // Don't know what this shold be
 
 
-
 #include "smbdefs.h"
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
@@ -83,6 +82,7 @@
 #include "smbdebug.h"
 #include "rtpmem.h"
 #include "srv_smb2_proc_fileio.h"
+#include "srvobjectsc.h"
 
 // Initialize state variable foer a new connection
 void RtsmbYieldNetSessionInit(PNET_SESSIONCTX pNetCtx)
@@ -179,15 +179,19 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   if (!pfilesession)
   {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak SMBU_Fid2Session() failed \n");
-     return FALSE;
+     srvobject_tag_oplock(pfid,"rtsmb_net_write failed no session"); // rtsmb_net_write failed no session
+
   }
-  if (rtsmb_net_write (pfilesession->sock, &p,sizeof(p)) < 0)
+  else if (rtsmb_net_write (pfilesession->sock, &p,sizeof(p)) < 0)
   {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write failed \n");
+     srvobject_tag_oplock(pfid,"rtsmb_net_write failed send failure"); // rtsmb_net_write failed send failure
   }
   else
   {
+     srvobject_tag_oplock(pfid,"rtsmb_net_write succeeded"); // rtsmb_net_write succeeded
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak fake rtsmb_net_write succeeded \n");
+     return FALSE;
   }
  /* Read into command to pull it from the input queue */
  // RtsmbStreamEncodeAlert(psession, (PFVOID ) &command);
@@ -210,6 +214,7 @@ static int RtsmbYieldProcOplockTimersCB (PFID fid, PNET_SESSIONCTX pNctxt,PSMB_S
        if (pCtx->waitOplockAckCount)
          pCtx->waitOplockAckCount -= 1;
        fid->smb2waitexpiresat = 0;
+       srvobject_tag_oplock(fid,"RtsmbYieldProcOplockTimersCB timed out"); // RtsmbYieldProcOplockTimersCB timed out
        fid->held_oplock_level = fid->requested_oplock_level;
        RtsmbYieldSendSignalSocketSession(pNctxt);
        if (pCtx->waitOplockAckCount == 0)
@@ -244,13 +249,19 @@ static int RtsmbYieldProcOplockBreaksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SE
      if (tc_memcmp (((struct RtsmbProcOplockBreaks_s *)pargs)->unique_fileid, fid->unique_fileid ,8)==0)
      {
         if (fid->requested_oplock_level <= ((struct RtsmbProcOplockBreaks_s *)pargs)->incoming_oplock_level)
-        {
+        { // Request succeeded
           fid->held_oplock_level = fid->requested_oplock_level;
+          srvobject_tag_oplock(fid,"RtsmbYieldProcOplockBreaksCB granted"); // RtsmbYieldProcOplockBreaksCB granted
           RtsmbYieldSendSignalSocket(((struct RtsmbProcOplockBreaks_s *)pargs)->pStream);
+          fid->smb2flags &= ~SMB2WAITOPLOCKREPLY;
+          fid->smb2waitexpiresat = 0;
         }
-       fid->smb2flags &= ~SMB2WAITOPLOCKREPLY;
-       fid->smb2waitexpiresat = 0;
-       return 1;
+        else
+        {
+#warning OPLOCK break request failed what to do
+          srvobject_tag_oplock(fid,"RtsmbYieldProcOplockBreaksCB not granted");// RtsmbYieldProcOplockBreaksCB not granted
+        }
+        return 1; // There's only one that can macth, so quit.
      }
   }
   return 0;
@@ -328,6 +339,19 @@ void RtsmbYieldSendOplockBreaks (PNET_SESSIONCTX session)
   SMBU_EnumerateFids(RtsmbYieldSendOplockBreaksCB, (void *) &args);
 }
 
+void RtsmbYieldOplockCloseFile(PSMB_SESSIONCTX pCtx, PFID pfid)
+{
+#warning RtsmbYieldOplockCloseFile rundown of is needed
+  if (pfid->smb2flags & SMB2WAITOPLOCKREPLY)
+  {
+    srvobject_tag_oplock(pfid,"Closed file waiting for reply"); // Closed file waiting for reply
+  }
+  else
+  {
+    srvobject_tag_oplock(pfid,"Closed file not waiting for reply"); // Closed file not waiting for reply
+  }
+}
+
 // Change the break level of a local file
 void RtsmbYieldChangeOplockBreakLevel(PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel)
 {
@@ -343,6 +367,7 @@ void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplockl
           // Set it and forget it
 	      pfid->held_oplock_level = oplocklevel;
           pfid->smb2flags &= ~(SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY);
+          srvobject_tag_oplock(pfid,"Level Changed from none"); // Level Changed from none
 	      break;
 	    case SMB2_OPLOCK_LEVEL_II       :
           // Stepping from level II. Just send requested_oplock_level in a break message but don't wait
@@ -352,6 +377,7 @@ void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplockl
           pCtx->sendOplockBreakCount += 1;
 	      pfid->held_oplock_level = oplocklevel;
     	  pfid->requested_oplock_level = SMB2_OPLOCK_LEVEL_NONE;
+          srvobject_tag_oplock(pfid,"Level Changed from two"); // Level Changed from two
 	      break;
 	    case SMB2_OPLOCK_LEVEL_EXCLUSIVE:
 	    case SMB2_OPLOCK_LEVEL_BATCH    :
@@ -362,6 +388,7 @@ void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplockl
           pCtx->sendOplockBreakCount += 1;
           pCtx->waitOplockAckCount += 1;
     	  pfid->requested_oplock_level = SMB2_OPLOCK_LEVEL_II;
+          srvobject_tag_oplock(pfid,"Level Changed to two"); // Level Changed to two
 	      break;
 	    case SMB2_OPLOCK_LEVEL_LEASE    :
 	      break;

@@ -13,12 +13,13 @@
 /*============================================================================   */
 /*    INTERFACE STRUCTURES / UTILITY CLASSES                                     */
 /*============================================================================   */
-typedef struct
+typedef struct net_sessionctxt
 {
+	int           heap_index;
 	RTP_SOCKET    sock;
 	unsigned long lastActivity;
 	SMB_SESSIONCTX_T smbCtx;
-    struct net_thread_s *pThread;
+    struct net_thread_s *pThread;   // The parent that cyckles between threads
 } NET_SESSIONCTX_T;
 typedef NET_SESSIONCTX_T RTSMB_FAR *PNET_SESSIONCTX;
 

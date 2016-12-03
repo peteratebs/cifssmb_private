@@ -24,6 +24,7 @@
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
 #include "srv_smb2_yield.h"
+#include "srvobjectsc.h"
 
 
 extern void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel);
@@ -358,6 +359,7 @@ if (testingYield == 1)
         int CurrentOplockLevel;
         PFID pfid;
         pfid =  SMBU_CheckOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, stat.unique_fileid, &CurrentOplockLevel);
+
 //        command.RequestedOplockLevel &&
         // If testing force a send
         if (pfid)
@@ -365,22 +367,34 @@ if (testingYield == 1)
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  level change %d -> %d\n",CurrentOplockLevel,command.RequestedOplockLevel );
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  fid.tid: %u -> pSmbCtx->tid: %u\n",pfid->tid, pStream->psmb2Session->pSmbCtx->tid);
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  cuurent lock level: %u -> new level: %u\n",CurrentOplockLevel,command.RequestedOplockLevel);
+          srvobject_tag_oplock(pfid, "Create check oplevel");
           if (CurrentOplockLevel != (int) command.RequestedOplockLevel)
           { // Don't send any breaks if we already own the file.
             if (pfid->tid ==  pStream->psmb2Session->pSmbCtx->tid)
             {
                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  tids the same %u -> %u\n",pfid->tid, pfid->tid);
+               srvobject_tag_oplock(pfid,"Create Force tids the same"); // Create Force tids the same
                RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfid,(int) command.RequestedOplockLevel);
             }
             else
             {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%s]\n", temp);
-              testingYield = 1;
+              srvobject_tag_oplock(pfid,"Create check lock status"); // Create check lock status
               RtsmbYieldQueueOplockBreakSend (pStream->psmb2Session->pSmbCtx, pfid,(int) command.RequestedOplockLevel);
-              RtsmbYieldPopFrame(pStream);
-              RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
-              return FALSE;
+              if (pfid->smb2flags & SMB2SENDOPLOCKBREAK)
+                srvobject_tag_oplock(pfid,"Create send break queued"); // Create send break queued
+              // We may have set SMB2SENDOPLOCKBREAK and possibly SMB2WAITOPLOCKREPLY
+              // If we set SMB2WAITOPLOCKREPLY we should return to wait for a break response, otherwise contnue
+              // If we have to send a break we'll send it after current packet is processed
+              if (pfid->smb2flags & SMB2WAITOPLOCKREPLY)
+              {
+                testingYield = 1;
+                RtsmbYieldPopFrame(pStream);
+                srvobject_tag_oplock(pfid,"Create yield to wait for response"); // Create yield to wait for response
+                RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+                return FALSE;
+              }
             }
           }
         }

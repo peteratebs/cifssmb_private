@@ -52,13 +52,18 @@ ifeq ($(compiler),GNUCOMPILER)
 	echo ARCHIVING $@
 	@ar ru $@ $^
 
+# bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
+$(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c
+	@echo COMPILING for CPP $<
+	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
 	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 $(OBJDIR)/%.$(obj): %.cpp
-	@echo xxx %.cpp COMPILING $<
-	$(toolprefix)gcc $(ccflags)	$(defines:%=-D%) $(includes:%=-I%) -c $< -o $(OBJDIR)/$(notdir $@)
+	@echo cpp COMPILING $<
+	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 %.$(exe):
 	@echo LINKING $@
@@ -78,6 +83,11 @@ endif #	GNUCOMPILER
 
 # Make dependency files
 %.d: %.c
+	echo UPDATING DEPENDENCIES FOR $<
+	gcc	-undef -M $< $(defines:%=-D%) $(builtins:%=-D%)	$(includes:%=-I%) |	depend $(obj) >	$@
+
+# Make dependency files
+%.d: %.cpp
 	echo UPDATING DEPENDENCIES FOR $<
 	gcc	-undef -M $< $(defines:%=-D%) $(builtins:%=-D%)	$(includes:%=-I%) |	depend $(obj) >	$@
 
