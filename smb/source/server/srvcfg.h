@@ -8,6 +8,7 @@
 #include "srvnet.h"
 #include "srvauth.h"
 #include "smbnbds.h"
+#include "srvssn.h"
 
 
 typedef struct _RTSMB_SERVER_CONTEXT
@@ -54,6 +55,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	PFCHAR                      bigBufferInUse;
 	PNET_THREAD                 threads;
 	PFCHAR                      threadsInUse;
+    FID_T                       *fids;
 	PNET_SESSIONCTX             sessions;
 	PFCHAR                      sessionsInUse;
 	PFBYTE                      namesrvBuffer;

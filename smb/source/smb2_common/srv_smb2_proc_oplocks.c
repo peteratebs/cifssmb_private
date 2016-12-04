@@ -84,6 +84,7 @@
 #include "srv_smb2_proc_fileio.h"
 #include "srvobjectsc.h"
 
+
 // Initialize state variable foer a new connection
 void RtsmbYieldNetSessionInit(PNET_SESSIONCTX pNetCtx)
 {
@@ -184,8 +185,10 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   }
   else if (rtsmb_net_write (pfilesession->sock, &p,sizeof(p)) < 0)
   {
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write failed \n");
-     srvobject_tag_oplock(pfid,"rtsmb_net_write failed send failure"); // rtsmb_net_write failed send failure
+     char buff[80];
+     sprintf(buff, "rtsmb_net_write failed send failure to [%d]", pfilesession->heap_index);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write failed\n");
+     srvobject_tagalloc_oplock(pfid,buff); // rtsmb_net_write failed send failure
   }
   else
   {
@@ -253,7 +256,7 @@ static int RtsmbYieldProcOplockBreaksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SE
           fid->held_oplock_level = fid->requested_oplock_level;
           srvobject_tag_oplock(fid,"RtsmbYieldProcOplockBreaksCB granted"); // RtsmbYieldProcOplockBreaksCB granted
           RtsmbYieldSendSignalSocket(((struct RtsmbProcOplockBreaks_s *)pargs)->pStream);
-          fid->smb2flags &= ~SMB2WAITOPLOCKREPLY;
+          fid->smb2flags &= ~SMB2WAITOPLOCKREPLY;      // RtsmbYieldProcOplockBreaksCB granted
           fid->smb2waitexpiresat = 0;
         }
         else
@@ -388,7 +391,18 @@ void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplockl
           pCtx->sendOplockBreakCount += 1;
           pCtx->waitOplockAckCount += 1;
     	  pfid->requested_oplock_level = SMB2_OPLOCK_LEVEL_II;
-          srvobject_tag_oplock(pfid,"Level Changed to two"); // Level Changed to two
+          PNET_SESSIONCTX pfilesession = SMBU_Fid2Session(pfid);
+          if (!pfilesession)
+          {
+             srvobject_tag_oplock(pfid,"Level Changed to two but prevfid failed"); // rtsmb_net_write failed no session
+          }
+          else
+          {
+             PNET_SESSIONCTX myfilesession = SMBU_Fid2Session(pfid);
+             char buff[80];
+             sprintf(buff, "Level Changed to two ownsession == %d , thissession==%d", pfilesession->heap_index,srvobject_get_currentsession_index());
+             srvobject_tagalloc_oplock(pfid,buff); // Level Changed to two
+         }
 	      break;
 	    case SMB2_OPLOCK_LEVEL_LEASE    :
 	      break;

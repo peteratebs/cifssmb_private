@@ -159,6 +159,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     }
     // Get a copy of the fid for diags
     PFID pfid = SMBU_GetInternalFidPtr (pStream->psmb2Session->pSmbCtx, externalFid);
+    if (pfid && SMBU_CheckMyInode(pfid->unique_fileid)) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Close: Call SMBU_ClearInternalFid tid:%u\n",pfid->tid);}
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Close: fID: %X pfid->internal after should be -1:%d -99 == no fid\n", pfid, pfid?pfid->internal:-99);
 

@@ -333,6 +333,7 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx)
        BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&pstackcontext->smb2stream);
        // If the command process requested a yield.
        // rewind the stream and return with pstackcontext->stackcontext_state == ST_INPROCESS; to start the yield
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: Test for YieldYield stream:%X -> %d\n", &pstackcontext->smb2stream,pstackcontext->smb2stream.doSessionYield);
        if (pstackcontext->smb2stream.doSessionYield)
        {
          pstackcontext->stackcontext_state = ST_YIELD;

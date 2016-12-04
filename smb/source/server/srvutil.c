@@ -251,7 +251,7 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
 
 	if (external >= prtsmb_srv_ctx->max_fids_per_uid)
 		return -1;
-	if (user->fids[external] && user->fids[external]->internal != -1 &&
+	if (user->fids[external] && user->fids[external]->internal_fid != -1 &&
 		user->fids[external]->tid == pCtx->tid)
 	{
 		if (OFF (user->fids[external]->flags, ~flag_mask))
@@ -261,7 +261,7 @@ int SMBU_GetInternalFid (PSMB_SESSIONCTX pCtx, word external, word flag_mask, wo
            if (rsmb2flags)
              *rsmb2flags = user->fids[external]->smb2flags;
 
-			return user->fids[external]->internal;
+			return user->fids[external]->internal_fid;
 		}
 		else
 		{
@@ -284,11 +284,11 @@ int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name)
 
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
 	{
-		if (user->fids[i] && user->fids[i]->internal != -1 &&
+		if (user->fids[i] && user->fids[i]->internal_fid != -1 &&
 			user->fids[i]->tid == pCtx->tid &&
 			rtsmb_casecmp (name, user->fids[i]->name, CFG_RTSMB_USER_CODEPAGE) == 0)
 		{
-			return user->fids[i]->internal;
+			return user->fids[i]->internal_fid;
 		}
 	}
 
@@ -306,7 +306,7 @@ int SMBU_GetFidError (PSMB_SESSIONCTX pCtx, word external, byte *ec, word *error
 		return -1;
 
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-		if (user->fids[i] && user->fids[i]->internal >= 0 &&
+		if (user->fids[i] && user->fids[i]->internal_fid >= 0 &&
 			user->fids[i]->external == external)
 		{
 			*ec = (byte) (user->fids[i]->error >> 16);
@@ -327,7 +327,7 @@ void SMBU_SetFidSmb2Flags (PSMB_SESSIONCTX pCtx, word external,   dword smb2flag
 		return;
 
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-		if (user->fids[i] && user->fids[i]->internal >= 0 &&
+		if (user->fids[i] && user->fids[i]->internal_fid >= 0 &&
 			user->fids[i]->external == external)
 		{
             user->fids[i]->smb2flags = smb2flags;
@@ -346,7 +346,7 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 		return -1;
 
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-		if (user->fids[i] && user->fids[i]->internal >= 0 &&
+		if (user->fids[i] && user->fids[i]->internal_fid >= 0 &&
 			user->fids[i]->external == external)
 		{
 			user->fids[i]->error = ((dword)ec << 16) | (dword)error;
@@ -369,7 +369,7 @@ int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs)
         pCtx = &prtsmb_srv_ctx->sessions[i].smbCtx;
         for (j = 0; j < prtsmb_srv_ctx->max_fids_per_session; j++)
         {
-            if (pCtx->fids[j].internal >= 0 && pCtx->fids[j].pid == pCtx->pid)
+            if (pCtx->fids[j].internal_fid >= 0 && pCtx->fids[j].pid == pCtx->pid)
             {
                int r = fn(&pCtx->fids[j], &prtsmb_srv_ctx->sessions[i], pCtx,enumargs);
                if (r != 0)
@@ -431,16 +431,10 @@ PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
 
 
 
-static char *format_fileid(byte *unique_fileid, int size, char *temp)
+BBOOL SMBU_CheckMyInode(byte *this_uid)
 {
-  int i,tp;
-  tp = 0;
-  tp &temp[0];
-  for (i = 0; i < size;i++)
-  {
-     tp += sprintf(&temp[tp], "%X,", unique_fileid[i]);
-  }
-  return temp;
+static byte break_uid[] = {0x72, 0x08, 0x07, 0,0,0,0,0};  // "demo_pages"
+  return (tc_memcmp (this_uid ,break_uid,8)==0);
 }
 
 struct enumFidSearchUniqueidType_s {
@@ -458,30 +452,30 @@ static int _SMBU_SearchUniqueidCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSION
   }
   return 0;
 }
-static PFID SMBU_SeardFidByUniqueId (byte *unique_fileid)
+static PFID SMBU_SearchFidByUniqueId (byte *unique_fileid)
 {
 
  struct enumFidSearchUniqueidType_s args;
    args.result = 0;
    args.unique_fileid = unique_fileid;
   char temp0[80];
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId %d files for %s\n", prtsmb_srv_ctx->max_fids_per_tree, format_fileid(unique_fileid, 8, temp0));
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId %d files for %s\n", prtsmb_srv_ctx->max_fids_per_tree, SMBU_format_fileid(unique_fileid, 8, temp0));
   args.result = 0;
   if (SMBU_EnumerateFids(_SMBU_SearchUniqueidCB, (void *) &args))
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", format_fileid(unique_fileid, 8, temp0));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
   else
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", format_fileid(unique_fileid, 8, temp0));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
 
   return args.result;
 }
 
 PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel)
 {
-PFID pfid = SMBU_SeardFidByUniqueId (unique_fileid);
+PFID pfid = SMBU_SearchFidByUniqueId (unique_fileid);
   if (pfid)
   {
     char temp0[80];
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_CheckOplockLevel fake return for %s\n", format_fileid(unique_fileid, 8, temp0));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_CheckOplockLevel fake return for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
     *pCurrentOplockLevel = pfid->held_oplock_level;
      return pfid;
   }
@@ -492,7 +486,7 @@ PFID pfid = SMBU_SeardFidByUniqueId (unique_fileid);
 // finds free slot and
 // returns external fid associated with this internal one
 // returns -1 if not found
-int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word flags, dword smb2flags, byte *unique_fileid)
+int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, word flags, dword smb2flags, byte *unique_fileid)
 {
 	PTREE tree;
 	PUSER user;
@@ -544,7 +538,7 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 
 	// at this point, we know both the user and the tree have space for
 	// the fid.  but, does the session?
-	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session && pCtx->fids[k].internal != -1; k++);
+	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session && pCtx->fids[k].internal_fid != -1; k++);
 
 	if (k == prtsmb_srv_ctx->max_fids_per_session)	// no space on session
 	{
@@ -555,9 +549,9 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal, PFRTCHAR name, word
 	// setup the fid for user and tree
 	user->fids[i] = &pCtx->fids[k];
 	tree->fids[j] = &pCtx->fids[k];
-
 	// setup the fid values in master list
-	pCtx->fids[k].internal = internal;
+	pCtx->fids[k].internal_fid = internal_fid; // HEREHERE - Fuck, it's all wrong
+#warning HEREHERE - Fuck, it's all wrong
 	pCtx->fids[k].external = k;
 	pCtx->fids[k].pid = pCtx->pid;
 	pCtx->fids[k].tid = pCtx->tid;
@@ -588,7 +582,7 @@ PFID SMBU_GetInternalFidPtr (PSMB_SESSIONCTX pCtx,  word external)
 	// find fid in master list
 	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session; k++)
 	{
-		if (pCtx->fids[k].internal != -1 &&
+		if (pCtx->fids[k].internal_fid != -1 &&
 			pCtx->fids[k].external == external)
 		{
             return &pCtx->fids[k];
@@ -621,7 +615,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	// find fid in master list
 	for (k = 0; k < prtsmb_srv_ctx->max_fids_per_session; k++)
 	{
-		if (pCtx->fids[k].internal != -1 &&
+		if (pCtx->fids[k].internal_fid != -1 &&
 			pCtx->fids[k].external == external)
 		{
             pFid = &pCtx->fids[k];
@@ -693,9 +687,15 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 	// clear the fid in master list
 #warning SMBU_ClearInternalFid needs to call void RtsmbYieldOplockCloseFile(PSMB_SESSIONCTX pCtx, PFID pfid)
-   srvobject_tag_oplock(&pCtx->fids[k],"SMBU_ClearInternalFid freed"); // Level Changed from two
-   pCtx->fids[k].internal = -1;
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_ClearInternalFid: fID: %X pfid->internal after should be -1:%d \n", &pCtx->fids[k], pCtx->fids[k].internal);
+
+    if (pCtx->fids[k].smb2flags & SMB2WAITOPLOCKREPLY)
+      srvobject_tag_oplock(&pCtx->fids[k],"SMBU_ClearInternalFid freed waiting"); // Level Changed from two
+    if (pCtx->fids[k].smb2flags & SMB2SENDOPLOCKBREAK)
+      srvobject_tag_oplock(&pCtx->fids[k],"SMBU_ClearInternalFid freed bfor send"); // Level Changed from two
+    // NULL everything except internal (-1 == free)
+    tc_memset(&pCtx->fids[k], 0, sizeof(FID_T));
+    pCtx->fids[k].internal_fid = -1;
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_ClearInternalFid: fID: %X pfid->internal_fid after should be -1:%d \n", &pCtx->fids[k], pCtx->fids[k].internal_fid);
 
 }
 
@@ -746,7 +746,7 @@ PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 	int i;
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
 	{
-		if (pCtx->fids[i].internal != -1 &&
+		if (pCtx->fids[i].internal_fid != -1 &&
 			pCtx->fids[i].external == external)
 		{
 			return pCtx->fids[i].name;
@@ -1480,6 +1480,8 @@ int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid)
 
 	return rv;
 }
+
+
 
 
 //****************************************************************************

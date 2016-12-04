@@ -364,6 +364,12 @@ int rtsmb_server_config(void)
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->netsem, (const char*)0);
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->enum_results_mutex, (const char*)0);
 
+   // Make sure fids are clear and export the fid table for oplock and dignostics.
+   prtsmb_srv_ctx->fids = &fids;
+   for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
+     prtsmb_srv_ctx->fids[i].internal = -1;
+
+
   #if CFG_RTSMB_NUM_BIG_BUFFERS
    prtsmb_srv_ctx->bigBuffers           = bigBuffers;
    prtsmb_srv_ctx->bigBufferInUse       = bigBufferInUse;

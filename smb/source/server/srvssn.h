@@ -72,7 +72,7 @@ typedef enum
 #define FID_FLAG_ALL            0xFFFF
 typedef struct fid_s
 {
-    int internal;   /* -1 means not in use */
+    int internal_fid;   /* -1 means not in use */
     word external;
 
     word flags;

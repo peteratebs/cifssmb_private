@@ -75,6 +75,7 @@ void RtsmbYieldYield(smb2_stream *pStream, dword yield_duration)
 {
     pStream->doSessionYield = TRUE;
     pStream->yield_duration = yield_duration;
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldYield set doYield stream:%X -> %d\n", pStream,pStream->doSessionYield);
 
 }
 extern void RtsmbYieldFreeBodyContext(pSmb2SrvModel_Session pSession)

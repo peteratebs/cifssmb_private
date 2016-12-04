@@ -948,7 +948,11 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
           if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
           {
               /* We create a dummy file entry that can only be opened and closed.   */
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Before SMBU_SetInternalFid! on a directory\n");
+              SMBU_DisplayFidInfo();
               int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags, stat.unique_fileid);
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"After SMBU_SetInternalFid! on a directory\n");
+              SMBU_DisplayFidInfo();
 
               if (externalFid < 0)
               {

@@ -3,6 +3,7 @@
 #include "srvssn.h"
 #include "rtpstr.h"
 #include "rtptime.h"
+#include "rtpmem.h"
 #include "srv_smb2_model.h"
 #include "com_smb2_ssn.h"
 
@@ -63,7 +64,7 @@ EnumerateTreads
                uint16_t internal;  /* private tid */
                PFID *fids;
            fids  [CFG_RTSMB_MAX_FIDS_PER_SESSION]
-               int internal;   /* -1 means not in use */
+               int internal_fid;   /* -1 means not in use */
                uint16_t external;
                uint16_t flags;
                uint32_t smb2flags;
@@ -151,7 +152,7 @@ class fid_c {
     fid_c (PFID pfid);
     ~fid_c ();
   private:
-    int internal;   /* -1 means not in use */
+    int internal_fid;   /* -1 means not in use */
     uint16_t external;
     uint16_t flags;
     uint32_t smb2flags;
@@ -170,7 +171,7 @@ class fid_c {
 
 fid_c::fid_c (PFID pfid)
 {
-  this->internal               = pfid->internal              ;   /* -1 means not in use */
+  this->internal_fid           = pfid->internal_fid          ;   /* -1 means not in use */
   this->external               = pfid->external              ;
   this->flags                  = pfid->flags                 ;
   this->smb2flags              = pfid->smb2flags             ;
@@ -282,6 +283,13 @@ class fidhist_history_c
       if (i >= 0)
         fid_containers[i]->add_tag(tagstring);
     };
+    void add_tagalloc(FID_T *pfid,char *tagstring)
+    {
+#warning LEAK
+      char *p = (char *) rtp_malloc(tc_strlen(tagstring)+1);
+      tc_strcpy(p, tagstring);
+      add_tag(pfid,p);
+    };
     void print_fids(void) {
       for (int i = 0; i < fid_container_count; i++)
       {
@@ -326,11 +334,36 @@ extern "C" void srvobject_session_enter(struct net_thread_s *pThread,struct net_
   }
 }
 
+// extern "C" fixme first
+static char *SMBU_format_filename(word *filename, size_t size, char *temp){  int i=0;  do   {     temp[i] = (char)filename[i]; }  while (filename[i++]);return temp;}
+extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp){ int i,tp;  tp = 0; tp &temp[0];  for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
+
+extern "C" void SMBU_DisplayFidInfo(void)
+{
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n");
+ int  i;
+ for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
+ {
+ char temp0[32];
+ char temp1[256];
+    if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
+    {
+      FID_T *p = &(prtsmb_srv_ctx->fids[i]);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+    }
+ }
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
+}
+
 extern "C" void srvobject_session_exit(struct net_thread_s *pThread,struct net_sessionctxt **psession)
 {
     srvobjectglobals.session_number = -1;
 }
+extern "C" int srvobject_get_currentsession_index(void)
+{
+    return srvobjectglobals.session_number;
 
+}
 
 extern "C"  void srvobject_add_fid(FID_T *pfid)
 {
@@ -346,9 +379,15 @@ extern "C" void srvobject_tag_oplock(FID_T *pfid, char *tagstring)
   fid_history->add_tag(pfid,tagstring);
 }
 
+extern "C" void srvobject_tagalloc_oplock(FID_T *pfid, char *tagstring)
+{
+  fid_history->add_tagalloc(pfid,tagstring);
+}
+
 extern "C"  void srvobject_display_diags(void)
 {
   srvobject_display_fids();
+  SMBU_DisplayFidInfo();
 }
 
 // Each .seq file and the .bmp files it references creates one one_instance of an animation_sequence
@@ -991,7 +1030,7 @@ typedef SEARCH_T RTSMB_FAR *PSEARCH;
 #define FID_FLAG_ALL            0xFFFF
 typedef struct fid_s
 {
-    int internal;   /* -1 means not in use */
+    int internal_fid;   /* -1 means not in use */
     uint16_t external;
 
     uint16_t flags;
