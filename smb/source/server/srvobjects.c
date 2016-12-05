@@ -6,6 +6,10 @@
 #include "rtpmem.h"
 #include "srv_smb2_model.h"
 #include "com_smb2_ssn.h"
+#include "srvobjectsc.h"
+
+#include "rtpnet.h"
+#include "rtpnet.h"
 
 #define COPYCITEM(CPTR,FIELDNAME)   tc_memcpy(this->FIELDNAME, CPTR->FIELDNAME, sizeof(this->FIELDNAME))
 
@@ -389,6 +393,82 @@ extern "C"  void srvobject_display_diags(void)
   srvobject_display_fids();
   SMBU_DisplayFidInfo();
 }
+
+#ifdef INCLUDE_SRVOBJ_REMOTE_DIAGS
+
+static int diag_remote_portnumber = -1;
+static RTP_SOCKET diag_socket;
+static int diag_socket_open;
+static const byte local_ip_address[] = {0x7f,0,0,1};
+// Request come in here. replies go out.
+static int  remote_port=-1;
+static byte remote_ip[4];
+
+extern "C" int rtsmb_net_read_datagram (RTP_SOCKET sock, PFVOID pData, int size, PFBYTE remoteAddr, PFINT remotePort);
+extern "C" int rtsmb_net_write_datagram (RTP_SOCKET socket, PFBYTE remote, int port, PFVOID buf, int size);
+
+
+
+extern "C" RTP_SOCKET *srvobject_get_diag_socket(void)
+{
+ if (!diag_socket_open)
+   return 0;
+ else
+   return &diag_socket;
+
+}
+extern "C" BBOOL srvobject_bind_diag_socket(void)
+{
+  int port = REMOTE_DEBUG_PORTNUMBER;
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket called\n");
+    if (rtp_net_socket_datagram(&diag_socket) < 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: Unable to get new socket\n");
+        return FALSE;
+    }
+    if (rtp_net_bind(diag_socket, (unsigned char*)0, port, 4))
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: bind to port %d failed\n",port);
+        return FALSE;
+  }
+  diag_socket_open = 1;
+  return TRUE;
+}
+
+
+extern "C" void srvobject_write_diag_socket(byte *p, int len)
+{
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_write_diag_socket sending %s\n", (char *)p);
+  if (diag_remote_portnumber!=-1)
+  {
+  int r =
+  rtsmb_net_write_datagram (
+    diag_socket,
+    (byte *) remote_ip, // local_ip_address,
+    diag_remote_portnumber,
+    p,
+    len);  // Four is the minimum size might as well send something
+  }
+
+}
+
+extern "C" int srvobject_process_diag_request(void)
+{
+  int  size, remote_port;
+  byte p[80];
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_recv_diag_socket\n");
+  size = rtsmb_net_read_datagram (diag_socket, p, 80, remote_ip, &remote_port);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_recv_diag_socket recved %s\n", (char *)p);
+  if (size >= 0)
+  {
+    diag_remote_portnumber = remote_port;
+//    srvobject_write_diag_socket(p, size);
+    srvobject_display_diags();
+  }
+  return size;
+}
+#endif
+
 
 // Each .seq file and the .bmp files it references creates one one_instance of an animation_sequence
 class user_c {

@@ -3976,12 +3976,12 @@ BBOOL ProcProcessExit (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
 
         for (j = 0; j < prtsmb_srv_ctx->max_fids_per_session; j++)
         {
-            if (pCtx->fids[j].internal >= 0 &&
+            if (pCtx->fids[j].internal_fid >= 0 &&
                 pCtx->fids[j].pid == pCtx->pid)
             {
                 if (pCtx->fids[j].flags != FID_FLAG_DIRECTORY)
                 {
-                    SMBFIO_Close (pCtx, pCtx->tid, pCtx->fids[j].internal);
+                    SMBFIO_Close (pCtx, pCtx->tid, pCtx->fids[j].internal_fid);
                 }
                 SMBU_ClearInternalFid (pCtx, pCtx->fids[j].external);
             }
@@ -4352,7 +4352,7 @@ void Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
         if (tree->fids[i])
         {
             if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal);
+                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
             SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
         }
     }
@@ -4391,7 +4391,7 @@ void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
         {
             /* Do not call close if it is a directory   */
             if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal);
+                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
             SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
         }
     }
@@ -4518,7 +4518,7 @@ void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
      */
     for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
     {
-        pSmbCtx->fids[i].internal = -1;
+        pSmbCtx->fids[i].internal_fid = -1;
     }
 
 }

@@ -8,7 +8,7 @@
 
 #include "srvssn.h"
 
-#define YIELD_BASE_PORTNUMBER 9999
+#define YIELD_BASE_PORTNUMBER   9999
 
 /*============================================================================   */
 /*    INTERFACE STRUCTURES / UTILITY CLASSES                                     */

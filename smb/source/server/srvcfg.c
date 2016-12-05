@@ -367,7 +367,7 @@ int rtsmb_server_config(void)
    // Make sure fids are clear and export the fid table for oplock and dignostics.
    prtsmb_srv_ctx->fids = &fids;
    for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
-     prtsmb_srv_ctx->fids[i].internal = -1;
+     prtsmb_srv_ctx->fids[i].internal_fid = -1;
 
 
   #if CFG_RTSMB_NUM_BIG_BUFFERS
