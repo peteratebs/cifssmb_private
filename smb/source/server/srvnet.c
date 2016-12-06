@@ -307,7 +307,7 @@ RTSMB_STATIC PNET_THREAD tempThread;
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
     }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
     if (!srvobject_bind_diag_socket())
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to open diag socket\n");
@@ -364,7 +364,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
             }
         }
         readList[len++] = pThread->yield_sock;
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle set diag sock: %d in list \n",*srvobject_get_diag_socket());
@@ -386,7 +386,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
             RtsmbYieldRecvSignalSocket(pThread->yield_sock);
             break;
           }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle check diag sock: %d \n",*srvobject_get_diag_socket());
           if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
           {
@@ -789,7 +789,7 @@ void rtsmb_srv_net_cycle (long timeout)
     }
     signal_socket_index = len;
     readList[len++] = prtsmb_srv_ctx->mainThread->yield_sock;
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle set diag sock: %d in list \n",*srvobject_get_diag_socket());
@@ -811,7 +811,7 @@ void rtsmb_srv_net_cycle (long timeout)
         RtsmbYieldRecvSignalSocket(prtsmb_srv_ctx->mainThread->yield_sock);
         break;
       }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle check diag sock: %d \n",*srvobject_get_diag_socket());
        if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
        {
