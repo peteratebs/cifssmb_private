@@ -8,7 +8,10 @@
 
 #define INCLUDE_SRVOBJ_REMOTE_DIAGS 1
 #ifdef INCLUDE_SRVOBJ_REMOTE_DIAGS
-#define REMOTE_DEBUG_PORTNUMBER 9989
+
+#define REMOTE_DEBUG_TO_PROXY_PORTNUMBER 9988
+#define REMOTE_DEBUG_FROM_PROXY_PORTNUMBER 9989
+
 #endif
 
 #ifdef __cplusplus
@@ -34,5 +37,4 @@ extern void srvobject_write_diag_socket(byte *p, int len);
 #endif
 
 #endif
-
 

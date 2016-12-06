@@ -344,7 +344,7 @@ extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp){ 
 
 extern "C" void SMBU_DisplayFidInfo(void)
 {
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n");
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE<br>");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
  {
@@ -353,10 +353,31 @@ extern "C" void SMBU_DisplayFidInfo(void)
     if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
     {
       FID_T *p = &(prtsmb_srv_ctx->fids[i]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s<br>",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
     }
  }
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===<br>");
+}
+
+static int SMBU_DiagFormatFidList(char *buffer)
+{
+ char *start=buffer;
+
+ buffer += tc_sprintf(buffer, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n");
+ int  i;
+ for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
+ {
+ char temp0[32];
+ char temp1[256];
+    if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
+    {
+      FID_T *p = &(prtsmb_srv_ctx->fids[i]);
+      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+    }
+ }
+ buffer += tc_sprintf(buffer, (char *)"====#===#====#====#=======#===#====#===#===\n");
+
+ return (int) (buffer - start);
 }
 
 extern "C" void srvobject_session_exit(struct net_thread_s *pThread,struct net_sessionctxt **psession)
@@ -397,8 +418,7 @@ extern "C"  void srvobject_display_diags(void)
 #ifdef INCLUDE_SRVOBJ_REMOTE_DIAGS
 
 static int diag_remote_portnumber = -1;
-static RTP_SOCKET diag_socket;
-static int diag_socket_open;
+static RTP_SOCKET diag_socket = -1;
 static const byte local_ip_address[] = {0x7f,0,0,1};
 // Request come in here. replies go out.
 static int  remote_port=-1;
@@ -411,7 +431,7 @@ extern "C" int rtsmb_net_write_datagram (RTP_SOCKET socket, PFBYTE remote, int p
 
 extern "C" RTP_SOCKET *srvobject_get_diag_socket(void)
 {
- if (!diag_socket_open)
+ if (diag_socket < 0)
    return 0;
  else
    return &diag_socket;
@@ -419,19 +439,17 @@ extern "C" RTP_SOCKET *srvobject_get_diag_socket(void)
 }
 extern "C" BBOOL srvobject_bind_diag_socket(void)
 {
-  int port = REMOTE_DEBUG_PORTNUMBER;
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket called\n");
     if (rtp_net_socket_datagram(&diag_socket) < 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: Unable to get new socket\n");
         return FALSE;
     }
-    if (rtp_net_bind(diag_socket, (unsigned char*)0, port, 4))
+    if (rtp_net_bind(diag_socket, (unsigned char*)0, REMOTE_DEBUG_FROM_PROXY_PORTNUMBER, 4))
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: bind to port %d failed\n",port);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: bind to port %d failed\n",REMOTE_DEBUG_FROM_PROXY_PORTNUMBER);
         return FALSE;
   }
-  diag_socket_open = 1;
   return TRUE;
 }
 
@@ -445,7 +463,7 @@ extern "C" void srvobject_write_diag_socket(byte *p, int len)
   rtsmb_net_write_datagram (
     diag_socket,
     (byte *) remote_ip, // local_ip_address,
-    diag_remote_portnumber,
+    REMOTE_DEBUG_TO_PROXY_PORTNUMBER,
     p,
     len);  // Four is the minimum size might as well send something
   }
@@ -463,7 +481,15 @@ extern "C" int srvobject_process_diag_request(void)
   {
     diag_remote_portnumber = remote_port;
 //    srvobject_write_diag_socket(p, size);
-    srvobject_display_diags();
+    if (tc_strstr((char *)p, "SMB FIDS"))
+    {
+      char * p = (char *) rtp_malloc(1024*512);
+      int len = SMBU_DiagFormatFidList(p);
+      srvobject_write_diag_socket((byte *)p, len);
+      srvobject_display_diags();
+      RTP_FREE(p);
+    }
+
   }
   return size;
 }
