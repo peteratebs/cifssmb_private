@@ -40,7 +40,47 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "rtpthrd.h"
 #include "srvobjectsc.h"
 
+volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
+volatile print_diags = 0;
+volatile int keyboard_break_pressed_count;
 
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+RTP_HANDLE mainThread;
+RTP_HANDLE diagThread;
+static int _smbservermain (void);
+RTSMB_STATIC void rtsmb_thread_main (void *p)
+{
+   _smbservermain ();
+}
+
+extern void rtsmb_thread_diag (void *p);
+void rtsmb_srv_fork_main(void)
+{
+    void *pArgs = 0;
+    if (rtp_thread_spawn(&mainThread, (RTP_ENTRY_POINT_FN) rtsmb_thread_main, "MAINTHREAD", 0, 0, pArgs))
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_fork_main: Couldn't start thread!\n");
+    }
+    if (rtp_thread_spawn(&diagThread, (RTP_ENTRY_POINT_FN) rtsmb_thread_diag, "DIAGTHREAD", 0, 0, pArgs))
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_fork_main: Couldn't start thread!\n");
+    }
+}
+#endif
+
+int smbservermain (int argc, char **argv)
+{
+#if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
+  rtsmb_srv_fork_main();
+  while (go)
+  {
+    printf("Hello from main\n");
+    rtp_thread_sleep_seconds(10);
+  }
+#else
+  _smbservermain ();
+#endif
+}
 
 RTSMB_STATIC char spinner[4] = {'\\', '-', '/', '|'};
 RTSMB_STATIC int spinState = 0;
@@ -72,6 +112,7 @@ int smbserver_runtimeaddprinter(void);
 static void rtsmb_srv_non_file_config(void);
 
 
+
 void rtsmb_main (void)
 {
 	//spinState += 1;
@@ -82,10 +123,6 @@ void rtsmb_main (void)
 
 
 
-
-volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
-volatile print_diags = 0;
-volatile int keyboard_break_pressed_count;
 
 #include<signal.h>
 #include "srvobjectsc.h"
@@ -111,7 +148,8 @@ char *syslogname = "RTSMBS";
 unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
 
 
-int smbservermain (int argc, char **argv)
+
+static int _smbservermain (void)
 {
 	go = 1;
     //test_challenge();

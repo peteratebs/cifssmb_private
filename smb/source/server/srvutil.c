@@ -550,8 +550,8 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
 	user->fids[i] = &pCtx->fids[k];
 	tree->fids[j] = &pCtx->fids[k];
 	// setup the fid values in master list
-	pCtx->fids[k].internal_fid = internal_fid; // HEREHERE - Fuck, it's all wrong
-#warning HEREHERE - Fuck, it's all wrong
+	pCtx->fids[k].internal_fid = internal_fid;
+#warning FID allocatin scheme need fix for oplocks
 	pCtx->fids[k].external = k;
 	pCtx->fids[k].pid = pCtx->pid;
 	pCtx->fids[k].tid = pCtx->tid;

@@ -279,16 +279,27 @@ int rtp_thread_name_by_handle (RTP_HANDLE handle, char ** name)
  *----------------------------------------------------------------------*/
 void rtp_thread_sleep (long msecs)
 {
-    if (msecs < 0)
+    while (msecs > 1000)
+    {
+      sleep (1);
+      msecs -= 1000;
+    }
+    if (msecs <= 0)
     {
         return;
     }
+
     else
     {
         usleep ((__useconds_t)msecs);
     }
 }
 
+
+void rtp_thread_sleep_seconds       (int secs)
+{
+    sleep (secs);
+}
 
 /*----------------------------------------------------------------------*
                              rtp_thread_yield

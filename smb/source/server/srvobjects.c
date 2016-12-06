@@ -415,7 +415,7 @@ extern "C"  void srvobject_display_diags(void)
   SMBU_DisplayFidInfo();
 }
 
-#ifdef INCLUDE_SRVOBJ_REMOTE_DIAGS
+#if(INCLUDE_SRVOBJ_REMOTE_DIAGS)
 
 static int diag_remote_portnumber = -1;
 static RTP_SOCKET diag_socket = -1;

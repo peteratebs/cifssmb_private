@@ -22,14 +22,14 @@ ifeq ($(pointersize),P32)
 ### COMPILER AND LINKER FLAGS ########################################
 ldflags += -m32 -L/usr/lib32 -lm -lc -lgcc -pthread -Wl,-Map=output.map
 # cflags  += -Wconversion -Wextra -Werror
-cflags  += -m32 -DBUILD_SMB_32BIT
+cflags  += -m32 -pthread -DBUILD_SMB_32BIT
 # cflags  += -m64 -DBUILD_SMB_64BIT
 endif
 
 ifeq ($(pointersize),P64)
 ### COMPILER AND LINKER FLAGS ########################################
 ldflags += -m64 -L/usr/lib64 -lm -lc -lgcc -pthread -Wl,-Map=output.map
-cflags  += -m64 -DBUILD_SMB_64BIT
+cflags  += -m64 -pthread -DBUILD_SMB_64BIT
 # cflags  += -m64 -DBUILD_SMB_64BIT
 endif
 
