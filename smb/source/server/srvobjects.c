@@ -344,7 +344,7 @@ extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp){ 
 
 extern "C" void SMBU_DisplayFidInfo(void)
 {
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE<br>");
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n>");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
  {
@@ -353,17 +353,17 @@ extern "C" void SMBU_DisplayFidInfo(void)
     if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
     {
       FID_T *p = &(prtsmb_srv_ctx->fids[i]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s<br>",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n>",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
     }
  }
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===<br>");
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
 }
 
 static int SMBU_DiagFormatFidList(char *buffer)
 {
  char *start=buffer;
 
- buffer += tc_sprintf(buffer, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n");
+ buffer += tc_sprintf(buffer, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE \n");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
  {
@@ -372,10 +372,10 @@ static int SMBU_DiagFormatFidList(char *buffer)
     if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
     {
       FID_T *p = &(prtsmb_srv_ctx->fids[i]);
-      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s \n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
     }
  }
- buffer += tc_sprintf(buffer, (char *)"====#===#====#====#=======#===#====#===#===\n");
+ buffer += tc_sprintf(buffer, (char *)"====#===#====#====#=======#===#====#===#=== \n");
 
  return (int) (buffer - start);
 }

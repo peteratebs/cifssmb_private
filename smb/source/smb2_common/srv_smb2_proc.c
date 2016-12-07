@@ -606,7 +606,7 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     if (doSend)
     {
         // Set CreditCharge=0 assume 2.02\n");
-        printf("Force charge 1\n");
+#warning Force charge credit charge 1
         pStream->OutHdr.CreditCharge=1;
         tc_memcpy(pHeaderInBuffer,&pStream->OutHdr,sizeof(pStream->OutHdr));
 	    if (doFinalize)

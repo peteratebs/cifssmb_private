@@ -85,8 +85,6 @@ int fileHandle;
 #endif
 
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_file_open: name %s\n", name);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_file_open: rtp_file_open mode: mode %x mapped mode: %x flag:%x mapped flag:%x\n", mode, _rtp_flag_to_operation(flag) ,flag, _rtp_flag_to_operation(flag));
 //    fileHandle = open (name, _rtp_flag_to_operation(flag), 00777); // _rtp_mode_to_permission(mode));
 //    fileHandle = open (name, _rtp_flag_to_operation(flag),_rtp_mode_to_permission(mode)|0755);
     umask(~0777);

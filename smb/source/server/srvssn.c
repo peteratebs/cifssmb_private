@@ -88,7 +88,7 @@ const char *SrvSessionStateName[] = {
                                      "BROWSE_FAIL","WAIT_ON_PDC_NAME", "WAIT_ON_PDC_IP", "FAIL_NEGOTIATE",
                                      "FINISH_NEGOTIATE", "WRITING_RAW", "WRITING_RAW_READING"};
 
-#define PRINT_SRV_STATE_CHANGE(a, b)  {rtp_printf("%.2d %5d  Session::%s -> %s\n" , DIAGNOSTIC_INDEX++, rtp_get_system_msec(), a, b);}     // #ifdef STATE_DIAGNOSTICS
+#define PRINT_SRV_STATE_CHANGE(a, b)  {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%.2d %5d  Session::%s -> %s\n" , DIAGNOSTIC_INDEX++, rtp_get_system_msec(), a, b);}     // #ifdef STATE_DIAGNOSTICS
 
 #define RTSMB_GET_SRV_SESSION_STATE(a) {if(SRV_STATE_LOG.srvSessionState != a){\
                                         PRINT_SRV_STATE_CHANGE(SrvSessionStateName[SRV_STATE_LOG.srvSessionState], SrvSessionStateName[a]);\
@@ -265,7 +265,7 @@ BBOOL has_lm_field=FALSE;
 
     if (display_login_info)
     {
-      rtp_printf("\ndisplay_login_info: Authenticating user from SPNEGO PACCKET\n");
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "\ndisplay_login_info: Authenticating user from SPNEGO PACCKET\n");
       if (decoded_targ_token->lm_response)       //
       {
           rtsmb_dump_bytes("LMRESPONSE", decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->lm_response->size, DUMPBIN);
@@ -309,7 +309,7 @@ BBOOL has_lm_field=FALSE;
     PFRTCHAR username  = 0;
     if (decoded_targ_token->domain_name)
     {
-      if (display_login_info) rtp_printf("display_login_info: decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);
+      if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: decoded_targ_token->domain_name->size:%d\n", decoded_targ_token->domain_name->size);}
       domainname = (PFRTCHAR) decoded_targ_token->domain_name->value_at_offset;
       tc_memcpy(default_domainname_buffer,decoded_targ_token->domain_name->value_at_offset,decoded_targ_token->domain_name->size);
       default_domainname_buffer[decoded_targ_token->domain_name->size]=0;
@@ -318,14 +318,13 @@ BBOOL has_lm_field=FALSE;
     }
     else
     {
-      rtp_printf("No domain:%d\n");
       default_domainname_buffer[0] = 0;
       default_domainname_buffer[1] = 0;
       domainname = (PFRTCHAR)default_domainname_buffer;
     }
     if (decoded_targ_token->user_name)
     {
-      if (display_login_info) rtp_printf("display_login_info: decoded_targ_token->user_name->size:%d\n", decoded_targ_token->user_name->size);
+      if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: decoded_targ_token->user_name->size:%d\n", decoded_targ_token->user_name->size);}
       tc_memcpy(username_buffer,decoded_targ_token->user_name->value_at_offset,decoded_targ_token->user_name->size);
       username_buffer[decoded_targ_token->user_name->size]=0;
       username_buffer[decoded_targ_token->user_name->size+1]=0;
@@ -333,7 +332,7 @@ BBOOL has_lm_field=FALSE;
     }
     else
     {
-      if (display_login_info) rtp_printf("display_login_info: No domain\n");
+      if (display_login_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: No domain\n");}
       default_domainname_buffer[0] = 0;
       default_domainname_buffer[1] = 0;
       domainname = (PFRTCHAR)default_domainname_buffer;
@@ -343,7 +342,7 @@ BBOOL has_lm_field=FALSE;
     if (decoded_targ_token->ntlm_response)
     {
       Access = Auth_AuthenticateUser_ntlmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, (size_t) decoded_targ_token->ntlm_response->size,username, domainname, extended_authId);
-      if (display_login_info) { rtp_printf("display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);   }
+      if (display_login_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);   }
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlmv2 returned %X\n", Access);
     }
     if (Access == AUTH_NOACCESS)
@@ -361,7 +360,7 @@ BBOOL has_lm_field=FALSE;
       else
       {
         Access = Auth_AuthenticateUser_lmv2 (pCtx, decoded_targ_token->ntlm_response->value_at_offset, decoded_targ_token->lm_response->value_at_offset, username, domainname, extended_authId);
-        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);
+        if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_lmv2 returned %X\n", Access);}
       }
     }
     // Try ntlm2
@@ -370,44 +369,44 @@ BBOOL has_lm_field=FALSE;
       if (has_lm_field)
       { // The client key is in lm_response
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
-        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);
+        if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlm2 1 returned %X\n", Access);};
       }
       if (Access == AUTH_NOACCESS)
       {
         ntlmv2_response_t *pntlmv2_response = (ntlmv2_response_t *)decoded_targ_token->ntlm_response->value_at_offset;
-        if (display_login_info) rtp_printf("display_login_info: Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");
+        if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Try Auth_AuthenticateUser_ntlm2 with pntlmv2_response->client_challenge as key\n");}
         Access = Auth_AuthenticateUser_ntlm2 (pCtx,pntlmv2_response->ntlmv2_blob.client_challenge, pntlmv2_response->ntproofstr, username, extended_authId);
-        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);
+        if (display_login_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlm2 - 2 returned %X\n", Access);}
       }
 //      TBD - Recheck may have broken on windows.
       if (Access == AUTH_NOACCESS)
       {
         if (has_lm_field)
           Access = Auth_AuthenticateUser_ntlm2 (pCtx,decoded_targ_token->lm_response->value_at_offset, decoded_targ_token->ntlm_response->value_at_offset, username, extended_authId);
-        if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);
+        if (display_login_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlm2 -2 returned %X\n", Access);}
       }
     }
     if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
     {
       Access = Auth_AuthenticateUser_ntlm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
-      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", Access);
+      if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", Access);}
     }
     if (Access == AUTH_NOACCESS && decoded_targ_token->lm_response)
     {
       // word Auth_AuthenticateUser_lm (PSMB_SESSIONCTX pCtx, PFBYTE lm_response, PFRTCHAR name, word *authId)
       Access = Auth_AuthenticateUser_lm (pCtx,decoded_targ_token->lm_response->value_at_offset, username, extended_authId);
-      if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_lm returned %X\n", Access);
+      if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_lm returned %X\n", Access);}
     }
 // Jump past all but ntlmv2. The rest are not supported and may be buggy
 resume_with_access:
-    if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser should be removed \n");
+    if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser should be removed \n");}
     {
     int i;
     for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
     {
         if (pCtx->uids[i].uid == pCtx->uid)
         {
-          if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser did removed %d \n", i);
+          if (display_login_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser did removed %d \n", i);}
           pCtx->uids[i].inUse = FALSE;
           break;
         }
@@ -421,11 +420,12 @@ resume_with_access:
 #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
     if (Access == AUTH_NOACCESS)
     {
-      rtp_printf("Fake success by returning %X\n",AUTH_USER_MODE);     // #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Fake success by returning %X\n",AUTH_USER_MODE);     // #if (HARDWIRED_FORCE_EXTENDED_SECURITY_OK)
       Access = AUTH_USER_MODE;
     }
 #endif
-    if (display_login_info)  rtp_printf("\ndisplay_login_info: Authenticate user from SPNEGO PACCKET v=%d \n", Access);
+    if (display_login_info)  {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\ndisplay_login_info: Authenticate user from SPNEGO PACCKET v=%d \n", Access);}
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"\ndAuthenticate user (0==OK) result: %d \n", Access);
     return Access;
 }
 #endif
@@ -564,7 +564,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        {
          if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
          {
-           if (display_login_info) rtp_printf("display_login_info: Got extended !!!  phase 1\n");
+           if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Got extended !!!  phase 1\n");}
            access = 0;
            authId = 0;
          }
@@ -586,7 +586,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
             if (access == AUTH_NOACCESS)
             {
               access = Auth_AuthenticateUser_ntlm (pCtx,(PFBYTE)password_buf, (PFRTCHAR)username, &authId);
-              if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", access);
+              if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser_ntlm returned %X\n", access);}
             }
          }
 
@@ -596,9 +596,9 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
          if (access == AUTH_NOACCESS)
          {
-            if (display_login_info) rtp_printf("display_login_info: ProcSetupAndx fell through to Auth_AuthenticateUser \n");
+            if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: ProcSetupAndx fell through to Auth_AuthenticateUser \n");}
             access = Auth_AuthenticateUser (pCtx, username, domainname, (PFCHAR)password_buf, (PFCHAR) password_buf2, &authId);
-            if (display_login_info) rtp_printf("display_login_info: Auth_AuthenticateUser returned %X\n", access);
+            if (display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Auth_AuthenticateUser returned %X\n", access);}
          }
        }
        if (access == AUTH_NOACCESS)

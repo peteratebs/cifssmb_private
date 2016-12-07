@@ -124,12 +124,9 @@ long bytesRead;
        goto unsuccessful;
     }
      // Clip it to the maximum we allocated to read to
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !!Requested: %d \n",command.Length);
      toRead = (dword) MIN(pStream->WriteBufferParms[0].byte_count,command.Length);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! Clip Requested 1: %d \n",toRead);
      // Clip it to the maximum size we have for sending data
      toRead = (dword) MIN (toRead,(pStream->write_buffer_remaining-512));
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! Clip Requested 2: %d \n",toRead);
 
     // note: command.Flags &0x01 == unbuffered;
     if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
@@ -185,8 +182,6 @@ long bytesWritten;
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Write !! prolog Failed with maxB %ld \n",  pStream->ReadBufferParms[0].byte_count);
       goto free_and_out;
     }
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Write !! to offset: %ld cmd size: %ld  byte count: %ld \n",  command.Offset, command.Length, pStream->ReadBufferParms[0].byte_count);
 
     if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
     {

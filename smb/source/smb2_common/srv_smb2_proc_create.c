@@ -169,8 +169,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
 #include "srvnet.h"
 //if (testingYield == 1)
+// For diags on oplocks, to be removed
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Entering ... \n");
   PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
   if (pNctxt)
   {
@@ -443,7 +443,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       file_name[command.NameLength+1] = 0;
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+//        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
         {
@@ -459,13 +459,13 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         {
           if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
           { // Don't succeed if they are requesting a directory but the object is not one
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: requesting a directory but the object is not one...\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: requesting a directory but the object is not one.\n%s\n", command.NameLength?rtsmb_ascii_of((PFRTCHAR)file_name,0):"NONAME");
             RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
             return TRUE;
           }
           if ((stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON(command.CreateOptions, 0x40))
           { // Don't succeed if they are requesting a non-directory but the object is one
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: SMB2_STATUS_FILE_IS_A_DIRECTORY\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: create request but file is a directory\n%s\n", command.NameLength?rtsmb_ascii_of((PFRTCHAR)file_name,0):"NONAME");
             RtsmbWriteSrvStatus(pStream, SMB2_STATUS_FILE_IS_A_DIRECTORY);
             return TRUE;
           }
@@ -483,7 +483,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         // Stat the file
         if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: requesting a directory but the object is not one...\n");
           RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
           return TRUE;
         }
@@ -503,8 +502,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
-//          r = SMB_NT_STATUS_NO_SUCH_FILE;
-//          r = SMB2_STATUS_OBJECT_NAME_NOT_FOUND;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate remapped status == %X\n", r);
         }
         RtsmbWriteSrvStatus(pStream, r);
