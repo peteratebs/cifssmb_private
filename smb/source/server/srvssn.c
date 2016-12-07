@@ -246,7 +246,7 @@ NextUID:  ;
 }
 
 
-BBOOL display_login_info=TRUE;
+BBOOL display_login_info=FALSE;
 
 
 #if (HARDWIRED_EXTENDED_SECURITY)

@@ -118,6 +118,7 @@ BBOOL Auth_AssignGroupPermission (PFRTCHAR group, PFRTCHAR share, byte mode);
 
 BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password);
 BBOOL Auth_DeleteUser (PFRTCHAR name);
+int Auth_GetPasswordFromUserName(PFRTCHAR name,PFRTCHAR pwresult);
 
 BBOOL Auth_AddUserToGroup (PFRTCHAR user, PFRTCHAR group);
 BBOOL Auth_RemoveUserFromGroup (PFRTCHAR user, PFRTCHAR group);

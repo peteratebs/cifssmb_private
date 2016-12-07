@@ -601,6 +601,27 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
     return rv;
 }
 
+// Return >0 if it found a password and copied it to the buffer
+int Auth_GetPasswordFromUserName(PFRTCHAR name,PFRTCHAR pwresult)
+{
+int   rv=0;
+short uid;
+PUSERDATA user;
+
+  CLAIM_AUTH ();
+  user = getuserSructureFromName(name, &uid);
+  if (user)
+  {
+
+    rv=user->password;
+    // Convert the stored password to unicode and return it
+     rtsmb_util_ascii_to_unicode (user->password ,pwresult, CFG_RTSMB_USER_CODEPAGE);
+     rv = rtsmb_len(pwresult);
+  }
+  RELEASE_AUTH ();
+  return rv;
+}
+
 BBOOL Auth_DeleteUser (PFRTCHAR name)
 {
     short uid;

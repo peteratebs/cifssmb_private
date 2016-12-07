@@ -433,7 +433,6 @@ extern "C" RTP_SOCKET *srvobject_get_diag_socket(void)
 }
 extern "C" BBOOL srvobject_bind_diag_socket(void)
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket called\n");
     if (rtp_net_socket_datagram(&diag_socket) < 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: Unable to get new socket\n");
@@ -450,7 +449,6 @@ extern "C" BBOOL srvobject_bind_diag_socket(void)
 
 extern "C" void srvobject_write_diag_socket(byte *p, int len)
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_write_diag_socket sending %s\n", (char *)p);
   if (diag_remote_portnumber!=-1)
   {
   int r =
@@ -468,9 +466,7 @@ extern "C" int srvobject_process_diag_request(void)
 {
   int  size, remote_port;
   byte p[80];
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_recv_diag_socket\n");
   size = rtsmb_net_read_datagram (diag_socket, p, 80, remote_ip, &remote_port);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: srvobject_recv_diag_socket recved %s\n", (char *)p);
   if (size >= 0)
   {
     diag_remote_portnumber = remote_port;

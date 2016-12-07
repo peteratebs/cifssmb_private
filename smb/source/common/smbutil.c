@@ -29,6 +29,8 @@
 #include "smbspnego.h"
 #include "rtpmem.h"
 
+extern BBOOL display_login_info;
+
 extern const byte zeros24[24];
 
 //table of codepage function pointers
@@ -1162,18 +1164,13 @@ PFBYTE cli_util_encrypt_password_pre_nt (PFCHAR password, PFBYTE data, PFBYTE ou
 	tc_memset (&p21[16], 0, 5);
 
 	tc_memset (p14, '\0', 14); // password is null-extended
-//    rtsmb_dump_bytes("Password", password, 14, DUMPASCII);
 	tc_strncpy ((PFCHAR) p14, password, 14);
 	rtsmb_util_latin_string_toupper ((PFCHAR) p14);	// must be uppercase
-//    rtsmb_dump_bytes("UCPassword", p14, 14, DUMPASCII);
 
 	// encrypt S8 using 7-byte blocks from password
 	encrypt_block (p14, (PFBYTE) S8, p21);
 	encrypt_block (&p14[7], (PFBYTE) S8, &p21[8]);
-//    rtsmb_dump_bytes("pasword hash", p21, 16, DUMPBIN);
-//    rtsmb_dump_bytes("challenge", data, 8, DUMPBIN);
 	encrypt24 (p21, data, output);
-//    rtsmb_dump_bytes("output ", output, 24, DUMPBIN);
 
 	return output;
 }
@@ -1245,9 +1242,7 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
     // .. The client nonce is null-padded to 24 bytes. This value is placed in the LM response field of the Type 3 message.
 	tc_memset (clientNonce24, 0, 24);
 	tc_memcpy(clientNonce24, clientNonce, 8);
-//    rtsmb_dump_bytes("NTLMv2 input clientNonce: ", clientNonce, 8, DUMPBIN);
     // .. The challenge from the Type 2 message is concatenated with the 8-byte client nonce to form a session nonce.
-//    rtsmb_dump_bytes("NTLMv2 input serverChallenge: ", serverChallenge, 8, DUMPBIN);
 	tc_memcpy(sessionNonce16, serverChallenge, 8);
 	tc_memcpy(&sessionNonce16[8], clientNonce, 8);
 
@@ -1260,7 +1255,6 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
 
 // .. The NTLM password hash is obtained (as discussed, this is the MD4 digest of the Unicode mixed-case password).
 	// Convert the password to unicode
-//    rtsmb_dump_bytes("NTLMv2 input password: ", password, CFG_RTSMB_MAX_PASSWORD_SIZE, DUMPASCII);
 	for (src=0, dst=0; src<=CFG_RTSMB_MAX_PASSWORD_SIZE && password[src]; src++)
 	{
 		unicode_lendian[dst++] = (BYTE)password[src];
@@ -1279,7 +1273,6 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
 // .. These three ciphertext values are concatenated to form a 24-byte value. This is the NTLM2 session response, which is placed in the NTLM response field of the Type 3 message.
 
     encrypt24 (p21, NTLMv2_Session_Hash, output);
-//    rtsmb_dump_bytes("NTLMv2 output: ", output, 24, DUMPBIN);
 
 	return (PFBYTE )output;
 }
@@ -1342,60 +1335,13 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
 
     tc_memcpy(concatChallenge, serverChallenge, 8);
     tc_memcpy(&concatChallenge[8], ntlm_response_blob, ntlm_response_blob_length);
-//    rtsmb_dump_bytes("NTLMv2 hash: ", NTLMv2_Hash, 16, DUMPBIN);
-//    rtsmb_dump_bytes("NTLMv2 concatChallenge: ", concatChallenge+8, ntlm_response_blob_length, DUMPBIN);
 	hmac_md5(concatChallenge+8,	/* pointer to data stream */
                ntlm_response_blob_length,		/* length of data stream */
                NTLMv2_Hash,		/* pointer to remote authentication key */
                16,				/* length of authentication key */
                (PFBYTE ) output);
-
-//    rtsmb_dump_bytes("NTLMv2 output: ", output_value, 16, DUMPBIN);
 	return (PFBYTE )output;
 }
-
-BYTE glowf[] = {0x75 ,0xAA ,0xA7 ,0x29 ,0x0B ,0xB9 ,0x08 ,0x60 ,0x3D ,0x1C ,0x74 ,0xB4 ,0x80 ,0xD7 ,0x05 ,0x03 };
-
-BYTE glkr[] = {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
-BYTE glserverChallenge[] = {0xE5, 0xA2, 0x1C, 0x3B, 0xD1, 0x91, 0x86, 0x9E};
-BYTE glntlm_response_blob [] = {
-0x01 , 0x01 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01,
-0x83 , 0x47 , 0x86 , 0x40 , 0x9B , 0x48 , 0x17 , 0x0E , 0x00 , 0x00 , 0x00 , 0x00 , 0x02 , 0x00 , 0x1C , 0x00,
-0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
-0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x01 , 0x00 , 0x1C , 0x00,
-0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
-0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x04 , 0x00 , 0x02 , 0x00,
-0x00 , 0x00 , 0x03 , 0x00 , 0x1C , 0x00 , 0x70 , 0x00 , 0x65 , 0x00 , 0x74 , 0x00 , 0x65 , 0x00 , 0x72 , 0x00,
-0x2D , 0x00 , 0x78 , 0x00 , 0x70 , 0x00 , 0x73 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00,
-0x30 , 0x00 , 0x07 , 0x00 , 0x08 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01 , 0x06 , 0x00,
-0x04 , 0x00 , 0x02 , 0x00 , 0x00 , 0x00 , 0x08 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
-0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x30 , 0x00 , 0x00 , 0x7B , 0x49 , 0xB5 , 0x84 , 0xB7 , 0xBB,
-0x0C , 0xDD , 0xDC , 0xE2 , 0x18 , 0xB4 , 0x4C , 0xC1 , 0xA7 , 0x6A , 0x6E , 0xCF , 0xDA , 0xA8 , 0x71 , 0xBC,
-0x17 , 0x38 , 0xBD , 0x27 , 0x12 , 0x21 , 0x03 , 0xE7 , 0xD2 , 0x92 , 0x0A , 0x00 , 0x10 , 0x00 , 0x00 , 0x00,
-0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x09 , 0x00,
-0x22 , 0x00 , 0x63 , 0x00 , 0x69 , 0x00 , 0x66 , 0x00 , 0x73 , 0x00 , 0x2F , 0x00 , 0x31 , 0x00 , 0x39 , 0x00,
-0x32 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x36 , 0x00 , 0x38 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x2E , 0x00,
-0x31 , 0x00 , 0x34 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
-};
-// This should be the result
-// CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
-
-// glkr is derived from domain name
-
-// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
-// KR to SMBsesskeygen_ntv2
-
-BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
-BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
-
-//BYTE gluser[] = {'P', 0, 'E', 0, 'T' , 0, 'E', 0, 'R', 0, 0, 0};
-//BYTE glpassword[] = {'5',0,'4',0,'2',0,'L',0,'a',0,'f',0,'a',0,'y',0,'e',0,'t',0,'t',0,'e',0,0,0};
-
-BYTE gluser[] = {'E', 0, 'B' , 0, 'S', 0, 'W', 0, 'O', 0, 'R', 0, 'K', 0, 'G', 0, 'R', 0, 'O', 0, 'U', 0, 'P', 0, 0, 0};
-// BYTE gluser[] = {'E', 0, 'B' , 0, 'S', 0, 0, 0};
-BYTE glpassword[] = {'p',0,'a',0,'s',0,'s',0,'w',0,'o',0,'r',0,'d',0,0,0};
-
-
 
 PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16]);
 PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16]);
@@ -1425,7 +1371,22 @@ static int trim_right_null(BYTE *string_name, int string_size)
     return string_size;
 }
 
-void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *user_name, int user_name_size, BYTE *domain_name, int domain_name_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result)
+
+
+
+void calculate_ntlmv2_signing_key(
+  BYTE *encrypted_key,
+  BYTE *security_blob,
+  int blob_size,
+  BYTE *user_name,
+  int user_name_size,
+  BYTE *domain_name,
+  int domain_name_size,
+  BYTE *password,
+  int password_size,
+  BYTE *session_key,
+  int session_key_size,
+  BYTE *signing_key_result)
 {
 BYTE encsignkey[16];
 BYTE kr[16];
@@ -1434,17 +1395,17 @@ RC4_KEY rc4_key;
 BYTE sess_key[16];
 BYTE user_domain[512];
 
-  rtsmb_dump_bytes("server challenge was:  ", encrypted_key, 8, DUMPBIN);
-  rtsmb_dump_bytes("blob:  ", security_blob, blob_size, DUMPBIN);
-
-
-  rtsmb_dump_bytes("Password", glpassword, sizeof(glpassword), DUMPASCII);
+  if (display_login_info)
+  {
+    rtsmb_dump_bytes("server challenge was:  ", encrypted_key, 8, DUMPBIN);
+    rtsmb_dump_bytes("blob:  ", security_blob, blob_size, DUMPBIN);
+  }
   // Hash the password
-  cli_util_nt_password_hash(glpassword, sizeof(glpassword)-2, outowf);
-  rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
+  cli_util_nt_password_hash(password, password_size, outowf);
+  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);}
   rtsmb_util_string_to_upper ((PFRTCHAR)user_name, CFG_RTSMB_USER_CODEPAGE);
-  rtsmb_dump_bytes("User", user_name,user_name_size, DUMPASCII);
-  rtsmb_dump_bytes("Domain", domain_name,domain_name_size, DUMPASCII);
+  if (display_login_info) {rtsmb_dump_bytes("User", user_name,user_name_size, DUMPASCII);}
+  if (display_login_info) {rtsmb_dump_bytes("Domain", domain_name,domain_name_size, DUMPASCII);}
 
   user_name_size = trim_right_null(user_name,user_name_size);
   if (user_name_size > 0)
@@ -1454,110 +1415,37 @@ BYTE user_domain[512];
   if (domain_name_size > 0)
     tc_memcpy(&user_domain[user_name_size],domain_name,domain_name_size);
 
-  rtsmb_dump_bytes("User_Domain", user_domain, user_name_size+domain_name_size, DUMPASCII);
+  if (display_login_info) {rtsmb_dump_bytes("User_Domain", user_domain, user_name_size+domain_name_size, DUMPASCII);}
   // Encrypt the user and domain. (not doing domain now)
   cli_util_encrypt_signing_key_responese (outowf, user_domain, user_name_size+domain_name_size, 0, 0,kr);
-  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);
+  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);}
 
 //  rtsmb_dump_bytes("User_Domain fixed:", gluser, sizeof(gluser)-2, DUMPASCII);
 //  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
 //  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output fixed: ", kr, 16, DUMPBIN);
 
    // Comes from  pStream->psmb2Session->pSmbCtx->encryptionKey, the encrypted key send by the client.
-  rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);
+  if (display_login_info) {rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);}
+
   cli_util_encrypt_signing_key_ntlmv2 (encrypted_key, security_blob, blob_size, kr, encsignkey);
-  rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);
+
+  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);}
 
 //  SMBsesskeygen_ntv2(const uint8_t kr[16], const uint8_t * nt_resp, uint8_t sess_key[16])
 // output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
   // hash the encrypted user name with the signing
   hmac_md5(encsignkey ,16,  kr, 16,sess_key);
-  rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);
+  if (display_login_info) {rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);}
   // should be  0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
 
-  rtsmb_dump_bytes("session_key: ", session_key, session_key_size, DUMPBIN);
+  if (display_login_info) {rtsmb_dump_bytes("session_key: ", session_key, session_key_size, DUMPBIN);}
 
   RC4_set_key(&rc4_key, 16, sess_key);
   RC4(&rc4_key, session_key_size, session_key, signing_key_result);    // Session key sent from client in setup request 2
   // RC4(&rc4_key, sizeof(glencsessionkey), glencsessionkey, signing_key_result);    - PETERPETER HEREHERE -     // Session key sent from client in setup request 2
-  rtsmb_dump_bytes("signing_key_result: ", signing_key_result, 16, DUMPBIN);
-
-
-}
-
-BYTE gltestsigningkey[] = {0x7B, 0x41, 0x6F, 0x6C, 0x10, 0x5A, 0xDD, 0x3F, 0xCF, 0x3E, 0xC8, 0x0C, 0x91, 0x23, 0xB2, 0x85};
-BYTE gltestdata[] = {
-0xFE, 0x53, 0x4D, 0x42, 0x40, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x1F, 0x00,
-0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-0xFF, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBF, 0x46, 0x61, 0x93, 0x00, 0x00, 0x00, 0x00,
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-0x09, 0x00, 0x00, 0x00, 0x48, 0x00, 0x1D, 0x00,
-0xA1, 0x1B, 0x30, 0x19, 0xA0, 0x03, 0x0A, 0x01, 0x00, 0xA3, 0x12, 0x04, 0x10, 0x01, 0x00, 0x00,
-0x00, 0xC4, 0x94, 0xD1, 0xE0, 0x80, 0x7A, 0x54, 0xD1, 0x00, 0x00, 0x00, 0x00, };
-
-
-
-
-
-void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
-
-void test_challenge(void)
-{
-BYTE output[16];
-BYTE encsignkey[16];
-BYTE kr[16];
-BYTE outowf[16];
-BYTE outrc4[16];
-RC4_KEY rc4_key;
-BYTE sess_key[16];
-
-// This works when we use the same signing key and data
-  rtsmb_dump_bytes("key: ", gltestsigningkey, 16, DUMPBIN);
-printf("sign size data: %d\n", sizeof(gltestdata));
-  rtsmb_dump_bytes("data: ", gltestdata, sizeof(gltestdata), DUMPBIN);
-  calculate_smb2_signing_key(gltestsigningkey, gltestdata, sizeof(gltestdata),output);
-  rtsmb_dump_bytes("signature: ", output, 16, DUMPBIN);
-//[0000] B1 AA 77 39 99 F5 05 CD   4C 71 FA A4 59 B3 73 5F   ..w9.... Lq..Y.s_
-  return;
-
-
-
-//  calculate_ntlmv2_signing_key(glserverChallenge,glntlm_response_blob, sizeof (glntlm_response_blob), glencsessionkey, sizeof(glencsessionkey),output);
-
-
-  cli_util_nt_password_hash(glpassword, sizeof(glpassword)-2, outowf);
-  rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
-  rtsmb_dump_bytes("NTLMv2 glowf nt hash: ", glowf, 16, DUMPBIN);
-
-  cli_util_encrypt_signing_key_responese (glowf, gluser, sizeof(gluser)-2, 0, 0,kr);
-  // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
-  rtsmb_dump_bytes("NTLMv2 enrypted key response output: ", kr, 16, DUMPBIN);
-
-  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
-  // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
-  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);
-
-
-  cli_util_encrypt_signing_key_ntlmv2 (glserverChallenge, glntlm_response_blob, sizeof (glntlm_response_blob), kr, encsignkey);
-  // This should be the result  - and should match the first 16 byts of the clients Ntlmv2 response
-  // CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
-  rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);
-
-  // BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
-  // BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
-//  SMBsesskeygen_ntv2(const uint8_t kr[16], const uint8_t * nt_resp, uint8_t sess_key[16])
-// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
-  hmac_md5(encsignkey ,16,  kr, 16,sess_key);
-  rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);
-  // should be  0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
-
-  RC4_set_key(&rc4_key, sizeof(glntsessionkey), glntsessionkey);
-  RC4(&rc4_key, sizeof(glencsessionkey), glencsessionkey, outrc4);
-  rtsmb_dump_bytes("outrc4: ", outrc4, 16, DUMPBIN);
+  if (display_login_info) {rtsmb_dump_bytes("signing_key_result: ", signing_key_result, 16, DUMPBIN);}
 
 }
-
-
 
 PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16])
 {
@@ -1576,7 +1464,7 @@ PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user
                &owf[0],		     /*  */
                16,				/* length of authentication key */
                (PFBYTE ) output_value);
-    rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);
+    if (display_login_info) {rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);}
 	tc_memcpy(&output[0], output_value, 16);
 
 }
@@ -2196,3 +2084,119 @@ word rtsmb_util_rtsmb_to_smb_attributes (byte rtsmb_attributes)
 
 	return smb_attributes;
 }
+
+#ifdef _TESTCHALLENGE_
+
+// Junk but may need it again.
+
+BYTE glkr[] = {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
+BYTE glserverChallenge[] = {0xE5, 0xA2, 0x1C, 0x3B, 0xD1, 0x91, 0x86, 0x9E};
+BYTE glntlm_response_blob [] = {
+0x01 , 0x01 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01,
+0x83 , 0x47 , 0x86 , 0x40 , 0x9B , 0x48 , 0x17 , 0x0E , 0x00 , 0x00 , 0x00 , 0x00 , 0x02 , 0x00 , 0x1C , 0x00,
+0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
+0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x01 , 0x00 , 0x1C , 0x00,
+0x50 , 0x00 , 0x45 , 0x00 , 0x54 , 0x00 , 0x45 , 0x00 , 0x52 , 0x00 , 0x2D , 0x00 , 0x58 , 0x00 , 0x50 , 0x00,
+0x53 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x04 , 0x00 , 0x02 , 0x00,
+0x00 , 0x00 , 0x03 , 0x00 , 0x1C , 0x00 , 0x70 , 0x00 , 0x65 , 0x00 , 0x74 , 0x00 , 0x65 , 0x00 , 0x72 , 0x00,
+0x2D , 0x00 , 0x78 , 0x00 , 0x70 , 0x00 , 0x73 , 0x00 , 0x2D , 0x00 , 0x38 , 0x00 , 0x33 , 0x00 , 0x30 , 0x00,
+0x30 , 0x00 , 0x07 , 0x00 , 0x08 , 0x00 , 0xD0 , 0x67 , 0xC7 , 0xF6 , 0x97 , 0x07 , 0xD2 , 0x01 , 0x06 , 0x00,
+0x04 , 0x00 , 0x02 , 0x00 , 0x00 , 0x00 , 0x08 , 0x00 , 0x30 , 0x00 , 0x30 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
+0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x30 , 0x00 , 0x00 , 0x7B , 0x49 , 0xB5 , 0x84 , 0xB7 , 0xBB,
+0x0C , 0xDD , 0xDC , 0xE2 , 0x18 , 0xB4 , 0x4C , 0xC1 , 0xA7 , 0x6A , 0x6E , 0xCF , 0xDA , 0xA8 , 0x71 , 0xBC,
+0x17 , 0x38 , 0xBD , 0x27 , 0x12 , 0x21 , 0x03 , 0xE7 , 0xD2 , 0x92 , 0x0A , 0x00 , 0x10 , 0x00 , 0x00 , 0x00,
+0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x09 , 0x00,
+0x22 , 0x00 , 0x63 , 0x00 , 0x69 , 0x00 , 0x66 , 0x00 , 0x73 , 0x00 , 0x2F , 0x00 , 0x31 , 0x00 , 0x39 , 0x00,
+0x32 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x36 , 0x00 , 0x38 , 0x00 , 0x2E , 0x00 , 0x31 , 0x00 , 0x2E , 0x00,
+0x31 , 0x00 , 0x34 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00,
+};
+// This should be the result
+// CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+
+// glkr is derived from domain name
+
+// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+// KR to SMBsesskeygen_ntv2
+
+BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
+
+//BYTE gluser[] = {'P', 0, 'E', 0, 'T' , 0, 'E', 0, 'R', 0, 0, 0};
+//BYTE glpassword[] = {'5',0,'4',0,'2',0,'L',0,'a',0,'f',0,'a',0,'y',0,'e',0,'t',0,'t',0,'e',0,0,0};
+
+BYTE gluser[] = {'E', 0, 'B' , 0, 'S', 0, 'W', 0, 'O', 0, 'R', 0, 'K', 0, 'G', 0, 'R', 0, 'O', 0, 'U', 0, 'P', 0, 0, 0};
+// BYTE gluser[] = {'E', 0, 'B' , 0, 'S', 0, 0, 0};
+
+
+
+
+
+BYTE gltestsigningkey[] = {0x7B, 0x41, 0x6F, 0x6C, 0x10, 0x5A, 0xDD, 0x3F, 0xCF, 0x3E, 0xC8, 0x0C, 0x91, 0x23, 0xB2, 0x85};
+BYTE gltestdata[] = {
+0xFE, 0x53, 0x4D, 0x42, 0x40, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x1F, 0x00,
+0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0xFF, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBF, 0x46, 0x61, 0x93, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x09, 0x00, 0x00, 0x00, 0x48, 0x00, 0x1D, 0x00,
+0xA1, 0x1B, 0x30, 0x19, 0xA0, 0x03, 0x0A, 0x01, 0x00, 0xA3, 0x12, 0x04, 0x10, 0x01, 0x00, 0x00,
+0x00, 0xC4, 0x94, 0xD1, 0xE0, 0x80, 0x7A, 0x54, 0xD1, 0x00, 0x00, 0x00, 0x00, };
+
+void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
+
+void test_challenge(void)
+{
+BYTE output[16];
+BYTE encsignkey[16];
+BYTE kr[16];
+BYTE outowf[16];
+BYTE outrc4[16];
+RC4_KEY rc4_key;
+BYTE sess_key[16];
+
+// This works when we use the same signing key and data
+  rtsmb_dump_bytes("key: ", gltestsigningkey, 16, DUMPBIN);
+printf("sign size data: %d\n", sizeof(gltestdata));
+  rtsmb_dump_bytes("data: ", gltestdata, sizeof(gltestdata), DUMPBIN);
+  calculate_smb2_signing_key(gltestsigningkey, gltestdata, sizeof(gltestdata),output);
+  rtsmb_dump_bytes("signature: ", output, 16, DUMPBIN);
+//[0000] B1 AA 77 39 99 F5 05 CD   4C 71 FA A4 59 B3 73 5F   ..w9.... Lq..Y.s_
+  return;
+
+
+
+//  calculate_ntlmv2_signing_key(glserverChallenge,glntlm_response_blob, sizeof (glntlm_response_blob), glencsessionkey, sizeof(glencsessionkey),output);
+
+
+  cli_util_nt_password_hash(glpassword, sizeof(glpassword)-2, outowf);
+  rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
+  rtsmb_dump_bytes("NTLMv2 glowf nt hash: ", glowf, 16, DUMPBIN);
+
+  cli_util_encrypt_signing_key_responese (glowf, gluser, sizeof(gluser)-2, 0, 0,kr);
+  // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
+  rtsmb_dump_bytes("NTLMv2 enrypted key response output: ", kr, 16, DUMPBIN);
+
+  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
+  // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
+  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);
+
+
+  cli_util_encrypt_signing_key_ntlmv2 (glserverChallenge, glntlm_response_blob, sizeof (glntlm_response_blob), kr, encsignkey);
+  // This should be the result  - and should match the first 16 byts of the clients Ntlmv2 response
+  // CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+  rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);
+
+  // BYTE glntsessionkey[] = { 0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+  // BYTE glencsessionkey[] = {0xA1, 0xC1, 0x0A, 0x3D, 0xF8, 0x9B, 0x53, 0x09, 0x18, 0xA8, 0x6E, 0x00, 0xE1, 0xE9, 0xE7, 0x51};          // Session key sent from client in setup request 2
+//  SMBsesskeygen_ntv2(const uint8_t kr[16], const uint8_t * nt_resp, uint8_t sess_key[16])
+// output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
+  hmac_md5(encsignkey ,16,  kr, 16,sess_key);
+  rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);
+  // should be  0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
+
+  RC4_set_key(&rc4_key, sizeof(glntsessionkey), glntsessionkey);
+  RC4(&rc4_key, sizeof(glencsessionkey), glencsessionkey, outrc4);
+  rtsmb_dump_bytes("outrc4: ", outrc4, 16, DUMPBIN);
+
+}
+
+#endif // _TESTCHALLENGE_

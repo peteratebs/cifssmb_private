@@ -67,7 +67,19 @@ Proccess SESSION_SETUP requests.
 
 */
 
-void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *user_name, int user_name_size, BYTE *domain_name, int domain_name_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result);
+void calculate_ntlmv2_signing_key(
+  BYTE *encrypted_key,
+  BYTE *security_blob,
+  int blob_size,
+  BYTE *user_name,
+  int user_name_size,
+  BYTE *domain_name,
+  int domain_name_size,
+  BYTE *password,
+  int password_size,
+  BYTE *session_key,
+  int session_key_size,
+  BYTE *signing_key_result);
 
 BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
 {
@@ -325,15 +337,39 @@ static byte spnego_blob_buffer[512];
         }
         else
         { // Check log- in credentials
-           word  extended_authId=0;
-           word  extended_access=AUTH_NOACCESS;
+          word  extended_authId=0;
+          word  extended_access=AUTH_NOACCESS;
+          rtsmb_char password_buffer[CFG_RTSMB_MAX_PASSWORD_SIZE+1];
+          int  password_size = 0;
+          BYTE *password;
+          PFRTCHAR username=0;
 
           int NegTokenTargDecodeResult =  spnego_decode_NegTokenTarg_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
           if (NegTokenTargDecodeResult == 0)
           {
             extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
           }
-
+          if (extended_access != AUTH_NOACCESS)
+          {
+            // Try the login if we have a password, otherwise fall trough and return status SMB2_STATUS_ACCESS_DENIED
+            if (decoded_targ_token.user_name && decoded_targ_token.user_name->value_at_offset)
+            {
+              username = (PFRTCHAR)decoded_targ_token.user_name->value_at_offset;
+              // Get password and convert the unicode string length to byte size
+              password_size =  2 * Auth_GetPasswordFromUserName((PFRTCHAR)decoded_targ_token.user_name->value_at_offset,password_buffer);
+              rtsmb_dump_bytes("Log in using db Password", password_buffer, password_size, DUMPUNICODE);
+              password = (BYTE *)password_buffer;
+            }
+            if (!password_size)
+            {
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Login error: user not found: %s\n", username?rtsmb_ascii_of((PFRTCHAR)username,0):"NOUSERNAME");
+//              // Force it to "password"
+//              static BYTE glpassword[] = {'p',0,'a',0,'s',0,'s',0,'w',0,'o',0,'r',0,'d',0,0,0};
+//              rtsmb_dump_bytes("DB lookup failed use global password", glpassword, sizeof(glpassword), DUMPUNICODE);
+//              password = (BYTE *) glpassword;
+//              password_size = sizeof(glpassword)-2;
+            }
+          }
           if (extended_access==AUTH_NOACCESS)
           {
             // Force the buffer to zero this will close the session and shut down the socket
@@ -349,10 +385,9 @@ static byte spnego_blob_buffer[512];
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 1;
             // Calculate the session signing key
-// void calculate_ntlmv2_signing_key(BYTE *encrypted_key, BYTE *security_blob, int blob_size, BYTE *session_key,int session_key_size, BYTE *signing_key_result);
-
             if (decoded_targ_token.ntlm_response && decoded_targ_token.ntlm_response->size>16)
             {
+                 // Look up the password by user. Fail if not found.
                  calculate_ntlmv2_signing_key(pStream->psmb2Session->pSmbCtx->encryptionKey,
                    &decoded_targ_token.ntlm_response->value_at_offset[16],
                    decoded_targ_token.ntlm_response->size-16,
@@ -360,12 +395,12 @@ static byte spnego_blob_buffer[512];
                    decoded_targ_token.user_name?(int) decoded_targ_token.user_name->size:0,
                    decoded_targ_token.domain_name?decoded_targ_token.domain_name->value_at_offset:0,
                    decoded_targ_token.domain_name?(int) decoded_targ_token.domain_name->size:0,
+                   password,
+                   password_size,
                    decoded_targ_token.session_key?decoded_targ_token.session_key->value_at_offset:0,
                    decoded_targ_token.session_key?(int) decoded_targ_token.session_key->size:0,
                    pStream->psmb2Session->SigningKey);
-
             }
-
             // Save off
             pStream->psmb2Session->UserName = (byte *) rtsmb_util_wstrmalloc(decoded_targ_token.user_name?(PFWCS)decoded_targ_token.user_name->value_at_offset:(PFWCS)"U\0N\0K\0N\0O\0W\0N\0\0\0");
             pStream->psmb2Session->DomainName = (byte *) rtsmb_util_wstrmalloc(decoded_targ_token.domain_name?(PFWCS)decoded_targ_token.domain_name->value_at_offset:(PFWCS)"U\0N\0K\0N\0O\0W\0N\0\0\0");
