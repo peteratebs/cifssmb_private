@@ -166,7 +166,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     BBOOL timedout  = FALSE;
     PFID pfidExisting=0;
 
-SMBU_DisplayFidInfo();
 
 #include "srvnet.h"
 //if (testingYield == 1)
@@ -178,21 +177,11 @@ SMBU_DisplayFidInfo();
     reentering = (pNctxt->smbCtx.yieldFlags&(YIELDTIMEDOUT|YIELDSIGNALLED)!=0);
     signalled  = (pNctxt->smbCtx.yieldFlags&YIELDSIGNALLED!=0);
     timedout  = (reentering && !signalled);
-    if (reentering)
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Rentering yieldFlags %X %s\n",pNctxt->smbCtx.yieldFlags, pNctxt->smbCtx.yieldFlags&YIELDTIMEDOUT?"timeout":pNctxt->smbCtx.yieldFlags&YIELDSIGNALLED?"signalled":"neither"); //  (YIELDSIGNALLED|);
-    }
-    else
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  not Rentering yieldFlags \n");
-     }
   }
   else
   {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  no session found\n");
   }
-//  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  Rentering ... %X\n",pStream->psmb2Session->smbCtx.yieldFlags);
-  //&= ~(YIELDSIGNALLED|YIELDTIMEDOUT);
 
 }
 
@@ -361,33 +350,20 @@ SMBU_DisplayFidInfo();
 
     if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Test for yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
        // Force a test of restarting from an oplock if the file exists
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  stat ok for yield  openings [%u]:%s\n",pStream->psmb2Session->pSmbCtx->tid,  rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
       {
         int i,tp;
-        char temp[80];
         tp = 0;
-        tp += sprintf(&temp[tp],"  Check oplock for UUID ==:[ ");
-        for (i = 0; i < (int)sizeof(stat.unique_fileid);i++)
-        {
-           tp += sprintf(&temp[tp], "%X,",stat.unique_fileid[i]);
-        }
         // if (testingYield != 3)
         {
         int CurrentOplockLevel;
         pfidExisting =  SMBU_CheckOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, stat.unique_fileid, &CurrentOplockLevel);
 
-        if (SMBU_CheckMyInode(stat.unique_fileid))   {     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Create: ckfid 1 pfid:%X tid:%u \n",pfidExisting,pStream->psmb2Session->pSmbCtx->tid);     }
-
 //        command.RequestedOplockLevel &&
         // If testing force a send
         if (pfidExisting)
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  level change %d -> %d\n",CurrentOplockLevel,command.RequestedOplockLevel );
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  fid.tid: %u -> pSmbCtx->tid: %u\n",pfidExisting->tid, pStream->psmb2Session->pSmbCtx->tid);
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  cuurent lock level: %u -> new level: %u\n",CurrentOplockLevel,command.RequestedOplockLevel);
           if (reentering)
           {
             if (signalled)
@@ -401,37 +377,24 @@ SMBU_DisplayFidInfo();
           }
           if (timedout)
           {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Timed out force accept\n");
             srvobject_tag_oplock(pfidExisting,"Create force accept after timeout"); // Create Force tids the same
             pfidExisting->tid =  pStream->psmb2Session->pSmbCtx->tid;
             RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
             CurrentOplockLevel = command.RequestedOplockLevel;
           }
 
-          if (SMBU_CheckMyInode(pfidExisting->unique_fileid))   {     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Create: ckfid 2 pfid == %X  tid:%u \n",pfidExisting, pStream->psmb2Session->pSmbCtx->tid);     }
-
           if (CurrentOplockLevel != (int) command.RequestedOplockLevel)
           { // Don't send any breaks if we already own the file.
             if (pfidExisting->tid ==  pStream->psmb2Session->pSmbCtx->tid)
             {
-               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  tids the same %u -> %u\n",pfidExisting->tid, pfidExisting->tid);
                srvobject_tag_oplock(pfidExisting,"Create Force tids the same"); // Create Force tids the same
                RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
-               if (SMBU_CheckMyInode(pfidExisting->unique_fileid))   {     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Create: forced new opcode level == %d\n",command.RequestedOplockLevel);     }
             }
             else
             {
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "%s]\n", temp);
-
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  tids not the same was: %u new: %u\n",pfidExisting->tid, pStream->psmb2Session->pSmbCtx->tid);
-
               srvobject_tag_oplock(pfidExisting,"Create check lock status"); // Create check lock status
               RtsmbYieldQueueOplockBreakSend (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
 
-              if (SMBU_CheckMyInode(pfidExisting->unique_fileid))
-              {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Create: QueueOplockBreakSend results SEND:%s WAIT:%s\n",(pfidExisting->smb2flags & SMB2SENDOPLOCKBREAK)?"T":"F",(pfidExisting->smb2flags & SMB2WAITOPLOCKREPLY)?"T":"F" );
-              }
               if (pfidExisting->smb2flags & SMB2SENDOPLOCKBREAK)
                 srvobject_tag_oplock(pfidExisting,"Create send break queued"); // Create send break queued
               // We may have set SMB2SENDOPLOCKBREAK and possibly SMB2WAITOPLOCKREPLY
@@ -443,7 +406,6 @@ SMBU_DisplayFidInfo();
                 RtsmbYieldPopFrame(pStream);
                 srvobject_tag_oplock(pfidExisting,"Create yield to wait for response"); // Create yield to wait for response
                 RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:::Proc_smb2_Create:  Force yield  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
                 return FALSE;
               }
             }
@@ -649,8 +611,6 @@ SMBU_DisplayFidInfo();
        PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
        pfidExisting = SMBU_GetInternalFidPtr (&pNctxt->smbCtx,  externalFid);
     }
-    if (pfidExisting && SMBU_CheckMyInode(pfidExisting->unique_fileid))   {     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "MYUID:Create: ckfid 3 pfid == %X  tid:%u \n", pfidExisting,pStream->psmb2Session->pSmbCtx->tid);     }
-
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
 } // Proc_smb2_Ioctl

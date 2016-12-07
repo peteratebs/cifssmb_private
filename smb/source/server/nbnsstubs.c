@@ -355,7 +355,6 @@ BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rt
 {
 	RTSMB_NBSS_HEADER header;
     byte header_bytes[4];
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: call rtsmb_net_read.\n");
 	if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
 	{
 		return FALSE;
@@ -373,7 +372,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: call rt
             }
             else
             {
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet : call SMBS_ProcSMBPacket(%d).\n",header.size);
 			  if (!SMBS_ProcSMBPacket (pSCtx, header.size))   //rtsmb_srv_nbss_process_packet stubs ?
 			  {
 			    return FALSE;

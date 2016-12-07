@@ -948,11 +948,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
           if (stat.f_attributes & RTP_FILE_ATTRIB_ISDIR)
           {
               /* We create a dummy file entry that can only be opened and closed.   */
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Before SMBU_SetInternalFid! on a directory\n");
-              SMBU_DisplayFidInfo();
               int externalFid = SMBU_SetInternalFid (pCtx, 0, filename, FID_FLAG_DIRECTORY,smb2flags, stat.unique_fileid);
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"After SMBU_SetInternalFid! on a directory\n");
-              SMBU_DisplayFidInfo();
 
               if (externalFid < 0)
               {
@@ -1740,13 +1736,11 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
                 {
                     dialect = dialectList[i].dialect;
                     bestEntry = entry;
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Not Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
                 }
             }
             }
         }
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
     authmode = pCtx->accessMode;
 #ifdef SUPPORT_SMB2
     if (dialect >= SMB2_2002) /* PVO */
@@ -2422,9 +2416,9 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
     if (command.setup[0] == TRANS_TRANSACT_NOTIFY)
     {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Got a notify size == : %d\n", command.setup_size);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify filter : high %X low %X\n", command.setup[1],command.setup[0]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify FID    :  %d\n", command.setup[2]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify TREE   :  %d\n", command.setup[3]>>4);
+//      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify filter : high %X low %X\n", command.setup[1],command.setup[0]);
+//      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify FID    :  %d\n", command.setup[2]);
+//      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Got a notify TREE   :  %d\n", command.setup[3]>>4);
       rval = ProcFakeNotifyTransaction (pCtx, pInHdr, pInBuf, pOutHdr, pOutBuf);
       return rval;
     }
@@ -2892,7 +2886,8 @@ BBOOL ProcClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
     if (pTree->type == ST_PRINTQ)
     {
         if (SMBU_PrintFile (pCtx, fid))
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n");
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n");}
+
         SMBFIO_Close (pCtx, pCtx->tid, fid);
       // SMBFIO_Delete will fail if name maps to null
         SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
@@ -2938,7 +2933,7 @@ BBOOL ProcClosePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
     if (SMBU_PrintFile (pCtx, fid))
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClosePrintFile: Printing file on close failed.\n");
+    {    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClosePrintFile: Printing file on close failed.\n");}
     SMBFIO_Close (pCtx, pCtx->tid, fid);
     // SMBFIO_Delete will fail if name maps to null
     SMBFIO_Delete (pCtx, pCtx->tid, SMBU_GetFileNameFromFid (pCtx, command.fid));
@@ -3358,7 +3353,6 @@ BBOOL ProcRename (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRT
             /*PRINTF (("Odd.  GFirst failed to match " RTSMB_STR_TOK "->" RTSMB_STR_TOK
                 " to get " RTSMB_STR_TOK "->" RTSMB_STR_TOK ".\n",
                 oldpattern, newpattern, matched, result)); */
-
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Odd.  GFirst failed to match %ls -> %ls  to get %ls", oldpattern,  newpattern,  matched);
             SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRHRD, SMB_ERRHRD_GENERAL);
             break;
@@ -4735,14 +4729,14 @@ BBOOL dosend = TRUE;
  // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
   pSctx->yieldTimeout = 0;
   int pcktsize = (int) (pSctx->in_packet_size - pSctx->current_body_size);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELDcb: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: cb: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
   dword yieldTimeout = 0;
   dosend = SMBS_ProcSMBBodyPacketExecute (pSctx, &yieldTimeout);/* rtsmb_srv_net_session_cycle finish reading what we started. */
   // Clear the flags now that the command handler had a change to look at them
   pSctx->yieldFlags &= ~(YIELDSIGNALLED|YIELDTIMEDOUT);
   if (yieldTimeout)
   {
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_net_session_yield_cycle reset: %ld \n", yieldTimeout);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: Warning: rtsmb_srv_net_session_yield_cycle reset: %ld \n", yieldTimeout);
     // It's possible but this may not be right, need to test
     pSctx->yieldTimeout = yieldTimeout;
   }
@@ -4797,8 +4791,6 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     saved_body_size = pSctx->current_body_size - RTSMB_NBSS_HEADER_SIZE;
     saved_in_packet_size = pSctx->in_packet_size;
 
-
-    rtsmb_dump_bytes("Top: ", pSavedreadBuffer, 5+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
 
     switch (pSctx->state)
     {
@@ -4867,7 +4859,6 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
         /**
          * Read starting bytes from the wire.
          */
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"cycle IDLE: call rtsmb_net_read. %d\n",SMBSIGSIZE);
         if ((length = rtsmb_net_read (pSctx->sock, pInBuf, pSctx->readBufferSize, SMBSIGSIZE)) < 0)
         {
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
@@ -4898,7 +4889,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"cycle IDLE: call rtsmb_net_read. %d\n"
         if (pSctx->protocol_version != protocol_version)
         {
 #if (DOPUSH)
-rtsmb_dump_bytes("Swap start saved: ", pSavedreadBuffer, SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
           if (protocol_version == 2)
           {
 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
@@ -4906,11 +4896,9 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
                 return FALSE;
              // Copy the start of the frame to to smb2 buffer we hjust allocated
              tc_memcpy(pSctx->readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
-rtsmb_dump_bytes("Swap start after: ", pSctx->readBuffer, SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE, DUMPBIN);
           }
           else
-          {  // Copy the smb2 buffer to the originginla buffer befroe we release the smb2 buffer
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopContextBuffers.\n");
+          {  // Copy the smb2 buffer to the originginla buffer before we release the smb2 buffer
              tc_memcpy(pSctx->CtxSave.readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
              SMBS_PopContextBuffers (pSctx);
           }
@@ -4935,7 +4923,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopCont
         {
             if (protocol_version == 2)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb2.\n");
                 // Also initializes an SMB1 context
                 SMBS_InitSessionCtx_smb2(pSctx);
                 /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
@@ -4943,7 +4930,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PopCont
             }
             else
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: call SMBS_InitSessionCtx_smb1.\n");
                 if (pSctx->pCtxtsmb2Session && pSctx->pCtxtsmb2Session->SMB2_BodyContext)
                 {
                   RtsmbYieldFreeBodyContext(pSctx->pCtxtsmb2Session);
@@ -4966,7 +4952,6 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     {
         dword doYield = 0;
         dword current_body_size = pSctx->current_body_size;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD::  start in_size  %d body size %d\n",pSctx->in_packet_size,pSctx->current_body_size);
         doSend = SMBS_ProcSMBBodyWithYield (pSctx,&doYield);
         if (doYield)
         {
@@ -5088,7 +5073,6 @@ RTSMB_GET_SRV_SESSION_STATE (WAIT_ON_PDC_IP);
     /**
      * Read remaining bytes from wire (there should be a header there already).
      */
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody : call rtsmb_net_read. %d, %d %d\n",pSctx->in_packet_size,pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size);
     if ((length = rtsmb_net_read (pSctx->sock, (PFBYTE) PADD (pInBuf, pSctx->current_body_size),
         pSctx->readBufferSize - pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size)) < 0)
     {

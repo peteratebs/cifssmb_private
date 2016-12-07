@@ -212,8 +212,6 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
             return -1;
         }
     }
-
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read: bytes read: %d\n",bytesRead);
     return bytesRead;
 }
 
@@ -399,8 +397,6 @@ int rtsmb_net_socket_new (RTP_SOCKET* sock_ptr, int port, BBOOL reliable)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_socket_new: bind to port %d failed\n",port);
         return -1;
     }
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_socket_new: Socket %d  bound to port %d \n", (int) (*sock_ptr), port);
     return 0;
 }
 

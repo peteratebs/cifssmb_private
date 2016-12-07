@@ -41,7 +41,7 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "srvobjectsc.h"
 
 volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
-volatile print_diags = 0;
+volatile quit_sig_pressed = 0;
 volatile int keyboard_break_pressed_count;
 
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
@@ -74,7 +74,6 @@ int smbservermain (int argc, char **argv)
   rtsmb_srv_fork_main();
   while (go)
   {
-    printf("Hello from main\n");
     rtp_thread_sleep_seconds(10);
   }
 #else
@@ -132,7 +131,7 @@ void sig_quit_handler(int signo)
 {
   if (signo == SIGQUIT)
   {
-    print_diags = 1;
+    quit_sig_pressed = 1;
     keyboard_break_pressed_count = 1;
   }
 }
@@ -231,10 +230,11 @@ static int _smbservermain (void)
 	/*************************************************************************************/
 	while(go){
 		rtsmb_main ();
-        if (print_diags)
+        if (quit_sig_pressed)
         {
-          srvobject_display_diags();
-          print_diags = 0;
+// Do some diags herething here          srvobject_display_diags();
+          rtp_printf("main: ctrl \\\\ pressed use for diagnostics\n");
+          quit_sig_pressed = 0;
         }
 
 #if (HARDWIRE_SERVER_SETTINGS==0)

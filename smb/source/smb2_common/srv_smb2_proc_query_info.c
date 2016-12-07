@@ -131,8 +131,6 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FILE_INFO_STANDARD      0x5
 #define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryInfo Type: %X class == %X\n", command.InfoType,command.FileInfoClass);
     pStream->WriteBufferParms[0].byte_count = 0;
     if (command.InfoType == SMB2_0_INFO_FILE)
     {

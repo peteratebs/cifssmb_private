@@ -161,7 +161,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
 
         if (rtp_net_closesocket((RTP_SOCKET) sock))
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "ERROR IN CLOSESOCKET\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_net_connection_open: Error in closesocket\n");
         }
 
         return (PNET_SESSIONCTX)0;
@@ -194,7 +194,7 @@ RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
     /* kill conection */
     if (rtp_net_closesocket((RTP_SOCKET) pSCtx->sock))
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ERROR IN CLOSESOCKET\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_net_connection_close: Error in closesocket\n");
     }
 
     freeSession (pSCtx);
@@ -367,30 +367,25 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle set diag sock: %d in list \n",*srvobject_get_diag_socket());
           readList[len++] = *srvobject_get_diag_socket();
         }
 #endif
         /**
          * Block on input.
          */
-        // HEREHERE - We need to reduce timeout and send alerts from thread cycle.
         in_len = len;
 
         len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
         for (j = 0; j < len; j++)
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle rtsmb_srv_net_thread_main readliostsock:%d yield_sock: %d \n",readList[j],pThread->yield_sock);
           if (readList[j] && readList[j] == pThread->yield_sock)
           {
             RtsmbYieldRecvSignalSocket(pThread->yield_sock);
             break;
           }
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle check diag sock: %d \n",*srvobject_get_diag_socket());
           if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
           {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle process diag sock: %d \n",*srvobject_get_diag_socket());
             srvobject_process_diag_request();
           }
 #endif
@@ -446,8 +441,8 @@ RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD p
         pMaster->sessionList[i] = (PNET_SESSIONCTX)0;
         pMaster->numSessions --;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_thread_split: Giving %d", (int) (numSessions - end));
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_net_thread_split: Giving %d", (int) (numSessions - end));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
 
     rtsmb_srv_net_thread_init (pThread, (dword) (numSessions - end));
 
@@ -471,7 +466,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
         /**
          * Add new session to our list.
          */
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_thread_new_session: adding session at place %d\n", (int) pMaster->numSessions);
         pMaster->sessionList[pMaster->numSessions] = pSCtx;
         pMaster->numSessions++;
 
@@ -572,7 +566,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_nbss_process_packet ignoring 0-length packet: %d \n", pcktsize);
         } else
         {
-           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet process packetsize : %d \n", pcktsize);
            SMBS_ProcSMBPacket (&(*session)->smbCtx, pcktsize);/* rtsmb_srv_net_session_cycle finish reading what we started. */
         }
         break;
@@ -765,7 +758,7 @@ void rtsmb_srv_net_cycle (long timeout)
 
     if (!prtsmb_srv_ctx->mainThread)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle sock: lost mainTread %x \n",prtsmb_srv_ctx->mainThread);
+        for (i=0;i<10;i++) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_cycle sock: crashing lost mainTread %x \n",prtsmb_srv_ctx->mainThread);}
         int iCrash = 13 / 0;      // trap to the debugger
         return;
     }
@@ -792,7 +785,6 @@ void rtsmb_srv_net_cycle (long timeout)
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle set diag sock: %d in list \n",*srvobject_get_diag_socket());
           readList[len++] = *srvobject_get_diag_socket();
         }
 #endif
@@ -805,17 +797,14 @@ void rtsmb_srv_net_cycle (long timeout)
     int j;
     for (j = 0; j < len; j++)
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle readliostsock:%d yield_sock: %d \n",readList[j],prtsmb_srv_ctx->mainThread->yield_sock);
       if (readList[j] == prtsmb_srv_ctx->mainThread->yield_sock)
       {
         RtsmbYieldRecvSignalSocket(prtsmb_srv_ctx->mainThread->yield_sock);
         break;
       }
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle check diag sock: %d \n",*srvobject_get_diag_socket());
        if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
        {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"rtsmb_srv_net_cycle process diag sock: %d \n",*srvobject_get_diag_socket());
          srvobject_process_diag_request();
        }
 #endif

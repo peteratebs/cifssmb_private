@@ -430,13 +430,6 @@ PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
 }
 
 
-
-BBOOL SMBU_CheckMyInode(byte *this_uid)
-{
-static byte break_uid[] = {0x72, 0x08, 0x07, 0,0,0,0,0};  // "demo_pages"
-  return (tc_memcmp (this_uid ,break_uid,8)==0);
-}
-
 struct enumFidSearchUniqueidType_s {
   byte *unique_fileid;
   PFID result;
@@ -458,14 +451,11 @@ static PFID SMBU_SearchFidByUniqueId (byte *unique_fileid)
  struct enumFidSearchUniqueidType_s args;
    args.result = 0;
    args.unique_fileid = unique_fileid;
-  char temp0[80];
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId %d files for %s\n", prtsmb_srv_ctx->max_fids_per_tree, SMBU_format_fileid(unique_fileid, 8, temp0));
   args.result = 0;
   if (SMBU_EnumerateFids(_SMBU_SearchUniqueidCB, (void *) &args))
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
-  else
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
-
+    ; //RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
+//  else
+//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
   return args.result;
 }
 
@@ -475,7 +465,6 @@ PFID pfid = SMBU_SearchFidByUniqueId (unique_fileid);
   if (pfid)
   {
     char temp0[80];
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_CheckOplockLevel fake return for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
     *pCurrentOplockLevel = pfid->held_oplock_level;
      return pfid;
   }
@@ -504,15 +493,12 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
 	/**
 	 * The user has requested a new fid, so we try to find a slot for it
 	 */
-
 	for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
 	{
 		if (!user->fids[i])
 		{
 			break;
 		}
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: list xfid: %u \n",user->fids[i]->external);
-        rtsmb_dump_bytes("FID: list file name", user->fids[i]->name, 80, DUMPUNICODE);
 	}
 
 	if (i == prtsmb_srv_ctx->max_fids_per_uid) // no space found
@@ -568,8 +554,6 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
 
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
 	rtsmb_cpy (pCtx->fids[k].name, name);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"FID: SMBU_SetInternalFid: set xfid: %u tid:%u\n",pCtx->fids[k].external, pCtx->tid);
-    rtsmb_dump_bytes("FID: set file name", pCtx->fids[k].name, 80, DUMPUNICODE);
 
 	return k;
 }
@@ -600,8 +584,6 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PUSER user;
 	word i, j, k;
     PFID pFid = 0;
-
-	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: clear fids:%u\n",external);
 
 #if (0 && HARDWIRED_INCLUDE_DCE)
     {
@@ -639,7 +621,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	 */
 
 	if (!user)
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No user for fid:%d\n",external);
+	{	RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No user for fid:%d\n",external); }
 
 	if (user)
 	{
@@ -695,7 +677,6 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
     // NULL everything except internal (-1 == free)
     tc_memset(&pCtx->fids[k], 0, sizeof(FID_T));
     pCtx->fids[k].internal_fid = -1;
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_ClearInternalFid: fID: %X pfid->internal_fid after should be -1:%d \n", &pCtx->fids[k], pCtx->fids[k].internal_fid);
 
 }
 

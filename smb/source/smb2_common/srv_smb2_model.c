@@ -155,7 +155,6 @@ BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
 
     /* Allocate the smb2 session stuff */
     pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_InitSessionCtx_smb2 created session:  pSession == %X \n",(int)pSmbCtx->pCtxtsmb2Session);
 
     if (pSmbCtx->pCtxtsmb2Session)
     {

@@ -150,7 +150,6 @@ int i;
      {
       SrvSrvcStreams[i].in_use = TRUE;
       SrvSrvcStreams[i].bound_stream_pointer = 0;
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"AllocSrvSrvcStreamFid:  Allocated FID[%d].\n", i);
       return i|HARDWIRED_SRVSVC_FID;
      }
    }
@@ -289,7 +288,6 @@ static int ipcrpc_close(int fd)
 {
     int rv = -1;
     {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"SrvSrvcStreamFid:ipcrpc_close  Freeing %d : FID[%d].\n", fd, fd&0xf);
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
       if (pStreamtoSrvSrvc)
       {

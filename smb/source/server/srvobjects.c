@@ -409,12 +409,6 @@ extern "C" void srvobject_tagalloc_oplock(FID_T *pfid, char *tagstring)
   fid_history->add_tagalloc(pfid,tagstring);
 }
 
-extern "C"  void srvobject_display_diags(void)
-{
-  srvobject_display_fids();
-  SMBU_DisplayFidInfo();
-}
-
 #if(INCLUDE_SRVOBJ_REMOTE_DIAGS)
 
 static int diag_remote_portnumber = -1;
@@ -486,7 +480,6 @@ extern "C" int srvobject_process_diag_request(void)
       char * p = (char *) rtp_malloc(1024*512);
       int len = SMBU_DiagFormatFidList(p);
       srvobject_write_diag_socket((byte *)p, len);
-      srvobject_display_diags();
       RTP_FREE(p);
     }
 

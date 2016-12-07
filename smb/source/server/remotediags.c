@@ -13,7 +13,6 @@ RTSMB_STATIC void rtsmb_srv_diag_main (void);
 
 void rtsmb_thread_diag (void *p)
 {
-  printf("Hello from diags\n");
   if (!srvobject_bind_diag_socket())
   {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to open diag socket\n");
@@ -23,9 +22,7 @@ void rtsmb_thread_diag (void *p)
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "diag socket is open\n");
       while (go)
       {
-        printf("Hello from diags\n");
         rtsmb_srv_diag_main();
-//        rtp_thread_sleep_seconds(10);
      }
   }
 }
@@ -38,11 +35,9 @@ RTSMB_STATIC void rtsmb_srv_diag_main (void)
 
     readList[0] = *srvobject_get_diag_socket();
     len = 1;
-    printf("Select on %d\n", *srvobject_get_diag_socket());
     len = rtsmb_netport_select_n_for_read (readList, len, 1000);
     if (len && go)
     {
-       printf("Got Select on %d\n", *srvobject_get_diag_socket());
       srvobject_process_diag_request();
     }
 }

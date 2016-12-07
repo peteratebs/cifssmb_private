@@ -79,10 +79,6 @@ typedef int(*enumFidFnType)(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCt
 int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs);
 extern PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid);
 
-BBOOL SMBU_CheckMyInode(byte *this_uid);
-
-
-
 void *ptralign(void *ptr, int a);
 dword dwordalign(dword original, int a);
 

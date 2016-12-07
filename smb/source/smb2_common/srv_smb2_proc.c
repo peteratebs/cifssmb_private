@@ -333,7 +333,6 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx)
        BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&pstackcontext->smb2stream);
        // If the command process requested a yield.
        // rewind the stream and return with pstackcontext->stackcontext_state == ST_INPROCESS; to start the yield
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: Test for YieldYield stream:%X -> %d\n", &pstackcontext->smb2stream,pstackcontext->smb2stream.doSessionYield);
        if (pstackcontext->smb2stream.doSessionYield)
        {
          pstackcontext->stackcontext_state = ST_YIELD;
@@ -976,10 +975,8 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "\nConnecting Share name: %ls", share_name);
 
     pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
-
 
     /* Tie into the V1 share mechanism for now */
     {
@@ -1108,7 +1105,6 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  called\n");
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
@@ -1120,15 +1116,11 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
     else
     {
         PTREE tree;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  RtsmbStreamDecodeCommand succeded Tree = %d\n",(int)pStream->InHdr.TreeId);
         tree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, (word) pStream->InHdr.TreeId);
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  SMBU_GetTree returned %X\n",(int)tree);
         if (tree)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session == %X\n",(int)pStream->psmb2Session);
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  call Tree_Shutdown session->pSmbCtx == %X\n",(int)pStream->psmb2Session->pSmbCtx);
             Tree_Shutdown (pStream->psmb2Session->pSmbCtx, tree);
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  back Tree_Shutdown X\n");
         }
     }
 	response.StructureSize = 4;
@@ -1216,7 +1208,7 @@ const char *DebugSMB2CommandToString(int command);
 static void DebugOutputSMB2Command(int command)
 {
 #ifdef RTSMB_DEBUG
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "SMBS_ProcSMB2_Body:  Processing a packet with command: %s \n", (char *)DebugSMB2CommandToString(command));
+//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "SMBS_ProcSMB2_Body:  Processing a packet with command: %s \n", (char *)DebugSMB2CommandToString(command));
 #endif // RTSMB_DEBUG
 }
 

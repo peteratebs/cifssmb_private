@@ -34,9 +34,7 @@ static const byte local_ip_mask[] = {0xff,0,0,0};
 
 BBOOL RtsmbYieldBindSignalSocket(NET_THREAD_T  * pThread)
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD: RtsmbYieldBindSignalSocket: calling socket on portnumber: %u\n",pThread->yield_sock_portnumber);
   rtsmb_net_socket_new (&pThread->yield_sock, pThread->yield_sock_portnumber, FALSE);
-//    int rtsmb_net_socket_new (RTP_SOCKET* sock_ptr, int port, BBOOL reliable)
   return TRUE;
 }
 // HEREHERE
@@ -44,13 +42,11 @@ void RtsmbYieldSendSignalSocketSession(PNET_SESSIONCTX pNctxt)
 {
   pNctxt->smbCtx.yieldFlags |= YIELDSIGNALLED;
   int r = rtsmb_net_write_datagram (pNctxt->pThread->yield_sock, local_ip_address, pNctxt->pThread->yield_sock_portnumber, "SIG", 4);  // Four is the minimum size might as well send something
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: r:%d sock[%d] RtsmbYieldSendSignalSocketTest %X -> %X\n", r, pNctxt->pThread->yield_sock,&pNctxt->smbCtx,pNctxt->smbCtx.yieldFlags);
 }
 
 void RtsmbYieldSendSignalSocket(smb2_stream  *pStream)
 {
   PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldSendSignalSocket to %X\n", pStream->psmb2Session->pSmbCtx);
   if (pNctxt)
   {
     RtsmbYieldSendSignalSocketSession(pNctxt);
@@ -75,7 +71,6 @@ void RtsmbYieldYield(smb2_stream *pStream, dword yield_duration)
 {
     pStream->doSessionYield = TRUE;
     pStream->yield_duration = yield_duration;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldYield set doYield stream:%X -> %d\n", pStream,pStream->doSessionYield);
 
 }
 extern void RtsmbYieldFreeBodyContext(pSmb2SrvModel_Session pSession)
@@ -105,11 +100,9 @@ void RtsmbYieldPopFrame(smb2_stream *pStream)
 
 BBOOL RtsmbYieldCheckSignalled(PSMB_SESSIONCTX pSctx)
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckSignalled %X -> %X\n", pSctx,pSctx->yieldFlags);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckSignalled == %d\n", (pSctx->yieldFlags & YIELDSIGNALLED) == YIELDSIGNALLED);
   BBOOL r = (pSctx->yieldFlags & YIELDSIGNALLED) == YIELDSIGNALLED;
   if (r)
-        pSctx->yieldFlags &=  ~YIELDSIGNALLED;
+     pSctx->yieldFlags &=  ~YIELDSIGNALLED;
   return r;
 }
 void RtsmbYieldSetTimeOut(PSMB_SESSIONCTX pSctx,dword yieldTimeout)
@@ -119,15 +112,12 @@ void RtsmbYieldSetTimeOut(PSMB_SESSIONCTX pSctx,dword yieldTimeout)
 }
 BBOOL RtsmbYieldCheckTimeOut(PSMB_SESSIONCTX pSctx)
 {
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut Check %lu > %lu\n", rtp_get_system_msec(), pSctx->yieldTimeout);
  if (rtp_get_system_msec() > pSctx->yieldTimeout)
  {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut TRUE\n");
     pSctx->yieldFlags |= YIELDTIMEDOUT;
  }
  else
     pSctx->yieldFlags &= ~YIELDTIMEDOUT;
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: RtsmbYieldCheckTimeOut == %d\n", (pSctx->yieldFlags & YIELDTIMEDOUT) == YIELDTIMEDOUT);
  return (pSctx->yieldFlags & YIELDTIMEDOUT) == YIELDTIMEDOUT;
 }
 BBOOL RtsmbYieldCheckBlocked(PSMB_SESSIONCTX pSctx)

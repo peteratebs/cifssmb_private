@@ -280,14 +280,6 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     // Save the ID
     tc_memcpy(user->searches[sid].FileId, pFileId, sizeof(command.FileId));
 
-{
-int check_sid;
-  printf("Check if we can find Sid # %x\n", sid);
-  if (find_smb2_sid_from_fid(&check_sid, pFileId, user, sizeof(command.FileId)))
-    printf("Hooray: found Check Sid # is %x match ?: %x \n",check_sid, sid);
-  else
-    printf("Failed to find Sid # %x\n", sid);
-}
     // == Done Borrowed from srvtrans2 ==
     if (command.FileNameLength > sizeof(user->searches[sid].name))
     {
