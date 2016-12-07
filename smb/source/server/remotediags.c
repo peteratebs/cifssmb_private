@@ -6,10 +6,24 @@
 #include "rtpscnv.h"
 #include "rtpthrd.h"
 #include "srvobjectsc.h"
+#include "srvcfg.h"
 
 extern volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 
 RTSMB_STATIC void rtsmb_srv_diag_main (void);
+
+static char *syslogname = "RTSMBS";
+static unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
+void rtsmb_srv_syslog_config(void)
+{
+    RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
+}
+void rtsmb_srv_diag_config(void)
+{
+   prtsmb_srv_ctx->display_login_info    = FALSE;
+   prtsmb_srv_ctx->display_config_info    = FALSE;
+}
+
 
 void rtsmb_thread_diag (void *p)
 {

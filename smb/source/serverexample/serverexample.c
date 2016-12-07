@@ -44,6 +44,8 @@ volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill sup
 volatile quit_sig_pressed = 0;
 volatile int keyboard_break_pressed_count;
 
+extern void rtsmb_srv_syslog_config(void);
+
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
 RTP_HANDLE mainThread;
 RTP_HANDLE diagThread;
@@ -70,6 +72,9 @@ void rtsmb_srv_fork_main(void)
 
 int smbservermain (int argc, char **argv)
 {
+  // Set up syslog early in the process
+  rtsmb_srv_syslog_config();
+
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
   rtsmb_srv_fork_main();
   while (go)
@@ -143,9 +148,6 @@ void sig_handler(int signo)
   }
 }
 
-char *syslogname = "RTSMBS";
-unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
-
 
 
 static int _smbservermain (void)
@@ -154,8 +156,6 @@ static int _smbservermain (void)
     //test_challenge();
     //return -1;
 
-    RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
-
     // Control C handler for setting go = 0
     signal(SIGINT, sig_handler);
     // Control \ prints diags
@@ -163,7 +163,8 @@ static int _smbservermain (void)
 
  	if (rtp_net_init () < 0)
 	{
-		return -1;
+       fprintf(stderr, "rtp_net_init failed\n");
+       return -1;
 	}
 
 #if (HARDWIRED_EXTENDED_SECURITY)
@@ -172,7 +173,8 @@ static int _smbservermain (void)
 #ifdef RTSMB_LINUX
     if (select_linux_interface(ip, mask_ip) < 0)
     { // Resort to selecting he address by hand if linux retrieve address failed
-       rtp_printf("select interface failed\n");
+       fprintf(stderr, "select interface failed\n");
+       return -1;
     }
 #else
     { // Resort to selecting he address by hand if linux retrieve address failed
@@ -244,9 +246,6 @@ static int _smbservermain (void)
 	} // while (go)
 	/************************************************************************************/
 
-	//Shutdown
-	rtp_printf("main: display fids\n");
-    srvobject_display_fids();
 
 	rtp_printf("main: shutting down\n");
 #if (HARDWIRED_EXTENDED_SECURITY)
@@ -423,12 +422,11 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip)
  unsigned char *p;
  char *interface_name = "eth0";
 
- printf("Getting address and mask for of %s\n", interface_name);
 
  fd = socket(AF_INET, SOCK_DGRAM, 0);
  if (fd < 0)
  {
-   printf("Error opening a socket\n");
+   printf("select_linux_interface: Failed error opening a socket\n");
    return -1;
  }
  /* I want to get an IPv4 IP address */
@@ -441,23 +439,22 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip)
  if (r < 0)
  {
 ioctl_error:
-   printf("Error performing ioctl() on a socket\n");
+   printf("select_linux_interface: Error performing ioctl() on a socket\n");
    close(fd);
    return -1;
  }
- printf("return == %d\n", r);
  p = (unsigned char *) &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
- printf("ip address: %s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
+// printf("ip address: %s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
  pip[0]=p[0]; pip[1]=p[1]; pip[2]=p[2]; pip[3]=p[3];
 
  ioctl(fd, SIOCGIFNETMASK, &ifr);
  if (r < 0)
   goto ioctl_error;
  p = (unsigned char *)&((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
- printf("mask:%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
+// printf("mask:%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
  pmask_ip[0]=p[0]; pmask_ip[1]=p[1]; pmask_ip[2]=p[2]; pmask_ip[3]=p[3];
 
- printf("Success: Using device %s\n", interface_name);
+ printf("select_linux_interface\n  Success:\n  Using device %s ip address: %s net mask: %s\n", interface_name,  inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr) ,inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
  close(fd);
  return 0;
 }

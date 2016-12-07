@@ -247,20 +247,22 @@ static int SRVSVC_Execute (void *pTransaction_data, word *pRdata_count,void **pR
 
 #define DCE_PACKET_GETSHARE_INFO            16
 
-static const byte dce_bind_response_capture[] = {0x05,0x00,0x0c,0x03,0x10,0x00,0x00,0x00,0x44,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xb8,0x10,0xb8,0x10,0xf0,0x53,0x00,0x00,0x0d,0x00,0x5c,0x50,0x49,0x50,0x45,0x5c,0x73,0x72,0x76,0x73,0x76,0x63,0x00,0x00,
+static const byte dce_bind_response_capture[] = {0x05,0x00,0x0c, // Used in old  pdce_header->packet_type == DCE_PACKET_BIND need to test V1 signon and then delete
+0x03,0x10,0x00,0x00,0x00,0x44,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xb8,0x10,0xb8,0x10,0xf0,0x53,0x00,0x00,0x0d,0x00,0x5c,0x50,0x49,0x50,0x45,0x5c,0x73,0x72,0x76,0x73,0x76,0x63,0x00,0x00,
 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00};
-static const byte bind_accepance_item[24] = { 0x00,0x00,0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00};
+
+static const byte bind_accepance_item[24] =  { 0x00,0x00, // Used in current pdce_header->packet_type == DCE_PACKET_BIND
+ 0x00,0x00,0x04,0x5d,0x88,0x8a,0xeb,0x1c,0xc9,0x11,0x9f,0xe8,0x08,0x00,0x2b,0x10,0x48,0x60,0x02,0x00,0x00,0x00};
 
 
-// We don't want to use these we use domain and user name in the spnego transactions instead. These are here for SMB1 which doesn't support this, yet at least
-static const byte user_name_item[] = { 'p',0,'e',0,'t',0,'e',0,'r',0 };
-static const byte authority_name_item[] = { 'P',0,'E',0,'T',0,'E',0,'R',0,'-',0,'X',0,'P',0,'S',0,'-',0,'8',0,'3',0,'0',0,'0',0, 0, 0 };
+static const byte user_name_item[] = { 'u',0,'s',0,'e',0,'r',0 }; // We don't want to use these we use domain and user name in the spnego transactions instead. These are here for SMB1 which doesn't support this, yet at least
+static const byte authority_name_item[] = { 'a',0,'u',0,'t',0,'h',0,'o',0,'r',0,'i',0,'t',0,'y',0, 0, 0 };
 
-// static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0x4f, 0x7b, 0xf9, 0x3e };
-   static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0, 0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0xf9, 0x3e, 0x4f, 0x7b };
+static const byte my_sid[] = { 0x01,0x04, 0x00,0x00,0x00,0x00,0x00, 0x05, 0x15, 0x0,0x0,  //  Used when pdce_header->opnum == DCE_LSARP_LOOKUP_NAMES) Need to review
+                               0x0, 0x73, 0xf0, 0xb3, 0x58, 0xcd, 0x73, 0x43, 0xd9, 0xf9, 0x3e, 0x4f, 0x7b };
 
 
-static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,
+static const byte policy_handle[20] = {0x00,0x00,0x00,0x01,0x02,   // Used when pdce_header->opnum == DCE_LSARP_GET_OPEN_POLICY. Need to review
                                        0x03,0x04,0x00,0x00,0x00,
                                        0x01,0x02,0x03,0x04,0x00,
                                        0x00,0x00,0x01,0x02,0x03 };
@@ -284,6 +286,11 @@ typedef struct s_DCE_ARRAY_VALUES
 PACK_PRAGMA_POP
 
 
+
+static void srvsrvc_dump_bytes(char *prompt, void *_pbytes, int length)
+{
+   if (prtsmb_srv_ctx->display_login_info) rtsmb_dump_bytes(prompt, _pbytes, length, DUMPUNICODE);
+}
 
 
 
@@ -452,6 +459,8 @@ void *start;
     *pRdata_count = 0;
     *pRdata       = start;
 
+#if(0)
+
     if (0 && pdce_header->packet_type == DCE_PACKET_BIND) // original SMBV1 code
     {  // Fake a bind reply from captured data
        // Make sure the call id is updated in the response
@@ -460,9 +469,11 @@ void *start;
 //      pdw[3] =  pdce_header->call_id;
        *pRdata_count = sizeof(dce_bind_response_capture);
       tc_memcpy(pRdata, dce_bind_response_capture,sizeof(dce_bind_response_capture));
-      rval = 0;
+    rval = 0;
     }
-    else if (pdce_header->packet_type == DCE_PACKET_BIND)
+    else
+#endif
+    if (pdce_header->packet_type == DCE_PACKET_BIND)
     {
       word *pfraglength;
       void *start_results;
@@ -649,11 +660,7 @@ void *start;
 
 
 
-
-
-
        results= (PADD(pdw, sizeof(my_sid)));
-
 
 
        results= ptralign(results, 4);
@@ -703,7 +710,7 @@ void *start;
         pdata = PADD(pdata,l);
         if (Length)
        {
-          rtsmb_dump_bytes("System name", pdata, Length*2, DUMPUNICODE);
+          srvsrvc_dump_bytes("System name", pdata, Length*2);
           pdata = PADD(pdata,Length);
           pdata = ptralign(pdata, 4);
        }
@@ -712,7 +719,7 @@ void *start;
         pdata = PADD(pdata,l);
         if (Length)
         {
-          rtsmb_dump_bytes("Account name", pdata, Length*2, DUMPUNICODE);
+         srvsrvc_dump_bytes("Account name", pdata, Length*2);
          pdata = PADD(pdata,Length);
           pdata = ptralign(pdata, 4);
         }
@@ -721,7 +728,7 @@ void *start;
         pdata = PADD(pdata,l);
         if (Length)
         {
-          rtsmb_dump_bytes("Authority name", pdata, Length*2, DUMPUNICODE);
+          srvsrvc_dump_bytes("Authority name", pdata, Length*2);
           pdata = PADD(pdata,Length);
           pdata = ptralign(pdata, 4);
        }
@@ -794,7 +801,7 @@ void *start;
         pdata = PADD(pdata,l);
         if (Length)
         {
-          rtsmb_dump_bytes("Server name", pdata, Length*2, DUMPUNICODE);
+          srvsrvc_dump_bytes("Server name", pdata, Length*2);
           pdata = PADD(pdata,Length);
           pdata = ptralign(pdata, 4);
         }
@@ -803,7 +810,7 @@ void *start;
         pdata = PADD(pdata,l);
         if (Length)
         {
-          rtsmb_dump_bytes("Share name", pdata, Length*2, DUMPUNICODE);
+          srvsrvc_dump_bytes("Share name", pdata, Length*2);
           pdata = PADD(pdata,Length);
           pdata = ptralign(pdata, 4);
         }
@@ -902,7 +909,7 @@ void *start;
     	      *pdw++=l; // p->dword actual_count;
             p = (void *)pdw;
             tc_memcpy(p, pstring, l*2);
-            rtsmb_dump_bytes("SHARENAME", pstring , l*2, DUMPUNICODE);
+            srvsrvc_dump_bytes("SHARENAME", pstring , l*2);
             p = PADD(p, l*2);
             pdw = (dword *)ptralign(p,4);
 
@@ -916,7 +923,7 @@ void *start;
             *pdw++=l; // p->max_count = ;
             *pdw++=0; // p->dword offset;
             *pdw++=l; // p->dword actual_count;
-           rtsmb_dump_bytes("SHARECOMMENT", pstring, l*2, DUMPUNICODE);
+            srvsrvc_dump_bytes("SHARECOMMENT", pstring, l*2);
             p = (void *)pdw;
             tc_memcpy(p, pstring, l*2);
             p = PADD(p, l*2);

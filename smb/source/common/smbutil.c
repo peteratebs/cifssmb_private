@@ -28,8 +28,7 @@
 #include "hmac_md5.h"
 #include "smbspnego.h"
 #include "rtpmem.h"
-
-extern BBOOL display_login_info;
+#include "srvcfg.h"
 
 extern const byte zeros24[24];
 
@@ -1395,17 +1394,17 @@ RC4_KEY rc4_key;
 BYTE sess_key[16];
 BYTE user_domain[512];
 
-  if (display_login_info)
+  if (prtsmb_srv_ctx->display_login_info)
   {
     rtsmb_dump_bytes("server challenge was:  ", encrypted_key, 8, DUMPBIN);
     rtsmb_dump_bytes("blob:  ", security_blob, blob_size, DUMPBIN);
   }
   // Hash the password
   cli_util_nt_password_hash(password, password_size, outowf);
-  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);}
   rtsmb_util_string_to_upper ((PFRTCHAR)user_name, CFG_RTSMB_USER_CODEPAGE);
-  if (display_login_info) {rtsmb_dump_bytes("User", user_name,user_name_size, DUMPASCII);}
-  if (display_login_info) {rtsmb_dump_bytes("Domain", domain_name,domain_name_size, DUMPASCII);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("User", user_name,user_name_size, DUMPASCII);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("Domain", domain_name,domain_name_size, DUMPASCII);}
 
   user_name_size = trim_right_null(user_name,user_name_size);
   if (user_name_size > 0)
@@ -1415,35 +1414,35 @@ BYTE user_domain[512];
   if (domain_name_size > 0)
     tc_memcpy(&user_domain[user_name_size],domain_name,domain_name_size);
 
-  if (display_login_info) {rtsmb_dump_bytes("User_Domain", user_domain, user_name_size+domain_name_size, DUMPASCII);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("User_Domain", user_domain, user_name_size+domain_name_size, DUMPASCII);}
   // Encrypt the user and domain. (not doing domain now)
   cli_util_encrypt_signing_key_responese (outowf, user_domain, user_name_size+domain_name_size, 0, 0,kr);
-  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);}
 
 //  rtsmb_dump_bytes("User_Domain fixed:", gluser, sizeof(gluser)-2, DUMPASCII);
 //  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
 //  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output fixed: ", kr, 16, DUMPBIN);
 
    // Comes from  pStream->psmb2Session->pSmbCtx->encryptionKey, the encrypted key send by the client.
-  if (display_login_info) {rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);}
 
   cli_util_encrypt_signing_key_ntlmv2 (encrypted_key, security_blob, blob_size, kr, encsignkey);
 
-  if (display_login_info) {rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);}
 
 //  SMBsesskeygen_ntv2(const uint8_t kr[16], const uint8_t * nt_resp, uint8_t sess_key[16])
 // output from cli_util_encrypt_signing_key_ntlmv2  == CE 98 06 7A BA 98 03 80   AF 1C 6C 04 A9 95 87 38
   // hash the encrypted user name with the signing
   hmac_md5(encsignkey ,16,  kr, 16,sess_key);
-  if (display_login_info) {rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("SMBsesskeygen_ntv2: ", sess_key, 16, DUMPBIN);}
   // should be  0x63, 0xA2, 0x4F, 0xB3, 0x81, 0x6B, 0x85, 0x99, 0xEC, 0xBA, 0x0D, 0x04, 0xB0, 0x8A, 0xC7, 0xCC};          // Output of SMBsesskeygen_ntv2
 
-  if (display_login_info) {rtsmb_dump_bytes("session_key: ", session_key, session_key_size, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("session_key: ", session_key, session_key_size, DUMPBIN);}
 
   RC4_set_key(&rc4_key, 16, sess_key);
   RC4(&rc4_key, session_key_size, session_key, signing_key_result);    // Session key sent from client in setup request 2
   // RC4(&rc4_key, sizeof(glencsessionkey), glencsessionkey, signing_key_result);    - PETERPETER HEREHERE -     // Session key sent from client in setup request 2
-  if (display_login_info) {rtsmb_dump_bytes("signing_key_result: ", signing_key_result, 16, DUMPBIN);}
+  if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("signing_key_result: ", signing_key_result, 16, DUMPBIN);}
 
 }
 
@@ -1464,7 +1463,7 @@ PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user
                &owf[0],		     /*  */
                16,				/* length of authentication key */
                (PFBYTE ) output_value);
-    if (display_login_info) {rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);}
+    if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);}
 	tc_memcpy(&output[0], output_value, 16);
 
 }

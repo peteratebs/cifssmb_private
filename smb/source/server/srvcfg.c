@@ -290,10 +290,13 @@ PRTSMB_SERVER_CONTEXT prtsmb_srv_ctx = &rtsmb_srv_cfg_core;
 
 extern BBOOL RtsmbYieldBindSignalSocket(NET_THREAD_T  * pThread);
 
+extern void rtsmb_srv_diag_config(void);
+
 int rtsmb_server_config(void)
 {
    int i;
    prtsmb_srv_ctx = &rtsmb_srv_cfg_core;
+
 
 #if ALLOC_FROM_HEAP
    unsigned char    * bigBuffers     = safemalloc(sizeof(unsigned char   ) * CFG_RTSMB_BIG_BUFFER_SIZE * CFG_RTSMB_NUM_BIG_BUFFERS);
@@ -325,6 +328,9 @@ int rtsmb_server_config(void)
    RTSMB_BROWSE_SERVER_INFO * domain_table = safemalloc(sizeof(RTSMB_BROWSE_SERVER_INFO) * CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS);
    RTSMB_BROWSE_SERVER_INFO * enum_results = safemalloc(sizeof(RTSMB_BROWSE_SERVER_INFO) * MAX(CFG_RTSMB_BROWSE_MAX_SERVER_INFOS, CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS));
 #endif
+
+   // Set up logging and diagnostics
+   rtsmb_srv_diag_config();
 
    prtsmb_srv_ctx->max_threads           = CFG_RTSMB_MAX_THREADS;
    prtsmb_srv_ctx->max_sessions          = CFG_RTSMB_MAX_SESSIONS;
@@ -365,9 +371,9 @@ int rtsmb_server_config(void)
    rtp_sig_mutex_alloc ((RTP_MUTEX *) &prtsmb_srv_ctx->enum_results_mutex, (const char*)0);
 
    // Make sure fids are clear and export the fid table for oplock and dignostics.
-   prtsmb_srv_ctx->fids = &fids;
+   prtsmb_srv_ctx->fidBuffers = &fids[0];
    for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
-     prtsmb_srv_ctx->fids[i].internal_fid = -1;
+     prtsmb_srv_ctx->fidBuffers[i].internal_fid = -1;
 
 
   #if CFG_RTSMB_NUM_BIG_BUFFERS

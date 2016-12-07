@@ -25,7 +25,7 @@
 #include "srvcfg.h"
 #include "smbutil.h"
 
-#define DISPLAY_USERS 1
+#define DISPLAY_USERS 0
 
 RTSMB_STATIC short getUserIdFromName (PFRTCHAR name);
 
@@ -36,7 +36,7 @@ int i, j;
 char rtsmb_user[CFG_RTSMB_MAX_USERNAME_SIZE + 1];  /* ascii user name */
 int uid;
 
-    rtp_printf("************** USERS ****************\n");
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "************** USERS ****************\n"); //    #if (DISPLAY_USERS)
     for (i = 0; i < prtsmb_srv_ctx->max_users; i++)
     {
         if (prtsmb_srv_ctx->userList.users[i].inUse)
@@ -44,19 +44,16 @@ int uid;
             rtsmb_util_rtsmb_to_ascii(prtsmb_srv_ctx->userList.users[i].name,
                                       rtsmb_user, CFG_RTSMB_USER_CODEPAGE);
 
-            rtp_printf("USER TABLE ENTRY: %d USER: %s; PASSWORD: %s\n",
-                i,
-                rtsmb_user,
-                prtsmb_srv_ctx->userList.users[i].password);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "USER TABLE ENTRY: %d USER: %s; PASSWORD: %s\n", i,rtsmb_user,prtsmb_srv_ctx->userList.users[i].password);
 
             uid = getUserIdFromName (prtsmb_srv_ctx->userList.users[i].name);
-            rtp_printf("USER TABLE ENTRY: UID %d\n", uid);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"USER TABLE ENTRY: UID %d\n", uid);
 
             for (j = 0; j < prtsmb_srv_ctx->groupList.numGroups; j++)
             {
                 if (prtsmb_srv_ctx->userList.users[uid].groups[j])
                 {
-                    rtp_printf("USER TABLE ENTRY: in GROUP %d\n", j);
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"USER TABLE ENTRY: in GROUP %d\n", j); //    #if (DISPLAY_USERS)
                 }
             }
         }
@@ -201,7 +198,7 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
 
     PUSERDATA user;
 
-    rtp_printf("Auth_AuthenticateUser_ntlmv2 is a stack hog\n");
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Auth_AuthenticateUser_ntlmv2 is a stack hog\n");
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
     if (user)
@@ -255,12 +252,12 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
 
     CLAIM_AUTH ();
     uid = getUserIdFromName (name);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL ,"\nUser \" %ls ", name);
+    if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL ,"\nUser \" %ls ", name);}
     if (domainname)
     {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" with domainname \" %ls", domainname);
+       if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" with domainname \" %ls", domainname);}
     }
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" is trying to access the share created on this server\n");
+     if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL," \" is trying to access the share created on this server\n");}
 
     if (uid >= 0)
     {
@@ -285,15 +282,15 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
 
     if (rv == 0)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls \" granted access.\n", name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls \" granted access.\n", name);}
     }
     else if (rv == AUTH_GUEST)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" granted guest access.\n");
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" granted guest access.\n");}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" not granted access.\n", name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AuthenticateUser:  User \" %ls  \" not granted access.\n", name);}
     }
 
     return rv;
@@ -385,7 +382,6 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
         {
         int i;
             rtsmb_dump_bytes("Auth_DoPasswordsMatch: ansi_password :", ansi_password, 24, DUMPBIN);
-            rtp_printf("\n");
         }
 
         if (pCtx->dialect >= NT_LM &&
@@ -488,11 +484,11 @@ BBOOL Auth_RegisterGroup (PFRTCHAR name)
 
     if (rv)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Successfully registered group \" %ls \n",name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Successfully registered group \" %ls \n",name);}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Failed registered group \" %ls \n",name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterGroup:  Failed registered group \" %ls \n",name);}
     }
 
     return rv;
@@ -517,11 +513,11 @@ BBOOL Auth_AssignGroupPermission (PFRTCHAR group, PFRTCHAR share, byte mode)
 
     if (rv)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AssignGroupPermission:  Successfully assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AssignGroupPermission:  Successfully assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AssignGroupPermission:  Failed to assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AssignGroupPermission:  Failed to assigned group \" %ls  \" permissions %d  for share \" %ls \n", group,mode,share);}
     }
 
     return rv;
@@ -545,7 +541,7 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
 
     if (i == prtsmb_srv_ctx->max_users)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser exceeded max_users\n");
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser exceeded max_users\n");}
         rv = FALSE;
     }
 
@@ -582,14 +578,14 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
     {
         if (name)
         {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterUser:  success registering user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");
+             if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RegisterUser:  success registering user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");}
         }
     }
     else
     {
         if (name)
         {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser:  Failed to register user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");
+             if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RegisterUser:  Failed to register user \" %ls  \" with password %s \n", name, password?password:"NO PASSWORD");}
         }
     }
 #if (DISPLAY_USERS)
@@ -612,8 +608,6 @@ PUSERDATA user;
   user = getuserSructureFromName(name, &uid);
   if (user)
   {
-
-    rv=user->password;
     // Convert the stored password to unicode and return it
      rtsmb_util_ascii_to_unicode (user->password ,pwresult, CFG_RTSMB_USER_CODEPAGE);
      rv = rtsmb_len(pwresult);
@@ -644,11 +638,11 @@ BBOOL Auth_DeleteUser (PFRTCHAR name)
 
     if (rv)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_DeleteUser:  Successfully deleted user \" %ls  \".\n", name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_DeleteUser:  Successfully deleted user \" %ls  \".\n", name);}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_DeleteUser:  Failed to delete user \" %ls  \".\n", name);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_DeleteUser:  Failed to delete user \" %ls  \".\n", name);}
     }
 
     return rv;
@@ -672,11 +666,11 @@ BBOOL Auth_AddUserToGroup (PFRTCHAR user, PFRTCHAR group)
 
     if (rv)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AddUserToGroup:  Successfully add user \" %ls  \" to group \" %ls \n", user, group);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_AddUserToGroup:  Successfully add user \" %ls  \" to group \" %ls \n", user, group);}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AddUserToGroup:  Failed to add user \" %ls  \" to group \" %ls \n", user, group);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_AddUserToGroup:  Failed to add user \" %ls  \" to group \" %ls \n", user, group);}
     }
 
     return rv;
@@ -700,11 +694,11 @@ BBOOL Auth_RemoveUserFromGroup (PFRTCHAR user, PFRTCHAR group)
 
     if (rv)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RemoveUserFromGroup:  Successfully remove user \" %ls  \" from group \" %ls \n", user, group);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_RemoveUserFromGroup:  Successfully remove user \" %ls  \" from group \" %ls \n", user, group);}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RemoveUserFromGroup:  Failed to remove user \" %ls  \" to group \" %ls \n", user, group);
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_RemoveUserFromGroup:  Failed to remove user \" %ls  \" to group \" %ls \n", user, group);}
     }
 
     return rv;
@@ -721,15 +715,15 @@ void Auth_SetMode (byte mode)
 
     if (mode == AUTH_USER_MODE)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_SetMode:  Set server mode to user mode.\n");
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_SetMode:  Set server mode to user mode.\n");}
     }
     else if (mode == AUTH_SHARE_MODE)
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Set server mode to share mode.\n");
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Set server mode to share mode.\n");}
     }
     else
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Ignoring unrecognized mode.\n");
+         if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Auth_SetMode:  Ignoring unrecognized mode.\n");}
     }
 }
 
@@ -751,7 +745,7 @@ void Auth_Init (void)
     prtsmb_srv_ctx->guestAccount = -1;
     RELEASE_AUTH ();
 
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_Init:  Initializing authorization data.\n");
+     if (prtsmb_srv_ctx->display_login_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL,"Auth_Init:  Initializing authorization data.\n");}
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */

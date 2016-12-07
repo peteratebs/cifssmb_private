@@ -350,9 +350,9 @@ extern "C" void SMBU_DisplayFidInfo(void)
  {
  char temp0[32];
  char temp1[256];
-    if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
+    if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
     {
-      FID_T *p = &(prtsmb_srv_ctx->fids[i]);
+      FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n>",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
     }
  }
@@ -369,9 +369,9 @@ static int SMBU_DiagFormatFidList(char *buffer)
  {
  char temp0[32];
  char temp1[256];
-    if (prtsmb_srv_ctx->fids[i].internal_fid >= 0)
+    if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
     {
-      FID_T *p = &(prtsmb_srv_ctx->fids[i]);
+      FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
       buffer += tc_sprintf(buffer,  (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s \n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
     }
  }

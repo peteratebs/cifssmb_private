@@ -55,7 +55,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	PFCHAR                      bigBufferInUse;
 	PNET_THREAD                 threads;
 	PFCHAR                      threadsInUse;
-    FID_T                       *fids;
+    FID_T                       *fidBuffers;
 	PNET_SESSIONCTX             sessions;
 	PFCHAR                      sessionsInUse;
 	PFBYTE                      namesrvBuffer;
@@ -65,6 +65,9 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	PRTSMB_BROWSE_SERVER_INFO   server_table;
 	PRTSMB_BROWSE_SERVER_INFO   domain_table;
 
+    /* Control diagnostics           */
+    BBOOL                       display_login_info;
+    BBOOL                       display_config_info;
 	/* OTHER STUFF */
 	byte              shareMode;
 	short             guestAccount;

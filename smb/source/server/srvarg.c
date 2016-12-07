@@ -347,9 +347,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
         password = (PFCHAR)0;
 
     /* Now we register the user */
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Registering user ");
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
+    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Registering user %s\n", name);}
     rtsmb_srv_register_user (name, password);
 
     /* Now get the user's groups */
@@ -372,11 +370,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
 
     do
     {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Adding user ");
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," to group ");
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,g);
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
+         if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Adding user %s to group %s \n", name,g);}
 
         rtsmb_srv_add_user_to_group (name, g);
 
@@ -413,9 +407,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             CFG_RTSMB_MAX_GROUPNAME_SIZE + 1))
         return FALSE;
 
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group ");
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
+    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group %s\n", name);}
     rtsmb_srv_register_group (name);
 
     RTSMB_GetStringValue (section, "shares", shares, RTSMB_ARG_MAX_SECTION_SIZE);
@@ -461,11 +453,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             permissions = SECURITY_NONE;
         }
 
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Setting group ");
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," permission's for share ");
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,s);
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," to %d\n",permissions);
+        if (prtsmb_srv_ctx->display_config_info)  {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Setting group %s permission's for share %s to %X\n",name,s,permissions);}
         rtsmb_srv_set_group_permissions (name, s, (byte) (permissions & 0xFF));
 
 
@@ -542,9 +530,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section)
     if (tc_strstr (flags_str, "dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share ");
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
+    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share %s\n", name);}
     rtsmb_srv_share_add_tree (name, comment, prtsmb_filesys, path, (byte) flags,
         (byte) permissions, password);
 
@@ -599,10 +585,8 @@ RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section)
     if (tc_strstr (flags_str, "dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer ");
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,name);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
-    rtsmb_srv_share_add_printer (name, comment,
+     if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer %s\n",name);}
+     rtsmb_srv_share_add_printer (name, comment,
         number, prtsmb_filesys, path,
         (byte) flags, password, drivername);
 
@@ -620,7 +604,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section)
     else
         password = (PFCHAR)0;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom:  Adding IPC.\n");
+    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom:  Adding IPC.\n");}
     rtsmb_srv_share_add_ipc (password);
 
     return TRUE;
@@ -666,7 +650,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         char groups [RTSMB_ARG_MAX_SECTION_SIZE];
         char g [RTSMB_ARG_MAX_SECTION_SIZE];
 
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");
+        if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");}
         rtsmb_srv_register_user (SMB_GUESTNAME, (PFCHAR)0);
 
         /* Now get the guest's groups */
@@ -689,9 +673,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
 
         do
         {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group ");
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,g);
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,".\n");
+            if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group %s \n",g);}
             rtsmb_srv_add_user_to_group (SMB_GUESTNAME, g);
 
             *g = '\0';
@@ -805,7 +787,7 @@ int RTSMB_ReadArgsFrom (PFRTCHAR filename)
 
     while (RTSMB_ParseNextArgSection (f))
     {
-      rtp_printf("parsed\n");
+      if (prtsmb_srv_ctx->display_config_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom: section parsed from: %s \n",filename);}
     }
 
     prtsmb_filesys->fs_close (f);
