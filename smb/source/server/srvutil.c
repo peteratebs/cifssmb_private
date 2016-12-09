@@ -286,7 +286,7 @@ int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name)
 	{
 		if (user->fids[i] && user->fids[i]->internal_fid != -1 &&
 			user->fids[i]->tid == pCtx->tid &&
-			rtsmb_casecmp (name, user->fids[i]->name, CFG_RTSMB_USER_CODEPAGE) == 0)
+			rtsmb_casecmp (name, SMBU_Fidobject(user->fids[i])->name, CFG_RTSMB_USER_CODEPAGE) == 0)
 		{
 			return user->fids[i]->internal_fid;
 		}
@@ -356,6 +356,56 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 	return -1; // bad external
 }
 
+PFIDOBJECT SMBU_Fidobject(FID_T *pfid)
+{
+  pfid->_pfidobject->die = 1;
+  return pfid->_pfidobject;
+//  return &pfid->__fidobject;
+}
+
+// Scans all active sessions
+int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs)
+{
+    word i;
+    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+    {
+        if (prtsmb_srv_ctx->sessionsInUse[i])
+        {
+          int r = fn(&prtsmb_srv_ctx->sessions[i], enumargs);
+          if (r != 0)
+            return r;
+        }
+    }
+    return 0;
+}
+
+struct mapPidToSessionNumberCB_t { FID_T *pfid;    int answer;    int index;};
+static int mapPidToSessionNumberCB (PNET_SESSIONCTX pnCtx, void *pargs)
+{
+int i;
+ for (i=0; i < prtsmb_srv_ctx->max_fids_per_session;i++)
+ {
+  if (&pnCtx->smbCtx.fids[i] == ((struct mapPidToSessionNumberCB_t *)pargs)->pfid)
+  {
+    ((struct mapPidToSessionNumberCB_t *)pargs)->answer =   ((struct mapPidToSessionNumberCB_t *)pargs)->index;
+    return 1;
+  }
+ }
+ ((struct mapPidToSessionNumberCB_t *)pargs)->index += 1;
+ return 0;
+}
+
+//
+int SMBU_FidToSessionNumber (FID_T *pfid)
+{
+struct mapPidToSessionNumberCB_t args = {
+        pfid: pfid,
+        answer: -1,
+        index:   0
+    };
+    SMBU_EnumerateSessions(mapPidToSessionNumberCB, (void *) &args);
+    return args.answer;
+}
 
 
 // Scans all open FIDS
@@ -407,6 +457,7 @@ struct enumFidArgsType_s args;
 }
 
 
+
 struct SMBU_Fid2Session_s {
 PNET_SESSIONCTX netsession;
 PFID pfid;
@@ -430,43 +481,38 @@ PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
 }
 
 
-struct enumFidSearchUniqueidType_s {
-  byte *unique_fileid;
-  PFID result;
-};
 
-static int _SMBU_SearchUniqueidCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
+static int _SMBU_SearchUniqueidCB (PFID pfid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
 {
-  struct enumFidSearchUniqueidType_s * pArgs = (struct enumFidSearchUniqueidType_s *) pargs;
-  if (tc_memcmp(fid->unique_fileid,pArgs->unique_fileid,sizeof(fid->unique_fileid)) == 0)
+  struct SMBU_enumFidSearchUniqueidType_s * pArgs = (struct SMBU_enumFidSearchUniqueidType_s *) pargs;
+  if (tc_memcmp( SMBU_Fidobject(pfid)->unique_fileid,pArgs->unique_fileid,sizeof(SMBU_Fidobject(pfid)->unique_fileid)) == 0)
   {
-    pArgs->result = fid;
-    return 1;
+    pArgs->results[pArgs->match_count++] = pfid;
   }
   return 0;
 }
-static PFID SMBU_SearchFidByUniqueId (byte *unique_fileid)
-{
 
- struct enumFidSearchUniqueidType_s args;
-   args.result = 0;
-   args.unique_fileid = unique_fileid;
-  args.result = 0;
-  if (SMBU_EnumerateFids(_SMBU_SearchUniqueidCB, (void *) &args))
+int SMBU_SearchFidsByUniqueId (byte *unique_fileid, struct SMBU_enumFidSearchUniqueidType_s *pResults)
+{
+  pResults->match_count = 0;
+  tc_memcpy(pResults->unique_fileid, unique_fileid, sizeof(pResults->unique_fileid));
+  SMBU_EnumerateFids(_SMBU_SearchUniqueidCB, (void *) pResults);
     ; //RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId yes matched for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
 //  else
 //    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", SMBU_format_fileid(unique_fileid, 8, temp0));
-  return args.result;
+  return pResults->match_count;
 }
+
 
 PFID  SMBU_CheckOplockLevel (PTREE tree, word uid, byte *unique_fileid, int *pCurrentOplockLevel)
 {
-PFID pfid = SMBU_SearchFidByUniqueId (unique_fileid);
-  if (pfid)
+ struct SMBU_enumFidSearchUniqueidType_s matchedfids;
+  int matches = SMBU_SearchFidsByUniqueId (unique_fileid,&matchedfids);
+  if (matches)
   {
-    char temp0[80];
-    *pCurrentOplockLevel = pfid->held_oplock_level;
-     return pfid;
+#warning bogus
+    *pCurrentOplockLevel =  matchedfids.results[0]->held_oplock_level;
+    return matchedfids.results[0];
   }
   return 0;
 }
@@ -549,11 +595,11 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
     pCtx->fids[k].held_oplock_uid = 0;
 	pCtx->fids[k].requested_oplock_level = 0;
     pCtx->fids[k].smb2waitexpiresat = 0;
-	tc_memcpy(pCtx->fids[k].unique_fileid,unique_fileid,sizeof(pCtx->fids[k].unique_fileid));
+	tc_memcpy(SMBU_Fidobject(&pCtx->fids[k])->unique_fileid,unique_fileid,sizeof(SMBU_Fidobject(&pCtx->fids[k])->unique_fileid));
     srvobject_add_fid(&pCtx->fids[k]);
 
 	// here we assume name is not too long (should be true b/c of reading-from-wire methods)
-	rtsmb_cpy (pCtx->fids[k].name, name);
+	rtsmb_cpy (SMBU_Fidobject(&pCtx->fids[k])->name, name);
 
 	return k;
 }
@@ -675,8 +721,10 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
     if (pCtx->fids[k].smb2flags & SMB2SENDOPLOCKBREAK)
       srvobject_tag_oplock(&pCtx->fids[k],"SMBU_ClearInternalFid freed bfor send"); // Level Changed from two
     // NULL everything except internal (-1 == free)
+    PFIDOBJECT      _pfidobject = pCtx->fids[k]._pfidobject;
     tc_memset(&pCtx->fids[k], 0, sizeof(FID_T));
     pCtx->fids[k].internal_fid = -1;
+    pCtx->fids[k]._pfidobject = _pfidobject;
 
 }
 
@@ -730,7 +778,7 @@ PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 		if (pCtx->fids[i].internal_fid != -1 &&
 			pCtx->fids[i].external == external)
 		{
-			return pCtx->fids[i].name;
+			return SMBU_Fidobject(&pCtx->fids[i])->name;
 		}
 	}
 	return (PFRTCHAR)0;

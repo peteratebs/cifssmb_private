@@ -10,6 +10,10 @@
 //============================================================================
 //    INTERFACE REQUIRED HEADERS
 //============================================================================
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "smbdefs.h"
 #include "srvnet.h"
 
@@ -79,6 +83,21 @@ typedef int(*enumFidFnType)(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCt
 int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs);
 extern PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid);
 
+
+typedef int(*enumSessionFnType)(PNET_SESSIONCTX pnCtx, void *pargs);
+int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs);
+int SMBU_FidToSessionNumber (FID_T *pfid);
+
+struct SMBU_enumFidSearchUniqueidType_s {
+  byte unique_fileid[8];
+  int  match_count;
+  PFID results[256];
+};
+int SMBU_SearchFidsByUniqueId (byte *unique_fileid, struct SMBU_enumFidSearchUniqueidType_s *pResults);
+
+PFIDOBJECT SMBU_Fidobject(FID_T *pfid);
+
+
 void *ptralign(void *ptr, int a);
 dword dwordalign(dword original, int a);
 
@@ -95,4 +114,7 @@ dword dwordalign(dword original, int a);
 
 #endif /* INCLUDE_RTSMB_SERVER */
 
+#ifdef __cplusplus
+  }
+#endif
 #endif /* __SRV_UTIL_H__ */

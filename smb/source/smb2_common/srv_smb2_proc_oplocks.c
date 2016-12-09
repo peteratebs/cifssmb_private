@@ -171,7 +171,7 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   p.command.OplockLevel =  pfid->requested_oplock_level;
   p.command.Reserved = 0;
   p.command.Reserved2 = 0;
-  tc_memcpy (p.command.FileId,pfid->unique_fileid ,8);
+  tc_memcpy (p.command.FileId,SMBU_Fidobject(pfid)->unique_fileid ,8);
 
   // Send the oplock break over the socket
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak call rtsmb_net_write sock: %d\n",psession->sock);
@@ -249,7 +249,8 @@ static int RtsmbYieldProcOplockBreaksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SE
 {
   if (fid->smb2flags & SMB2WAITOPLOCKREPLY)
   {
-     if (tc_memcmp (((struct RtsmbProcOplockBreaks_s *)pargs)->unique_fileid, fid->unique_fileid ,8)==0)
+
+     if (tc_memcmp (((struct RtsmbProcOplockBreaks_s *)pargs)->unique_fileid, SMBU_Fidobject(fid)->unique_fileid ,8)==0)
      {
         if (fid->requested_oplock_level <= ((struct RtsmbProcOplockBreaks_s *)pargs)->incoming_oplock_level)
         { // Request succeeded

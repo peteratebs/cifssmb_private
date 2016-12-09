@@ -70,6 +70,17 @@ typedef enum
 
 #define FID_FLAG_DIRECTORY      0x0001
 #define FID_FLAG_ALL            0xFFFF
+
+typedef struct fidobject_s
+{
+  int die;                                // For testing, poke this every time we access it
+  int reference_count;
+  unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+  rtsmb_char name[SMBF_FILENAMESIZE + 1];
+} FIDOBJECT_T;
+typedef FIDOBJECT_T RTSMB_FAR *PFIDOBJECT;
+
+
 typedef struct fid_s
 {
     int internal_fid;   /* -1 means not in use */
@@ -91,8 +102,9 @@ typedef struct fid_s
     word uid;       /* owning user */
     dword pid;      /* owning process */
     dword error;    /* delayed error */
-    unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
-    rtsmb_char name[SMBF_FILENAMESIZE + 1];
+    PFIDOBJECT      _pfidobject;               // Accesed by SMBU_Fidobject() only
+//    unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+//    rtsmb_char name[SMBF_FILENAMESIZE + 1];
 } FID_T;
 typedef FID_T RTSMB_FAR *PFID;
 

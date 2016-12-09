@@ -6,6 +6,7 @@
 #include "rtpmem.h"
 #include "srv_smb2_model.h"
 #include "com_smb2_ssn.h"
+#include "srvutil.h"
 #include "srvobjectsc.h"
 
 #include "rtpnet.h"
@@ -187,9 +188,9 @@ fid_c::fid_c (PFID pfid)
   this->uid                    = pfid->uid                   ;       /* owning user */
   this->pid                    = pfid->pid                   ;      /* owning process */
   this->error                  = pfid->error                 ;    /* delayed error */
-  COPYCITEM(pfid,unique_fileid);
-  COPYCITEM(pfid,name);
-//  tc_memcpy(this->unique_fileid, pfid->unique_fileid, sizeof(this->unique_fileid));   /* The on-disk inode that identifies it uniquely on the volume. */
+  COPYCITEM(SMBU_Fidobject(pfid),unique_fileid);
+  COPYCITEM(SMBU_Fidobject(pfid),name);
+//  tc_memcpy(this->unique_fileid,  SMBU_Fidobject(pfid)->unique_fileid, sizeof(this->unique_fileid));   /* The on-disk inode that identifies it uniquely on the volume. */
 //  tc_memcpy(this->name, pfid->name,sizeof(this->name));
 }
 
@@ -223,13 +224,13 @@ class tag_string_c {
 class fidhist_container_c : public hist_container_c
 {
   public:
-    fidhist_container_c(FID_T *pfid) { starttag=endtag=0;this->item_count=0; epoch_item_time = rtp_get_system_msec(); tc_memcpy(this->unique_fileid,pfid->unique_fileid,sizeof(this->unique_fileid)); };
+    fidhist_container_c(FID_T *pfid) { starttag=endtag=0;this->item_count=0; epoch_item_time = rtp_get_system_msec(); tc_memcpy(this->unique_fileid, SMBU_Fidobject(pfid)->unique_fileid,sizeof(this->unique_fileid)); };
     ~fidhist_container_c() {};
     void append(FID_T *pfid) {
       this->item_count += 1;
       append_item ((void *)pfid);
     }
-    int equal(FID_T *pfid)  { return (tc_memcmp(pfid->unique_fileid,this->unique_fileid,sizeof(this->unique_fileid))==0);};
+    int equal(FID_T *pfid)  { return (tc_memcmp(SMBU_Fidobject(pfid)->unique_fileid,this->unique_fileid,sizeof(this->unique_fileid))==0);};
     void add_tag(char *newtagstring)
     {
        tag_string_c *ptagstring = new tag_string_c(endtag, newtagstring);
@@ -338,13 +339,27 @@ extern "C" void srvobject_session_enter(struct net_thread_s *pThread,struct net_
   }
 }
 
+
+
 // extern "C" fixme first
 static char *SMBU_format_filename(word *filename, size_t size, char *temp){  int i=0;  do   {     temp[i] = (char)filename[i]; }  while (filename[i++]);return temp;}
-extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp){ int i,tp;  tp = 0; tp &temp[0];  for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
+
+extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp)
+{
+dword *p = (dword *)unique_fileid;
+     sprintf(temp, "%7lu", *p);
+     return temp;
+}
+ // 7 digits 4 000 000
+//
+//int i;
+//     for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
+//     int i,tp;  tp = 0; tp &temp[0];
+//     for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
 
 extern "C" void SMBU_DisplayFidInfo(void)
 {
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE\n>");
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID    UID   PID   INODE   FILENAME\n>");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
  {
@@ -353,7 +368,8 @@ extern "C" void SMBU_DisplayFidInfo(void)
     if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
     {
       FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s\n>",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %4u %8s %s\n>",
+       i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,p->pid,SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, 8, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
     }
  }
  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
@@ -363,19 +379,23 @@ static int SMBU_DiagFormatFidList(char *buffer)
 {
  char *start=buffer;
 
- buffer += tc_sprintf(buffer, (char *)"### ADDRESS FLGS   LCK  TID   UID  PID  INODE \n");
+ buffer += tc_sprintf(buffer, (char *)"### ADDRESS OPENS FLGS   LCK  TID   UID  SESSION   INODE FILENAME\n");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
  {
  char temp0[32];
  char temp1[256];
+ struct SMBU_enumFidSearchUniqueidType_s matchedfids;
     if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
     {
       FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
-      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %2x    %2d  %4u %4u %8s %s \n",i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,SMBU_format_fileid(p->unique_fileid, 8, temp0),SMBU_format_filename(p->name,sizeof(temp1),temp1));
+
+      int fidcount = SMBU_SearchFidsByUniqueId (SMBU_Fidobject(p)->unique_fileid, &matchedfids);
+
+      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %5d %2x    %2d  %4u %4u  %4d  %8s %s \n",i,p,fidcount, p->smb2flags,p->held_oplock_level,p->tid,p->uid, SMBU_FidToSessionNumber(p),SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, 8, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
     }
  }
- buffer += tc_sprintf(buffer, (char *)"====#===#====#====#=======#===#====#===#=== \n");
+ buffer += tc_sprintf(buffer, (char *)"====#======#====#=====#=====#====#====#=======#=== \n");
 
  return (int) (buffer - start);
 }
