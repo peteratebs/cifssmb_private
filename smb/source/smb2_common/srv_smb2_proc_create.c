@@ -23,13 +23,13 @@
 #include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
-#include "srv_smb2_yield.h"
-#include "srvobjectsc.h"
+#include "srvyield.h"
+#include "remotediags.h"
+#include "srvoplocks.h"
 
 
-extern void RtsmbYieldQueueOplockBreakSend (PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel);
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid);
-extern void RtsmbYieldChangeOplockBreakLevel(PSMB_SESSIONCTX pCtx, PFID pfid,int oplocklevel);
+extern ddword smb2_stream_to_unique_userid(smb2_stream  *pStream);
 
 const unsigned char pMxAc_info_response[] =
 {0x00,0x00,0x00,0x00,
@@ -138,7 +138,6 @@ word RTSmb2_get_externalFid(byte *smb2_file_handle)
   return externalFid;
 }
 
-static int testingYield=0; // set to 0; to force every create with aj oplock to yield
 
 BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 {
@@ -164,26 +163,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     BBOOL reentering = FALSE;
     BBOOL signalled  = FALSE;
     BBOOL timedout  = FALSE;
-    PFID pfidExisting=0;
 
-
-#include "srvnet.h"
-//if (testingYield == 1)
-// For diags on oplocks, to be removed
-{
-  PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
-  if (pNctxt)
-  {
-    reentering = (pNctxt->smbCtx.yieldFlags&(YIELDTIMEDOUT|YIELDSIGNALLED)!=0);
-    signalled  = (pNctxt->smbCtx.yieldFlags&YIELDSIGNALLED!=0);
-    timedout  = (reentering && !signalled);
-  }
-  else
-  {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD::: Proc_smb2_Create:  no session found\n");
-  }
-
-}
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -202,7 +182,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     /* Read into command, TreeId will be present in the input header */
 
-    RtsmbYieldPushFrame(pStream);
+    yield_c_push_stream_inpstate(pStream);
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
@@ -350,67 +330,15 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
-       // Force a test of restarting from an oplock if the file exists
       if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
       {
-        int i,tp;
-        tp = 0;
-        // if (testingYield != 3)
+        ddword unique_userid = smb2_stream_to_unique_userid(pStream);
+        oplock_c_create_return_e result;
+        result = oplock_c_check_create_path(stat.unique_fileid, unique_userid, command.RequestedOplockLevel);
+        if (result == oplock_c_create_yield)
         {
-        int CurrentOplockLevel;
-        pfidExisting =  SMBU_CheckOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, stat.unique_fileid, &CurrentOplockLevel);
-
-//        command.RequestedOplockLevel &&
-        // If testing force a send
-        if (pfidExisting)
-        {
-          if (reentering)
-          {
-            if (signalled)
-              srvobject_tag_oplock(pfidExisting, "Create re enter check oplevel signalled");
-            else
-              srvobject_tag_oplock(pfidExisting, "Create re enter check oplevel timed out");
-          }
-          else
-          {
-            srvobject_tag_oplock(pfidExisting, "Create enter check oplevel");
-          }
-          if (timedout)
-          {
-            srvobject_tag_oplock(pfidExisting,"Create force accept after timeout"); // Create Force tids the same
-            pfidExisting->tid =  pStream->psmb2Session->pSmbCtx->tid;
-            RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
-            CurrentOplockLevel = command.RequestedOplockLevel;
-          }
-
-          if (CurrentOplockLevel != (int) command.RequestedOplockLevel)
-          { // Don't send any breaks if we already own the file.
-            if (pfidExisting->tid ==  pStream->psmb2Session->pSmbCtx->tid)
-            {
-               srvobject_tag_oplock(pfidExisting,"Create Force tids the same"); // Create Force tids the same
-               RtsmbYieldChangeOplockBreakLevel (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
-            }
-            else
-            {
-              srvobject_tag_oplock(pfidExisting,"Create check lock status"); // Create check lock status
-              RtsmbYieldQueueOplockBreakSend (pStream->psmb2Session->pSmbCtx, pfidExisting,(int) command.RequestedOplockLevel);
-
-              if (pfidExisting->smb2flags & SMB2SENDOPLOCKBREAK)
-                srvobject_tag_oplock(pfidExisting,"Create send break queued"); // Create send break queued
-              // We may have set SMB2SENDOPLOCKBREAK and possibly SMB2WAITOPLOCKREPLY
-              // If we set SMB2WAITOPLOCKREPLY we should return to wait for a break response, otherwise contnue
-              // If we have to send a break we'll send it after current packet is processed
-              if (pfidExisting->smb2flags & SMB2WAITOPLOCKREPLY)
-              {
-                testingYield = 1;
-                RtsmbYieldPopFrame(pStream);
-                srvobject_tag_oplock(pfidExisting,"Create yield to wait for response"); // Create yield to wait for response
-                RtsmbYieldYield(pStream, rtp_get_system_msec()+YIELD_DEFAULT_DURATION);
-                return FALSE;
-              }
-            }
-          }
-        }
+#warning lock in yield here
+          return FALSE;
         }
       }
     }
@@ -530,12 +458,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
     // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
     {
-//     tc_memcpy(&response.FileId[8],stat.unique_fileid,8);
+//     tc_memcpy(&response.FileId[8],stat.unique_fileid,SMB_UNIQUE_FILEID_SIZE);
 //     dword *dw = (dword *)&response.FileId[0];
 //     *dw  = externalFid; // Encode the 32 bit file handle in the reply
 
-     tc_memcpy(response.FileId,stat.unique_fileid,8);
-     dword *dw = (dword *)&response.FileId[8];
+     tc_memcpy(response.FileId,stat.unique_fileid,SMB_UNIQUE_FILEID_SIZE);
+     dword *dw = (dword *)&response.FileId[SMB_UNIQUE_FILEID_SIZE];
      *dw  = externalFid; // Encode the 32 bit file handle in the reply
     }
     response.CreateContextsOffset = 0;
@@ -596,17 +524,11 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
-
-#warning - This is wrong ?
-
-
-    if (!pfidExisting)
+    PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+    if (pNctxt && prtsmb_srv_ctx->enable_oplocks)
     {
-      if (prtsmb_srv_ctx->enable_oplocks)
-        SMBU_SetOplockLevel (pTree, pStream->psmb2Session->pSmbCtx->uid, RTSmb2_get_externalFid(&response.FileId[0]), (int) command.RequestedOplockLevel);
-       // Read it for diagnostics
-       PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
-       pfidExisting = SMBU_GetInternalFidPtr (&pNctxt->smbCtx,  externalFid);
+       PFID pfid =  SMBU_GetInternalFidPtr (&pNctxt->smbCtx, externalFid);
+       if (pfid) oplock_c_create(pfid,command.RequestedOplockLevel);
     }
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;

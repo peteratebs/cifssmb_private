@@ -72,6 +72,8 @@
 
 #define HARDWIRED_DISABLE_SIGNING 0                           // Disables signing
 
+#define SMB_UNIQUE_FILEID_SIZE 8    // How much we store in UID field
+
 //============================================================================
 //    INTERFACE REQUIRED HEADERS
 //============================================================================
@@ -171,6 +173,10 @@ typedef int               RTSMB_BOOL;
 
 typedef unsigned short    SMB_DATE;
 typedef unsigned short    SMB_TIME;
+
+typedef void * signalobject_Cptr;
+typedef void * yield_Cptr;
+
 
 /* This is a time-since-microsoft-epoch struct.  That means it records
    how many 100-nanoseconds have passed since Jan. 1, 1601. */

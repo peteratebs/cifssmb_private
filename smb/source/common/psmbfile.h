@@ -121,7 +121,7 @@ struct smbfstat
 	TIME           f_wtime64; /* last write time */
 	TIME           f_ctime64; /* last create time */
 	TIME           f_htime64; /* last change time */
-	unsigned char  unique_fileid[8]; /* Passed back in Fileid field in SMB2  */
+	unsigned char  unique_fileid[SMB_UNIQUE_FILEID_SIZE]; /* Passed back in Fileid field in SMB2  */
 };
 
 
@@ -152,7 +152,7 @@ struct smbdstat
 	TIME           fctime64; /* last create time */
 	TIME           fhtime64; /* last change time */
 
-	unsigned char  unique_fileid[8]; /* Passed back in Fileid field in SMB2  */
+	unsigned char  unique_fileid[SMB_UNIQUE_FILEID_SIZE]; /* Passed back in Fileid field in SMB2  */
 
 	void * 		   rtp_dirobj;  /* pointer to rtplatform's dirobj */
 };

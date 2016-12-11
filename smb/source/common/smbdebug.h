@@ -1,6 +1,10 @@
 #ifndef __SMB_DEBUG_H__
 #define __SMB_DEBUG_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "smbdefs.h"
 #include "smbutil.h"
 
@@ -26,6 +30,10 @@ extern void rtsmb_dump_bytes(char *prompt, void *pbytes, int length, int format)
 #endif
 
 #endif /* RTSMB_DEBUG */
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif /* __SMB_DEBUG_H__ */

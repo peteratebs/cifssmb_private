@@ -1,3 +1,10 @@
+#if (0)
+//
+//  srvobjects.c is not used but is saved because it
+//  contains roughed out class definitions for most smb data types
+//
+//
+
 #ifndef __SRVOBJECTSC_H__
 #define __SRVOBJECTSC_H__
 
@@ -6,13 +13,6 @@
 #include "srvssn.h"
 #include "srvnet.h"
 
-#define INCLUDE_SRVOBJ_REMOTE_DIAGS 1
-#define INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD 1
-
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS)
-#define REMOTE_DEBUG_TO_PROXY_PORTNUMBER 9988
-#define REMOTE_DEBUG_FROM_PROXY_PORTNUMBER 9989
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,15 +25,10 @@ extern void srvobject_session_enter(struct net_thread_s *pThread, struct net_ses
 extern void srvobject_session_exit(struct net_thread_s *pThread, struct net_sessionctxt **psession);
 extern void srvobject_tagalloc_oplock(FID_T *pfid, char *tagstring);
 extern int srvobject_get_currentsession_index(void);
-extern char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp);
-extern void SMBU_DisplayFidInfo(void);
-extern BBOOL srvobject_bind_diag_socket(void);
-extern int srvobject_process_diag_request(void);
-extern RTP_SOCKET *srvobject_get_diag_socket(void);
-extern void srvobject_write_diag_socket(byte *p, int len);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+ e#endif

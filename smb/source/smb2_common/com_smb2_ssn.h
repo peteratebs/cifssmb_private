@@ -62,7 +62,6 @@ typedef struct smb2_stream_s {
     BBOOL    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     BBOOL    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
     BBOOL    doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
-    dword    yield_duration;                         // If doSessionYield, this is the duration to wait for a signal before timing out
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -85,22 +84,23 @@ typedef struct smb2_stream_s {
 
 } smb2_stream;
 
+
+
 typedef struct ProcSMB2_BodyContext_s {
   dword *pPreviousNextOutCommand;
   BBOOL isCompoundReply;
   BBOOL doFirstPacket;
   dword NextCommandOffset;
-  smb2_stream  smb2stream;
   PFVOID   pInBufStart;
   PFVOID   pOutBufStart;
   BBOOL    sign_packet;
+  smb2_stream  smb2stream;
 #define ST_INIT        0
 #define ST_INPROCESS   1
 #define ST_FALSE       2
 #define ST_TRUE        3
 #define ST_YIELD       4
   int      stackcontext_state;
-  dword  yield_duration; // Timneout in milliseconds if ST_YIELD is requested
 } ProcSMB2_BodyContext;
 
 

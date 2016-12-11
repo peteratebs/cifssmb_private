@@ -49,7 +49,7 @@
 #include "smbnet.h"
 #include "rtpmem.h"
 #include "rtptime.h"
-#include "srv_smb2_yield.h"
+#include "srvyield.h"
 
 static pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 
@@ -414,7 +414,7 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
     if (pSession->Connection) pSession->Connection->RTSMBisAllocated = FALSE;
-    RtsmbYieldFreeBodyContext(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
+    yield_c_free_body_context(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
     pSession->RTSMBisAllocated=FALSE;
 }
 

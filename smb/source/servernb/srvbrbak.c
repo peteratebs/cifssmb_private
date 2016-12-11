@@ -201,9 +201,8 @@ Get_Srv_Session_State (BROWSE_FINISH);
 
 		/* here, we process the packet again (it's still in our buffers), but our
 		   state will tell the appropriate function to read from our results here */
-		if (SMBS_ProcSMBBody (pCtx)) /* do send */
-		{
-			SMBS_SendMessage (pCtx, pCtx->outBodySize, TRUE);
+		SMBS_ProcSMBBody (pCtx); /* do send */
+        SMBS_SendMessage (pCtx, pCtx->outBodySize, TRUE);
 		}
 
 		_rtsmb_srv_browse_enum_cleanup ();
@@ -213,7 +212,7 @@ Get_Srv_Session_State (IDLE);
 		pCtx->state = IDLE;
 
 		break;
-#ifdef SUPPORT_SMB2   
+#ifdef SUPPORT_SMB2
 	case NOTCONNECTED:
 #endif
 	case IDLE:

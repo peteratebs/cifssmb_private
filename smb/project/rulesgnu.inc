@@ -57,6 +57,15 @@ $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c
 	@echo COMPILING for CPP $<
 	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
+$(OBJDIR)/srvoplocks.o: $(lib_to_rtsmb_server_path)/srvoplocks.cpp
+	@echo COMPILING for CPP $<
+	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+
+$(OBJDIR)/srvyield.o: $(lib_to_rtsmb_server_path)/srvyield.cpp
+	@echo COMPILING for CPP $<
+	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+
+
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
 	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)

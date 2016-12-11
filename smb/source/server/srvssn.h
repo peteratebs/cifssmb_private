@@ -75,7 +75,11 @@ typedef struct fidobject_s
 {
   int die;                                // For testing, poke this every time we access it
   int reference_count;
-  unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+   byte held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKFLAGHELD) */
+   word held_oplock_uid;
+
+  dword inode_number;                     // Numeric
+  unsigned char  unique_fileid[SMB_UNIQUE_FILEID_SIZE];        /* The on-disk inode that identifies it uniquely on the volume. */
   rtsmb_char name[SMBF_FILENAMESIZE + 1];
 } FIDOBJECT_T;
 typedef FIDOBJECT_T RTSMB_FAR *PFIDOBJECT;
@@ -89,22 +93,25 @@ typedef struct fid_s
     word flags;
 #define SMB2FIDSIG 0x11000000
 #define SMB2DELONCLOSE SMB2FIDSIG|0x01
-#define SMB2SENDOPLOCKBREAK  0x02
-#define SMB2WAITOPLOCKREPLY  0x04
-#define SMB2OPLOCKHELD       0x08
-#define SMB2WAITLOCKREGION   0x10   /* not used yet */
     dword smb2flags;
-    byte held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-    word held_oplock_uid;
-    byte requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-    dword smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
+    dword OplockFlags;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockLevel;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockState;       //  =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
+    dword OplockTimeout;     //  =     0;
+   // These can go soon
+    byte requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKFLAGBREAK|SMB2WAITOPLOCKFLAGREPLY)  */
+
+
+
+
+
+
     word tid;       /* owning tree */
     word uid;       /* owning user */
     dword pid;      /* owning process */
     dword error;    /* delayed error */
-    PFIDOBJECT      _pfidobject;               // Accesed by SMBU_Fidobject() only
-//    unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
-//    rtsmb_char name[SMBF_FILENAMESIZE + 1];
+//    FIDOBJECT_T      _empfidobject;               // Read only acces through SMBU_Fidobject()
+    PFIDOBJECT      _pfidobject;               // Read only acces through SMBU_Fidobject()
 } FID_T;
 typedef FID_T RTSMB_FAR *PFID;
 
@@ -194,10 +201,9 @@ typedef struct smb_sessionCtx_s
     BBOOL doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
 
-#define YIELDSIGNALLED         0x01   /* if a yielded event was signaled */
-#define YIELDTIMEDOUT          0x02   /* if a yielded event timed out without being signaled */
-	word  yieldFlags;
-	dword yieldTimeout;   // If not zero the session is yielding
+
+	word  _yieldFlags;     // Private for use only by srvyield.cpp
+	dword _yieldTimeout;   // Private for use only by srvyield.cpp
 
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
 
@@ -315,15 +321,6 @@ typedef struct smb_sessionCtx_s
     /* fids for this session   */
     FID_T  *fids;
 
-    /* number of fids currently queued for oplock break send */
-    int sendOplockBreakCount;
-
-    /* number of fids currently blocked waiting for oplock break ack */
-    int waitOplockAckCount;
-
-    /* number of fids currently queued for sending a notify request */
-    int sendNotifyCount;
-
     /* session defaults to smb1 but we push saved buffers here when we assing and SMB2 seesion */
     int protocol_version;
     SMB_SESSIONCTX_SAVE_T CtxSave;
@@ -384,7 +381,7 @@ BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
 BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize);
 
-BBOOL SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx);
+void SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx);
 BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
 
 

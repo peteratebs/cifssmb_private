@@ -1,3 +1,11 @@
+#if (0)
+//
+//  srvobjects.c is not used but is saved because it
+//  contains roughed out class definitions for most smb data types
+//
+//
+
+
 #include <stdint.h>
 #include "srvcfg.h"
 #include "srvssn.h"
@@ -8,9 +16,11 @@
 #include "com_smb2_ssn.h"
 #include "srvutil.h"
 #include "srvobjectsc.h"
+#include "remotediags.h"
 
 #include "rtpnet.h"
 #include "rtpnet.h"
+#include "smbdebug.h"
 
 #define COPYCITEM(CPTR,FIELDNAME)   tc_memcpy(this->FIELDNAME, CPTR->FIELDNAME, sizeof(this->FIELDNAME))
 
@@ -22,68 +32,12 @@
 #define CFG_RTSMB_MAX_TREES_PER_SESSION     10
 #define CFG_RTSMB_MAX_FIDS_PER_SESSION      16
 
-#if (0)
-
-EnumerateTreads
-  EnumerateSession
-    EnumerateUids  one per session usually
-    EnumerateFid
-    EnumerateTrees
 
 
-  EnumerateFids and keep a history
-    UUID OPLOCKSTATE SESIONID:UID           NAME
-    XXX              DEAD
+extern "C" ddword smb2_stream_to_unique_userid(smb2_stream  *pStream);
 
 
 
- To do:.
-  Given  prtsmb_srv_ctx:
-   for each threads: in  mainThread,threads[]    - mainThread should be the only one
-       dword numSessions;
-       int blocking_session;
-       int yield_sock_portnumber;
-       RTP_SOCKET yield_sock;
-       dword index;
-     for each session in thread:
-      sessions[]  CFG_RTSMB_MAX_SESSIONS
-           sockinfo
-           lastActivity
-           duration
-           could add bytes sent & recvd
-         smb_sessionCtx_c
-           current state
-           could also log transaction history;
-           uids[CFG_RTSMB_MAX_UIDS_PER_SESSION]
-               uint8_t   inUse;
-               uint16_t  uid;
-               uint16_t  authId;
-               mystdbool canonicalized;
-               SEARCH_T *searches;
-               PFID     *fids;
-           trees [CFG_RTSMB_MAX_TREES_PER_SESSION];
-               mystdbool inUse;
-               uint8_t access;
-               uint8_t type;      /* type of tree */
-               uint16_t external;  /* public tid */
-               uint16_t internal;  /* private tid */
-               PFID *fids;
-           fids  [CFG_RTSMB_MAX_FIDS_PER_SESSION]
-               int internal_fid;   /* -1 means not in use */
-               uint16_t external;
-               uint16_t flags;
-               uint32_t smb2flags;
-               uint8_t held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-               uint16_t held_oplock_uid;
-               uint8_t requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-               uint32_t smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
-               uint16_t tid;       /* owning tree tree == prtsmb_srv_ctx->shareTable[tid]
-               uint16_t uid;       /* owning user between 0 and prtsmb_srv_ctx->max_uids_per_session))*/
-               uint32_t pid;      /* owning process */
-               uint32_t error;    /* delayed error */
-               uint8_t  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
-               uint16_t name[SMBF_FILENAMESIZE + 1];
-#endif
 class srvobjectglobals_c {
   public:
     srvobjectglobals_c() {
@@ -161,15 +115,15 @@ class fid_c {
     uint16_t external;
     uint16_t flags;
     uint32_t smb2flags;
-    uint8_t held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-    uint16_t held_oplock_uid;
-    uint8_t requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-    uint32_t smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
+    dword OplockFlags;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockLevel;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockState;       //  =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
+    dword OplockTimeout;     //  =     0;
     uint16_t tid;       /* owning tree */
     uint16_t uid;       /* owning user */
     uint32_t pid;      /* owning process */
     uint32_t error;    /* delayed error */
-    uint8_t  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+    uint8_t  unique_fileid[SMB_UNIQUE_FILEID_SIZE];        /* The on-disk inode that identifies it uniquely on the volume. */
     uint16_t name[SMBF_FILENAMESIZE + 1];
 
 };
@@ -180,10 +134,10 @@ fid_c::fid_c (PFID pfid)
   this->external               = pfid->external              ;
   this->flags                  = pfid->flags                 ;
   this->smb2flags              = pfid->smb2flags             ;
-  this->held_oplock_level      = pfid->held_oplock_level     ;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-  this->held_oplock_uid        = pfid->held_oplock_uid       ;
-  this->requested_oplock_level = pfid->requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-  this->smb2waitexpiresat      = pfid->smb2waitexpiresat     ;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
+//  this->held_oplock_level      = SMBU_Fidobject(pfid)->held_oplock_level     ;         /* current level if (smb2flags&SMB2OPLOCKFLAGHELD) */
+//  this->held_oplock_uid        = SMBU_Fidobject(pfid)->held_oplock_uid       ;
+//  this->requested_oplock_level = pfid->requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKFLAGBREAK|SMB2WAITOPLOCKFLAGREPLY)  */
+  this->OplockTimeout          = pfid->OplockTimeout     ;        /* Timer expires if !0 and SMB2WAITOPLOCKFLAGREPLY|SMB2WAITLOCKFLAGREGION */
   this->tid                    = pfid->tid                   ;       /* owning tree */
   this->uid                    = pfid->uid                   ;       /* owning user */
   this->pid                    = pfid->pid                   ;      /* owning process */
@@ -241,8 +195,8 @@ class fidhist_container_c : public hist_container_c
     void print(void)
     {
         printf("UID:[");
-        for (int i = 0; i < 7; i++)  printf("%X,", unique_fileid[i]);
-        printf("%2.2X] item_count:%d \n", unique_fileid[7],item_count);
+        for (int i = 0; i < SMB_UNIQUE_FILEID_SIZE; i++)  printf("%X,", unique_fileid[i]);
+        printf("%2.2X] item_count:%d \n", unique_fileid[SMB_UNIQUE_FILEID_SIZE],item_count);
         tag_string_c *tag = starttag;
         while (tag)
         {
@@ -252,7 +206,7 @@ class fidhist_container_c : public hist_container_c
 
     }
   protected:
-    uint8_t  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+    uint8_t  unique_fileid[SMB_UNIQUE_FILEID_SIZE];        /* The on-disk inode that identifies it uniquely on the volume. */
     uint32_t epoch_item_time;
     int item_count;
     tag_string_c *starttag;
@@ -340,66 +294,6 @@ extern "C" void srvobject_session_enter(struct net_thread_s *pThread,struct net_
 }
 
 
-
-// extern "C" fixme first
-static char *SMBU_format_filename(word *filename, size_t size, char *temp){  int i=0;  do   {     temp[i] = (char)filename[i]; }  while (filename[i++]);return temp;}
-
-extern "C" char *SMBU_format_fileid(byte *unique_fileid, int size, char *temp)
-{
-dword *p = (dword *)unique_fileid;
-     sprintf(temp, "%7lu", *p);
-     return temp;
-}
- // 7 digits 4 000 000
-//
-//int i;
-//     for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
-//     int i,tp;  tp = 0; tp &temp[0];
-//     for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
-
-extern "C" void SMBU_DisplayFidInfo(void)
-{
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID    UID   PID   INODE   FILENAME\n>");
- int  i;
- for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
- {
- char temp0[32];
- char temp1[256];
-    if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
-    {
-      FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %4u %8s %s\n>",
-       i,p,p->smb2flags,p->held_oplock_level,p->tid,p->uid,p->pid,SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, 8, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
-    }
- }
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
-}
-
-static int SMBU_DiagFormatFidList(char *buffer)
-{
- char *start=buffer;
-
- buffer += tc_sprintf(buffer, (char *)"### ADDRESS OPENS FLGS   LCK  TID   UID  SESSION   INODE FILENAME\n");
- int  i;
- for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
- {
- char temp0[32];
- char temp1[256];
- struct SMBU_enumFidSearchUniqueidType_s matchedfids;
-    if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
-    {
-      FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
-
-      int fidcount = SMBU_SearchFidsByUniqueId (SMBU_Fidobject(p)->unique_fileid, &matchedfids);
-
-      buffer += tc_sprintf(buffer,  (char *)"%3d %8x %5d %2x    %2d  %4u %4u  %4d  %8s %s \n",i,p,fidcount, p->smb2flags,p->held_oplock_level,p->tid,p->uid, SMBU_FidToSessionNumber(p),SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, 8, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
-    }
- }
- buffer += tc_sprintf(buffer, (char *)"====#======#====#=====#=====#====#====#=======#=== \n");
-
- return (int) (buffer - start);
-}
-
 extern "C" void srvobject_session_exit(struct net_thread_s *pThread,struct net_sessionctxt **psession)
 {
     srvobjectglobals.session_number = -1;
@@ -429,80 +323,6 @@ extern "C" void srvobject_tagalloc_oplock(FID_T *pfid, char *tagstring)
   fid_history->add_tagalloc(pfid,tagstring);
 }
 
-#if(INCLUDE_SRVOBJ_REMOTE_DIAGS)
-
-static int diag_remote_portnumber = -1;
-static RTP_SOCKET diag_socket = -1;
-static const byte local_ip_address[] = {0x7f,0,0,1};
-// Request come in here. replies go out.
-static int  remote_port=-1;
-static byte remote_ip[4];
-
-extern "C" int rtsmb_net_read_datagram (RTP_SOCKET sock, PFVOID pData, int size, PFBYTE remoteAddr, PFINT remotePort);
-extern "C" int rtsmb_net_write_datagram (RTP_SOCKET socket, PFBYTE remote, int port, PFVOID buf, int size);
-
-
-
-extern "C" RTP_SOCKET *srvobject_get_diag_socket(void)
-{
- if (diag_socket < 0)
-   return 0;
- else
-   return &diag_socket;
-
-}
-extern "C" BBOOL srvobject_bind_diag_socket(void)
-{
-    if (rtp_net_socket_datagram(&diag_socket) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: Unable to get new socket\n");
-        return FALSE;
-    }
-    if (rtp_net_bind(diag_socket, (unsigned char*)0, REMOTE_DEBUG_FROM_PROXY_PORTNUMBER, 4))
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "srvobject_bind_diag_socket: bind to port %d failed\n",REMOTE_DEBUG_FROM_PROXY_PORTNUMBER);
-        return FALSE;
-  }
-  return TRUE;
-}
-
-
-extern "C" void srvobject_write_diag_socket(byte *p, int len)
-{
-  if (diag_remote_portnumber!=-1)
-  {
-  int r =
-  rtsmb_net_write_datagram (
-    diag_socket,
-    (byte *) remote_ip, // local_ip_address,
-    REMOTE_DEBUG_TO_PROXY_PORTNUMBER,
-    p,
-    len);  // Four is the minimum size might as well send something
-  }
-
-}
-
-extern "C" int srvobject_process_diag_request(void)
-{
-  int  size, remote_port;
-  byte p[80];
-  size = rtsmb_net_read_datagram (diag_socket, p, 80, remote_ip, &remote_port);
-  if (size >= 0)
-  {
-    diag_remote_portnumber = remote_port;
-//    srvobject_write_diag_socket(p, size);
-    if (tc_strstr((char *)p, "SMB FIDS"))
-    {
-      char * p = (char *) rtp_malloc(1024*512);
-      int len = SMBU_DiagFormatFidList(p);
-      srvobject_write_diag_socket((byte *)p, len);
-      RTP_FREE(p);
-    }
-
-  }
-  return size;
-}
-#endif
 
 
 // Each .seq file and the .bmp files it references creates one one_instance of an animation_sequence
@@ -547,7 +367,7 @@ class smb_sessionCtx_c
     mystdbool isSMB2;               /* Set true when SMB2 negotiated */
     mystdbool doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     mystdbool doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
-	uint16_t  yieldFlags;
+	uint16_t  _yieldFlags;
 	uint32_t yieldTimeout;   // If not zero the session is yielding
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
     uint8_t * readBuffer;
@@ -580,9 +400,6 @@ class smb_sessionCtx_c
     USER_T *uids;
     TREE_T *trees;
     FID_T  *fids;
-    int sendOplockBreakCount;
-    int waitOplockAckCount;
-    int sendNotifyCount;
     int protocol_version;
     SMB_SESSIONCTX_SAVE_T CtxSave;
 };
@@ -595,8 +412,8 @@ void smb_sessionCtx_c::smb_sessionCtx_from_c (PSMB_SESSIONCTX pctxt)
     this->isSMB2                           = pctxt->isSMB2;
     this->doSocketClose                    = pctxt->doSocketClose;
     this->doSessionClose                   = pctxt->doSessionClose;
-    this->yieldFlags                       = pctxt->yieldFlags;
-    this->yieldTimeout                     = pctxt->yieldTimeout;
+    this->_yieldFlags                       = pctxt->_yieldFlags;
+//    this->yieldTimeout                     = pctxt->yieldTimeout;
     this->state                            = pctxt->state;
     this->readBuffer                       = pctxt->readBuffer;
     this->writeBuffer                      = pctxt->writeBuffer;
@@ -629,9 +446,6 @@ void smb_sessionCtx_c::smb_sessionCtx_from_c (PSMB_SESSIONCTX pctxt)
     this->uids                             = pctxt->uids;
     this->trees                            = pctxt->trees;
     this->fids                             = pctxt->fids;
-    this->sendOplockBreakCount             = pctxt->sendOplockBreakCount;
-    this->waitOplockAckCount               = pctxt->waitOplockAckCount;
-    this->sendNotifyCount                  = pctxt->sendNotifyCount;
     this->protocol_version                 = pctxt->protocol_version;
     this->CtxSave                          = pctxt->CtxSave;
 }
@@ -698,8 +512,8 @@ net_thread_c::net_thread_c(PNET_THREAD pThread)
     //
     for (int i=0;i<(int)pThread->numSessions;i++)  this->sessionArray[i].net_session_from_c(pThread->sessionList[i]);
     this->blocking_session         = pThread->blocking_session;
-    this->yield_sock_portnumber    = pThread->yield_sock_portnumber;
-    this->yield_sock               = pThread->yield_sock;
+//    this->yield_sock_portnumber    = pThread->yield_sock_portnumber;
+//    this->yield_sock               = pThread->yield_sock;
     this->index                    = pThread->index;
     this->inBuffer                 = pThread->inBuffer;
     this->outBuffer                = pThread->outBuffer;
@@ -930,7 +744,6 @@ class smb2_stream_c {
     mystdbool                      doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     mystdbool                      doSessionClose;                        // Indicates that the processing layer is requesting a session close.
     mystdbool                      doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
-    uint32_t                       yield_duration;                         // If doSessionYield, this is the duration to wait for a signal before timing out
     RTSMB2_HEADER                  OutHdr;                                // Buffer control and header for response
     RTSMB2_BUFFER_PARM             WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
     PFVOID                         write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -966,7 +779,6 @@ smb2_stream_c::smb2_stream_c(smb2_stream *pstream)
     this->doSocketClose         = pstream->doSocketClose;
     this->doSessionClose        = pstream->doSessionClose;
     this->doSessionYield        = pstream->doSessionYield;
-    this->yield_duration        = pstream->yield_duration;
     this->OutHdr                 = pstream->OutHdr;
     COPYCITEM(pstream,WriteBufferParms);
     this->write_origin          = pstream->write_origin;
@@ -1149,22 +961,16 @@ typedef struct fid_s
     uint16_t external;
 
     uint16_t flags;
-#define SMB2FIDSIG 0x11000000
-#define SMB2DELONCLOSE SMB2FIDSIG|0x01
-#define SMB2SENDOPLOCKBREAK  0x02
-#define SMB2WAITOPLOCKREPLY  0x04
-#define SMB2OPLOCKHELD       0x08
-#define SMB2WAITLOCKREGION   0x10   /* not used yet */
     uint32_t smb2flags;
-    uint8_t held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-    uint16_t held_oplock_uid;
-    uint8_t requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-    uint32_t smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
+    dword OplockFlags;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockLevel;       //  =   SMB2_OPLOCK_LEVEL_NONE;
+    int   OplockState;       //  =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
+    dword OplockTimeout;     //  =     0;
     uint16_t tid;       /* owning tree */
     uint16_t uid;       /* owning user */
     uint32_t pid;      /* owning process */
     uint32_t error;    /* delayed error */
-    unsigned char  unique_fileid[8];        /* The on-disk inode that identifies it uniquely on the volume. */
+    unsigned char  unique_fileid[SMB_UNIQUE_FILEID_SIZE];        /* The on-disk inode that identifies it uniquely on the volume. */
     rtsmb_char name[SMBF_FILENAMESIZE + 1];
 } FID_T;
 typedef FID_T RTSMB_FAR *PFID;
@@ -1292,7 +1098,6 @@ typedef struct smb2_stream_s {
     mystdbool    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     mystdbool    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
     mystdbool    doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
-    uint32_t    yield_duration;                         // If doSessionYield, this is the duration to wait for a signal before timing out
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -1330,7 +1135,6 @@ typedef struct ProcSMB2_BodyContext_s {
 #define ST_TRUE        3
 #define ST_YIELD       4
   int      stackcontext_state;
-  uint32_t  yield_duration; // Timneout in milliseconds if ST_YIELD is requested
 } ProcSMB2_BodyContext;
 
 
@@ -1483,10 +1287,7 @@ typedef struct smb_sessionCtx_s
     mystdbool isSMB2;               /* Set true when SMB2 negotiated */
     mystdbool doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     mystdbool doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
-
-#define YIELDSIGNALLED         0x01   /* if a yielded event was signaled */
-#define YIELDTIMEDOUT          0x02   /* if a yielded event timed out without being signaled */
-	uint16_t  yieldFlags;
+	uint16_t  _yieldFlags;
 	uint32_t yieldTimeout;   // If not zero the session is yielding
 
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
@@ -1605,15 +1406,6 @@ typedef struct smb_sessionCtx_s
     /* fids for this session   */
     FID_T  *fids;
 
-    /* number of fids currently queued for oplock break send */
-    int sendOplockBreakCount;
-
-    /* number of fids currently blocked waiting for oplock break ack */
-    int waitOplockAckCount;
-
-    /* number of fids currently queued for sending a notify request */
-    int sendNotifyCount;
-
     /* session defaults to smb1 but we push saved buffers here when we assing and SMB2 seesion */
     int protocol_version;
     SMB_SESSIONCTX_SAVE_T CtxSave;
@@ -1664,6 +1456,10 @@ typedef struct s_Smb2SrvModel_Session
     uint8_t SigningKey[16];                /* A 128 bit key used for signing the SMB2 messages. */
 // UNUSED    uint8_t ApplicationKey[16];            /* A 128-bit key, for the authenticated context, that is queried by the higher-layer applications. */
 } Smb2SrvModel_Session;
+
+
+
+#endif
 
 
 

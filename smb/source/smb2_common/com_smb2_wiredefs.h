@@ -233,6 +233,7 @@ typedef struct s_RTSMB2_HEADER
     dword Flags;
     dword NextCommand;
     ddword MessageId;
+#define ProcessidH Reserved // use this as an alias until Reserved is changed in the header and u\all uses
     dword Reserved;
     dword TreeId;
     ddword SessionId;
@@ -827,15 +828,6 @@ typedef RTSMB2_CANCEL_C RTSMB_FAR *PRTSMB2_CANCEL_C;
 #define IO_REPARSE_TAG_NFS           0x80000014
 
 #define SMB2_0_IOCTL_IS_FSCTL           0x00000001
-
-
-
-
-
-
-
-
-
 
 
 /* Note: 2.2.31.1 contains formats for IOCTL requests */

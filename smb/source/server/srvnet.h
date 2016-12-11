@@ -5,10 +5,10 @@
 #include "smbdefs.h"
 
 #if (INCLUDE_RTSMB_SERVER)
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "srvssn.h"
-
-#define YIELD_BASE_PORTNUMBER   9999
 
 /*============================================================================   */
 /*    INTERFACE STRUCTURES / UTILITY CLASSES                                     */
@@ -41,8 +41,7 @@ typedef struct net_thread_s
 	 */
 	int blocking_session;
 
-	int yield_sock_portnumber;
-    RTP_SOCKET yield_sock;
+	signalobject_Cptr signal_object;
 
 	/**
 	 * Index stores the index of the last session we serviced.
@@ -92,5 +91,9 @@ PFBYTE rtsmb_srv_net_get_host_ip (void);
 PFBYTE rtsmb_srv_net_get_broadcast_ip (void);
 
 #endif /* INCLUDE_RTSMB_SERVER */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SRV_NET_H__ */

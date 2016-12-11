@@ -476,8 +476,6 @@ void Smb2SrvModel_Global_Stats_Open_Update(int change);
 void Smb2SrvModel_Global_Stats_Error_Update(void);
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
-extern void RtsmbYieldFreeBodyContext(pSmb2SrvModel_Session pSession);
-extern void RtsmbYieldAllocBodyContext(pSmb2SrvModel_Session pSession);
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
 
 void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);

@@ -22,6 +22,7 @@
 #include "psmbos.h"
 #include "rtpsignl.h"
 #include "smbdebug.h"
+#include "srvyield.h"
 
 #ifndef ALLOC_FROM_HEAP
 #define ALLOC_FROM_HEAP  0
@@ -244,6 +245,7 @@ RTSMB_STATIC PFID             uid_fids       [CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB
 RTSMB_STATIC TREE_T           trees          [CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_TREES_PER_SESSION];
 RTSMB_STATIC PFID             tree_fids      [CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_TREES_PER_SESSION * CFG_RTSMB_MAX_FIDS_PER_TREE];
 RTSMB_STATIC FID_T            fids           [CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_FIDS_PER_SESSION];
+RTSMB_STATIC FIDOBJECT_T      fidobjects     [CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_FIDS_PER_SESSION];
 RTSMB_STATIC PNET_SESSIONCTX  sessionList    [(CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_MAX_SESSIONS];
 RTSMB_STATIC byte             inBuffer       [(CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE];
 RTSMB_STATIC byte             outBuffer      [(CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE];
@@ -288,7 +290,7 @@ static void * safemalloc(rtsmb_size bytes)
 RTSMB_STATIC RTSMB_SERVER_CONTEXT rtsmb_srv_cfg_core;
 PRTSMB_SERVER_CONTEXT prtsmb_srv_ctx = &rtsmb_srv_cfg_core;
 
-extern BBOOL RtsmbYieldBindSignalSocket(NET_THREAD_T  * pThread);
+
 
 extern void rtsmb_srv_diag_config(void);
 
@@ -312,6 +314,8 @@ int rtsmb_server_config(void)
    TREE_T           * trees          = safemalloc(sizeof(TREE_T          ) * CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_TREES_PER_SESSION);
    PFID             * tree_fids      = safemalloc(sizeof(PFID            ) * CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_TREES_PER_SESSION * CFG_RTSMB_MAX_FIDS_PER_TREE);
    FID_T            * fids           = safemalloc(sizeof(FID_T           ) * CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_FIDS_PER_SESSION);
+   FIDOBECT_T       * fidobjects     = safemalloc(sizeof(FIDOBECT_T       ) * CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_FIDS_PER_SESSION);
+
    PNET_SESSIONCTX  * sessionList    = safemalloc(sizeof(PNET_SESSIONCTX ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_MAX_SESSIONS);
    byte             * inBuffer       = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE);
    byte             * outBuffer      = safemalloc(sizeof(byte            ) * (CFG_RTSMB_MAX_THREADS + 1) * CFG_RTSMB_SMALL_BUFFER_SIZE);
@@ -372,8 +376,17 @@ int rtsmb_server_config(void)
 
    // Make sure fids are clear and export the fid table for oplock and dignostics.
    prtsmb_srv_ctx->fidBuffers = &fids[0];
+   // Make sure fids are clear and export the fid table for oplock and dignostics.
+   prtsmb_srv_ctx->fidObjectBuffers = &fidobjects[0];
+
+   tc_memset(fidobjects, 0, (CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_FIDS_PER_SESSION)*sizeof(FIDOBJECT_T));
    for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
+   {
      prtsmb_srv_ctx->fidBuffers[i].internal_fid = -1;
+     // Link fids to fidobjects one to one for now, to be changed.
+     //  prtsmb_srv_ctx->fidBuffers[i]._pfidobject = 0;
+     prtsmb_srv_ctx->fidBuffers[i]._pfidobject = &prtsmb_srv_ctx->fidObjectBuffers[i];
+   }
 
 
   #if CFG_RTSMB_NUM_BIG_BUFFERS
@@ -434,13 +447,7 @@ int rtsmb_server_config(void)
       threads[i].inBuffer    = &inBuffer    [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].tmpBuffer   = &tmpBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
-#warning If rtsmb_server_config doesnt YIELD_BASE_PORTNUMBER
-      threads[i].yield_sock_portnumber  = YIELD_BASE_PORTNUMBER + i;
-      if (!RtsmbYieldBindSignalSocket(&threads[i]))
-      {
-#warning If rtsmb_server_config doesnt work we should exit
-          ; // It didn;t work, we're screwed
-      }
+      threads[i].signal_object  = yield_c_bind_signal(i);
    }
 
    tc_strcpy (prtsmb_srv_ctx->local_master, "");

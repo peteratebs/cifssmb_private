@@ -149,23 +149,31 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         if (fidflags != FID_FLAG_DIRECTORY)
             SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
         // 0xffff is not real resource so don't do any file ops.
-        if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags|SMB2DELONCLOSE))
+        if (pTree->type == ST_DISKTREE)// Close any directory scans associated with this file
         {
-          if (fidflags != FID_FLAG_DIRECTORY)
-            SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+          // Call opclock_close in case we are releasing a locked fid
+          PFID pfid = SMBU_GetInternalFidPtr (pStream->psmb2Session->pSmbCtx, externalFid);
+
+
+          if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags&SMB2DELONCLOSE))
+          {
+            BBOOL ok=FALSE;
+            if (fidflags != FID_FLAG_DIRECTORY)
+              ok=SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+            else
+              ok=SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+             if ( prtsmb_srv_ctx->enable_oplocks&&ok)
+               oplock_c_delete(pfid);
+          }
           else
-            SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+          {
+             if (prtsmb_srv_ctx->enable_oplocks)
+               oplock_c_close(pfid);
+          }
         }
     }
-    // Get a copy of the fid for diags
-    PFID pfid = SMBU_GetInternalFidPtr (pStream->psmb2Session->pSmbCtx, externalFid);
+
     SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
-
-
-//    pfid->held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKHELD) */
-//    pfid->held_oplock_uid;
-//    pfid->requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKBREAK|SMB2WAITOPLOCKREPLY)  */
-//    pfid->smb2waitexpiresat;        /* Timer expires if !0 and SMB2WAITOPLOCKREPLY|SMB2WAITLOCKREGION */
 
         // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;

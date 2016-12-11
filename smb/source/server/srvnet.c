@@ -41,9 +41,9 @@
 #ifdef SUPPORT_SMB2
 #include "srv_smb2_model.h"
 #include "com_smb2_wiredefs.h"
-#include "srv_smb2_yield.h"
+#include "srvyield.h"
 #endif
-#include "srvobjectsc.h" // for diags
+#include "remotediags.h"
 
 
 
@@ -62,13 +62,8 @@ RTP_SOCKET net_ssnSock;
 RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions);
 RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize);
 
-extern BBOOL SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx, dword *yieldTimeout);
 extern BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
-extern BBOOL  SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
-extern void RtsmbYieldRecvSignalSocket(RTP_SOCKET sock);
-extern void RtsmbYieldSendOplockBreaks (PNET_SESSIONCTX session);
-extern void RtsmbYieldNetSessionInit(PNET_SESSIONCTX pNetCtx);
-extern void RtsmbYieldProcOplockTimers (PNET_SESSIONCTX session);
+extern void  SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
 
 RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void)
 {
@@ -143,7 +138,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
     {
         pNetCtx->sock = sock;
 
-        RtsmbYieldNetSessionInit(pNetCtx);
+        yield_c_new_session(pNetCtx);
 
         pNetCtx->lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->smbCtx), pNetCtx->sock);
@@ -271,12 +266,10 @@ RTSMB_STATIC PNET_THREAD tempThread;
     }
 
     // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
-    word saved_yield_sock_portnumber = prtsmb_srv_ctx->threads[0].yield_sock_portnumber;
-    RTP_SOCKET saved_yield_sock = prtsmb_srv_ctx->threads[0].yield_sock;
+    signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->threads[0].signal_object;
     prtsmb_srv_ctx->mainThread = tempThread;
     rtsmb_srv_net_thread_init (prtsmb_srv_ctx->mainThread, 0);
-    prtsmb_srv_ctx->threads[0].yield_sock_portnumber = saved_yield_sock_portnumber;
-    prtsmb_srv_ctx->threads[0].yield_sock = saved_yield_sock;
+    prtsmb_srv_ctx->threads[0].signal_object = saved_signal_object;
 
     /* -------------------- */
     /* get the three major sockets */
@@ -358,12 +351,12 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
         {
            /* make sure we bind the thread to the net session context */
             pThread->sessionList[i]->pThread = pThread;
-            if (pThread->sessionList[i]->smbCtx.yieldTimeout==0)
+            if (!yield_c_is_session_blocked(&pThread->sessionList[i]->smbCtx))
             {
               readList[len++] = pThread->sessionList[i]->sock;
             }
         }
-        readList[len++] = pThread->yield_sock;
+        readList[len++] = yield_c_get_signal_sock(pThread->signal_object);
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
@@ -378,9 +371,9 @@ RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
         len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
         for (j = 0; j < len; j++)
         {
-          if (readList[j] && readList[j] == pThread->yield_sock)
+          if (readList[j] && readList[j] == yield_c_get_signal_sock(pThread->signal_object))
           {
-            RtsmbYieldRecvSignalSocket(pThread->yield_sock);
+            yield_c_recieve_signal(pThread->signal_object);
             break;
           }
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
@@ -488,7 +481,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
 
 
 
-RTSMB_STATIC BBOOL rtsmb_srv_net_session_yield_cycle (PNET_SESSIONCTX *session)
+RTSMB_STATIC void rtsmb_srv_net_session_yield_cycle (PNET_SESSIONCTX *session)
 {
 BBOOL doCB=FALSE;
 BBOOL dosend = TRUE;
@@ -496,23 +489,24 @@ BBOOL dosend = TRUE;
     if ((*session)->smbCtx.isSMB2)
     {
 
-       if (RtsmbYieldCheckSignalled(&(*session)->smbCtx))
+       if (yield_c_check_signal(&(*session)->smbCtx))
+       {
           doCB=TRUE;
+       }
        else
        {
-         if(RtsmbYieldCheckTimeOut(&(*session)->smbCtx))
+         if(yield_c_check_timeout(&(*session)->smbCtx))
          {
           doCB=TRUE;
          }
-      }
+       }
     }
 
     if (doCB)
-      dosend = SMBS_ProcSMBBodyPacketReplay(&(*session)->smbCtx);
-    return dosend;
+       SMBS_ProcSMBBodyPacketReplay(&(*session)->smbCtx);
 }
 
-RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int ready)
+RTSMB_STATIC void rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int ready)
 {
     BBOOL isDead = FALSE;
     BBOOL rv = TRUE;
@@ -588,12 +582,9 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
                 (*session)->lastActivity = rtp_get_system_msec ();
                 isDead = TRUE;
             }
-            else if (prtsmb_srv_ctx->enable_oplocks)
-            { // run down any oplock timers
-              if ((*session)->smbCtx.waitOplockAckCount)
-              {
-                RtsmbYieldProcOplockTimers (*session);
-              }
+            else if (prtsmb_srv_ctx->enable_oplocks) // run down any oplock timers
+            {
+               oplock_c_break_check_wating_break_requests();
             }
         }
         break;
@@ -609,17 +600,9 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
     }
     else
     {
-       if (prtsmb_srv_ctx->enable_oplocks && (*session)->smbCtx.sendOplockBreakCount)
-       {
-          // Send any oplock break alerts
-           RtsmbYieldSendOplockBreaks (*session);
-           (*session)->smbCtx.sendOplockBreakCount = 0;
-       }
-       if ((*session)->smbCtx.sendNotifyCount)
-       {
-           // HEREHERE -  send any notify alerts
-          (*session)->smbCtx.sendNotifyCount = 0;
-       }
+       // Send any oplock break alerts
+       oplock_c_break_send_pending_breaks();
+       // HEREHERE -  send any notify alerts
     }
     releaseSession (*session);
 
@@ -627,8 +610,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int re
     {
         *session = (PNET_SESSIONCTX)0;
     }
-
-    return rv;
 }
 
 RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize)
@@ -668,14 +649,14 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
         if (pThread->blocking_session != -1 &&
             pThread->blocking_session != current_session_index)
         {
-            srvobject_session_blocked(pThread,session); // marks an ended session
+//            srvobject_session_blocked(pThread,session); // marks an ended session
             continue;
         }
 
         /* make sure we bind the thread to the net session context */
        (*session)->pThread = pThread;
 
-        srvobject_session_enter(pThread,session);
+//        srvobject_session_enter(pThread,session);
         starting_state = (*session)->smbCtx.state;
         for (n = 0; n < readListSize; n++)
         {
@@ -686,14 +667,14 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
             }
         }
         /* session can be null here */
-        if (!*session)
-           srvobject_session_enter(pThread,session); // marks an ended session
+//        if (!*session)
+//           srvobject_session_enter(pThread,session); // marks an ended session
         if (!*session)
           continue;
 
         // A yielded session's socket won't be in the socket list so check
         // if it is yielded and then check the countdown and wakup triggers
-        if (RtsmbYieldCheckBlocked(&(*session)->smbCtx))
+        if (yield_c_recieve_blocked(pThread->signal_object))
         {
           rtsmb_srv_net_session_yield_cycle (session);
         }
@@ -727,7 +708,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
             }
         }
     }
-    srvobject_session_exit(pThread,session);
+//    srvobject_session_exit(pThread,session);
 
     rtsmb_srv_net_thread_condense_sessions (pThread);
 
@@ -735,11 +716,6 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
     {
         /* mix it up a bit, in case a session at the front is hogging time */
         pThread->index = ((dword) tc_rand () % pThread->numSessions);
-        return TRUE;
-    }
-    else
-    {
-        return FALSE;
     }
 }
 
@@ -777,11 +753,11 @@ void rtsmb_srv_net_cycle (long timeout)
     {
         /* make sure we bind the thread to the net session context */
         prtsmb_srv_ctx->mainThread->sessionList[i]->pThread = prtsmb_srv_ctx->mainThread;
-        if (!RtsmbYieldCheckBlocked(&prtsmb_srv_ctx->mainThread->sessionList[i]->smbCtx) )
+        if (!yield_c_recieve_blocked(prtsmb_srv_ctx->mainThread->signal_object))
           readList[len++] = prtsmb_srv_ctx->mainThread->sessionList[i]->sock;
     }
     signal_socket_index = len;
-    readList[len++] = prtsmb_srv_ctx->mainThread->yield_sock;
+    readList[len++] =  yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object);
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
         if (srvobject_get_diag_socket())
         {
@@ -797,9 +773,9 @@ void rtsmb_srv_net_cycle (long timeout)
     int j;
     for (j = 0; j < len; j++)
     {
-      if (readList[j] == prtsmb_srv_ctx->mainThread->yield_sock)
+      if (readList[j] == yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object))
       {
-        RtsmbYieldRecvSignalSocket(prtsmb_srv_ctx->mainThread->yield_sock);
+        yield_c_recieve_signal(prtsmb_srv_ctx->mainThread->signal_object);
         break;
       }
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
@@ -808,7 +784,6 @@ void rtsmb_srv_net_cycle (long timeout)
          srvobject_process_diag_request();
        }
 #endif
-
     }
 
     for (i = 0; i < len; i++)

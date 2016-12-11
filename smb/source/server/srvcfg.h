@@ -56,6 +56,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	PNET_THREAD                 threads;
 	PFCHAR                      threadsInUse;
     FID_T                       *fidBuffers;
+    FIDOBJECT_T                 *fidObjectBuffers;
 	PNET_SESSIONCTX             sessions;
 	PFCHAR                      sessionsInUse;
 	PFBYTE                      namesrvBuffer;

@@ -38,7 +38,7 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "psmbfile.h"
 #include "rtpscnv.h"
 #include "rtpthrd.h"
-#include "srvobjectsc.h"
+#include "remotediags.h"
 
 volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 volatile quit_sig_pressed = 0;
@@ -129,7 +129,6 @@ void rtsmb_main (void)
 
 
 #include<signal.h>
-#include "srvobjectsc.h"
 // #include <unistd.h>
 
 void sig_quit_handler(int signo)

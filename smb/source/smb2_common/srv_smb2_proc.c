@@ -79,6 +79,7 @@ extern BBOOL Proc_smb2_Cancel(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream);
 
 
+
 static struct smb2_dialect_entry_s *RTSMB_FindBestDialect(int inDialectCount, word inDialects[]);
 
 
@@ -329,14 +330,12 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx)
        // Process this one smb packet
        // Make sure yield state is cleared. The command processor may set it
        pstackcontext->smb2stream.doSessionYield=FALSE;
-       pstackcontext->smb2stream.yield_duration=0;
        BBOOL SendCommandResponse = SMBS_ProcSMB2_Packet (&pstackcontext->smb2stream);
        // If the command process requested a yield.
        // rewind the stream and return with pstackcontext->stackcontext_state == ST_INPROCESS; to start the yield
        if (pstackcontext->smb2stream.doSessionYield)
        {
          pstackcontext->stackcontext_state = ST_YIELD;
-         pstackcontext->yield_duration = pstackcontext->smb2stream.yield_duration;
          return;
        }
 
