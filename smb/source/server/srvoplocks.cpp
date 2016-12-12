@@ -48,38 +48,34 @@ oplock_c::oplock_c (void)
 {
 
 }
-
-
 void oplock_c::oplock_setvals(PFID pfid,unique_userid_t unique_userid_of_owner,uint8_t held_lock_level)
 {
   tc_memcpy(this->unique_fileid, SMBU_Fidobject(pfid)->unique_fileid, SMB_UNIQUE_FILEID_SIZE);
   this->unique_userid_of_owner = unique_userid_of_owner;
   this->held_lock_level = held_lock_level;
 }
-
 oplock_c::~oplock_c()
 {
 
 }
-
-
-opploc_Cptr oplock_c_find_oplock(uint8_t *unique_fileid)
+opploc_Cptr oplock_c_find_oplock(uint8_t *unique_fileid)         // Not called
 {
 opploc_Cptr r = 0;
 //  return (opploc_Cptr) oplock_c::find_oplock(unique_fileid);
   return r;
 }
 
-opploc_Cptr oplock_c_new_fid_oplock(PFID pfid, unique_userid_t unique_userid_of_owner,uint8_t held_lock_level)
+// Called from open to queue up a yield for this session and create a fid to wait on
+void oplock_c_new_unlocked_fid(PFID pfid)
 {
-opploc_Cptr r = 0;
-  pfid->OplockLevel   =   SMB2_OPLOCK_LEVEL_NONE;
+  pfid->OplockLevel = SMB2_OPLOCK_LEVEL_NONE;
+  pfid->OplockTimeout = OplockStateNone;
   pfid->OplockState   =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
   pfid->OplockTimeout = 0;
-//  r = (opploc_Cptr)oplock_c::map_fid_oplock(pfid, unique_userid_of_owner,held_lock_level);
-  return r;
 }
 
+
+// Called from create
 // A stat identified that a file exists and it want access at this lock level
 //
 // Possible outcomes:
@@ -97,22 +93,144 @@ opploc_Cptr r = 0;
 
 oplock_c_create_return_e oplock_c_check_create_path(uint8_t *unique_fileid, unique_userid_t unique_userid, uint8_t requested_lock_level)
 {
+  OPLOCK_DIAG_TEST_REPLAY       // returns if we are testing
+  return oplock_c_create_continue;
+
+#warning test
   return oplock_c_create_continue;
   return oplock_c_create_yield;
-
-
 }
 
-void oplock_c_new_unlocked_fid(PFID pfid)
+// Called from open to queue up a yield for this session and create a fid to wait on
+void oplock_c_create_yield_ing_fid(PNET_SESSIONCTX pnCtx,SMBFSTAT *pstat,PFRTCHAR name)
 {
-  pfid->OplockLevel = SMB2_OPLOCK_LEVEL_NONE;
+  int internal_fid = 0; // the OS FID, but we don't use
+  int externalFid = SMBU_SetInternalFid (&pnCtx->smbCtx, internal_fid, name, 0, 0, pstat->unique_fileid);
+  PFID pfid  =  SMBU_GetInternalFidPtr (&pnCtx->smbCtx, externalFid);
+  pfid->OplockFlags |= SMB2WAITOPLOCKFLAGREPLY;
+  pfid->OplockTimeout = OPLOCK_DEFAULT_DURATION;
+// #define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pCtx->smbCtx.pThread->signal_object;}
+  OPLOCK_DIAG_YIELD_SESSION_YIELD
+  yield_c_set_timeout(&pnCtx->smbCtx);
+}
+
+
+// Called from the session layer after processing a packet. Send any alerts that my be pending
+static int oplock_c_break_send_pending_breaksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SESSIONCTX pCtx, void *pargs)
+{
+  if (fid->OplockFlags & SMB2SENDOPLOCKFLAGBREAK)
+  {
+     fid->OplockFlags &= ~SMB2SENDOPLOCKFLAGBREAK;
+     OPLOCK_DIAG_SEND_BREAK
+     SendOplockBreak (fid);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  RtsmbYieldSendOplockBreaks sending break\n");
+  }
+  return 0;
+}
+void oplock_c_break_send_pending_breaks(void)
+{
+  SMBU_EnumerateFids(oplock_c_break_send_pending_breaksCB, (void *) 0);
+}
+
+
+// A break acknowledge was sent from a client in reponse to our request
+//
+// Possible outcomes:
+//
+//    returns
+//      oplock_c__break_acknowledge_error
+//            Abort and reply with *pstatus
+//      oplock_c_create_continue
+//            Reply with new opcode level
+
+#warning Write us
+oplock_c_break_acknowledge_return_e oplock_c_break_acknowledge(uint8_t *unique_fileid, unique_userid_t unique_userid, uint8_t requested_lock_level,uint32_t *pstatus)
+{
+oplock_c_break_acknowledge_return_e r;
+  r = oplock_c_break_acknowledge_continue;
+  r = oplock_c_break_acknowledge_continue;
+  *pstatus = 0;
+  if (r == oplock_c_break_acknowledge_error)
+    *pstatus = 0;
+  else
+    *pstatus = 0;
+  return r;
+}
+
+void oplock_c_wake_waiting_fid(void *_pfid, void *signal_object)
+{
+PFID pfid = (PFID) _pfid;
+  OPLOCK_DIAG_YIELD_SESSION_SEND_SIGNAL
   pfid->OplockTimeout = 0;
-  pfid->OplockState =   OplockStateNone;;       //  =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
+  pfid->OplockFlags &= ~SMB2WAITOPLOCKFLAGREPLY;
+  yield_c_signal_to_session(signal_object);
+}
+// enumerate FIDs and signal lock release if we have a match. Send break responses to waiting clients if  required
+struct oplock_c_break_update_pending_locks_s { uint8_t *unique_fileid; uint8_t oplock_level;};
+static int oplock_c_break_update_pending_locksCB (PFID pfid, PNET_SESSIONCTX pnCtx,PSMB_SESSIONCTX pCtx, void *pargs)
+{
+  if (pfid->OplockFlags & SMB2WAITOPLOCKFLAGREPLY)
+  {
+    if (tc_memcmp(SMBU_Fidobject(pfid)->unique_fileid, ((struct oplock_c_break_update_pending_locks_s *) pargs)->unique_fileid,   SMB_UNIQUE_FILEID_SIZE)==0)
+    {
+      if ( pfid->OplockLevel >= ((struct oplock_c_break_update_pending_locks_s *) pargs)->oplock_level)
+      {
+        SMBU_FidobjectSetheld_oplock_level(pfid, SMB2_OPLOCK_LEVEL_NONE);
+        oplock_c_wake_waiting_fid( (void *)pfid, (void *) pnCtx->pThread->signal_object);
+      }
+    }
+  }
+
+  return 0;
+}
+void oplock_c_break_update_pending_locks(uint8_t *unique_fileid, uint8_t oplock_level)
+{
+ /* enumerate FIDs and signal lock release if we have a match. Send a response if  required */
+ struct oplock_c_break_update_pending_locks_s args;
+ args.unique_fileid          = unique_fileid;
+ args.oplock_level           = oplock_level;
+ SMBU_EnumerateFids(oplock_c_break_update_pending_locksCB, (void *) &args);
+}
+
+/* =======================================================*/
+/* void oplock_c_break_check_wating_break_requests(PNET_SESSIONCTX session)*/
+/* Scan all active oplocks
+
+     When the oplock break acknowledgment timer expires, the server MUST scan for oplock breaks that have not been acknowledged by the client within the configured time.
+     It does this by enumerating all opens in the GlobalOpenTable. For each open, if Open.OplockState is Breaking and Open.OplockTimeout is earlier than the current time,
+     the server MUST acknowledge the oplock break to the underlying object store represented by Open.LocalOpen, set Open.OplockLevel to SMB2_OPLOCK_LEVEL_NONE, and set
+     Open.OplockState to None.
+
+*/
+
+/* =======================================================*/
+struct oplock_c_break_check_wating_break_requests_s {  word timenow;};
+static int oplock_c_break_check_wating_break_requestsCB (PFID fid, PNET_SESSIONCTX pNctxt,PSMB_SESSIONCTX pCtx, void *pargs)
+{
+  if (fid->OplockFlags & SMB2WAITOPLOCKFLAGREPLY)
+  {
+     if ( ((struct oplock_c_break_check_wating_break_requests_s *)pargs)->timenow > fid->OplockTimeout)
+     {
+       fid->OplockTimeout = 0;
+       SMBU_FidobjectSetheld_oplock_level(fid, SMB2_OPLOCK_LEVEL_NONE);
+       fid->OplockFlags &= ~SMB2WAITOPLOCKFLAGREPLY;
+       OPLOCK_DIAG_YIELD_SESSION_SEND_TIMEOUT
+       yield_c_signal_to_session(pNctxt->pThread->signal_object);
+     }
+  }
+  return 0;
+}
+void oplock_c_break_check_wating_break_requests(void)
+{
+ struct oplock_c_break_check_wating_break_requests_s args;
+ /* enumerate FIDs and signal lock release if we have a match. Send a response if  required */
+ args.timenow  = rtp_get_system_msec ();
+ SMBU_EnumerateFids(oplock_c_break_check_wating_break_requestsCB, (void *) &args);
+}
+
 
 //    SMBU_FidobjectSetheld_oplock_level(&pCtx->fids[k],0);
 //    SMBU_Fidobject(&pCtx->fids[k])->held_oplock_uid = 0;
-}
-
 // A file or directory is being closed.
 //
 // Possible outcomes:
@@ -145,29 +263,6 @@ void oplock_c_delete(PFID Fid)
 
 }
 
-// A break acknowledge was sent from a client in reponse to our request
-//
-// Possible outcomes:
-//
-//    returns
-//      oplock_c__break_acknowledge_error
-//            Abort and reply with *pstatus
-//      oplock_c_create_continue
-//            Reply with new opcode level
-
-#warning Write us
-oplock_c_break_acknowledge_return_e oplock_c_break_acknowledge(uint8_t *unique_fileid, unique_userid_t unique_userid, uint8_t requested_lock_level,uint32_t *pstatus)
-{
-oplock_c_break_acknowledge_return_e r;
-  r = oplock_c_break_acknowledge_continue;
-  r = oplock_c_break_acknowledge_continue;
-  *pstatus = 0;
-  if (r == oplock_c_break_acknowledge_error)
-    *pstatus = 0;
-  else
-    *pstatus = 0;
-  return r;
-}
 
 
 #if 0
@@ -206,77 +301,7 @@ oplock_c_break_acknowledge_return_e r;
 }
 
 #endif
-struct oplock_c_break_update_pending_locks_s { uint8_t *unique_fileid; uint8_t oplock_level;};
-static int oplock_c_break_update_pending_locksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SESSIONCTX pCtx, void *pargs)
-{
-#warning wrong
 
-  if (fid->OplockFlags & SMB2SENDOPLOCKFLAGBREAK)
-  {
-     fid->OplockFlags &= ~SMB2SENDOPLOCKFLAGBREAK;
-     SendOplockBreak(fid);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  oplock_c_break_update_pending_locksCB sending break\n");
-  }
-  return 0;
-}
-
-void oplock_c_break_update_pending_locks(uint8_t *unique_fileid, uint8_t oplock_level)
-{
- /* enumerate FIDs and signal lock release if we have a match. Send a response if  required */
- struct oplock_c_break_update_pending_locks_s args;
- args.unique_fileid          = unique_fileid;
- args.oplock_level           = oplock_level;
- SMBU_EnumerateFids(oplock_c_break_update_pending_locksCB, (void *) &args);
-}
-
-static int oplock_c_break_send_pending_breaksCB (PFID fid, PNET_SESSIONCTX pnCtx,PSMB_SESSIONCTX pCtx, void *pargs)
-{
-  if (fid->OplockFlags & SMB2SENDOPLOCKFLAGBREAK)
-  {
-     fid->OplockFlags &= ~SMB2SENDOPLOCKFLAGBREAK;
-     SendOplockBreak (fid);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD:  RtsmbYieldSendOplockBreaks sending break\n");
-  }
-  return 0;
-}
-void oplock_c_break_send_pending_breaks(void)
-{
-  SMBU_EnumerateFids(oplock_c_break_send_pending_breaksCB, (void *) 0);
-}
-
-/* =======================================================*/
-/* void oplock_c_break_check_wating_break_requests(PNET_SESSIONCTX session)*/
-/* Scan all active oplocks
-
-     When the oplock break acknowledgment timer expires, the server MUST scan for oplock breaks that have not been acknowledged by the client within the configured time.
-     It does this by enumerating all opens in the GlobalOpenTable. For each open, if Open.OplockState is Breaking and Open.OplockTimeout is earlier than the current time,
-     the server MUST acknowledge the oplock break to the underlying object store represented by Open.LocalOpen, set Open.OplockLevel to SMB2_OPLOCK_LEVEL_NONE, and set
-     Open.OplockState to None.
-
-*/
-
-/* =======================================================*/
-struct oplock_c_break_check_wating_break_requests_s {  word timenow;};
-static int oplock_c_break_check_wating_break_requestsCB (PFID fid, PNET_SESSIONCTX pNctxt,PSMB_SESSIONCTX pCtx, void *pargs)
-{
-  if (fid->OplockFlags & SMB2WAITOPLOCKFLAGREPLY)
-  {
-     if ( ((struct oplock_c_break_check_wating_break_requests_s *)pargs)->timenow > fid->OplockTimeout)
-     {
-       fid->OplockTimeout = 0;
-       SMBU_FidobjectSetheld_oplock_level(fid, SMB2_OPLOCK_LEVEL_NONE);
-       yield_c_signal_to_session(pNctxt->pThread->signal_object);
-     }
-  }
-  return 0;
-}
-void oplock_c_break_check_wating_break_requests()
-{
- struct oplock_c_break_check_wating_break_requests_s args;
- /* enumerate FIDs and signal lock release if we have a match. Send a response if  required */
- args.timenow  = rtp_get_system_msec ();
- SMBU_EnumerateFids(oplock_c_break_check_wating_break_requestsCB, (void *) &args);
-}
 
 #warning  WRITE ME
 void oplock_c_create(PFID pfid,uint8_t requested_lock_level)

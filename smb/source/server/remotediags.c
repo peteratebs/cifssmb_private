@@ -11,6 +11,8 @@
 #include "srvutil.h"
 #include "rtpmem.h"
 
+oplock_diagnotics_t oplock_diagnotics;
+
 extern volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 
 RTSMB_STATIC void rtsmb_srv_diag_main (void);
@@ -80,26 +82,6 @@ dword *p = (dword *)unique_fileid;
 //     int i,tp;  tp = 0; tp &temp[0];
 //     for (i = 0; i < size;i++) {tp += sprintf(&temp[tp], "%X,", unique_fileid[i]); } return temp;}
 
-EXTERN_C  void SMBU_DisplayFidInfo(void)
-{
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"### ADDRESS FLGS   LCK  TID    UID   PID   INODE   FILENAME\n>");
- int  i;
- for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
- {
- char temp0[32];
- char temp1[256];
-    if (prtsmb_srv_ctx->fidBuffers[i].internal_fid >= 0)
-    {
-      FID_T *p = &(prtsmb_srv_ctx->fidBuffers[i]);
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"%3d %8x %2x    %2d  %4u %4u %4u %8s %s\n>",
-       i,p,
-       p->smb2flags,
-       SMBU_Fidobject(p)->held_oplock_level,
-       p->tid,p->uid,p->pid,SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, SMB_UNIQUE_FILEID_SIZE, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
-    }
- }
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"====#===#====#====#=======#===#====#===#===\n");
-}
 
 // Scans all in use fid objects
 struct FidObjectReferencesCB_t {
@@ -128,6 +110,7 @@ static int SMBU_DiagFormatFidList(char *buffer)
 char *start=buffer;
 PFIDOBJECT pNewfidObject = 0;  // result
 
+ buffer += tc_sprintf(buffer, (char *)"====================== FID STATISTICS  ==========================================\n");
  buffer += tc_sprintf(buffer, (char *)"### OBJADDR     REFS   FIDADDR OPENS FLGS  LCK  TID    UID SES#   INODE   FILENAME\n");
  int  i;
  for (i = 0; i < ((int)prtsmb_srv_ctx->max_fids_per_session*(int)prtsmb_srv_ctx->max_sessions); i++)
@@ -158,9 +141,23 @@ PFIDOBJECT pNewfidObject = 0;  // result
   }
   buffer += tc_sprintf(buffer, (char *)"====#======#====#=====#=====#====#====#=======#=== \n");
 
+  buffer += tc_sprintf(buffer, (char *)"====================== OPLOCK STATISTICS  ==========================================\n");
+  if (!prtsmb_srv_ctx->enable_oplocks)
+     buffer += tc_sprintf(buffer, (char *)"Oplocks are disabled:\n");
+  else
+  {
+    buffer += tc_sprintf(buffer, (char *)"Oplocks are enabled:\n");
+    buffer += tc_sprintf(buffer, (char *)"  session_replays               :  %lu \n", oplock_diagnotics.session_replays               );
+    buffer += tc_sprintf(buffer, (char *)"  session_yields                :  %lu \n", oplock_diagnotics.session_yields                );
+    buffer += tc_sprintf(buffer, (char *)"  session_wakeups               :  %lu \n", oplock_diagnotics.session_wakeups               );
+    buffer += tc_sprintf(buffer, (char *)"  session_wake_signalled        :  %lu \n", oplock_diagnotics.session_wake_signalled        );
+    buffer += tc_sprintf(buffer, (char *)"  session_sent_signals          :  %lu \n", oplock_diagnotics.session_sent_signals          );
+    buffer += tc_sprintf(buffer, (char *)"  session_sent_timeouts         :  %lu \n", oplock_diagnotics.session_sent_timeouts         );
+    buffer += tc_sprintf(buffer, (char *)"  session_wake_timedout         :  %lu \n", oplock_diagnotics.session_wake_timedout         );
+    buffer += tc_sprintf(buffer, (char *)"  session_sent_breaks           :  %lu \n", oplock_diagnotics.session_sent_breaks           );
+  }
  return (int) (buffer - start);
 }
-
 
 static int diag_remote_portnumber = -1;
 static RTP_SOCKET diag_socket = -1;

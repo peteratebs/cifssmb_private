@@ -50,6 +50,7 @@
 #include "sha256.h"
 
 #include "wchar.h"
+#include "srvyield.h"
 
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
@@ -57,6 +58,8 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 
 
 #include "rtptime.h"
+
+
 
 
 extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
@@ -161,9 +164,12 @@ BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
 {
   BBOOL r=FALSE;
   ProcSMB2_BodyContext *pstackcontext = pSctx->pCtxtsmb2Session->SMB2_BodyContext;
+
   // Initialize the handling of a compound packet containing one or more SMB2 commands
   if (pstackcontext->stackcontext_state == ST_INIT)
+  {
     _SMBS_ProcSMB2_Body (pSctx);
+   }
 
   while (pstackcontext->stackcontext_state == ST_INPROCESS)
     _SMBS_ProcSMB2_Body (pSctx);
@@ -194,7 +200,6 @@ static void _SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx)
     if (pstackcontext->stackcontext_state == ST_INIT)
     {  // This is the beginning of a compound packet containing one or more SMB2 commands
        SMBS_ProcSMB2_BodyPhaseOne (pSctx);
-
        // SMBS_ProcSMB2_BodyPhaseOne setting these states indicate we it wants to return and on true/false send/notsend the output buffer
        if (pstackcontext->stackcontext_state == ST_FALSE)
          return;
@@ -226,7 +231,16 @@ void SMBS_ProcSMB2_BodyPhaseOne (PSMB_SESSIONCTX pSctx)
 
     /* Initialize memory stream pointers from the v1 contect structure
        set pStream->psmb2Session from the smb2 value saved in the session context structure  */
-    Smb1SrvCtxtToStream(&pstackcontext->smb2stream, pSctx);
+    if (pSctx->current_yield_Cptr)
+    {
+       yield_c_resume_yield_point(&pstackcontext->smb2stream, pSctx->current_yield_Cptr);
+    }
+    else
+    {
+      Smb1SrvCtxtToStream(&pstackcontext->smb2stream, pSctx);
+      /* Save the stream state so we can replay it if we need to*/
+      pSctx->current_yield_Cptr = yield_c_new_yield_point(&pstackcontext->smb2stream);
+    }
 
 	/* read header and advance the stream pointer */
 	if (cmd_read_header_raw_smb2 (pstackcontext->smb2stream.read_origin, pstackcontext->smb2stream.read_origin, pstackcontext->smb2stream.InBodySize, &pstackcontext->smb2stream.InHdr) == -1)

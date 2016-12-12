@@ -131,15 +131,15 @@ shares = smbpas:ro smbnopas:ro ipc$:rw Printer:
 # 	groups allows.
 
 [user]
-name = ebs
-password = password
+name = notebs
+password = notpassword
 groups = trusted
 [end]
 
 [user]
 name = bob
-password = ebs1
-groups = marketing
+password = bobtwo
+groups = trusted
 [end]
 
 

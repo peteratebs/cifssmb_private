@@ -143,7 +143,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_net_connection_open (PNET_THREAD pThread)
         pNetCtx->lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->smbCtx), pNetCtx->sock);
 
-        SMBS_SetBuffers (&pNetCtx->smbCtx, pThread->inBuffer, prtsmb_srv_ctx->in_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->out_buffer_size, pThread->tmpBuffer, prtsmb_srv_ctx->temp_buffer_size);
+        SMBS_PointSmbBuffersAtNetThreadBuffers (&pNetCtx->smbCtx, pThread);
 
         return pNetCtx;
     }
@@ -425,9 +425,7 @@ RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD p
         /**
          * We must also switch buffer pointers to correct place.
          */
-        SMBS_SetBuffers (&pThread->sessionList[k]->smbCtx, pThread->inBuffer,
-            prtsmb_srv_ctx->in_buffer_size, pThread->outBuffer, prtsmb_srv_ctx->out_buffer_size,
-            pThread->tmpBuffer, prtsmb_srv_ctx->temp_buffer_size);
+        SMBS_PointSmbBuffersAtNetThreadBuffers (&pThread->sessionList[k]->smbCtx, pThread);
 
         k++;
 
@@ -491,19 +489,26 @@ BBOOL dosend = TRUE;
 
        if (yield_c_check_signal(&(*session)->smbCtx))
        {
+          OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_SIGNAL
           doCB=TRUE;
        }
        else
        {
          if(yield_c_check_timeout(&(*session)->smbCtx))
-         {
-          doCB=TRUE;
+         { // Clear it so it doesn't fire right away
+           yield_c_clear_timeout(&(*session)->smbCtx);
+           doCB=TRUE;
+           OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_TIMEOUT
          }
        }
     }
 
     if (doCB)
+    {
+       OPLOCK_DIAG_ENTER_REPLAY
        SMBS_ProcSMBBodyPacketReplay(&(*session)->smbCtx);
+       OPLOCK_DIAG_EXIT_REPLAY
+    }
 }
 
 RTSMB_STATIC void rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int ready)
@@ -674,7 +679,8 @@ RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *
 
         // A yielded session's socket won't be in the socket list so check
         // if it is yielded and then check the countdown and wakup triggers
-        if (yield_c_recieve_blocked(pThread->signal_object))
+        if (yield_c_is_session_blocked(&(*session)->smbCtx))
+//        if (yield_c_recieve_blocked(pThread->signal_object))
         {
           rtsmb_srv_net_session_yield_cycle (session);
         }

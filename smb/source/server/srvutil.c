@@ -560,6 +560,19 @@ static int SMBU_Fid2SessionCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX 
   }
   return 0;
 }
+
+PNET_SESSIONCTX SMBU_SmbSessionToNetSession(PSMB_SESSIONCTX pSmbCtx)
+{
+  int i, j;
+#warning inefficient - need to fix
+   i=0;
+   for (i = 0; i <  prtsmb_srv_ctx->sessionsInUse; i++)
+     if (&prtsmb_srv_ctx->sessions[i].smbCtx == pSmbCtx)
+       return &prtsmb_srv_ctx->sessions[i];
+  return &prtsmb_srv_ctx->sessions[0];
+
+}
+
 PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
 {
   struct SMBU_Fid2Session_s args;

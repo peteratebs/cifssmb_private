@@ -1,4 +1,6 @@
 #if (0)
+
+
 //
 //  srvobjects.c is not used but is saved because it
 //  contains roughed out class definitions for most smb data types
@@ -31,4 +33,6 @@ extern int srvobject_get_currentsession_index(void);
 #endif
 
 #endif
- e#endif
+
+
+#endif

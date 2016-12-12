@@ -164,7 +164,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     BBOOL signalled  = FALSE;
     BBOOL timedout  = FALSE;
 
-
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
     tc_memset(file_name,0, sizeof(file_name));
@@ -305,6 +304,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     if (pTree->type == ST_PRINTQ)
     { // Don't open printers.
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  printers not supporrted\n");
       RtsmbWriteSrvStatus(pStream, SMB2_STATUS_NOT_SUPPORTED);
       return TRUE;
     }
@@ -333,11 +333,15 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
       {
         ddword unique_userid = smb2_stream_to_unique_userid(pStream);
+
         oplock_c_create_return_e result;
         result = oplock_c_check_create_path(stat.unique_fileid, unique_userid, command.RequestedOplockLevel);
         if (result == oplock_c_create_yield)
         {
-#warning lock in yield here
+          //Queue up a yield for this session and create a fid to wait on
+          oplock_c_create_yield_ing_fid(SMBU_SmbSessionToNetSession(pStream->psmb2Session->pSmbCtx),&stat, (PFRTCHAR) file_name);
+          pStream->doSessionYield=TRUE;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  yield return\n");
           return FALSE;
         }
       }
@@ -371,7 +375,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       file_name[command.NameLength+1] = 0;
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-//        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+//RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
         {
@@ -427,9 +431,9 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     if (r != 0)
     {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
         if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate remapped status == %X\n", r);
         }
         RtsmbWriteSrvStatus(pStream, r);

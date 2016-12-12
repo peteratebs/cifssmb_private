@@ -1715,7 +1715,7 @@ BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         {
             if (dialectList[i].dialect > max_dialect)
               continue;
-#ifdef SUPPORT_SMB2   /* exclude rest of file */
+#ifdef SUPPORT_SMB2
             if (dialectList[i].name == srv_dialect_smb2002 || dialectList[i].name == srv_dialect_smb2xxx)
             {
                if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
@@ -4558,18 +4558,17 @@ PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
 }
 
 
-
 /* this changes the permenant buffers used by this session   */
-void SMBS_SetBuffers (PSMB_SESSIONCTX pCtx, PFBYTE inBuf, dword inSize, PFBYTE outBuf, dword outSize, PFBYTE tmpBuf, dword tmpSize)
+void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread)
 {
-    pCtx->smallReadBuffer = inBuf;
-    pCtx->smallWriteBuffer = outBuf;
-    pCtx->readBuffer = inBuf;
-    pCtx->readBufferSize = inSize - RTSMB_NBSS_HEADER_SIZE;
-    pCtx->writeBuffer = outBuf;
-    pCtx->writeBufferSize = outSize - RTSMB_NBSS_HEADER_SIZE;
-    pCtx->tmpBuffer = tmpBuf;
-    pCtx->tmpSize = tmpSize;
+    pCtx->smallReadBuffer = pThread->inBuffer;
+    pCtx->smallWriteBuffer = pThread->outBuffer;
+    pCtx->readBuffer = pThread->inBuffer;
+    pCtx->readBufferSize = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE;
+    pCtx->writeBuffer = pThread->outBuffer;
+    pCtx->writeBufferSize = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE;
+    pCtx->tmpBuffer = pThread->tmpBuffer;
+    pCtx->tmpSize = prtsmb_srv_ctx->temp_buffer_size;
 }
 
 /*
@@ -5151,7 +5150,11 @@ static SMB2PROCBODYACTION SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx)
         // Hold onto the context in a suspended state if we're yielding
         // Otherwise we can free the context and grab another one when we enter again
         if (r != OPLOCK_YIELD)
+        {
+          yield_c_drop_yield_point(pSctx->current_yield_Cptr);
+          pSctx->current_yield_Cptr=0;
           yield_c_free_body_context(pSctx->pCtxtsmb2Session);
+        }
         return r;
     }
 #endif

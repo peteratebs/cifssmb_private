@@ -74,6 +74,7 @@ void rtsmb_srv_net_cycle (long timeout);
 void rtsmb_srv_net_shutdown (void);
 void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx );
 PNET_SESSIONCTX findSessionByContext (PSMB_SESSIONCTX pSctxt);
+void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread);
 
 #if INCLUDE_RTSMB_DC
 void rtsmb_srv_net_pdc_invalidate (void);

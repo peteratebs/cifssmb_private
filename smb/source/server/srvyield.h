@@ -17,7 +17,7 @@ extern "C" {
 
 yield_Cptr yield_c_new_yield_point(smb2_stream *pStream);
 void yield_c_drop_yield_point(yield_Cptr p);
-void yield_c_retain_yield_point(yield_Cptr p);
+void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p);
 
 
 signalobject_Cptr yield_c_bind_signal(int i);

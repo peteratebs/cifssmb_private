@@ -35,15 +35,18 @@ typedef void * opploc_Cptr;
 #define SMB2OPLOCKFLAGHELD       0x08
 #define SMB2WAITLOCKFLAGREGION   0x10   /* not used yet */
 
+#define OPLOCK_DEFAULT_DURATION  400                 // for testing
+
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 opploc_Cptr oplock_c_find_oplock(uint8_t *unique_fileid);
-opploc_Cptr oplock_c_new_fid_oplock(PFID pfid, unique_userid_t unique_userid_of_owner,uint8_t held_lock_level);
 
 oplock_c_create_return_e oplock_c_check_create_path(uint8_t *unique_fileid, unique_userid_t unique_userid, uint8_t requested_lock_level);
+void oplock_c_create_yield_ing_fid(PNET_SESSIONCTX pnCtx,SMBFSTAT *pstat,PFRTCHAR name);
 void oplock_c_create(PFID pfid,uint8_t requested_lock_level);
 void oplock_c_close(PFID pfid);
 void oplock_c_delete(PFID pfid);
@@ -54,6 +57,7 @@ oplock_c_break_acknowledge_return_e oplock_c_break_acknowledge(uint8_t *unique_f
 void oplock_c_break_update_pending_locks(uint8_t *unique_fileid, uint8_t oplock_level);
 void oplock_c_break_send_pending_breaks(void);
 void oplock_c_break_check_wating_break_requests();
+void oplock_c_wake_waiting_fid(void *_pfid, void *signal_object);
 
 // in smboplocks2
 void SendOplockBreak(PFID pfid);

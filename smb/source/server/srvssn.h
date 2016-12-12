@@ -202,8 +202,10 @@ typedef struct smb_sessionCtx_s
     BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
 
 
-	word  _yieldFlags;     // Private for use only by srvyield.cpp
-	dword _yieldTimeout;   // Private for use only by srvyield.cpp
+	word  _yieldFlags;          // Private for use only by srvyield.cpp
+	dword _yieldTimeout;        // Private for use only by srvyield.cpp
+    void  *current_yield_Cptr;   // Stores the resore point from srvyield.cpp
+
 
     SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
 
@@ -374,7 +376,6 @@ typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;
 void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock);
 void SMBS_CloseSession (PSMB_SESSIONCTX pSmbCtx);
 void SMBS_CloseShare (PSMB_SESSIONCTX pCtx, word handle);
-void SMBS_SetBuffers (PSMB_SESSIONCTX pCtx, PFBYTE inBuf, dword inSize, PFBYTE outBuf, dword outSize, PFBYTE tmpBuf, dword tmpSize);
 
 BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
 BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);

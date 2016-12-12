@@ -23,8 +23,6 @@ static const byte local_ip_address[] = {0x7f,0,0,1};
 static const byte local_ip_mask[] = {0xff,0,0,0};
 
 
-
-
 class yield_manager_c {
   public:
      yield_manager_c(void) {
@@ -120,7 +118,7 @@ int yield_c_check_signal(PSMB_SESSIONCTX pSctx)
 
 void yield_c_set_signal(PSMB_SESSIONCTX pSctx)
 {
-  pSctx->_yieldFlags != YIELDSIGNALLED;
+  pSctx->_yieldFlags |= YIELDSIGNALLED;
 }
 
 int  yield_c_check_timeout(PSMB_SESSIONCTX pSctx)
@@ -151,7 +149,7 @@ class yield_point_c {
   public:
     yield_point_c(smb2_stream *pStream) { this->StreamCopy = *pStream; };
     ~yield_point_c(){} ;
-    void resume_stream(smb2_stream *pStream) { this->StreamCopy = *pStream; };
+    void resume_stream(smb2_stream *pStream) { *pStream = this->StreamCopy; };
     void save_stream(smb2_stream *pStream)   { /* Copy */};
     private:
       smb2_stream StreamCopy;
@@ -171,9 +169,9 @@ void yield_c_drop_yield_point(yield_Cptr p)
 }
 
 
-void yield_c_retain_yield_point(yield_Cptr p)
+void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p)
 {
-#warning - Doit baby
+  ((class yield_point_c *)p)->resume_stream(pStream);
 }
 
 
