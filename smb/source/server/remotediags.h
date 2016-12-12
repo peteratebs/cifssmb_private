@@ -49,7 +49,7 @@ extern oplock_diagnotics_t oplock_diagnotics;
 #define OPLOCK_DIAG_ENTER_REPLAY                    {oplock_diagnotics.performing_replay = 1;oplock_diagnotics.session_replays += 1;}
 #define OPLOCK_DIAG_EXIT_REPLAY                     oplock_diagnotics.performing_replay = 0;
 
-#define OPLOCK_DIAG_DO_SIGNAL_TIMEOUT_TEST          1
+#define OPLOCK_DIAG_DO_SIGNAL_TIMEOUT_TEST          0
 #define OPLOCK_DIAG_DO_SIGNAL_SETTING_TEST          0
 #define OPLOCK_DIAG_DO_SIGNAL_REPLAY_TEST (OPLOCK_DIAG_DO_SIGNAL_TIMEOUT_TEST||OPLOCK_DIAG_DO_SIGNAL_SETTING_TEST)
 
