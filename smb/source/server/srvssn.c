@@ -4726,16 +4726,19 @@ void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
   // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
   yield_c_clear_timeout(pSctx);
   int pcktsize = (int) (pSctx->in_packet_size - pSctx->current_body_size);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: cb: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
   SMB2PROCBODYACTION r = SMBS_ProcSMBBodyPacketExecute (pSctx);/* rtsmb_srv_net_session_cycle finish reading what we started. */
   BBOOL dosend = (r== SEND_REPLY);
   if (r==OPLOCK_YIELD)
   {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay yield: \n");
     yield_c_set_timeout(pSctx);
     dosend = FALSE;
   }
   // Send output if there is any or process socket closures ok whetehr yielding or ruynning
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay call Epilog with SendRequest %d: CloseRequest:%d\n", dosend, pSctx->doSessionClose);
   SMBS_ProcSMBBodyPacketEpilog (pSctx, dosend);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay rerturned from Epilog\n");
 }
 
 

@@ -568,7 +568,10 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
     			doSend = Proc_smb2_TreeDisConnect(pStream);
     			break;
             case SMB2_CREATE         :
+                if (oplock_diagnotics.performing_replay)   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create: replay enter\n");
     			doSend = Proc_smb2_Create(pStream);
+                if (oplock_diagnotics.performing_replay)
+                  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay complete dosend:%d\n",doSend);
     			break;
             case SMB2_CLOSE          :
     			doSend = Proc_smb2_Close(pStream);
