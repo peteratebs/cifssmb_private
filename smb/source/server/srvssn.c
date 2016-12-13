@@ -4736,9 +4736,9 @@ void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
     dosend = FALSE;
   }
   // Send output if there is any or process socket closures ok whetehr yielding or ruynning
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay call Epilog with SendRequest %d: CloseRequest:%d\n", dosend, pSctx->doSessionClose);
-  SMBS_ProcSMBBodyPacketEpilog (pSctx, dosend);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay rerturned from Epilog\n");
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketReplay call Epilog with SendRequest %d: CloseRequest:%d\n", dosend, pSctx->doSessionClose);
+  BBOOL rr=SMBS_ProcSMBBodyPacketEpilog (pSctx, dosend);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketReplay returned from Epilog r: %d\n",rr);
 }
 
 
@@ -4760,7 +4760,7 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
     yield_c_clear_timeout(pSctx);
 
-
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
     if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
 //    if (packetSize > pSctx->readBufferSize)
     {
@@ -4950,6 +4950,7 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     {
         SMB2PROCBODYACTION bodyR;
         dword current_body_size = pSctx->current_body_size;
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Call SMBS_ProcSMBBodyInner\n");
         bodyR = SMBS_ProcSMBBodyInner (pSctx);
         doSend = (bodyR == SEND_REPLY);
         if (bodyR == OPLOCK_YIELD)
@@ -4959,17 +4960,20 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyInner yielded\n");
         }
         if (pSctx->state == NOTCONNECTED)
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Returned to not-connected stated\n");
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG:Returned to not-connected stated\n");
         }
         break;
     }
     default:
         return TRUE;
     }
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
     return SMBS_ProcSMBBodyPacketEpilog (pSctx, doSend);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBPacket back from Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
 }
 
 BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
@@ -4986,10 +4990,17 @@ BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
 
     if (doSend)
     {
+       if (oplock_diagnotics.performing_replay) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketEpilog from replay seending bytes: %d\n", pSctx->outBodySize); }
         returnVal = SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
+       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
     }
+    else {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog called with no send request\n"); }
     if (pSctx->doSessionClose)
     { // Do it if a session close is requested and return false so we close the socket
+       if (oplock_diagnotics.performing_replay)
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from replay\n"); }
+       else
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from NBSS layer\n"); }
        pSctx->doSessionClose = FALSE;
        PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
        if (pNctxt)

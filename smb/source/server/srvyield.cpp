@@ -15,10 +15,7 @@
 #warning duplicate define
 #define CFG_RTSMB_MAX_SESSIONS              8
 
-// Each .seq file and the .bmp files it references creates one one_instance of an animation_sequence
 static int yield_manager_c_current_yield_socketnumber;
-static dword yield_point_c_allocated_yields;
-static dword yield_point_c_deallocated_yields;
 static const byte local_ip_address[] = {0x7f,0,0,1};
 static const byte local_ip_mask[] = {0xff,0,0,0};
 
@@ -27,8 +24,6 @@ class yield_manager_c {
   public:
      yield_manager_c(void) {
        yield_manager_c_current_yield_socketnumber = YIELD_BASE_PORTNUMBER;
-       yield_point_c_allocated_yields = 0;
-       yield_point_c_deallocated_yields = 0;
      }
      ~yield_manager_c() {};
      int get_next_socket_number() {return yield_manager_c_current_yield_socketnumber++;};
@@ -159,13 +154,13 @@ class yield_point_c {
 
 yield_Cptr yield_c_new_yield_point(smb2_stream *pStream)
 {
-  yield_point_c_allocated_yields += 1;
+  OPLOCK_DIAG_YIELD_ALLOCATE
   return (yield_Cptr) new yield_point_c(pStream);
 }
 void yield_c_drop_yield_point(yield_Cptr p)
 {
   delete (class yield_point_c *) p;
-  yield_point_c_deallocated_yields += 1;
+  OPLOCK_DIAG_YIELD_DEALLOCATE
 }
 
 

@@ -69,6 +69,8 @@ void _rtp_debug_output_int (
 	);
 void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...);
 void _rtp_debug_syslog_open(char *name, unsigned long level_mask);
+typedef int (*rtpsyslogFilterType)(char *str_buffer);
+void _rtp_debug_syslog_filter(rtpsyslogFilterType pfilter);
 #define SYSLOG_TRACE_LVL  1
 #define SYSLOG_INFO_LVL   2
 #define SYSLOG_ERROR_LVL   4
@@ -81,6 +83,7 @@ void _rtp_debug_syslog_open(char *name, unsigned long level_mask);
 // Syslog is available in DEBUG or non DEBUG
 #define RTP_DEBUG_OPEN_SYSLOG  _rtp_debug_syslog_open
 #define RTP_DEBUG_OUTPUT_SYSLOG  _rtp_debug_syslog_printf
+#define RTP_DEBUG_FILTER_SYSLOG  _rtp_debug_syslog_filter
 
 
 #ifdef RTP_DEBUG

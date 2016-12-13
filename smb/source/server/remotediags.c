@@ -17,11 +17,18 @@ extern volatile int go; /* Variable loop on.. Note: Linux version needs sigkill 
 
 RTSMB_STATIC void rtsmb_srv_diag_main (void);
 
+
+
 static char *syslogname = "RTSMBS";
 static unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
+static void SendDiagMessage(void);
+
+static int DiagMessageFilter(char *str);
+
 void rtsmb_srv_syslog_config(void)
 {
-    RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
+  RTP_DEBUG_FILTER_SYSLOG(DiagMessageFilter);
+  RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
 }
 void rtsmb_srv_diag_config(void)
 {
@@ -105,6 +112,31 @@ static int SMBU_CountFidObjectReferences(void *fidobject_address)
   return args.fid_count;
 }
 
+struct DiagFormatSessionsCB_t { char *buffer;; int numSessions; int doCount;};
+static int DiagFormatSessionsCB (PNET_SESSIONCTX pnCtx, void *pargs)
+{
+ if ( ((struct  DiagFormatSessionsCB_t*)pargs)->doCount)
+   ((struct  DiagFormatSessionsCB_t*)pargs)->numSessions+=1;
+ else
+   ((struct  DiagFormatSessionsCB_t*)pargs)->buffer +=  tc_sprintf(((struct DiagFormatSessionsCB_t *)pargs)->buffer, "  Last activity: %lu\n", pnCtx->lastActivity);
+ return 0;
+}
+
+//
+static char * SMBU_DiagFormatSessions(char *buffer)
+{
+struct DiagFormatSessionsCB_t args = {
+        buffer: buffer,
+        numSessions: 0,
+        doCount: 1,
+    };
+    SMBU_EnumerateSessions(DiagFormatSessionsCB, (void *) &args);
+    buffer +=  tc_sprintf(buffer, "  Num Sessions : %lu\n", args.numSessions);
+    args.doCount = 0; args.buffer = buffer;
+    SMBU_EnumerateSessions(DiagFormatSessionsCB, (void *) &args);
+    return args.buffer;
+}
+
 static int SMBU_DiagFormatFidList(char *buffer)
 {
 char *start=buffer;
@@ -156,7 +188,9 @@ PFIDOBJECT pNewfidObject = 0;  // result
     buffer += tc_sprintf(buffer, (char *)"  session_wake_timedout         :  %lu \n", oplock_diagnotics.session_wake_timedout         );
     buffer += tc_sprintf(buffer, (char *)"  session_sent_breaks           :  %lu \n", oplock_diagnotics.session_sent_breaks           );
   }
- return (int) (buffer - start);
+  buffer += tc_sprintf(buffer, (char *)"====================== SESSION STATISTICS  ==========================================\n");
+  buffer = SMBU_DiagFormatSessions(buffer);
+  return (int) (buffer - start);
 }
 
 static int diag_remote_portnumber = -1;
@@ -226,9 +260,57 @@ EXTERN_C int srvobject_process_diag_request(void)
       srvobject_write_diag_socket((byte *)p, len);
       RTP_FREE(p);
     }
-
+    if (tc_strstr((char *)p, "SMB MSSGS"))
+    {
+      SendDiagMessage();
+    }
   }
   return size;
+}
+
+
+static int   queuedmessagelength=0;
+static char  queuedmessageBuffer[1024*64];
+static void QueueDiagMessage(char *str)
+{
+int l;
+  l = tc_strlen(str);
+  if ((l+queuedmessagelength) < sizeof(queuedmessageBuffer))
+  {
+    tc_strcpy(&queuedmessageBuffer[queuedmessagelength], str);
+    queuedmessagelength += l;
+  }
+}
+static void SendDiagMessage(void)
+{
+ if (queuedmessagelength>0)
+ {
+   srvobject_write_diag_socket(queuedmessageBuffer, queuedmessagelength+1);
+   queuedmessagelength = 0;
+ }
+ else
+   srvobject_write_diag_socket("NOPE:", 6);
+}
+static int DiagMessageFilter(char *str)
+{
+  if (tc_memcmp(str, "DIAG:",5) == 0)
+  {
+   int l;
+//    if (queuedmessagelength!=0)
+//       str += 5; // skip DIAG:
+    l = tc_strlen(str);
+    if ((l+queuedmessagelength) < sizeof(queuedmessageBuffer))
+    {
+      tc_strcpy(&queuedmessageBuffer[queuedmessagelength], str);
+      queuedmessagelength += l;
+    }
+    printf("%s", str);
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 #endif

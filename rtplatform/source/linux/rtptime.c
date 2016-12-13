@@ -58,12 +58,17 @@
  *----------------------------------------------------------------------*/
 unsigned long rtp_get_system_msec (void)
 {
+static unsigned long long base_msecs_msec=0;
+static unsigned long long msecs_msec;
 unsigned long elapsed_msec;
 struct timeval timeval;
 
     gettimeofday (&timeval, 0);
-    elapsed_msec = (unsigned long) (timeval.tv_sec * 1000 + timeval.tv_usec / 1000);
-    return (elapsed_msec);
+    msecs_msec =  (unsigned long long) timeval.tv_sec * 1000;
+    msecs_msec += (unsigned long long)timeval.tv_usec / 1000;
+    if (base_msecs_msec == 0)
+       base_msecs_msec = msecs_msec;
+    return ((unsigned long) msecs_msec-base_msecs_msec);
 }
 
 

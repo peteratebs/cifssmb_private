@@ -36,6 +36,8 @@ typedef struct oplock_diagnotics_s {
     dword session_sent_timeouts;
     dword session_wake_timedout;
     dword session_sent_breaks;
+    dword yield_point_allocates;
+    dword yield_point_deallocates;
 } oplock_diagnotics_t;
 
 extern oplock_diagnotics_t oplock_diagnotics;
@@ -52,6 +54,9 @@ extern oplock_diagnotics_t oplock_diagnotics;
 #define OPLOCK_DIAG_DO_SIGNAL_TIMEOUT_TEST          0
 #define OPLOCK_DIAG_DO_SIGNAL_SETTING_TEST          0
 #define OPLOCK_DIAG_DO_SIGNAL_REPLAY_TEST (OPLOCK_DIAG_DO_SIGNAL_TIMEOUT_TEST||OPLOCK_DIAG_DO_SIGNAL_SETTING_TEST)
+
+#define OPLOCK_DIAG_YIELD_ALLOCATE                   oplock_diagnotics.yield_point_allocates += 1;
+#define OPLOCK_DIAG_YIELD_DEALLOCATE                 oplock_diagnotics.yield_point_deallocates += 1;
 
 // Called from one spot only
 #define OPLOCK_DIAG_TEST_REPLAY                     {if (OPLOCK_DIAG_DO_SIGNAL_REPLAY_TEST&&!oplock_diagnotics.performing_replay) return oplock_c_create_yield;}
