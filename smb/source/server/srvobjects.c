@@ -515,9 +515,9 @@ net_thread_c::net_thread_c(PNET_THREAD pThread)
 //    this->yield_sock_portnumber    = pThread->yield_sock_portnumber;
 //    this->yield_sock               = pThread->yield_sock;
     this->index                    = pThread->index;
-    this->inBuffer                 = pThread->inBuffer;
-    this->outBuffer                = pThread->outBuffer;
-    this->tmpBuffer                = pThread->tmpBuffer;
+//    this->inBuffer                 = pThread->_inBuffer;
+//    this->outBuffer                = pThread->_outBuffer;
+//    this->tmpBuffer                = pThread->tmpBuffer;
     this->srand_is_initialized     = pThread->srand_is_initialized;
 }
 

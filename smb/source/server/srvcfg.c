@@ -23,6 +23,7 @@
 #include "rtpsignl.h"
 #include "smbdebug.h"
 #include "srvyield.h"
+#include "rtpmem.h"
 
 #ifndef ALLOC_FROM_HEAP
 #define ALLOC_FROM_HEAP  0
@@ -60,9 +61,7 @@
  * You might increase this to allow more clients to connect to the server at once.
  * If the server is at maximum, new session requests will be denied.
  */
-#ifndef CFG_RTSMB_MAX_SESSIONS
-#define CFG_RTSMB_MAX_SESSIONS              8
-#endif
+#define CFG_RTSMB_MAX_SESSIONS              _CFG_RTSMB_MAX_SESSIONS
 
 /**
  * The maximum amount of simultaneous users logged in on each session.
@@ -162,9 +161,9 @@
  *
  * MINIMUM IS 1028!!
  */
-#ifndef CFG_RTSMB_SMALL_BUFFER_SIZE
-#define CFG_RTSMB_SMALL_BUFFER_SIZE        HARDWIRED_MAX_SMALL_BUFFER_SIZE // 4096 // (32768-512) // 2924
-#endif
+//#ifndef CFG_RTSMB_SMALL_BUFFER_SIZE
+//#define CFG_RTSMB_SMALL_BUFFER_SIZE        HARDWIRED_MAX_SMALL_BUFFER_SIZE // ((32768*2)+512)
+//#endif
 
 #if (CFG_RTSMB_SMALL_BUFFER_SIZE < 1028)
 #error MUST set CFG_RTSMB_SMALL_BUFFER_SIZE >= 1028
@@ -268,7 +267,8 @@ RTSMB_STATIC RTSMB_BROWSE_SERVER_INFO    enum_results                 [CFG_RTSMB
 RTSMB_STATIC RTSMB_BROWSE_SERVER_INFO    enum_results                 [CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS];
 #endif
 
-#else // ALLOC_FROM_HEAP == 1
+#endif /* (ALLOC_FROM_HEAP) */
+
 
 
 static void * safemalloc(rtsmb_size bytes)
@@ -285,7 +285,6 @@ static void * safemalloc(rtsmb_size bytes)
    return Result;
 }
 
-#endif /* (ALLOC_FROM_HEAP) */
 
 RTSMB_STATIC RTSMB_SERVER_CONTEXT rtsmb_srv_cfg_core;
 PRTSMB_SERVER_CONTEXT prtsmb_srv_ctx = &rtsmb_srv_cfg_core;
@@ -331,6 +330,15 @@ int rtsmb_server_config(void)
    RTSMB_BROWSE_SERVER_INFO * server_table = safemalloc(sizeof(RTSMB_BROWSE_SERVER_INFO) * CFG_RTSMB_BROWSE_MAX_SERVER_INFOS);
    RTSMB_BROWSE_SERVER_INFO * domain_table = safemalloc(sizeof(RTSMB_BROWSE_SERVER_INFO) * CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS);
    RTSMB_BROWSE_SERVER_INFO * enum_results = safemalloc(sizeof(RTSMB_BROWSE_SERVER_INFO) * MAX(CFG_RTSMB_BROWSE_MAX_SERVER_INFOS, CFG_RTSMB_BROWSE_MAX_DOMAIN_INFOS));
+#endif
+
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 1) //  If we are using exclusive buffers - these are always allocated
+   for (i = 0; i < CFG_RTSMB_MAX_SESSIONS; i++)
+   {
+     prtsmb_srv_ctx->unshared_read_buffers [i] = safemalloc(CFG_RTSMB_SMALL_BUFFER_SIZE); // [CFG_RTSMB_SMALL_BUFFER_SIZE];
+     prtsmb_srv_ctx->unshared_write_buffers[i] = safemalloc(CFG_RTSMB_SMALL_BUFFER_SIZE);// [CFG_RTSMB_SMALL_BUFFER_SIZE];
+     prtsmb_srv_ctx->unshared_temp_buffers [i] = safemalloc(CFG_RTSMB_SMALL_BUFFER_SIZE); // [CFG_RTSMB_SMALL_BUFFER_SIZE];
+   }
 #endif
 
    // Set up logging and diagnostics
@@ -423,7 +431,6 @@ int rtsmb_server_config(void)
    for (i = 0; i < CFG_RTSMB_MAX_SESSIONS; i++)
    {
 	  rtp_sig_mutex_alloc((RTP_MUTEX *) &prtsmb_srv_ctx->activeSessions[i], (const char*)0);
-
       prtsmb_srv_ctx->sessions[i].smbCtx.uids  = &uids  [i * CFG_RTSMB_MAX_UIDS_PER_SESSION];
       prtsmb_srv_ctx->sessions[i].smbCtx.trees = &trees [i * CFG_RTSMB_MAX_TREES_PER_SESSION];
       prtsmb_srv_ctx->sessions[i].smbCtx.fids  = &fids  [i * CFG_RTSMB_MAX_FIDS_PER_SESSION];
@@ -443,9 +450,11 @@ int rtsmb_server_config(void)
    for (i=0; i < CFG_RTSMB_MAX_THREADS + 1; i++)
    {
       threads[i].sessionList = &sessionList [i * CFG_RTSMB_MAX_SESSIONS];
-      threads[i].inBuffer    = &inBuffer    [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
-      threads[i].outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // If using private session buffers
+      threads[i]._inBuffer    = &inBuffer    [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
+      threads[i]._outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].tmpBuffer   = &tmpBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
+#endif
       threads[i].signal_object  = yield_c_bind_signal(i);
    }
 

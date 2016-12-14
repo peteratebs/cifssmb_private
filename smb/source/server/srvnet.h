@@ -48,15 +48,15 @@ typedef struct net_thread_s
 	 * This helps us avoid always servicing one session first.
 	 */
 	dword index;
-
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // These are shared if not using private session buffers
 	/**
 	 * These buffers hold the incoming data and the outgoing data for the current
 	 * session being processed.
 	 */
-	byte *inBuffer;
-	byte *outBuffer;
-	byte *tmpBuffer;
-
+	byte *_inBuffer;        // 1 MB..
+	byte *_outBuffer;       //
+	byte *tmpBuffer;        // used for transactions 64 K
+#endif
 	/**
 	 * This is FALSE if we have not yet initialized our random number
 	 * generator, TRUE if we have.

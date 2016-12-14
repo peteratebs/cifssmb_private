@@ -95,6 +95,7 @@ struct SMBU_enumFidSearchUniqueidType_s {
   PFID results[256];
 };
 int SMBU_SearchFidsByUniqueId (byte *unique_fileid, struct SMBU_enumFidSearchUniqueidType_s *pResults);
+int SMBU_SessionToIndex(PSMB_SESSIONCTX pSmbCtx);
 
 PFIDOBJECT SMBU_Fidobject(FID_T *pfid);
 

@@ -9,6 +9,9 @@
 //**             the code.
 //****************************************************************************
 
+
+#define HARDWIRE_NO_SHARED_SESSION_BUFFERS             1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares
+
 // Definitions for development
 // See https://msdn.microsoft.com/en-us/library/cc236699.aspx for good NTLM reference
 #define HARDWIRE_SERVER_SETTINGS           1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares

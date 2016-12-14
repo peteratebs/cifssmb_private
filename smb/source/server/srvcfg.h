@@ -11,6 +11,17 @@
 #include "srvssn.h"
 
 
+/**
+ * The maximum amount of sessions you want to be able to support simultaneously.
+ *
+ * Must be at least 1.
+ *
+ * You might increase this to allow more clients to connect to the server at once.
+ * If the server is at maximum, new session requests will be denied.
+ */
+#define _CFG_RTSMB_MAX_SESSIONS              8
+
+
 typedef struct _RTSMB_SERVER_CONTEXT
 {
 	/* CONFIGURATION PARAMETERS */
@@ -65,6 +76,12 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	PRTSMB_BROWSE_SERVER_INFO   enum_results;
 	PRTSMB_BROWSE_SERVER_INFO   server_table;
 	PRTSMB_BROWSE_SERVER_INFO   domain_table;
+
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 1) // Swap if we are using exclusive buffers
+     byte *unshared_read_buffers [_CFG_RTSMB_MAX_SESSIONS];
+     byte *unshared_write_buffers[_CFG_RTSMB_MAX_SESSIONS];
+     byte *unshared_temp_buffers [_CFG_RTSMB_MAX_SESSIONS];
+#endif
 
     /* Control diagnostics           */
     BBOOL                       display_login_info;

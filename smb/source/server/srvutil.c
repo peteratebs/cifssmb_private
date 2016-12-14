@@ -395,6 +395,17 @@ int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs)
     return 0;
 }
 
+int SMBU_SessionToIndex(PSMB_SESSIONCTX pSmbCtx)
+{
+  int i;
+  for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+  {
+    if (prtsmb_srv_ctx ==  pSmbCtx)
+       return i;
+  }
+  return 0;
+}
+
 struct mapPidToSessionNumberCB_t { FID_T *pfid;    int answer;    int index;};
 static int mapPidToSessionNumberCB (PNET_SESSIONCTX pnCtx, void *pargs)
 {
