@@ -106,6 +106,7 @@ static void DebugOutputSMBCommand(int command);
 static void DebugOutputTrans2Command(int command);
 static void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
 static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx, dword inSize, dword outSize);
+static BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
 
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS        */
@@ -4691,6 +4692,252 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
 }
 #endif
 
+static BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf)
+// BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
+{
+    BBOOL doSend = FALSE;
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Processing a packet with command: ");
+    DebugOutputSMBCommand(pinCliHdr->command);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," (%d)\n",pinCliHdr->command);
+
+    /**
+     * Ok, we now see what kind of command has been requested, and
+     * call an appropriate helper function to fill out details of
+     * pOutSmbHdr.  Most return a BBOOL, indicating whether we should
+     * send a response or not.
+     */
+    //HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)
+    switch (pinCliHdr->command)
+    {
+    case SMB_COM_NEGOTIATE:
+        doSend = ProcNegotiateProtocol (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_TREE_CONNECT:
+        doSend = ProcTreeConnect (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_TREE_DISCONNECT:
+        doSend = ProcTreeDisconnect (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_QUERY_INFORMATION:
+        doSend = ProcQueryInformation (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_QUERY_INFORMATION2:
+        doSend = ProcQueryInformation2 (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_QUERY_INFORMATION_DISK:
+        doSend = ProcQueryInformationDisk (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_SESSION_SETUP_ANDX:
+    case SMB_COM_TREE_CONNECT_ANDX:
+    case SMB_COM_OPEN_ANDX:
+    case SMB_COM_READ_ANDX:
+    case SMB_COM_LOGOFF_ANDX:
+    case SMB_COM_WRITE_ANDX:
+    case SMB_COM_LOCKING_ANDX:
+    case SMB_COM_NT_CREATE_ANDX:
+        doSend = ProcAndx (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_TRANSACTION:
+        doSend = ProcTransaction (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_TRANSACTION2:
+        doSend = ProcTransaction2 (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_FIND_CLOSE2:
+        doSend = ProcFindClose2 (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_CHECK_DIRECTORY:
+        doSend = ProcCheckDirectory (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_OPEN:
+        doSend = ProcOpen (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_CLOSE:
+        doSend = ProcClose (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_READ:
+        doSend = ProcRead (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_SEEK:
+        doSend = ProcSeek (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_DELETE:
+        doSend = ProcDelete (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_WRITE:
+        doSend = ProcWrite (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_ECHO:
+        doSend = ProcEcho (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_FLUSH:
+        doSend = ProcFlush (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_RENAME:
+        doSend = ProcRename (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_MOVE:
+        doSend = ProcCopyMove (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf, FALSE);
+        break;
+    case SMB_COM_COPY:
+        doSend = ProcCopyMove (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf, TRUE);
+        break;
+    case SMB_COM_CREATE_DIRECTORY:
+        doSend = ProcCreateDirectory (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_DELETE_DIRECTORY:
+        doSend = ProcDeleteDirectory (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_CREATE_NEW:
+    case SMB_COM_CREATE:
+        doSend = ProcCreate (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_CREATE_TEMPORARY:
+        doSend = ProcCreateTemporary (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_PROCESS_EXIT:
+        doSend = ProcProcessExit (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_WRITE_AND_CLOSE:
+        doSend = ProcWriteAndClose (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_SEARCH:
+        doSend = ProcSearch (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_NT_CANCEL:
+        /**
+         * NT_CANCEL is used to cancel a process already going on.
+         * The server is supposed to 'hurry it along'.  We don't
+         * implement anything that needs to be 'hurried along',
+         * so just quietly ignore (this smb does not need a response).
+         */
+        doSend = FALSE;
+        break;
+    case SMB_COM_SET_INFORMATION:
+        doSend = ProcSetInformation (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_SET_INFORMATION2:
+        doSend = ProcSetInformation2 (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_OPEN_PRINT_FILE:
+        doSend = ProcOpenPrintFile (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_CLOSE_PRINT_FILE:
+        doSend = ProcClosePrintFile (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_WRITE_PRINT_FILE:
+        doSend = ProcWritePrintFile (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+
+    case SMB_COM_READ_RAW:
+        doSend = ProcReadRaw (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    case SMB_COM_WRITE_RAW:
+    {
+        PFBYTE temp;
+
+        doSend = ProcWriteRaw1 (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+
+        /**
+         * Request a big buffer.  If other sessions are using up these resources,
+         * don't bother waiting, just tell client to use normal write.
+         */
+        temp = allocateBigBuffer ();
+
+        if (temp == (PFBYTE)0)
+        {
+            SMBU_FillError (pSctx, poutCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_USESTD);
+        }
+        else
+        {
+            if (poutCliHdr->status == 0)
+            {
+                pSctx->readBuffer = temp;
+                pSctx->readBufferSize = (word) (SMB_BIG_BUFFER_SIZE & 0xFFFF);
+                pSctx->writeRawInfo.amWritingRaw = TRUE;
+        #ifdef STATE_DIAGNOSTICS
+          RTSMB_GET_SRV_SESSION_STATE (WRITING_RAW);
+        #endif
+                pSctx->state = WRITING_RAW;
+                pInBuf = (PFBYTE) SMB_INBUF (pSctx);
+            }
+            else
+            {
+                /**
+                 * If an error was encountered, free the big buffer.
+                 */
+                freeBigBuffer (pSctx->readBuffer);
+            }
+        }
+    }
+        break;
+
+    /**
+     * We don't yet fully support print queuing.
+     */
+    case SMB_COM_GET_PRINT_QUEUE:   /* OPTIONAL command -- win95 doesn't have it */
+
+    /**
+     * SMBFile doesn't support bulk.
+     */
+    case SMB_COM_READ_BULK:
+    case SMB_COM_WRITE_BULK:
+    case SMB_COM_WRITE_BULK_DATA:
+
+
+    /**
+     * SMBFile doesn't support range locking or file attributes.
+     */
+    case SMB_COM_LOCK_BYTE_RANGE:
+    case SMB_COM_UNLOCK_BYTE_RANGE:
+    case SMB_COM_WRITE_AND_UNLOCK:
+    case SMB_COM_LOCK_AND_READ:
+
+    /**
+     * The following are only used in connection-less transports.
+     * Since TCP/IP is connection-oriented, we ignore these.
+     */
+    case SMB_COM_READ_MPX:
+    case SMB_COM_WRITE_MPX:
+    case SMB_COM_READ_MPX_SECONDARY:
+    case SMB_COM_TRANSACTION_SECONDARY:
+    case SMB_COM_TRANSACTION2_SECONDARY:
+    case SMB_COM_NT_TRANSACT_SECONDARY:
+
+    /**
+     * Not supported but in SNIA technical reference
+     */
+    case SMB_COM_QUERY_SERVER:
+    case SMB_COM_NEW_FILE_SIZE:
+
+    /**
+     * The following rely on Windows specific functionality.
+     */
+    case SMB_COM_IOCTL:
+    case SMB_COM_IOCTL_SECONDARY:
+        break;
+    case SMB_COM_NT_TRANSACT:
+        doSend = ProcTransaction (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        break;
+    /**
+     * The following do not have any documentation that I can find
+     * and are not widely used it seems (I have never sniffed these on the wire).
+     */
+    case SMB_COM_FIND:
+    case SMB_COM_FIND_UNIQUE:
+    case SMB_COM_FIND_NOTIFY_CLOSE:
+    case SMB_COM_CLOSE_AND_TREE_DISC:
+        SMBU_FillError (pSctx, poutCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
+        doSend = TRUE;
+        break;
+
+    default:
+        SMBU_FillError (pSctx, poutCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
+        doSend = TRUE;
+        break;
+    }
+    return (doSend);
+}
 
 /*
 ================
@@ -5118,6 +5365,9 @@ RTSMB_GET_SRV_SESSION_STATE (IDLE);
     return  SMBS_ProcSMBBodyPacketExecute (pSctx);
 
 }
+
+
+
 static SMB2PROCBODYACTION SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx)
 // BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 {
@@ -5247,246 +5497,7 @@ rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
     }
     else
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Processing a packet with command: ");
-        DebugOutputSMBCommand(inCliHdr.command);
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," (%d)\n",inCliHdr.command);
-
-        /**
-         * Ok, we now see what kind of command has been requested, and
-         * call an appropriate helper function to fill out details of
-         * pOutSmbHdr.  Most return a BBOOL, indicating whether we should
-         * send a response or not.
-         */
-//HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)
-        switch (inCliHdr.command)
-        {
-        case SMB_COM_NEGOTIATE:
-            doSend = ProcNegotiateProtocol (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_TREE_CONNECT:
-            doSend = ProcTreeConnect (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_TREE_DISCONNECT:
-            doSend = ProcTreeDisconnect (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_QUERY_INFORMATION:
-            doSend = ProcQueryInformation (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_QUERY_INFORMATION2:
-            doSend = ProcQueryInformation2 (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_QUERY_INFORMATION_DISK:
-            doSend = ProcQueryInformationDisk (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_SESSION_SETUP_ANDX:
-        case SMB_COM_TREE_CONNECT_ANDX:
-        case SMB_COM_OPEN_ANDX:
-        case SMB_COM_READ_ANDX:
-        case SMB_COM_LOGOFF_ANDX:
-        case SMB_COM_WRITE_ANDX:
-        case SMB_COM_LOCKING_ANDX:
-        case SMB_COM_NT_CREATE_ANDX:
-            doSend = ProcAndx (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_TRANSACTION:
-            doSend = ProcTransaction (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_TRANSACTION2:
-            doSend = ProcTransaction2 (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_FIND_CLOSE2:
-            doSend = ProcFindClose2 (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_CHECK_DIRECTORY:
-            doSend = ProcCheckDirectory (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_OPEN:
-            doSend = ProcOpen (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_CLOSE:
-            doSend = ProcClose (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_READ:
-            doSend = ProcRead (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_SEEK:
-            doSend = ProcSeek (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_DELETE:
-            doSend = ProcDelete (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_WRITE:
-            doSend = ProcWrite (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_ECHO:
-            doSend = ProcEcho (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_FLUSH:
-            doSend = ProcFlush (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_RENAME:
-            doSend = ProcRename (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_MOVE:
-            doSend = ProcCopyMove (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf, FALSE);
-            break;
-        case SMB_COM_COPY:
-            doSend = ProcCopyMove (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf, TRUE);
-            break;
-        case SMB_COM_CREATE_DIRECTORY:
-            doSend = ProcCreateDirectory (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_DELETE_DIRECTORY:
-            doSend = ProcDeleteDirectory (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_CREATE_NEW:
-        case SMB_COM_CREATE:
-            doSend = ProcCreate (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_CREATE_TEMPORARY:
-            doSend = ProcCreateTemporary (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_PROCESS_EXIT:
-            doSend = ProcProcessExit (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_WRITE_AND_CLOSE:
-            doSend = ProcWriteAndClose (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_SEARCH:
-            doSend = ProcSearch (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_NT_CANCEL:
-            /**
-             * NT_CANCEL is used to cancel a process already going on.
-             * The server is supposed to 'hurry it along'.  We don't
-             * implement anything that needs to be 'hurried along',
-             * so just quietly ignore (this smb does not need a response).
-             */
-            doSend = FALSE;
-            break;
-        case SMB_COM_SET_INFORMATION:
-            doSend = ProcSetInformation (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_SET_INFORMATION2:
-            doSend = ProcSetInformation2 (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_OPEN_PRINT_FILE:
-            doSend = ProcOpenPrintFile (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_CLOSE_PRINT_FILE:
-            doSend = ProcClosePrintFile (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_WRITE_PRINT_FILE:
-            doSend = ProcWritePrintFile (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-
-        case SMB_COM_READ_RAW:
-            doSend = ProcReadRaw (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        case SMB_COM_WRITE_RAW:
-        {
-            PFBYTE temp;
-
-            doSend = ProcWriteRaw1 (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-
-            /**
-             * Request a big buffer.  If other sessions are using up these resources,
-             * don't bother waiting, just tell client to use normal write.
-             */
-            temp = allocateBigBuffer ();
-
-            if (temp == (PFBYTE)0)
-            {
-                SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_USESTD);
-            }
-            else
-            {
-                if (outCliHdr.status == 0)
-                {
-                    pSctx->readBuffer = temp;
-                    pSctx->readBufferSize = (word) (SMB_BIG_BUFFER_SIZE & 0xFFFF);
-                    pSctx->writeRawInfo.amWritingRaw = TRUE;
-#ifdef STATE_DIAGNOSTICS
-RTSMB_GET_SRV_SESSION_STATE (WRITING_RAW);
-#endif
-                    pSctx->state = WRITING_RAW;
-                    pInBuf = (PFBYTE) SMB_INBUF (pSctx);
-                }
-                else
-                {
-                    /**
-                     * If an error was encountered, free the big buffer.
-                     */
-                    freeBigBuffer (pSctx->readBuffer);
-                }
-            }
-        }
-            break;
-
-        /**
-         * We don't yet fully support print queuing.
-         */
-        case SMB_COM_GET_PRINT_QUEUE:   /* OPTIONAL command -- win95 doesn't have it */
-
-        /**
-         * SMBFile doesn't support bulk.
-         */
-        case SMB_COM_READ_BULK:
-        case SMB_COM_WRITE_BULK:
-        case SMB_COM_WRITE_BULK_DATA:
-
-
-        /**
-         * SMBFile doesn't support range locking or file attributes.
-         */
-        case SMB_COM_LOCK_BYTE_RANGE:
-        case SMB_COM_UNLOCK_BYTE_RANGE:
-        case SMB_COM_WRITE_AND_UNLOCK:
-        case SMB_COM_LOCK_AND_READ:
-
-        /**
-         * The following are only used in connection-less transports.
-         * Since TCP/IP is connection-oriented, we ignore these.
-         */
-        case SMB_COM_READ_MPX:
-        case SMB_COM_WRITE_MPX:
-        case SMB_COM_READ_MPX_SECONDARY:
-        case SMB_COM_TRANSACTION_SECONDARY:
-        case SMB_COM_TRANSACTION2_SECONDARY:
-        case SMB_COM_NT_TRANSACT_SECONDARY:
-
-        /**
-         * Not supported but in SNIA technical reference
-         */
-        case SMB_COM_QUERY_SERVER:
-        case SMB_COM_NEW_FILE_SIZE:
-
-        /**
-         * The following rely on Windows specific functionality.
-         */
-        case SMB_COM_IOCTL:
-        case SMB_COM_IOCTL_SECONDARY:
-            break;
-        case SMB_COM_NT_TRANSACT:
-            doSend = ProcTransaction (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
-            break;
-        /**
-         * The following do not have any documentation that I can find
-         * and are not widely used it seems (I have never sniffed these on the wire).
-         */
-        case SMB_COM_FIND:
-        case SMB_COM_FIND_UNIQUE:
-        case SMB_COM_FIND_NOTIFY_CLOSE:
-        case SMB_COM_CLOSE_AND_TREE_DISC:
-            SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_NOSUPPORT);
-            doSend = TRUE;
-            break;
-
-        default:
-            SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_SMBCMD);
-            doSend = TRUE;
-            break;
-        }
+      doSend = SMBS_ProcSMB1PacketExecute (pSctx, &inCliHdr, pInBuf, &outCliHdr, pOutBuf);
     }
     if (doSend)
        return SEND_REPLY;
@@ -5768,5 +5779,7 @@ static char *trans2Commandname(int command)
     return(0);
 #endif /* RTSMB_DEBUG */
 }
+
+
 
 #endif /* INCLUDE_RTSMB_SERVER */

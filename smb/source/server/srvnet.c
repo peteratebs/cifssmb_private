@@ -61,25 +61,287 @@ RTP_SOCKET net_ssnSock;
 
 RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions);
 RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize);
-
+RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster);
+RTSMB_STATIC PNET_THREAD rtsmb_srv_net_thread_new (void);
+RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx );
+RTSMB_STATIC void rtsmb_srv_net_thread_condense_sessions (PNET_THREAD pThread);
+RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread);
+RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions);
+RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread);
+RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster);
+RTSMB_STATIC void rtsmb_srv_net_session_yield_cycle (PNET_SESSIONCTX *session);
+RTSMB_STATIC void rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int ready);
 extern BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
 extern void  SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
 
-RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void)
+/*============================================================================   */
+/*    INTERFACE FUNCTIONS                                                        */
+/*============================================================================   */
+
+/*
+==============
+
+==============
+*/
+void rtsmb_srv_net_init (void)
 {
-    return net_nsSock;
+RTSMB_STATIC PNET_THREAD tempThread;
+
+
+#if INCLUDE_RTSMB_DC
+    next_pdc_find = rtp_get_system_msec () + rtsmb_srv_net_pdc_next_interval ();
+#endif
+    /**
+     * You will note that we consistently use the term 'thread' to refer to the 'mainThread.'
+     * In fact, it is not a full blown thread, but is only treated the same, for coding simplicity
+     * purposes.  This first thread always runs in the same thread/process as the caller of our API
+     * functions.  If CFG_RTSMB_MAX_THREADS is 0, no threads will ever be created.
+     */
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_net_init calls rtsmb_srv_net_thread_new() \n");
+
+    tempThread = rtsmb_srv_net_thread_new ();   /* this will succeed because there is at least one thread free at start */
+    if (!tempThread)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_init: Error -- could not allocate main pseudo-thread.\n");
+        return;
+    }
+    prtsmb_srv_ctx->mainThread = tempThread;
+    // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
+    signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->threads[0].signal_object;
+    rtsmb_srv_net_thread_init (prtsmb_srv_ctx->mainThread, 0);
+    prtsmb_srv_ctx->threads[0].signal_object = saved_signal_object;
+
+    /* -------------------- */
+    /* get the three major sockets */
+    /* Name Service Datagram Socket */
+    if (rtsmb_net_socket_new (&net_nsSock, rtsmb_nbns_port, FALSE) < 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Could not allocate Name & Datagram service socket\n");
+    }
+
+    /* SSN Reliable Socket */
+  #ifdef RTSMB_ALLOW_SMB_OVER_TCP
+    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_direct_port, TRUE) < 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Master Socket allocation failed Name & Datagram service socke\n");
+    }
+  #else
+    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_port, TRUE) < 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Master Socket allocation failed\n");
+    }
+  #endif
+    if (rtp_net_listen ((RTP_SOCKET) net_ssnSock, prtsmb_srv_ctx->max_sessions) != 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to listen on SSN Reliable socket.\n");
+    }
+
+    if (rtp_net_setbroadcast((RTP_SOCKET) net_nsSock, 1) < 0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
+    }
 }
-RTP_SOCKET rtsmb_srv_net_get_nbss_socket (void)
+
+/*
+==============
+ poll to see if any of the  sockets belonging to a handler
+ has something to be read.
+==============
+*/
+
+void rtsmb_srv_net_cycle (long timeout)
 {
-    return net_ssnSock;
+    RTP_SOCKET readList[256];
+    int len,signal_socket_index;
+    word i;
+
+    if (!prtsmb_srv_ctx->mainThread)
+    {
+        for (i=0;i<10;i++) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_cycle sock: crashing lost mainTread %x \n",prtsmb_srv_ctx->mainThread);}
+        int iCrash = 13 / 0;      // trap to the debugger
+        return;
+    }
+
+    /**
+     * Build the list of sockets to poll, consisting of the
+     * name service socket, session service socket, and
+     * sessions' sockets we are handling.
+     */
+    len = 0;
+    readList[len++] = net_nsSock;  /* Name Service Socket */
+    readList[len++] = rtsmb_nbds_get_socket (); /* Datagram Service Socket */
+    readList[len++] = net_ssnSock; /* Session Service Socket */
+
+    for (i = 0; i < prtsmb_srv_ctx->mainThread->numSessions && len < 256; i++)
+    {
+        /* make sure we bind the thread to the net session context */
+        prtsmb_srv_ctx->mainThread->sessionList[i]->pThread = prtsmb_srv_ctx->mainThread;
+        if (!yield_c_recieve_blocked(prtsmb_srv_ctx->mainThread->signal_object))
+          readList[len++] = prtsmb_srv_ctx->mainThread->sessionList[i]->sock;
+    }
+    signal_socket_index = len;
+    readList[len++] =  yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object);
+
+    int in_len = len;
+    len = rtsmb_netport_select_n_for_read (readList, len, timeout);
+    /**
+     * Handle name requests, etc.
+     */
+    int j;
+    // Handle any session wake signals from blocked oplocks
+    for (j = 0; j < len; j++)
+    {
+      if (readList[j] == yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object))
+      {
+        yield_c_recieve_signal(prtsmb_srv_ctx->mainThread->signal_object);
+        break;
+      }
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        if (readList[i] == net_nsSock)
+        {
+            byte datagram[RTSMB_NB_MAX_DATAGRAM_SIZE];
+
+            /*process datagram */
+            rtsmb_net_read_datagram (net_nsSock, datagram, RTSMB_NB_MAX_DATAGRAM_SIZE, net_lastRemoteHost_ip, &net_lastRemoteHost_port);
+
+            /* only handle datagrams that don't originate from us */
+            if (tc_memcmp (net_lastRemoteHost_ip, rtsmb_srv_net_get_host_ip (), 4) != 0)
+            {
+                rtsmb_srv_nbns_process_packet (datagram, RTSMB_NB_MAX_DATAGRAM_SIZE);
+            }
+        }
+        /**
+         * If a new session has arrived and we have free threads, give half our
+         * sessions to them.
+         */
+        else if (readList[i] == net_ssnSock)
+        {
+            rtsmb_srv_net_thread_new_session (prtsmb_srv_ctx->mainThread);
+        }
+    }
+
+    /* handle sessions we own */
+    rtsmb_srv_net_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
+
+#if INCLUDE_RTSMB_DC
+    /* now see if we need to query for the pdc again */
+    if (!MS_IsKnownPDCName () && next_pdc_find <= rtp_get_system_msec ())
+    {
+        MS_SendPDCQuery ();
+
+        next_pdc_find = next_pdc_find + rtsmb_srv_net_pdc_next_interval ();
+    }
+#endif
 }
-PFBYTE rtsmb_srv_net_get_last_remote_ip (void)
+RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize)
 {
-    return net_lastRemoteHost_ip;
-}
-int rtsmb_srv_net_get_last_remote_port (void)
-{
-    return net_lastRemoteHost_port;
+    PNET_SESSIONCTX *session;
+    int i,n;
+
+    /**
+     * The reason we wait here to seed tc_rand() is so that the seed value has
+     * some degree of randomness to it.  This gets called the first time there
+     * is network traffic on this thread's sockets, so the network is our
+     * only source of randomness.  Not very good, but its the best we have.
+     *
+     * We could use time (), and you are welcome to use that instead, but I
+     * am under the impression that not all embedded compilers support time.h.
+     */
+    if (!pThread->srand_is_initialized)
+    {
+        tc_srand ((unsigned int) rtp_get_system_msec ());
+        pThread->srand_is_initialized = TRUE;
+    }
+
+    /**
+     * Now we run the sessions we are responsible for.
+     */
+    for(i = 0; i < (int)pThread->numSessions; i++)
+    {
+        int current_session_index = (i + (int)pThread->index) % (int)pThread->numSessions;
+        SMBS_SESSION_STATE starting_state;
+
+        /* session can be null here */
+        session = &pThread->sessionList[current_session_index];
+        if (!*session)
+          continue;
+
+        /* Shouldn't run if a blocking session exists and we aren't it. */
+        if (pThread->blocking_session != -1 &&
+            pThread->blocking_session != current_session_index)
+        {
+//            srvobject_session_blocked(pThread,session); // marks an ended session
+            continue;
+        }
+
+        /* make sure we bind the thread to the net session context */
+       (*session)->pThread = pThread;
+
+//        srvobject_session_enter(pThread,session);
+        starting_state = (*session)->smbCtx.state;
+        for (n = 0; n < readListSize; n++)
+        {
+            if (readList[n] == (*session)->sock)
+            {
+                rtsmb_srv_net_session_cycle (session, TRUE);
+                break;
+            }
+        }
+        /* session can be null here */
+//        if (!*session)
+//           srvobject_session_enter(pThread,session); // marks an ended session
+        if (!*session)
+          continue;
+
+        // A yielded session's socket won't be in the socket list so check
+        // if it is yielded and then check the countdown and wakup triggers
+        if (yield_c_is_session_blocked(&(*session)->smbCtx))
+//        if (yield_c_recieve_blocked(pThread->signal_object))
+        {
+          rtsmb_srv_net_session_yield_cycle (session);
+        }
+        else if (n == readListSize)
+        { // A non yielded session timeded out, check for KEEPALIVES
+            rtsmb_srv_net_session_cycle (session, FALSE);
+        }
+
+        /* Warning: at this point, (*session) may be NULL */
+
+        /* if we changed states, and we are changing away from idle,
+           we should block on this session.  If we are changing to idle,
+           we should stop blocking on this session */
+        if ((*session) && starting_state != (*session)->smbCtx.state)
+        {
+            if (starting_state == IDLE)
+            {
+                pThread->blocking_session = current_session_index;
+            }
+            else if ((*session)->smbCtx.state == IDLE)
+            {
+                pThread->blocking_session = -1;
+            }
+        }
+        else if (!(*session))
+        {
+            /* dead session.  clear block if this held it */
+            if (pThread->blocking_session == current_session_index)
+            {
+                pThread->blocking_session = -1;
+            }
+        }
+    }
+//    srvobject_session_exit(pThread,session);
+
+    rtsmb_srv_net_thread_condense_sessions (pThread);
+
+    if (pThread->numSessions)
+    {
+        /* mix it up a bit, in case a session at the front is hogging time */
+        pThread->index = ((dword) tc_rand () % pThread->numSessions);
+    }
 }
 
 RTSMB_STATIC PNET_THREAD rtsmb_srv_net_thread_new (void)
@@ -175,15 +437,10 @@ void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx )
    pSCtx->smbCtx.state = NOTCONNECTED;
 
 }
-
-
-
+//
 RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
 {
 
-//    RTSMB_DEBUG_OUTPUT_STR ("CloseConnection: socket ");
-//    RTSMB_DEBUG_OUTPUT_DINT (pSCtx->sock);
-//    RTSMB_DEBUG_OUTPUT_STR (" closed\n");
     rtsmb_srv_net_connection_close_session(pSCtx);
 
     /* kill conection */
@@ -195,124 +452,7 @@ RTSMB_STATIC void rtsmb_srv_net_connection_close (PNET_SESSIONCTX pSCtx )
     freeSession (pSCtx);
 }
 
-#if INCLUDE_RTSMB_DC
-RTSMB_STATIC void rtsmb_srv_net_pdc_reset_interval (void)
-{
-    numPDCQueries = 0;
-}
-
-RTSMB_STATIC dword rtsmb_srv_net_pdc_next_interval (void)
-{
-    dword rv;
-
-    switch (numPDCQueries)
-    {
-    case 0:     rv = 0; break;
-    case 1:     rv = 500; break;
-    case 2:     rv = 2000; break;
-    case 3:     rv = 8000; break;
-    case 4:     rv = 60000; break;
-    case 5:     rv = 120000; break;
-    case 6:     rv = 180000; break;
-    case 7:     rv = 240000; break;
-    case 8:
-    default:    rv = 300000; break;
-    }
-
-    numPDCQueries ++;
-
-    return rv;
-}
-
-void rtsmb_srv_net_pdc_invalidate (void)
-{
-    rtsmb_srv_net_pdc_reset_interval ();
-
-    MS_ClearPDCName ();
-}
-#endif
-
-
-/*============================================================================   */
-/*    INTERFACE FUNCTIONS                                                        */
-/*============================================================================   */
-
-/*
-==============
-
-==============
-*/
-void rtsmb_srv_net_init (void)
-{
-RTSMB_STATIC PNET_THREAD tempThread;
-
-
-#if INCLUDE_RTSMB_DC
-    next_pdc_find = rtp_get_system_msec () + rtsmb_srv_net_pdc_next_interval ();
-#endif
-
-    /**
-     * You will note that we consistently use the term 'thread' to refer to the 'mainThread.'
-     * In fact, it is not a full blown thread, but is only treated the same, for coding simplicity
-     * purposes.  This first thread always runs in the same thread/process as the caller of our API
-     * functions.  If CFG_RTSMB_MAX_THREADS is 0, no threads will ever be created.
-     */
-    tempThread = rtsmb_srv_net_thread_new ();   /* this will succeed because there is at least one thread free at start */
-
-    if (!tempThread)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_init: Error -- could not allocate main pseudo-thread.\n");
-        return;
-    }
-
-    // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
-    signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->threads[0].signal_object;
-    prtsmb_srv_ctx->mainThread = tempThread;
-    rtsmb_srv_net_thread_init (prtsmb_srv_ctx->mainThread, 0);
-    prtsmb_srv_ctx->threads[0].signal_object = saved_signal_object;
-
-    /* -------------------- */
-    /* get the three major sockets */
-    /* Name Service Datagram Socket */
-    if (rtsmb_net_socket_new (&net_nsSock, rtsmb_nbns_port, FALSE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Could not allocate Name & Datagram service socket\n");
-    }
-
-    /* SSN Reliable Socket */
-  #ifdef RTSMB_ALLOW_SMB_OVER_TCP
-    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_direct_port, TRUE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Master Socket allocation failed Name & Datagram service socke\n");
-    }
-  #else
-    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_port, TRUE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Master Socket allocation failed\n");
-    }
-  #endif
-    if (rtp_net_listen ((RTP_SOCKET) net_ssnSock, prtsmb_srv_ctx->max_sessions) != 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to listen on SSN Reliable socket.\n");
-    }
-
-    if (rtp_net_setbroadcast((RTP_SOCKET) net_nsSock, 1) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
-    }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-    if (!srvobject_bind_diag_socket())
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to open diag socket\n");
-    }
-    else
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "diag socket is open\n");
-    }
-#endif
-}
-
-
+//
 RTSMB_STATIC void rtsmb_srv_net_thread_condense_sessions (PNET_THREAD pThread)
 {
     dword i;
@@ -336,149 +476,6 @@ RTSMB_STATIC void rtsmb_srv_net_thread_condense_sessions (PNET_THREAD pThread)
     }
 }
 
-RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
-{
-    dword i;
-    RTP_SOCKET readList[256];
-    int j,len,in_len;
-
-    do
-    {
-        len = 0;
-
-        /* build list */
-        for(i = 0; i < pThread->numSessions && len < 256; i++)
-        {
-           /* make sure we bind the thread to the net session context */
-            pThread->sessionList[i]->pThread = pThread;
-            if (!yield_c_is_session_blocked(&pThread->sessionList[i]->smbCtx))
-            {
-              readList[len++] = pThread->sessionList[i]->sock;
-            }
-        }
-        readList[len++] = yield_c_get_signal_sock(pThread->signal_object);
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-        if (srvobject_get_diag_socket())
-        {
-          readList[len++] = *srvobject_get_diag_socket();
-        }
-#endif
-        /**
-         * Block on input.
-         */
-        in_len = len;
-
-        len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
-        for (j = 0; j < len; j++)
-        {
-          if (readList[j] && readList[j] == yield_c_get_signal_sock(pThread->signal_object))
-          {
-            yield_c_recieve_signal(pThread->signal_object);
-            break;
-          }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-          if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
-          {
-            srvobject_process_diag_request();
-          }
-#endif
-        }
-    }
-    while (rtsmb_srv_net_thread_cycle (pThread, readList, len));
-
-    rtsmb_srv_net_thread_close (pThread);
-
-}
-
-
-RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions)
-{
-    dword i;
-
-    for (i = numSessions; i < prtsmb_srv_ctx->max_sessions; i++)
-    {
-        p->sessionList[i] = (PNET_SESSIONCTX)0;
-    }
-
-    p->index = 0;
-    p->blocking_session = -1;
-    p->numSessions = numSessions;
-    p->srand_is_initialized = FALSE;
-    // p->yield_sock; A udp socket dedicated to signalling yield sessions was initialized at startup
-}
-
-
-
-RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread)
-{
-    int numSessions = (int)pMaster->numSessions;
-    int i, k = 0;
-    int end = numSessions / 2;
-    RTP_HANDLE newThread;
-    /**
-     * Set up thread, giving it half our sessions.
-     */
-    for (i =  numSessions - 1; i >= end; i--)
-    {
-        pThread->sessionList[k] = pMaster->sessionList[i];
-
-        /**
-         * We must also switch buffer pointers to correct place.
-         */
-        SMBS_PointSmbBuffersAtNetThreadBuffers (&pThread->sessionList[k]->smbCtx, pThread);
-
-        k++;
-
-        pMaster->sessionList[i] = (PNET_SESSIONCTX)0;
-        pMaster->numSessions --;
-    }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_net_thread_split: Giving %d", (int) (numSessions - end));
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
-
-    rtsmb_srv_net_thread_init (pThread, (dword) (numSessions - end));
-
-    if (rtp_thread_spawn(&newThread, (RTP_ENTRY_POINT_FN) rtsmb_srv_net_thread_main, "SMBTHREAD", 0, 0, pThread))
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_thread_split: Couldn't start thread!\n");
-    }
-}
-
-/**
- * Allocates space for a new session, if available; else
- */
-RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
-{
-    /*new session */
-    PNET_SESSIONCTX pSCtx = rtsmb_srv_net_connection_open (pMaster);
-    PNET_THREAD pThread;
-
-    if (pSCtx)
-    {
-        /**
-         * Add new session to our list.
-         */
-        pMaster->sessionList[pMaster->numSessions] = pSCtx;
-        pMaster->numSessions++;
-
-        /**
-         * See if we have a free thread.
-         */
-        pThread = rtsmb_srv_net_thread_new ();
-        if (pThread)
-        {
-            /**
-             * Give half our sessions to the new thread.
-             */
-            rtsmb_srv_net_thread_split (pMaster, pThread);
-        }
-        return TRUE;
-    }
-    else
-        return FALSE;
-}
-
-
-
 RTSMB_STATIC void rtsmb_srv_net_session_yield_cycle (PNET_SESSIONCTX *session)
 {
 BBOOL doCB=FALSE;
@@ -486,8 +483,7 @@ BBOOL dosend = TRUE;
 
     if ((*session)->smbCtx.isSMB2)
     {
-
-       if (yield_c_check_signal(&(*session)->smbCtx))
+        if (yield_c_check_signal(&(*session)->smbCtx))
        {
           OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_SIGNAL
           doCB=TRUE;
@@ -617,219 +613,61 @@ RTSMB_STATIC void rtsmb_srv_net_session_cycle (PNET_SESSIONCTX *session, int rea
     }
 }
 
-RTSMB_STATIC BBOOL rtsmb_srv_net_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize)
+
+RTSMB_STATIC void rtsmb_srv_net_thread_init (PNET_THREAD p, dword numSessions)
 {
-    PNET_SESSIONCTX *session;
-    int i,n;
+    dword i;
 
-    /**
-     * The reason we wait here to seed tc_rand() is so that the seed value has
-     * some degree of randomness to it.  This gets called the first time there
-     * is network traffic on this thread's sockets, so the network is our
-     * only source of randomness.  Not very good, but its the best we have.
-     *
-     * We could use time (), and you are welcome to use that instead, but I
-     * am under the impression that not all embedded compilers support time.h.
-     */
-    if (!pThread->srand_is_initialized)
+    for (i = numSessions; i < prtsmb_srv_ctx->max_sessions; i++)
     {
-        tc_srand ((unsigned int) rtp_get_system_msec ());
-        pThread->srand_is_initialized = TRUE;
+        p->sessionList[i] = (PNET_SESSIONCTX)0;
     }
 
-    /**
-     * Now we run the sessions we are responsible for.
-     */
-    for(i = 0; i < (int)pThread->numSessions; i++)
-    {
-        int current_session_index = (i + (int)pThread->index) % (int)pThread->numSessions;
-        SMBS_SESSION_STATE starting_state;
-
-        /* session can be null here */
-        session = &pThread->sessionList[current_session_index];
-        if (!*session)
-          continue;
-
-        /* Shouldn't run if a blocking session exists and we aren't it. */
-        if (pThread->blocking_session != -1 &&
-            pThread->blocking_session != current_session_index)
-        {
-//            srvobject_session_blocked(pThread,session); // marks an ended session
-            continue;
-        }
-
-        /* make sure we bind the thread to the net session context */
-       (*session)->pThread = pThread;
-
-//        srvobject_session_enter(pThread,session);
-        starting_state = (*session)->smbCtx.state;
-        for (n = 0; n < readListSize; n++)
-        {
-            if (readList[n] == (*session)->sock)
-            {
-                rtsmb_srv_net_session_cycle (session, TRUE);
-                break;
-            }
-        }
-        /* session can be null here */
-//        if (!*session)
-//           srvobject_session_enter(pThread,session); // marks an ended session
-        if (!*session)
-          continue;
-
-        // A yielded session's socket won't be in the socket list so check
-        // if it is yielded and then check the countdown and wakup triggers
-        if (yield_c_is_session_blocked(&(*session)->smbCtx))
-//        if (yield_c_recieve_blocked(pThread->signal_object))
-        {
-          rtsmb_srv_net_session_yield_cycle (session);
-        }
-        else if (n == readListSize)
-        { // A non yielded session timeded out, check for KEEPALIVES
-            rtsmb_srv_net_session_cycle (session, FALSE);
-        }
-
-        /* Warning: at this point, (*session) may be NULL */
-
-        /* if we changed states, and we are changing away from idle,
-           we should block on this session.  If we are changing to idle,
-           we should stop blocking on this session */
-        if ((*session) && starting_state != (*session)->smbCtx.state)
-        {
-            if (starting_state == IDLE)
-            {
-                pThread->blocking_session = current_session_index;
-            }
-            else if ((*session)->smbCtx.state == IDLE)
-            {
-                pThread->blocking_session = -1;
-            }
-        }
-        else if (!(*session))
-        {
-            /* dead session.  clear block if this held it */
-            if (pThread->blocking_session == current_session_index)
-            {
-                pThread->blocking_session = -1;
-            }
-        }
-    }
-//    srvobject_session_exit(pThread,session);
-
-    rtsmb_srv_net_thread_condense_sessions (pThread);
-
-    if (pThread->numSessions)
-    {
-        /* mix it up a bit, in case a session at the front is hogging time */
-        pThread->index = ((dword) tc_rand () % pThread->numSessions);
-    }
+    p->index = 0;
+    p->blocking_session = -1;
+    p->numSessions = numSessions;
+    p->srand_is_initialized = FALSE;
+    // p->yield_sock; A udp socket dedicated to signalling yield sessions was initialized at startup
 }
 
-/*
-==============
- poll to see if any of the  sockets belonging to a handler
- has something to be read.
-==============
-*/
 
-void rtsmb_srv_net_cycle (long timeout)
+
+
+/**
+ * Allocates space for a new session, if available; else
+ */
+RTSMB_STATIC BBOOL rtsmb_srv_net_thread_new_session (PNET_THREAD pMaster)
 {
-    RTP_SOCKET readList[256];
-    int len,signal_socket_index;
-    word i;
+    /*new session */
+    PNET_SESSIONCTX pSCtx = rtsmb_srv_net_connection_open (pMaster);
+    PNET_THREAD pThread;
 
-    if (!prtsmb_srv_ctx->mainThread)
+    if (pSCtx)
     {
-        for (i=0;i<10;i++) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_cycle sock: crashing lost mainTread %x \n",prtsmb_srv_ctx->mainThread);}
-        int iCrash = 13 / 0;      // trap to the debugger
-        return;
-    }
-
-    /**
-     * Build the list of sockets to poll, consisting of the
-     * name service socket, session service socket, and
-     * sessions' sockets we are handling.
-     */
-    len = 0;
-    readList[len++] = net_nsSock;  /* Name Service Socket */
-    readList[len++] = rtsmb_nbds_get_socket (); /* Datagram Service Socket */
-    readList[len++] = net_ssnSock; /* Session Service Socket */
-
-    for (i = 0; i < prtsmb_srv_ctx->mainThread->numSessions && len < 256; i++)
-    {
-        /* make sure we bind the thread to the net session context */
-        prtsmb_srv_ctx->mainThread->sessionList[i]->pThread = prtsmb_srv_ctx->mainThread;
-        if (!yield_c_recieve_blocked(prtsmb_srv_ctx->mainThread->signal_object))
-          readList[len++] = prtsmb_srv_ctx->mainThread->sessionList[i]->sock;
-    }
-    signal_socket_index = len;
-    readList[len++] =  yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object);
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-        if (srvobject_get_diag_socket())
-        {
-          readList[len++] = *srvobject_get_diag_socket();
-        }
-#endif
-
-    int in_len = len;
-    len = rtsmb_netport_select_n_for_read (readList, len, timeout);
-    /**
-     * Handle name requests, etc.
-     */
-    int j;
-    for (j = 0; j < len; j++)
-    {
-      if (readList[j] == yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object))
-      {
-        yield_c_recieve_signal(prtsmb_srv_ctx->mainThread->signal_object);
-        break;
-      }
-#if (INCLUDE_SRVOBJ_REMOTE_DIAGS && (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD==0))
-       if (readList[j] && srvobject_get_diag_socket() && readList[j] == *srvobject_get_diag_socket())
-       {
-         srvobject_process_diag_request();
-       }
-#endif
-    }
-
-    for (i = 0; i < len; i++)
-    {
-        if (readList[i] == net_nsSock)
-        {
-            byte datagram[RTSMB_NB_MAX_DATAGRAM_SIZE];
-
-            /*process datagram */
-            rtsmb_net_read_datagram (net_nsSock, datagram, RTSMB_NB_MAX_DATAGRAM_SIZE, net_lastRemoteHost_ip, &net_lastRemoteHost_port);
-
-            /* only handle datagrams that don't originate from us */
-            if (tc_memcmp (net_lastRemoteHost_ip, rtsmb_srv_net_get_host_ip (), 4) != 0)
-            {
-                rtsmb_srv_nbns_process_packet (datagram, RTSMB_NB_MAX_DATAGRAM_SIZE);
-            }
-        }
         /**
-         * If a new session has arrived and we have free threads, give half our
-         * sessions to them.
+         * Add new session to our list.
          */
-        else if (readList[i] == net_ssnSock)
+        pMaster->sessionList[pMaster->numSessions] = pSCtx;
+        pMaster->numSessions++;
+#if (CFG_RTSMB_MAX_THREADS != 0) // This doesn't execute in non MT mode so don't worry about it
+        /**
+         * See if we have a free thread.
+         */
+        pThread = rtsmb_srv_net_thread_new ();
+        if (pThread)
         {
-            rtsmb_srv_net_thread_new_session (prtsmb_srv_ctx->mainThread);
+            /**
+             * Give half our sessions to the new thread.
+             */
+            rtsmb_srv_net_thread_split (pMaster, pThread);
         }
-    }
-
-    /* handle sessions we own */
-    rtsmb_srv_net_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
-
-#if INCLUDE_RTSMB_DC
-    /* now see if we need to query for the pdc again */
-    if (!MS_IsKnownPDCName () && next_pdc_find <= rtp_get_system_msec ())
-    {
-        MS_SendPDCQuery ();
-
-        next_pdc_find = next_pdc_find + rtsmb_srv_net_pdc_next_interval ();
-    }
 #endif
+        return TRUE;
+    }
+    else
+        return FALSE;
 }
+
 
 void rtsmb_srv_net_shutdown (void)
 {
@@ -873,5 +711,141 @@ PFBYTE rtsmb_srv_net_get_broadcast_ip (void)
 {
     return rtsmb_net_get_broadcast_ip ();
 }
+
+
+RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void)
+{
+    return net_nsSock;
+}
+RTP_SOCKET rtsmb_srv_net_get_nbss_socket (void)
+{
+    return net_ssnSock;
+}
+PFBYTE rtsmb_srv_net_get_last_remote_ip (void)
+{
+    return net_lastRemoteHost_ip;
+}
+int rtsmb_srv_net_get_last_remote_port (void)
+{
+    return net_lastRemoteHost_port;
+}
+
+#if INCLUDE_RTSMB_DC
+RTSMB_STATIC void rtsmb_srv_net_pdc_reset_interval (void)
+{
+    numPDCQueries = 0;
+}
+
+RTSMB_STATIC dword rtsmb_srv_net_pdc_next_interval (void)
+{
+    dword rv;
+
+    switch (numPDCQueries)
+    {
+    case 0:     rv = 0; break;
+    case 1:     rv = 500; break;
+    case 2:     rv = 2000; break;
+    case 3:     rv = 8000; break;
+    case 4:     rv = 60000; break;
+    case 5:     rv = 120000; break;
+    case 6:     rv = 180000; break;
+    case 7:     rv = 240000; break;
+    case 8:
+    default:    rv = 300000; break;
+    }
+
+    numPDCQueries ++;
+
+    return rv;
+}
+
+void rtsmb_srv_net_pdc_invalidate (void)
+{
+    rtsmb_srv_net_pdc_reset_interval ();
+
+    MS_ClearPDCName ();
+}
+#endif
+
+#if (CFG_RTSMB_MAX_THREADS != 0) // This doesn't execute in non MT mode so don't worry about it
+RTSMB_STATIC void rtsmb_srv_net_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread)
+{
+    int numSessions = (int)pMaster->numSessions;
+    int i, k = 0;
+    int end = numSessions / 2;
+    RTP_HANDLE newThread;
+    /**
+     * Set up thread, giving it half our sessions.
+     */
+    for (i =  numSessions - 1; i >= end; i--)
+    {
+        pThread->sessionList[k] = pMaster->sessionList[i];
+
+        /**
+         * We must also switch buffer pointers to correct place.
+         */
+        SMBS_PointSmbBuffersAtNetThreadBuffers (&pThread->sessionList[k]->smbCtx, pThread);
+
+        k++;
+
+        pMaster->sessionList[i] = (PNET_SESSIONCTX)0;
+        pMaster->numSessions --;
+    }
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_net_thread_split: Giving %d", (int) (numSessions - end));
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
+
+    rtsmb_srv_net_thread_init (pThread, (dword) (numSessions - end));
+
+    if (rtp_thread_spawn(&newThread, (RTP_ENTRY_POINT_FN) rtsmb_srv_net_thread_main, "SMBTHREAD", 0, 0, pThread))
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_net_thread_split: Couldn't start thread!\n");
+    }
+}
+
+RTSMB_STATIC void rtsmb_srv_net_thread_main (PNET_THREAD pThread)
+{
+    dword i;
+    RTP_SOCKET readList[256];
+    int j,len,in_len;
+
+    do
+    {
+        len = 0;
+
+        /* build list */
+        for(i = 0; i < pThread->numSessions && len < 256; i++)
+        {
+           /* make sure we bind the thread to the net session context */
+            pThread->sessionList[i]->pThread = pThread;
+            if (!yield_c_is_session_blocked(&pThread->sessionList[i]->smbCtx))
+            {
+              readList[len++] = pThread->sessionList[i]->sock;
+            }
+        }
+        readList[len++] = yield_c_get_signal_sock(pThread->signal_object);
+        /**
+         * Block on input.
+         */
+        in_len = len;
+
+        len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
+        for (j = 0; j < len; j++)
+        {
+          if (readList[j] && readList[j] == yield_c_get_signal_sock(pThread->signal_object))
+          {
+            yield_c_recieve_signal(pThread->signal_object);
+            break;
+          }
+        }
+    }
+    while (rtsmb_srv_net_thread_cycle (pThread, readList, len));
+
+    rtsmb_srv_net_thread_close (pThread);
+
+}
+#endif //  (CFG_RTSMB_MAX_THREADS)
+
+
+
 
 #endif /* INCLUDE_RTSMB_SERVER */
