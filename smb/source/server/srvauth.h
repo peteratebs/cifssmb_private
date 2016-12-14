@@ -3,6 +3,10 @@
 
 #include "smbdefs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if (INCLUDE_RTSMB_SERVER)
 
 #include "srvssn.h"
@@ -142,6 +146,10 @@ byte Auth_GetMode (void);
 void Auth_Init (void);
 //void Auth_Shutdown (void);
 
+
 #endif /* INCLUDE_RTSMB_SERVER */
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SRV_AUTH_H__ */

@@ -462,27 +462,23 @@ typedef struct s_Smb2SrvModel_Channel
 //    INTERFACE FUNCTION PROTOTYPES
 //============================================================================
 
-void Smb2SrvModel_Global_Init(void);
-pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
-BBOOL Smb2SrvModel_Global_Set_SessionInSessionList(pSmb2SrvModel_Session pSession);
-void Smb2SrvModel_Global_Remove_SessionFromSessionList(pSmb2SrvModel_Session pSession);
-pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
-dword Smb2_util_get_global_caps(pSmb2SrvModel_Connection pConnection,PRTSMB2_NEGOTIATE_C pRequest);
-BBOOL Smb2SrvModel_Connection_Set_SessionInSessionList(pSmb2SrvModel_Connection Connection, pSmb2SrvModel_Session pSession);
-pSmb2SrvModel_Channel Smb2SrvModel_Session_Get_ChannelInChannelList(pSmb2SrvModel_Session pSession, pSmb2SrvModel_Connection Connection);
-BBOOL Smb2SrvModel_Session_Set_ChannelInChannelList(pSmb2SrvModel_Session pSession, pSmb2SrvModel_Channel pChannel);
-void Smb2SrvModel_Global_Stats_Send_Update(dword body_size);
-void Smb2SrvModel_Global_Stats_Open_Update(int change);
-void Smb2SrvModel_Global_Stats_Error_Update(void);
-void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
-pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
-pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
-
-void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
-
-
-
-extern void Smb2SrvControl_Init(pSmb2SrvModel_Global pGlobal);
+EXTERN_C void Smb2SrvModel_Global_Init(void);;
+EXTERN_C pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
+EXTERN_C BBOOL Smb2SrvModel_Global_Set_SessionInSessionList(pSmb2SrvModel_Session pSession);
+EXTERN_C void Smb2SrvModel_Global_Remove_SessionFromSessionList(pSmb2SrvModel_Session pSession);
+EXTERN_C pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
+EXTERN_C dword Smb2_util_get_global_caps(pSmb2SrvModel_Connection pConnection,PRTSMB2_NEGOTIATE_C pRequest);
+EXTERN_C BBOOL Smb2SrvModel_Connection_Set_SessionInSessionList(pSmb2SrvModel_Connection Connection, pSmb2SrvModel_Session pSession);
+EXTERN_C pSmb2SrvModel_Channel Smb2SrvModel_Session_Get_ChannelInChannelList(pSmb2SrvModel_Session pSession, pSmb2SrvModel_Connection Connection);
+EXTERN_C BBOOL Smb2SrvModel_Session_Set_ChannelInChannelList(pSmb2SrvModel_Session pSession, pSmb2SrvModel_Channel pChannel);
+EXTERN_C void Smb2SrvModel_Global_Stats_Send_Update(dword body_size);
+EXTERN_C void Smb2SrvModel_Global_Stats_Open_Update(int change);
+EXTERN_C void Smb2SrvModel_Global_Stats_Error_Update(void);
+EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
+EXTERN_C pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
+EXTERN_C pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
+EXTERN_C void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
+EXTERN_C void Smb2SrvControl_Init(pSmb2SrvModel_Global pGlobal);
 
 //============================================================================
 //    INTERFACE TRAILING HEADERS

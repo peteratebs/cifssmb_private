@@ -1,6 +1,11 @@
 #ifndef __SRV_ANS_H__
 #define __SRV_ANS_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #include "smbdefs.h"
 
 #if (INCLUDE_RTSMB_SERVER)
@@ -13,11 +18,12 @@ int srv_cmd_fill_header (PFVOID origin, PFVOID buf, rtsmb_size size,
 
 int srv_cmd_fill_negotiate_bad (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_NEGOTIATE_BAD_R pNegotiateR);
+
 int srv_cmd_fill_negotiate_pre_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_NEGOTIATE_R pNegotiateR);
+
 int srv_cmd_fill_negotiate_nt (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_NEGOTIATE_R pNegotiateR);
-
 
 int srv_cmd_fill_session_setup_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_SESSION_SETUP_AND_X_R pSessionR);
@@ -248,5 +254,9 @@ int srv_cmd_fill_nt_create_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_NT_CREATE_AND_X_R pCreateR);
 
 #endif /* INCLUDE_RTSMB_SERVER */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SRV_ANS_H__ */

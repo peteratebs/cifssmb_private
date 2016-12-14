@@ -44,15 +44,22 @@
 
 #include "rtptime.h"
 
+#include "srvsmbssn.h"
+
 #define DOPUSH 1
 
 #ifdef SUPPORT_SMB2
 #include "com_smb2.h"
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
-extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
+EXTERN_C BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
+EXTERN_C BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #include "srvyield.h"
 #endif
+
+EXTERN_C BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
+EXTERN_C BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
+EXTERN_C BBOOL ProcWriteRaw2 (PSMB_SESSIONCTX pCtx, PFBYTE data, PFVOID pOutBuf, word bytesRead);
 
 #define SEND_NO_REPLY   0
 #define SEND_REPLY    1
@@ -67,34 +74,7 @@ static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx);
 
 
 static int SMBS_CheckPacketVersion(PFBYTE pInBuf);
-extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
 
-
-extern void SMBS_Tree_Init (PTREE user);
-extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
-extern void SMBS_User_Init  (PUSER user);
-extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
-extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
-extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
-extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
-
-extern void SMBS_ProcSMBBody (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
-extern BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
-extern BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
-extern void SMBS_Tree_Init (PTREE user);
-extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
-extern void SMBS_User_Init  (PUSER user);
-extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
-extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
-extern void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version);
-
-extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
-extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 
 
 /*
@@ -110,9 +90,6 @@ This function processes one smb packet.
 ================
 */
 
-#ifdef SUPPORT_SMB2
-extern BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
-#endif
 
 void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
 {  // We either timed out or we got signalled so clear the timeout,
@@ -439,10 +416,10 @@ static SMB2PROCBODYACTION SMBS_ProcSMBBodyInner (PSMB_SESSIONCTX pSctx)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, we've got all the information we need.\n");
     }
 #endif
-
     /**
      * Read remaining bytes from wire (there should be a header there already).
      */
+
     if ((length = rtsmb_net_read (pSctx->sock, (PFBYTE) PADD (pInBuf, pSctx->current_body_size),
         pSctx->readBufferSize - pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size)) < 0)
     {
@@ -544,7 +521,8 @@ rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
     tc_memset (pOutBuf, 0, pSctx->writeBufferSize);
 
     pSctx->read_origin = pInBuf;
-    pInBuf = PADD (pInBuf, header_size);
+    PFBYTE pheader_size = (PFBYTE) header_size;
+    pInBuf = (PFBYTE) PADD(pInBuf, pheader_size);
 
     /**
      * Set up outgoing header.
@@ -662,7 +640,6 @@ Proccess Negotiate protocol requests.  This function
 ================
 */
 
-extern BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
 
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE STRUCTURES                                          */
@@ -836,8 +813,89 @@ void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
 
 /*  pSmbCtx->num = num++;  */
 }
-/* this changes the permenant buffers used by this session   */
 
+EXTERN_C pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
+EXTERN_C pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
+EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
+/*
+================
+ This function intializes the session SMB context portions for SMBV1 and V2.
+
+ This is performed when the server state goes from NOTCONNECTED to IDLE after accepting it's fir bytes and identifying smbv1
+
+    @pSmbCtx: This is the session context to initialize.
+
+    return: Nothing.
+================
+*/
+void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
+{
+    word i;
+
+    /**
+     * Outsource our user initialization.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+    {
+        SMBS_User_Init  (&pSmbCtx->uids[i]);
+        pSmbCtx->uids[i].inUse = FALSE;
+    }
+
+    /**
+     * Outsource our tree initialization.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+    {
+        SMBS_Tree_Init (&pSmbCtx->trees[i]);
+        pSmbCtx->trees[i].inUse = FALSE;
+    }
+
+    /**
+     * Clear fids.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
+    {
+        pSmbCtx->fids[i].internal_fid = -1;
+    }
+
+    if (protocol_version == 2)
+    {
+        /* Allocate the smb2 session stuff */
+        pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
+        if (pSmbCtx->pCtxtsmb2Session)
+        {
+          pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
+        }
+        if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
+        {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb:  Failed !!!!\n");
+            if (pSmbCtx->pCtxtsmb2Session)
+            {
+                Smb2SrvModel_Free_Session(pSmbCtx->pCtxtsmb2Session);
+                pSmbCtx->pCtxtsmb2Session = 0;
+            }
+        }
+        else
+        {
+          /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
+          pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
+          pSmbCtx->isSMB2 = TRUE;
+        }
+    }
+    if (protocol_version < 2)
+    {
+        if (pSmbCtx->pCtxtsmb2Session && pSmbCtx->pCtxtsmb2Session->SMB2_BodyContext)
+        {
+          yield_c_free_body_context(pSmbCtx->pCtxtsmb2Session);
+        }
+// Shouldn't we do this ??
+//        pSctx->pCtxtsmb2Session = 0; // ???
+        pSmbCtx->isSMB2 = FALSE;
+    }
+}
+
+
+/* this changes the permenant buffers used by this session   */
 void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread)
 {
 int session_index = SMBU_SessionToIndex(pCtx);
@@ -948,86 +1006,6 @@ void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
     }
 }
 
-
-extern pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
-extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
-extern void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
-/*
-================
- This function intializes the session SMB context portions for SMBV1 and V2.
-
- This is performed when the server state goes from NOTCONNECTED to IDLE after accepting it's fir bytes and identifying smbv1
-
-    @pSmbCtx: This is the session context to initialize.
-
-    return: Nothing.
-================
-*/
-void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
-{
-    word i;
-
-    /**
-     * Outsource our user initialization.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-    {
-        SMBS_User_Init  (&pSmbCtx->uids[i]);
-        pSmbCtx->uids[i].inUse = FALSE;
-    }
-
-    /**
-     * Outsource our tree initialization.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
-    {
-        SMBS_Tree_Init (&pSmbCtx->trees[i]);
-        pSmbCtx->trees[i].inUse = FALSE;
-    }
-
-    /**
-     * Clear fids.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
-    {
-        pSmbCtx->fids[i].internal_fid = -1;
-    }
-
-    if (protocol_version == 2)
-    {
-        /* Allocate the smb2 session stuff */
-        pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
-        if (pSmbCtx->pCtxtsmb2Session)
-        {
-          pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
-        }
-        if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb:  Failed !!!!\n");
-            if (pSmbCtx->pCtxtsmb2Session)
-            {
-                Smb2SrvModel_Free_Session(pSmbCtx->pCtxtsmb2Session);
-                pSmbCtx->pCtxtsmb2Session = 0;
-            }
-        }
-        else
-        {
-          /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
-          pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
-          pSmbCtx->isSMB2 = TRUE;
-        }
-    }
-    if (protocol_version < 2)
-    {
-        if (pSmbCtx->pCtxtsmb2Session && pSmbCtx->pCtxtsmb2Session->SMB2_BodyContext)
-        {
-          yield_c_free_body_context(pSmbCtx->pCtxtsmb2Session);
-        }
-// Shouldn't we do this ??
-//        pSctx->pCtxtsmb2Session = 0; // ???
-        pSmbCtx->isSMB2 = FALSE;
-    }
-}
 
 
 /*
@@ -1143,6 +1121,4 @@ static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
-
 

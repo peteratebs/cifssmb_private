@@ -12,6 +12,7 @@
 // Process NETBIOS Session Service requests
 //
 
+#include "smbdefs.h"  /* for global port variables */
 #include "smbnbss.h"
 #include "smbpack.h"
 #include "smbread.h"
@@ -20,6 +21,7 @@
 #if (0)
 #include "smbnet.h"  /* for global port variables */
 #endif
+
 
 #if (0)
 void rtsmb_nbss_init_port_alt (void)
@@ -107,4 +109,3 @@ int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStr
 
     return RTSMB_NBSS_HEADER_SIZE;
 }
-

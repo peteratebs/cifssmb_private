@@ -377,19 +377,6 @@ typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;
 /*============================================================================   */
 
 
-void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock);
-void SMBS_CloseSession (PSMB_SESSIONCTX pSmbCtx);
-void SMBS_CloseShare (PSMB_SESSIONCTX pCtx, word handle);
-
-BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
-BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
-BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
-BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize);
-
-void SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx);
-BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
-
-
 
 
 /*============================================================================   */

@@ -39,14 +39,12 @@ typedef struct
 } RTSMB_NBSS_REQUEST;
 typedef RTSMB_NBSS_REQUEST RTSMB_FAR *PRTSMB_NBSS_REQUEST;
 
-void rtsmb_nbss_init_port_alt (void);
-void rtsmb_nbss_init_port_well_know (void);
-
-int rtsmb_nbss_fill_request (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_REQUEST pRequest);
-int rtsmb_nbss_read_request (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_REQUEST pRequest);
-
-int rtsmb_nbss_fill_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
-int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+EXTERN_C void rtsmb_nbss_init_port_alt (void);
+EXTERN_C void rtsmb_nbss_init_port_well_know (void);
+EXTERN_C int rtsmb_nbss_fill_request (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_REQUEST pRequest);
+EXTERN_C int rtsmb_nbss_read_request (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_REQUEST pRequest);
+EXTERN_C int rtsmb_nbss_fill_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+EXTERN_C int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
 
 
 #endif /* __SMB_NBSS_H__ */

@@ -37,16 +37,16 @@
 /**
  * These functions tightly control access to resources stored here.
  */
-PNET_SESSIONCTX allocateSession (void);
-void freeSession (PNET_SESSIONCTX p);
+EXTERN_C PNET_SESSIONCTX allocateSession (void);
+EXTERN_C void freeSession (PNET_SESSIONCTX p);
 
 PFBYTE allocateBigBuffer (void);
-void freeBigBuffer (PFBYTE p);
+EXTERN_C void freeBigBuffer (PFBYTE p);
 
-void claimSession (PNET_SESSIONCTX pCtx);
-void releaseSession (PNET_SESSIONCTX pCtx);
-PNET_SESSIONCTX firstSession (void);
-PNET_SESSIONCTX nextSession (PNET_SESSIONCTX pCtx);
+EXTERN_C void claimSession (PNET_SESSIONCTX pCtx);
+EXTERN_C void releaseSession (PNET_SESSIONCTX pCtx);
+EXTERN_C PNET_SESSIONCTX firstSession (void);
+EXTERN_C PNET_SESSIONCTX nextSession (PNET_SESSIONCTX pCtx);
 
 #endif /* INCLUDE_RTSMB_SERVER */
 

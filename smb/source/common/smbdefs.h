@@ -1,6 +1,12 @@
 #ifndef __SMB_DEFS_H__
 #define __SMB_DEFS_H__
 
+#ifdef __cplusplus
+   #define EXTERN_C extern "C"
+#else
+   #define EXTERN_C
+#endif
+
 //****************************************************************************
 //**
 //**    SMBDEFS.H
