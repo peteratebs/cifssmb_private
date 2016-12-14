@@ -61,11 +61,41 @@ extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
 static SMB2PROCBODYACTION SMBS_ProcSMBBodyPacketExecute (PSMB_SESSIONCTX pSctx);
 static SMB2PROCBODYACTION SMBS_ProcSMBBodyInner (PSMB_SESSIONCTX pCtx);
 BBOOL gl_disablesmb2 = FALSE;
+
 static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
 static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx);
-extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
-static BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
+
+
 static int SMBS_CheckPacketVersion(PFBYTE pInBuf);
+extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
+
+
+extern void SMBS_Tree_Init (PTREE user);
+extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
+extern void SMBS_User_Init  (PUSER user);
+extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
+extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
+extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
+extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
+
+extern void SMBS_ProcSMBBody (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
+extern BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
+extern BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
+extern void SMBS_Tree_Init (PTREE user);
+extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
+extern void SMBS_User_Init  (PUSER user);
+extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
+extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
+extern void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version);
+
+extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
+extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
+
 
 /*
 ================
@@ -80,7 +110,6 @@ This function processes one smb packet.
 ================
 */
 
-extern void SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSctx);
 #ifdef SUPPORT_SMB2
 extern BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #endif
@@ -245,12 +274,16 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
             if (!SMBS_PushContextBuffers (pSctx))
                 return FALSE;
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // If using private session buffers
              // Copy the start of the frame to to smb2 buffer we hjust allocated
              tc_memcpy(pSctx->readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
+#endif
           }
           else
           {  // Copy the smb2 buffer to the originginla buffer before we release the smb2 buffer
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // If using private session buffers
              tc_memcpy(pSctx->CtxSave.readBuffer, pSavedreadBuffer,SMBSIGSIZE+RTSMB_NBSS_HEADER_SIZE);
+#endif
              SMBS_PopContextBuffers (pSctx);
           }
 #endif
@@ -272,22 +305,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
 
         if (pSctx->state == NOTCONNECTED)
         {
-            if (protocol_version == 2)
-            {
-                // Also initializes an SMB1 context
-                SMBS_InitSessionCtx_smb2(pSctx);
-                /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
-                pSctx->isSMB2 = TRUE;
-            }
-            else
-            {
-                if (pSctx->pCtxtsmb2Session && pSctx->pCtxtsmb2Session->SMB2_BodyContext)
-                {
-                  yield_c_free_body_context(pSctx->pCtxtsmb2Session);
-                }
-                SMBS_InitSessionCtx_smb1(pSctx);
-                pSctx->isSMB2 = FALSE;
-            }
+            SMBS_InitSessionCtx_smb(pSctx, protocol_version); // Sets    pSctx->isSMB2 = TRUE/FALSE;
             // Okay we have a protocol
             pSctx->state = IDLE;
         }
@@ -594,18 +612,12 @@ rtsmb_dump_bytes("Packet dump", pInBuf, pSctx->current_body_size, DUMPBIN);
 /* this changes the permenant buffers used by this session   */
 static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx)
 {
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // Don't swap pointers if we are using exclusive buffers
 PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
-
     pCtxSave->smallReadBuffer = pCtx->smallReadBuffer;
     pCtxSave->smallWriteBuffer = pCtx->smallWriteBuffer;
     pCtxSave->readBuffer = pCtx->readBuffer;
-    pCtxSave->readBufferSize = pCtx->readBufferSize;
     pCtxSave->writeBuffer = pCtx->writeBuffer;
-    pCtxSave->writeBufferSize = pCtx->writeBufferSize;
-
-    pCtx->readBufferSize  = HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
-    pCtx->writeBufferSize = HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
-
     pCtx->readBuffer  = rtp_malloc(HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE);
     pCtx->writeBuffer = rtp_malloc(HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE);
     if (!pCtx->readBuffer || !pCtx->writeBuffer)
@@ -615,22 +627,31 @@ PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
     }
     pCtx->smallReadBuffer = pCtx->readBuffer;
     pCtx->smallWriteBuffer =  pCtx->writeBuffer;
+    pCtxSave->readBufferSize = pCtx->readBufferSize;
+    pCtxSave->writeBufferSize = pCtx->writeBufferSize;
+#endif
+    pCtx->readBufferSize  = prtsmb_srv_ctx->max_smb2_frame_size;
+    pCtx->writeBufferSize = prtsmb_srv_ctx->max_smb2_frame_size;
     return TRUE;
 }
 
 /* this changes the permanent buffers used by this session   */
 void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx)
 {
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // Don't swap pointers if we are using exclusive buffers
 PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
     if (pCtx->readBuffer)  rtp_free(pCtx->readBuffer);
     if (pCtx->writeBuffer)  rtp_free(pCtx->writeBuffer);
-
     pCtx->smallReadBuffer  = pCtxSave->smallReadBuffer;
     pCtx->smallWriteBuffer = pCtxSave->smallWriteBuffer;
     pCtx->readBuffer       = pCtxSave->readBuffer;
-    pCtx->readBufferSize   = pCtxSave->readBufferSize;
     pCtx->writeBuffer      = pCtxSave->writeBuffer;
+    pCtx->readBufferSize   = pCtxSave->readBufferSize;
     pCtx->writeBufferSize  = pCtxSave->writeBufferSize;
+#endif
+    pCtx->readBufferSize   = prtsmb_srv_ctx->out_buffer_size;
+    pCtx->writeBufferSize  = prtsmb_srv_ctx->out_buffer_size;
+
 }
 /*
 ================
@@ -806,7 +827,7 @@ void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
 
 #else  /* SUPPORT_SMB2 */
     pSmbCtx->state = IDLE;
-    SMBS_InitSessionCtx_smb1(pSmbCtx);
+    SMBS_InitSessionCtx_smb(pSmbCtx,1);
 #endif
     /**
      * See srvssn.h for a more detailed description of what these do.
@@ -826,8 +847,8 @@ int session_index = SMBU_SessionToIndex(pCtx);
     pCtx->smallWriteBuffer        = prtsmb_srv_ctx->unshared_write_buffers[session_index];
     pCtx->writeBuffer             = prtsmb_srv_ctx->unshared_write_buffers[session_index];
     pCtx->tmpBuffer               = prtsmb_srv_ctx->unshared_temp_buffers [session_index];
-    pCtx->readBufferSize          = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE; // They are the same
-    pCtx->writeBufferSize         = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE;
+    pCtx->readBufferSize          = prtsmb_srv_ctx->out_buffer_size; // They are the same
+    pCtx->writeBufferSize         = prtsmb_srv_ctx->out_buffer_size;
     pCtx->tmpSize                 = prtsmb_srv_ctx->temp_buffer_size;
 #else
     pCtx->smallReadBuffer = pThread->_inBuffer;
@@ -835,11 +856,281 @@ int session_index = SMBU_SessionToIndex(pCtx);
     pCtx->tmpBuffer = pThread->tmpBuffer;
     pCtx->readBuffer = pThread->_inBuffer;
     pCtx->writeBuffer = pThread->_outBuffer;
-    pCtx->readBufferSize = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE;
-    pCtx->writeBufferSize = prtsmb_srv_ctx->out_buffer_size - RTSMB_NBSS_HEADER_SIZE;
-    pCtx->tmpSize = prtsmb_srv_ctx->temp_buffer_size;
+    pCtx->readBufferSize  = prtsmb_srv_ctx->out_buffer_size;
+    pCtx->writeBufferSize = prtsmb_srv_ctx->out_buffer_size;
+    pCtx->tmpSize         = prtsmb_srv_ctx->temp_buffer_size;
 #endif
 }
+
+/*============================================================================   */
+/*   INTERFACE FUNCTIONS                                                         */
+/*============================================================================   */
+
+void SMBS_Tree_Init (PTREE tree)
+{
+    int i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
+    {
+        tree->fids[i] = 0;
+    }
+
+    tree->inUse = TRUE;
+}
+
+void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
+    {
+        if (tree->fids[i])
+        {
+            if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
+        }
+    }
+
+    tree->inUse = FALSE;
+}
+
+void SMBS_User_Init (PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+    {
+        user->searches[i].inUse = FALSE;
+    }
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        user->fids[i] = 0;
+    }
+    user->inUse = TRUE;
+}
+
+
+void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+        if (user->searches[i].inUse)
+            SMBFIO_GDone (pCtx, user->searches[i].tid, &user->searches[i].stat);
+
+    /* shut down all of the users files   */
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        if (user->fids[i])
+        {
+            /* Do not call close if it is a directory   */
+            if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
+        }
+    }
+
+    user->inUse = FALSE;
+}
+
+void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+    {
+        if (pCtx->trees[i].internal == handle)
+        {
+            SMBS_Tree_Shutdown (pCtx, &pCtx->trees[i]);
+        }
+    }
+}
+
+
+extern pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
+extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
+extern void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
+/*
+================
+ This function intializes the session SMB context portions for SMBV1 and V2.
+
+ This is performed when the server state goes from NOTCONNECTED to IDLE after accepting it's fir bytes and identifying smbv1
+
+    @pSmbCtx: This is the session context to initialize.
+
+    return: Nothing.
+================
+*/
+void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
+{
+    word i;
+
+    /**
+     * Outsource our user initialization.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+    {
+        SMBS_User_Init  (&pSmbCtx->uids[i]);
+        pSmbCtx->uids[i].inUse = FALSE;
+    }
+
+    /**
+     * Outsource our tree initialization.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+    {
+        SMBS_Tree_Init (&pSmbCtx->trees[i]);
+        pSmbCtx->trees[i].inUse = FALSE;
+    }
+
+    /**
+     * Clear fids.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
+    {
+        pSmbCtx->fids[i].internal_fid = -1;
+    }
+
+    if (protocol_version == 2)
+    {
+        /* Allocate the smb2 session stuff */
+        pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
+        if (pSmbCtx->pCtxtsmb2Session)
+        {
+          pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
+        }
+        if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
+        {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb:  Failed !!!!\n");
+            if (pSmbCtx->pCtxtsmb2Session)
+            {
+                Smb2SrvModel_Free_Session(pSmbCtx->pCtxtsmb2Session);
+                pSmbCtx->pCtxtsmb2Session = 0;
+            }
+        }
+        else
+        {
+          /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
+          pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
+          pSmbCtx->isSMB2 = TRUE;
+        }
+    }
+    if (protocol_version < 2)
+    {
+        if (pSmbCtx->pCtxtsmb2Session && pSmbCtx->pCtxtsmb2Session->SMB2_BodyContext)
+        {
+          yield_c_free_body_context(pSmbCtx->pCtxtsmb2Session);
+        }
+// Shouldn't we do this ??
+//        pSctx->pCtxtsmb2Session = 0; // ???
+        pSmbCtx->isSMB2 = FALSE;
+    }
+}
+
+
+/*
+================
+This function frees resources held by an SMB session context.
+
+    @pSmbCtx: This is the session context to free.
+
+    return: Nothing.
+================
+*/
+void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
+{
+    word i;
+    /**
+     * Only data worth freeing is in user data and trees.
+     */
+    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
+        if (pSmbCtx->uids[i].inUse)
+            SMBS_User_Shutdown (pSmbCtx, &pSmbCtx->uids[i]);
+
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+        if (pSmbCtx->trees[i].inUse)
+            SMBS_Tree_Shutdown (pSmbCtx, &pSmbCtx->trees[i]);
+#if (DOPUSH)
+    if (pSmbCtx->protocol_version == 2)
+    {
+       SMBS_PopContextBuffers (pSmbCtx);
+       pSmbCtx->protocol_version = 1;
+    }
+#endif
+}
+
+#if (INCLUDE_RTSMB_DC)
+BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
+{
+    if (pCtx->state != WAIT_ON_PDC_NAME)
+        return TRUE;
+
+    if (MS_IsKnownPDCName ())
+    {
+        pCtx->state = FINISH_NEGOTIATE;
+    }
+    else if (pCtx->end_time <= rtp_get_system_msec() ())
+    {
+        pCtx->state = FAIL_NEGOTIATE;
+    }
+
+    return TRUE;
+}
+
+BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
+{
+    char pdc [RTSMB_NB_NAME_SIZE + 1];
+
+    if (pCtx->state != WAIT_ON_PDC_IP)
+        return TRUE;
+
+    if (!MS_GetPDCName (pdc))
+    {
+        /* we've should've already alotted time and sent out a query.   */
+        /* let's not do it again                                        */
+        pCtx->state = WAIT_ON_PDC_NAME;
+        return TRUE;
+    }
+
+    if (rtsmb_srv_nbns_is_in_name_cache (pdc, RTSMB_NB_NAME_TYPE_SERVER))
+    {
+        pCtx->state = FINISH_NEGOTIATE;
+    }
+    else if (pCtx->end_time <= rtp_get_system_msec())
+    {
+        pCtx->state = FAIL_NEGOTIATE;
+    }
+
+    return TRUE;
+}
+
+BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
+{
+    PFBYTE pInBuf;
+    PFVOID pOutBuf;
+
+    /**
+     * Set up incoming and outgoing header.
+     */
+    pInBuf = (PFBYTE) SMB_INBUF (pCtx);
+    pOutBuf = SMB_OUTBUF (pCtx);
+
+    /* since we are coming here from a pdc discovery, restore state   */
+    pInBuf[0] = 0xFF;
+    pInBuf[1] = 'S';
+    pInBuf[2] = 'M';
+    pInBuf[3] = 'B';
+    pInBuf[4] = SMB_COM_NEGOTIATE;
+
+    SMBS_ProcSMBBody (pCtx);
+    pCtx->state = IDLE;
+
+    return SMBS_SendMessage (pCtx, pCtx->outBodySize, TRUE);
+}
+#endif
+
 
 
 static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
@@ -852,3 +1143,6 @@ static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
 }
 
 #endif /* INCLUDE_RTSMB_SERVER */
+
+
+

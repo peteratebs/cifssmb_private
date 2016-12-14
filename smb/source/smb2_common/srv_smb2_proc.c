@@ -61,6 +61,7 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 
 
 
+extern void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version);
 
 extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
 extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
@@ -650,7 +651,7 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
     smb2_stream  smb2stream;
     smb2_stream * pStream;
 
-    SMBS_InitSessionCtx_smb2(pSctx);
+    SMBS_InitSessionCtx_smb(pSctx,2);
 
     pStream = &smb2stream;
 
@@ -1076,7 +1077,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				    tree->external = externaltid;
 				    tree->internal = (word) tid;
                     // Zero the file id structures
-				    Tree_Init (tree);
+				    SMBS_Tree_Init (tree);
 				    tree->access = access;
 				    tree->type = pResource->stype;
                     pStream->psmb2Session->pSmbCtx->tid = externaltid;
@@ -1136,7 +1137,7 @@ static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_TreeDisConnect:  SMBU_GetTree returned %X\n",(int)tree);
         if (tree)
         {
-            Tree_Shutdown (pStream->psmb2Session->pSmbCtx, tree);
+            SMBS_Tree_Shutdown (pStream->psmb2Session->pSmbCtx, tree);
         }
     }
 	response.StructureSize = 4;

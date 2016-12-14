@@ -147,7 +147,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
     if (!finish && pStream->InHdr.SessionId==0)
     {
         /* Section 3.3.5.5.1 .. pg 262 */
-        /* Use the session that was assigned to the stream by SMBS_InitSessionCtx_smb2() */
+        /* Use the session that was assigned to the stream by SMBS_InitSessionCtx_smb */
 	    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SessionSetup binding session:  pStreamSession == %X pStreamSession == %d\n",(int)pStreamSession, (int) pStreamSession->SessionId);
 
         /* A session object MUST be allocated for this request. The session MUST be inserted into the GlobalSessionTable and a unique Session.SessionId is assigned to serve as a lookup key
@@ -446,7 +446,7 @@ static byte spnego_blob_buffer[512];
            }
 
             /* Session.SessionId MUST be placed in the SessionId field of the SMB2 header.
-                pStreamSession->SessionId was established when SMBS_InitSessionCtx_smb2 was called
+                pStreamSession->SessionId was established when SMBS_InitSessionCtx_smb was called
             */
             pStream->OutHdr.SessionId = pStreamSession->SessionId;
             /* Return the security tokens to the client and wait for another response packet */
@@ -768,7 +768,7 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
                    if (pCtx->uids[i].inUse == FALSE)
                    {
                        user = &pCtx->uids[i];
-                       User_Init(user);
+                       SMBS_User_Init(user);
                        user->uid    = (word) NewUID(pCtx->uids, prtsmb_srv_ctx->max_uids_per_session);
                        user->authId = user->uid; // Not sure
                        user->canonicalized = (BBOOL) FALSE; // Not sure

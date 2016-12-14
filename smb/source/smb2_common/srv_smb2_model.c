@@ -51,10 +51,7 @@
 #include "rtptime.h"
 #include "srvyield.h"
 
-static pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
-
-// Shared with srvssn.c
-extern void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
+extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
@@ -135,46 +132,6 @@ static char *algs[] = {"Algorithm1", "Algorith2","Algorithm3", 0};
     pSmb2SrvGlobal->EncryptData                        = RTSMB2_CFG_ENCRYPT_DATA;
     pSmb2SrvGlobal->RejectUnencryptedAccess            = RTSMB2_CFG_REJECT_UNENCRYPTED_ACCESS;
     pSmb2SrvGlobal->IsMultiChannelCapable              = RTSMB2_CFG_MULTI_CHANNEL_CAPABLE;
-}
-/*
- This function intializes the session context portions that is unique to SMBV2.
-
- This is performed when the server state goes from UNCONNECTED to IDLE after accepting it's first bytes and identifying smbv2
-
-    A new smb2 context/session/connection is allocated and a new session ID is generated. The session ID is not returned in the connect reply but it is returned in the
-    setup response.
-
-  	@pSmbCtx: This is the session context to initialize.
-
- 	return: Nothing.
-*/
-BBOOL SMBS_InitSessionCtx_smb2(PSMB_SESSIONCTX pSmbCtx)
-{
-    /* Initialize the SMB1 pSmbCtx->uids[i] and pSmbCtx->tree[i] and fid structures */
-    SMBS_InitSessionCtx_smb1(pSmbCtx);
-
-    /* Allocate the smb2 session stuff */
-    pSmbCtx->pCtxtsmb2Session = Smb2SrvModel_New_Session(pSmbCtx);
-
-    if (pSmbCtx->pCtxtsmb2Session)
-    {
-      pSmbCtx->pCtxtsmb2Session->Connection = Smb2SrvModel_New_Connection();
-    }
-    if (!pSmbCtx->pCtxtsmb2Session || !pSmbCtx->pCtxtsmb2Session->Connection)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_InitSessionCtx_smb2:  Failed !!!!\n");
-        if (pSmbCtx->pCtxtsmb2Session)
-        {
-            Smb2SrvModel_Free_Session(pSmbCtx->pCtxtsmb2Session);
-            pSmbCtx->pCtxtsmb2Session = 0;
-        }
-        return FALSE;
-    }
-    /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
-   pSmbCtx->pCtxtsmb2Session->State = Smb2SrvModel_Session_State_InProgress;
-   pSmbCtx->isSMB2 = TRUE;
-
-   return TRUE;
 }
 
 /* Find a session in the global table based on Session ID */
@@ -388,7 +345,7 @@ void Smb2SrvModel_Global_Stats_Error_Update(void)
    pSmb2SrvGlobal->ServerStatistics.sts0_pwerrors += 1;
 }
 
-static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
+extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 {
     // TBD
     int i;
@@ -407,6 +364,8 @@ static pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
     Smb2Sessions[i].RTSMBisAllocated=TRUE;
     Smb2Sessions[i].pSmbCtx = pSmbCtx;
     Smb2Sessions[i].SMB2_BodyContext=0;
+
+
     return &Smb2Sessions[i];
 }
 

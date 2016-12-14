@@ -38,6 +38,7 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	unsigned short    max_groups;
     unsigned long     max_smb2_transaction_size;
     unsigned short    max_smb1_transaction_size;
+	unsigned long     max_smb2_frame_size;
 	unsigned long     small_buffer_size;
 	unsigned long     temp_buffer_size;
 	unsigned long     in_buffer_size;

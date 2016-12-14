@@ -99,19 +99,23 @@ const byte zeros24[24];
 /*    IMPLEMENTATION PRIVATE FUNCTION PROTOTYPES                                 */
 /*============================================================================   */
 
+extern void SMBS_ProcSMBBody (PSMB_SESSIONCTX pCtx);
 extern BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
 extern BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
+extern BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
+extern void SMBS_Tree_Init (PTREE user);
+extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
+extern void SMBS_User_Init  (PUSER user);
+extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
+extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
+extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
+extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
+extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 
-void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx);
-
-void SMBS_ProcSMBBody (PSMB_SESSIONCTX pCtx);
-BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
 
 
-void Tree_Init (PTREE user);
-void Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
-void User_Init (PUSER user);
-void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
+
 
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE FUNCTIONS                                           */
@@ -583,7 +587,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
                    if (pCtx->uids[i].inUse == FALSE)
                    {
                        user = &pCtx->uids[i];
-                       User_Init(user);
+                       SMBS_User_Init (user);
                        user->uid    = (word) (pInHdr->uid ? pInHdr->uid : NewUID(pCtx->uids, prtsmb_srv_ctx->max_uids_per_session));
                        user->authId = authId;
                        user->canonicalized = (BBOOL) (pInHdr->flags & SMB_FLG_CANONICALIZED);
@@ -740,7 +744,7 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             tree->external = externaltid;
             tree->internal = (word) tid;
 
-            Tree_Init (tree);
+            SMBS_Tree_Init (tree);
             tree->access = access;
             tree->type = pResource->stype;
 
@@ -1456,7 +1460,7 @@ int ProcLogoffAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, 
 
     if (pCtx->uid)   /* sprsprspr */
     {
-        User_Shutdown (pCtx, SMBU_GetUser (pCtx, pCtx->uid));
+        SMBS_User_Shutdown (pCtx, SMBU_GetUser (pCtx, pCtx->uid));
     }
 
     response.next_command = command.next_command;
@@ -1737,7 +1741,7 @@ BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, in
         pCtx->writeBufferSize = pCtx->useableBufferSize;
         pCtx->readBufferSize = pCtx->useableBufferSize;
 
-        User_Init (&pCtx->uids[0]);
+        SMBS_User_Init  (&pCtx->uids[0]);
         pCtx->uids[0].uid = INVALID_UID;
         pOutHdr->uid = INVALID_UID;
         pCtx->uid = INVALID_UID;
@@ -1835,7 +1839,7 @@ BBOOL ProcTreeConnect (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
             pOutHdr->tid = tree->external = external;
             tree->internal = (word)tid;
 
-            Tree_Init (tree);
+            SMBS_Tree_Init (tree);
             tree->access = access;
             tree->type = pResource->stype;
 
@@ -1876,7 +1880,7 @@ BBOOL ProcTreeDisconnect (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
 
     READ_SMB (srv_cmd_read_tree_disconnect);
 
-    Tree_Shutdown (pCtx, SMBU_GetTree (pCtx, pCtx->tid));
+    SMBS_Tree_Shutdown (pCtx, SMBU_GetTree (pCtx, pCtx->tid));
 
     WRITE_SMB (srv_cmd_fill_tree_disconnect);
 
@@ -4137,236 +4141,6 @@ BBOOL ProcWritePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     return TRUE;
 }
 
-void Tree_Init (PTREE tree)
-{
-    int i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
-    {
-        tree->fids[i] = 0;
-    }
-
-    tree->inUse = TRUE;
-}
-
-void Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
-    {
-        if (tree->fids[i])
-        {
-            if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
-            SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
-        }
-    }
-
-    tree->inUse = FALSE;
-}
-
-void User_Init (PUSER user)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
-    {
-        user->searches[i].inUse = FALSE;
-    }
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-    {
-        user->fids[i] = 0;
-    }
-    user->inUse = TRUE;
-}
-
-void User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
-        if (user->searches[i].inUse)
-            SMBFIO_GDone (pCtx, user->searches[i].tid, &user->searches[i].stat);
-
-    /* shut down all of the users files   */
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-    {
-        if (user->fids[i])
-        {
-            /* Do not call close if it is a directory   */
-            if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
-            SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
-        }
-    }
-
-    user->inUse = FALSE;
-}
-
-/*============================================================================   */
-/*   INTERFACE FUNCTIONS                                                         */
-/*============================================================================   */
-
-void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
-    {
-        if (pCtx->trees[i].internal == handle)
-        {
-            Tree_Shutdown (pCtx, &pCtx->trees[i]);
-        }
-    }
-}
-
-
-/*
-================
- This function intializes the session context portions that is unique to SMBV1.
-
- This is performed when the server state goes from NOTCONNECTED to IDLE after accepting it's fir bytes and identifying smbv1
-
-    @pSmbCtx: This is the session context to initialize.
-
-    return: Nothing.
-================
-*/
-void SMBS_InitSessionCtx_smb1(PSMB_SESSIONCTX pSmbCtx)
-{
-    word i;
-    /**
-     * Outsource our user initialization.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-    {
-        User_Init (&pSmbCtx->uids[i]);
-        pSmbCtx->uids[i].inUse = FALSE;
-    }
-
-    /**
-     * Outsource our tree initialization.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
-    {
-        Tree_Init (&pSmbCtx->trees[i]);
-        pSmbCtx->trees[i].inUse = FALSE;
-    }
-
-    /**
-     * Clear fids.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_session; i++)
-    {
-        pSmbCtx->fids[i].internal_fid = -1;
-    }
-
-}
-
-
-/*
-================
-This function frees resources held by an SMB session context.
-
-    @pSmbCtx: This is the session context to free.
-
-    return: Nothing.
-================
-*/
-void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
-{
-    word i;
-
-    /**
-     * Only data worth freeing is in user data and trees.
-     */
-    for (i = 0; i < prtsmb_srv_ctx->max_uids_per_session; i++)
-        if (pSmbCtx->uids[i].inUse)
-            User_Shutdown (pSmbCtx, &pSmbCtx->uids[i]);
-
-    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
-        if (pSmbCtx->trees[i].inUse)
-            Tree_Shutdown (pSmbCtx, &pSmbCtx->trees[i]);
-#if (DOPUSH)
-    if (pSmbCtx->protocol_version == 2)
-    {
-       SMBS_PopContextBuffers (pSmbCtx);
-       pSmbCtx->protocol_version = 1;
-    }
-#endif
-}
-
-#if (INCLUDE_RTSMB_DC)
-BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
-{
-    if (pCtx->state != WAIT_ON_PDC_NAME)
-        return TRUE;
-
-    if (MS_IsKnownPDCName ())
-    {
-        pCtx->state = FINISH_NEGOTIATE;
-    }
-    else if (pCtx->end_time <= rtp_get_system_msec() ())
-    {
-        pCtx->state = FAIL_NEGOTIATE;
-    }
-
-    return TRUE;
-}
-
-BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
-{
-    char pdc [RTSMB_NB_NAME_SIZE + 1];
-
-    if (pCtx->state != WAIT_ON_PDC_IP)
-        return TRUE;
-
-    if (!MS_GetPDCName (pdc))
-    {
-        /* we've should've already alotted time and sent out a query.   */
-        /* let's not do it again                                        */
-        pCtx->state = WAIT_ON_PDC_NAME;
-        return TRUE;
-    }
-
-    if (rtsmb_srv_nbns_is_in_name_cache (pdc, RTSMB_NB_NAME_TYPE_SERVER))
-    {
-        pCtx->state = FINISH_NEGOTIATE;
-    }
-    else if (pCtx->end_time <= rtp_get_system_msec())
-    {
-        pCtx->state = FAIL_NEGOTIATE;
-    }
-
-    return TRUE;
-}
-
-BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
-{
-    PFBYTE pInBuf;
-    PFVOID pOutBuf;
-
-    /**
-     * Set up incoming and outgoing header.
-     */
-    pInBuf = (PFBYTE) SMB_INBUF (pCtx);
-    pOutBuf = SMB_OUTBUF (pCtx);
-
-    /* since we are coming here from a pdc discovery, restore state   */
-    pInBuf[0] = 0xFF;
-    pInBuf[1] = 'S';
-    pInBuf[2] = 'M';
-    pInBuf[3] = 'B';
-    pInBuf[4] = SMB_COM_NEGOTIATE;
-
-    SMBS_ProcSMBBody (pCtx);
-    pCtx->state = IDLE;
-
-    return SMBS_SendMessage (pCtx, pCtx->outBodySize, TRUE);
-}
-#endif
 
 BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf)
 // BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)

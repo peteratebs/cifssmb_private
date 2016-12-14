@@ -180,16 +180,18 @@ typedef struct write_raw_info
 
 
 
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // Don't swap pointers if we are using exclusive buffers
 typedef struct smb_sessionCtx_sessionCtxSave_s
 {
     PFBYTE readBuffer;
     PFBYTE writeBuffer;
-    dword readBufferSize;
-    dword writeBufferSize;
     PFBYTE smallReadBuffer;
     PFBYTE smallWriteBuffer;
+    dword readBufferSize;
+    dword writeBufferSize;
 } SMB_SESSIONCTX_SAVE_T;
 typedef SMB_SESSIONCTX_SAVE_T RTSMB_FAR *PSMB_SESSIONCTX_SAVE;
+#endif
 
 
 typedef struct smb_sessionCtx_s
@@ -325,7 +327,9 @@ typedef struct smb_sessionCtx_s
 
     /* session defaults to smb1 but we push saved buffers here when we assing and SMB2 seesion */
     int protocol_version;
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // Don't swap pointers if we are using exclusive buffers
     SMB_SESSIONCTX_SAVE_T CtxSave;
+#endif
 
 } SMB_SESSIONCTX_T;
 typedef SMB_SESSIONCTX_T RTSMB_FAR *PSMB_SESSIONCTX;

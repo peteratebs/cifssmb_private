@@ -354,9 +354,11 @@ int rtsmb_server_config(void)
    prtsmb_srv_ctx->max_users             = CFG_RTSMB_MAX_USERS;
    prtsmb_srv_ctx->max_smb2_transaction_size  = HARDWIRED_SMB2_MAX_TRANSACTION_SIZE;
    prtsmb_srv_ctx->max_smb1_transaction_size  = (HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE);
+   prtsmb_srv_ctx->max_smb2_frame_size        =  HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
+
    prtsmb_srv_ctx->small_buffer_size     = CFG_RTSMB_SMALL_BUFFER_SIZE_VETTED;
-   prtsmb_srv_ctx->in_buffer_size        = CFG_RTSMB_IN_BUFFER_SIZE_VETTED;
-   prtsmb_srv_ctx->out_buffer_size       = CFG_RTSMB_OUT_BUFFER_SIZE_VETTED;
+   prtsmb_srv_ctx->in_buffer_size        = CFG_RTSMB_IN_BUFFER_SIZE_VETTED  - RTSMB_NBSS_HEADER_SIZE;
+   prtsmb_srv_ctx->out_buffer_size       = CFG_RTSMB_OUT_BUFFER_SIZE_VETTED - RTSMB_NBSS_HEADER_SIZE;
    prtsmb_srv_ctx->temp_buffer_size      = CFG_RTSMB_TEMP_BUFFER_SIZE;
 
    prtsmb_srv_ctx->big_buffer_size       = CFG_RTSMB_BIG_BUFFER_SIZE;

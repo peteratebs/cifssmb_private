@@ -218,13 +218,13 @@ void yield_c_execute_yield(smb2_stream *pStream)
     pStream->doSessionYield = TRUE;
 
 }
-extern void yield_c_body_context(pSmb2SrvModel_Session pSession)
+void yield_c_body_context(pSmb2SrvModel_Session pSession)
 {
   yield_c_free_body_context(pSession); // Does nothing if already free
   pSession->SMB2_BodyContext=             (void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
 }
 
-extern void yield_c_free_body_context(pSmb2SrvModel_Session pSession)
+void yield_c_free_body_context(pSmb2SrvModel_Session pSession)
 {
   if (pSession->SMB2_BodyContext) rtp_free(pSession->SMB2_BodyContext);
   pSession->SMB2_BodyContext = 0;
