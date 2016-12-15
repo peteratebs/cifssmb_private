@@ -412,7 +412,7 @@ static int mapPidToSessionNumberCB (PNET_SESSIONCTX pnCtx, void *pargs)
 int i;
  for (i=0; i < prtsmb_srv_ctx->max_fids_per_session;i++)
  {
-  if (&pnCtx->smbCtx.fids[i] == ((struct mapPidToSessionNumberCB_t *)pargs)->pfid)
+  if (&pnCtx->netsessiont_smbCtx.fids[i] == ((struct mapPidToSessionNumberCB_t *)pargs)->pfid)
   {
     ((struct mapPidToSessionNumberCB_t *)pargs)->answer =   ((struct mapPidToSessionNumberCB_t *)pargs)->index;
     return 1;
@@ -444,7 +444,7 @@ int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs)
     PSMB_SESSIONCTX pCtx;
     for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
     {
-        pCtx = &prtsmb_srv_ctx->sessions[i].smbCtx;
+        pCtx = &prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx;
         for (j = 0; j < prtsmb_srv_ctx->max_fids_per_session; j++)
         {
             if (pCtx->fids[j].internal_fid >= 0 && pCtx->fids[j].pid == pCtx->pid)
@@ -578,7 +578,7 @@ PNET_SESSIONCTX SMBU_SmbSessionToNetSession(PSMB_SESSIONCTX pSmbCtx)
 #warning inefficient - need to fix
    i=0;
    for (i = 0; i <  prtsmb_srv_ctx->sessionsInUse; i++)
-     if (&prtsmb_srv_ctx->sessions[i].smbCtx == pSmbCtx)
+     if (&prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx == pSmbCtx)
        return &prtsmb_srv_ctx->sessions[i];
   return &prtsmb_srv_ctx->sessions[0];
 

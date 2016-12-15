@@ -11,6 +11,7 @@
 #include "srvyield.h"
 #include "rtpnet.h"
 #include "smbnet.h"
+#include "srvsmbssn.h"
 
 #warning duplicate define
 #define CFG_RTSMB_MAX_SESSIONS              8
@@ -173,10 +174,10 @@ void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p)
 
 signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
 {
-  PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
   if (pNctxt)
   {
-    return (pNctxt->pThread->signal_object);
+    return (pNctxt->netsessiont_pThread->signal_object);
   }
 }
 
@@ -185,10 +186,10 @@ signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
 // void RtsmbYieldSendSignalSocket(smb2_stream  *pStream)
 void yield_c_signal_to_stream(smb2_stream  *pStream)
 {
-  PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
   if (pNctxt)
   {
-    yield_c_signal_to_session(pNctxt->pThread->signal_object);
+    yield_c_signal_to_session(pNctxt->netsessiont_pThread->signal_object);
   }
 }
 

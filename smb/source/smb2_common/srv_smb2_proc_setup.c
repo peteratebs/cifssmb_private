@@ -279,7 +279,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 /* Free the session we came in with and use the one we just found */
                 if (pStreamSession != pCurrSession)
                 {
-                  PNET_SESSIONCTX pNctxt = findSessionByContext(pStreamSession-> pSmbCtx);
+                  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStreamSession-> pSmbCtx);
                     if (pNctxt)
                       SMBS_srv_netssn_connection_close_session(pNctxt);
                     pStream->psmb2Session = pCurrSession;

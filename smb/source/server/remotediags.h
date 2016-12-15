@@ -41,7 +41,7 @@ typedef struct oplock_diagnotics_s {
 } oplock_diagnotics_t;
 
 extern oplock_diagnotics_t oplock_diagnotics;
-#define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pnCtx->pThread->signal_object;}
+#define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pnCtx->netsessiont_pThread->signal_object;}
 #define OPLOCK_DIAG_YIELD_SESSION_RUN               oplock_diagnotics.session_wakeups += 1;
 #define OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_SIGNAL   oplock_diagnotics.session_wake_signalled += 1;
 #define OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_TIMEOUT  oplock_diagnotics.session_wake_timedout += 1;

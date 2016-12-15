@@ -15,11 +15,10 @@ extern "C" {
 /*============================================================================   */
 typedef struct net_sessionctxt
 {
-	int           heap_index;
-	RTP_SOCKET    sock;
-	unsigned long lastActivity;
-	SMB_SESSIONCTX_T smbCtx;
-    struct net_thread_s *pThread;   // The parent that cyckles between threads
+	RTP_SOCKET    netsessiont_sock;
+	unsigned long netsessiont_lastActivity; // Easy
+	SMB_SESSIONCTX_T netsessiont_smbCtx;
+    struct net_thread_s *netsessiont_pThread;   // The parent that cyckles between threads
 } NET_SESSIONCTX_T;
 typedef NET_SESSIONCTX_T RTSMB_FAR *PNET_SESSIONCTX;
 
@@ -69,7 +68,6 @@ typedef NET_THREAD_T RTSMB_FAR *PNET_THREAD;
 /*============================================================================   */
 /*    INTERFACE FUNCTION PROTOTYPES                                              */
 /*============================================================================   */
-PNET_SESSIONCTX findSessionByContext (PSMB_SESSIONCTX pSctxt);
 
 #if INCLUDE_RTSMB_DC
 void rtsmb_srv_netssn_pdc_invalidate (void);

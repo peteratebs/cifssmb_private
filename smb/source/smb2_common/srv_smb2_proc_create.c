@@ -531,10 +531,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
-    PNET_SESSIONCTX pNctxt = findSessionByContext(pStream->psmb2Session->pSmbCtx);
+    PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
     if (pNctxt && prtsmb_srv_ctx->enable_oplocks)
     {
-       PFID pfid =  SMBU_GetInternalFidPtr (&pNctxt->smbCtx, externalFid);
+       PFID pfid =  SMBU_GetInternalFidPtr (&pNctxt->netsessiont_smbCtx, externalFid);
        if (pfid) oplock_c_create(pfid,command.RequestedOplockLevel);
     }
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);

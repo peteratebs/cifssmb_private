@@ -477,7 +477,7 @@ void net_session_c::net_session_from_c(PNET_SESSIONCTX psession)
 {
     this->sock                     = psession-> sock         ;
     this->lastActivity             = psession-> lastActivity ;
-    this->smbCtx.smb_sessionCtx_from_c(&psession-> smbCtx);
+    this->smbCtx.smb_sessionCtx_from_c(&psession->netsessiont_smbCtx);
     this->pThread                  = psession-> pThread;
 }
 

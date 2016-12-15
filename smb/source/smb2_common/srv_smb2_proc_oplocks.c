@@ -189,10 +189,10 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak SMBU_Fid2Session() failed \n");
   }
-  else if (rtsmb_net_write (pfilesession->sock, &p,sizeof(p)) < 0)
+  else if (rtsmb_net_write (pfilesession->netsessiont_smbCtx, &p,sizeof(p)) < 0)
   {
      char buff[80];
-     sprintf(buff, "rtsmb_net_write failed send failure to [%d]", pfilesession->heap_index);
+//     sprintf(buff, "rtsmb_net_write failed send failure to [%d]", pfilesession->netsessiont_heap_index);
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write failed\n");
   }
   else

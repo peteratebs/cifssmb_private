@@ -105,13 +105,13 @@ oplock_c_create_return_e oplock_c_check_create_path(uint8_t *unique_fileid, uniq
 void oplock_c_create_yield_ing_fid(PNET_SESSIONCTX pnCtx,SMBFSTAT *pstat,PFRTCHAR name)
 {
   int internal_fid = 0; // the OS FID, but we don't use
-  int externalFid = SMBU_SetInternalFid (&pnCtx->smbCtx, internal_fid, name, 0, 0, pstat->unique_fileid);
-  PFID pfid  =  SMBU_GetInternalFidPtr (&pnCtx->smbCtx, externalFid);
+  int externalFid = SMBU_SetInternalFid (&pnCtx->netsessiont_smbCtx, internal_fid, name, 0, 0, pstat->unique_fileid);
+  PFID pfid  =  SMBU_GetInternalFidPtr (&pnCtx->netsessiont_smbCtx, externalFid);
   pfid->OplockFlags |= SMB2WAITOPLOCKFLAGREPLY;
   pfid->OplockTimeout = OPLOCK_DEFAULT_DURATION;
-// #define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pCtx->smbCtx.pThread->signal_object;}
+// #define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pCtx->netsessiont_smbCtx.pThread->signal_object;}
   OPLOCK_DIAG_YIELD_SESSION_YIELD
-  yield_c_set_timeout(&pnCtx->smbCtx);
+  yield_c_set_timeout(&pnCtx->netsessiont_smbCtx);
 }
 
 
@@ -176,7 +176,7 @@ static int oplock_c_break_update_pending_locksCB (PFID pfid, PNET_SESSIONCTX pnC
       if ( pfid->OplockLevel >= ((struct oplock_c_break_update_pending_locks_s *) pargs)->oplock_level)
       {
         SMBU_FidobjectSetheld_oplock_level(pfid, SMB2_OPLOCK_LEVEL_NONE);
-        oplock_c_wake_waiting_fid( (void *)pfid, (void *) pnCtx->pThread->signal_object);
+        oplock_c_wake_waiting_fid( (void *)pfid, (void *) pnCtx->netsessiont_pThread->signal_object);
       }
     }
   }
@@ -215,7 +215,7 @@ static int oplock_c_break_check_wating_break_requestsCB (PFID fid, PNET_SESSIONC
        SMBU_FidobjectSetheld_oplock_level(fid, SMB2_OPLOCK_LEVEL_NONE);
        fid->OplockFlags &= ~SMB2WAITOPLOCKFLAGREPLY;
        OPLOCK_DIAG_YIELD_SESSION_SEND_TIMEOUT
-       yield_c_signal_to_session(pNctxt->pThread->signal_object);
+       yield_c_signal_to_session(pNctxt->netsessiont_pThread->signal_object);
      }
   }
   return 0;
@@ -330,7 +330,7 @@ void oplock_c_create(PFID pfid,uint8_t requested_lock_level)
 // oplock_c_create
 #warning this is all junk now
 // oplock_c_create        // Force a test of restarting from an oplock if the file exists
-// oplock_c_create       if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+// oplock_c_create       if (SMBFIO_Stat (pStream->psmb2Session->pnetsessiont_smbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
 // oplock_c_create       {
 // oplock_c_create         int i,tp;
 // oplock_c_create         tp = 0;

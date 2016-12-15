@@ -433,9 +433,9 @@ int rtsmb_server_config(void)
    for (i = 0; i < CFG_RTSMB_MAX_SESSIONS; i++)
    {
 	  rtp_sig_mutex_alloc((RTP_MUTEX *) &prtsmb_srv_ctx->activeSessions[i], (const char*)0);
-      prtsmb_srv_ctx->sessions[i].smbCtx.uids  = &uids  [i * CFG_RTSMB_MAX_UIDS_PER_SESSION];
-      prtsmb_srv_ctx->sessions[i].smbCtx.trees = &trees [i * CFG_RTSMB_MAX_TREES_PER_SESSION];
-      prtsmb_srv_ctx->sessions[i].smbCtx.fids  = &fids  [i * CFG_RTSMB_MAX_FIDS_PER_SESSION];
+      prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx.uids  = &uids  [i * CFG_RTSMB_MAX_UIDS_PER_SESSION];
+      prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx.trees = &trees [i * CFG_RTSMB_MAX_TREES_PER_SESSION];
+      prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx.fids  = &fids  [i * CFG_RTSMB_MAX_FIDS_PER_SESSION];
    }
 
    for (i=0; i < CFG_RTSMB_MAX_SESSIONS * CFG_RTSMB_MAX_UIDS_PER_SESSION; i++)

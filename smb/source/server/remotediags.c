@@ -118,7 +118,7 @@ static int DiagFormatSessionsCB (PNET_SESSIONCTX pnCtx, void *pargs)
  if ( ((struct  DiagFormatSessionsCB_t*)pargs)->doCount)
    ((struct  DiagFormatSessionsCB_t*)pargs)->numSessions+=1;
  else
-   ((struct  DiagFormatSessionsCB_t*)pargs)->buffer +=  tc_sprintf(((struct DiagFormatSessionsCB_t *)pargs)->buffer, "  Last activity: %lu\n", pnCtx->lastActivity);
+   ((struct  DiagFormatSessionsCB_t*)pargs)->buffer +=  tc_sprintf(((struct DiagFormatSessionsCB_t *)pargs)->buffer, "  Last activity: %lu\n", pnCtx->netsessiont_lastActivity);
  return 0;
 }
 

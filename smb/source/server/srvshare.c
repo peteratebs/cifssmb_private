@@ -773,17 +773,17 @@ int SR_RemoveShare (PFRTCHAR name)
 
 	if (!rv)	// if found...
 	{
-		for (pCtx = firstSession (); pCtx; pCtx = nextSession (pCtx))
+		for (pCtx = SMBS_firstSession (); pCtx; pCtx = SMBS_nextSession (pCtx))
 		{
-			claimSession (pCtx);
+			SMBS_claimSession (pCtx);
 
 			/**
 			 * We have the session right where we want it.  It is not doing anything,
 			 * so we can close the tree itself and all the files it has open on this session.
 			 */
-			SMBS_CloseShare (&pCtx->smbCtx, (word) INDEX_OF (prtsmb_srv_ctx->shareTable, pResource));
+			SMBS_CloseShare (&pCtx->netsessiont_smbCtx, (word) INDEX_OF (prtsmb_srv_ctx->shareTable, pResource));
 
-			releaseSession (pCtx);
+			SMBS_releaseSession (pCtx);
 		}
 	}
 

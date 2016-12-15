@@ -14,7 +14,6 @@
 #ifndef __SRV_SMBSSN_H__
 #define __SRV_SMBSSN_H__
 
-EXTERN_C void SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx);
 
 EXTERN_C BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
 EXTERN_C BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate);
@@ -33,7 +32,12 @@ EXTERN_C void SMBS_srv_netssn_cycle (long timeout);
 EXTERN_C void SMBS_srv_netssn_shutdown (void);
 EXTERN_C void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx );
 
+EXTERN_C void SMBS_claimSession (PNET_SESSIONCTX pCtx);
+EXTERN_C void SMBS_releaseSession (PNET_SESSIONCTX pCtx);
+EXTERN_C PNET_SESSIONCTX SMBS_firstSession (void);
+EXTERN_C PNET_SESSIONCTX SMBS_nextSession (PNET_SESSIONCTX pCtx);
+EXTERN_C PNET_SESSIONCTX SMBS_findSessionByContext (PSMB_SESSIONCTX pSctxt);
+
 #endif // __SRV_SMBSSN_H__
 /* INCLUDE_RTSMB_SERVER */
-
 
