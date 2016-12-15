@@ -821,7 +821,7 @@ void rtsmb_srv_init (PFBYTE ip, PFBYTE mask_ip, PFCHAR net_name, PFCHAR group_na
     rtsmb_fileport_init ();
     rtsmb_ipcrpc_filesys_init();
     rtsmb_srv_nbns_init (net_name, group_name); /* srv_net uses this info */
-    rtsmb_srv_netssn_init ();
+    SMBS_srv_netssn_init ();
     rtsmb_srv_netinfo_set_ip (ip, mask_ip);
 #ifdef SUPPORT_SMB2
     Smb2SrvModel_Global_Init();
@@ -892,7 +892,7 @@ long rtsmb_srv_cycle (long timeout)
         timeout = wake_timeout;
     }
 
-    rtsmb_srv_netssn_cycle (timeout);
+    SMBS_srv_netssn_cycle (timeout);
     rtsmb_nbds_cycle (0);
     rtsmb_srv_nbns_cycle ();
     rtsmb_srv_browse_cycle ();
@@ -928,7 +928,7 @@ void rtsmb_srv_shutdown (void)
        announcements first) */
     rtsmb_nbds_shutdown ();
     rtsmb_srv_nbns_shutdown ();
-    rtsmb_srv_netssn_shutdown();
+    SMBS_srv_netssn_shutdown();
 }
 
 
@@ -957,7 +957,7 @@ void rtsmb_srv_disable (void)
        announcements first) */
     rtsmb_nbds_shutdown ();
     rtsmb_srv_nbns_shutdown ();
-    rtsmb_srv_netssn_shutdown();
+    SMBS_srv_netssn_shutdown();
 }
 
 
@@ -984,7 +984,7 @@ void rtsmb_srv_enable (PFCHAR net_name, PFCHAR group_name)
 
     rtsmb_srv_nbns_init (net_name, group_name); /* srv_net uses this info */
     rtsmb_nbds_init ();
-    rtsmb_srv_netssn_init ();
+    SMBS_srv_netssn_init ();
     rtsmb_srv_browse_init ();
 
 }

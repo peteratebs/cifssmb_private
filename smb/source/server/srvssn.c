@@ -4160,7 +4160,7 @@ BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,
     switch (pinCliHdr->command)
     {
     case SMB_COM_NEGOTIATE:
-        doSend = ProcNegotiateProtocol (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
+        doSend = SMBS_ProcNegotiateProtocol (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);
         break;
     case SMB_COM_TREE_CONNECT:
         doSend = ProcTreeConnect (pSctx, pinCliHdr, pInBuf, poutCliHdr, pOutBuf);

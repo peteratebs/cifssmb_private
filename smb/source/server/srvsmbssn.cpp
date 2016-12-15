@@ -58,6 +58,18 @@ EXTERN_C BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #include "srvyield.h"
 #endif
 
+static void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx);
+static void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
+static void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock);
+static void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread);
+static BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
+static BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
+static BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
+
+
+
+
+
 EXTERN_C BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
 EXTERN_C BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf);
 EXTERN_C BBOOL ProcWriteRaw2 (PSMB_SESSIONCTX pCtx, PFBYTE data, PFVOID pOutBuf, word bytesRead);
@@ -67,8 +79,7 @@ EXTERN_C  void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
 
 EXTERN_C RTP_SOCKET rtsmb_nbds_get_socket (void);
 
-
-EXTERN_C BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx);    // Called from rtsmb_srv_netssn_session_cycle
+static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx);    // Called from rtsmb_srv_netssn_session_cycle
 #define SEND_NO_REPLY   0
 #define SEND_REPLY    1
 #define OPLOCK_YIELD  2
@@ -82,6 +93,9 @@ static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx);
 
 
 static int SMBS_CheckPacketVersion(PFBYTE pInBuf);
+
+static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize);
+
 
 
 
@@ -99,7 +113,7 @@ This function processes one smb packet.
 */
 
 
-void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
+static void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
 {  // We either timed out or we got signalled so clear the timeout,
   // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
   yield_c_clear_timeout(pSctx);
@@ -119,7 +133,7 @@ void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketReplay returned from Epilog r: %d\n",rr);
 }
 
-BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
+static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 {
     PFBYTE pInBuf,pSavedreadBuffer;
     PFVOID pOutBuf;
@@ -281,7 +295,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
            {
              PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
              if (pNctxt)
-               rtsmb_srv_netssn_connection_close_session(pNctxt);
+               SMBS_srv_netssn_connection_close_session(pNctxt);
              pSctx->state = NOTCONNECTED;
              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
@@ -357,7 +371,7 @@ static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
        pSctx->doSessionClose = FALSE;
        PNET_SESSIONCTX pNctxt = findSessionByContext(pSctx);
        if (pNctxt)
-          rtsmb_srv_netssn_connection_close_session(pNctxt);
+          SMBS_srv_netssn_connection_close_session(pNctxt);
        returnVal = FALSE;    // So we return to close the socket
     }
     if (pSctx->doSocketClose)
@@ -622,7 +636,7 @@ PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
 }
 
 /* this changes the permanent buffers used by this session   */
-void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx)
+static void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx)
 {
 #if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // Don't swap pointers if we are using exclusive buffers
 PSMB_SESSIONCTX_SAVE pCtxSave = &pCtx->CtxSave;
@@ -691,7 +705,7 @@ struct dialect_entry_s
 };
 SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
 
-BBOOL ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf)
+BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf)
 {
     int i, entry, bestEntry;
     SMB_DIALECT_T dialect = DIALECT_NONE;
@@ -797,7 +811,7 @@ BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate)
     return: Nothing.
 ================
 */
-void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
+static void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
 {
 
     pSmbCtx->sock = sock;
@@ -904,7 +918,7 @@ void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
 
 
 /* this changes the permenant buffers used by this session   */
-void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread)
+static void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread)
 {
 int session_index = SMBU_SessionToIndex(pCtx);
 #if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 1) // Swap if we are using exclusive buffers
@@ -1048,7 +1062,7 @@ void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
 }
 
 #if (INCLUDE_RTSMB_DC)
-BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
+static BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
 {
     if (pCtx->state != WAIT_ON_PDC_NAME)
         return TRUE;
@@ -1065,7 +1079,7 @@ BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
     return TRUE;
 }
 
-BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
+static BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
 {
     char pdc [RTSMB_NB_NAME_SIZE + 1];
 
@@ -1092,7 +1106,7 @@ BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
     return TRUE;
 }
 
-BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
+static BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
 {
     PFBYTE pInBuf;
     PFVOID pOutBuf;
@@ -1156,7 +1170,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
 
 ==============
 */
-void rtsmb_srv_netssn_init (void)      // called once from rtsmb_srv_init or rtsmb_srv_enable
+void SMBS_srv_netssn_init (void)      // called once from rtsmb_srv_init or rtsmb_srv_enable
 {
 RTSMB_STATIC PNET_THREAD tempThread;
 
@@ -1222,7 +1236,7 @@ RTSMB_STATIC PNET_THREAD tempThread;
 ==============
 */
 
-void rtsmb_srv_netssn_cycle (long timeout)
+void SMBS_srv_netssn_cycle (long timeout)
 {
     RTP_SOCKET readList[256];
     int len,signal_socket_index;
@@ -1500,7 +1514,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_netssn_connection_open (PNET_THREAD pThre
 
 // Close the session out but don't close the socket.
 // Used when an SMB2 session tries to reconnect the session withiut closing the socket
-void rtsmb_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
+void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
 {
 #ifdef SUPPORT_SMB2
    if (pSCtx->smbCtx.pCtxtsmb2Session)
@@ -1514,7 +1528,7 @@ void rtsmb_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
 RTSMB_STATIC void rtsmb_srv_netssn_connection_close (PNET_SESSIONCTX pSCtx )
 {
 
-    rtsmb_srv_netssn_connection_close_session(pSCtx);
+    SMBS_srv_netssn_connection_close_session(pSCtx);
 
     /* kill conection */
     if (rtp_net_closesocket((RTP_SOCKET) pSCtx->sock))
@@ -1742,7 +1756,7 @@ RTSMB_STATIC BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster)
 }
 
 
-void rtsmb_srv_netssn_shutdown (void)
+void SMBS_srv_netssn_shutdown (void)
 {
     if (rtp_net_closesocket((RTP_SOCKET) net_nsSock))
     {
@@ -1764,7 +1778,7 @@ void rtsmb_srv_netssn_shutdown (void)
  * Returns FALSE if we should end the session.
  */
 
-BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_netssn_session_cycle
+static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_netssn_session_cycle
 {
 	RTSMB_NBSS_HEADER header;
     byte header_bytes[4];
@@ -1796,13 +1810,11 @@ BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rt
 			break;
 
 		case RTSMB_NBSS_COM_REQUEST:	/* Session Request */
-
 //			if (!rtsmb_srv_nbss_process_request (pSCtx->sock, &header))
 //			{
 //				return FALSE;
 //			}
 			break;
-
 		default:
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: Unhandled packet type %X\n", header.type);
 		break;

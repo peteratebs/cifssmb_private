@@ -641,7 +641,7 @@ static BBOOL SMBS_ProcSMB2_Packet (smb2_stream * pStream)
 
 
 
-/* Called from ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
+/* Called from SMBS_ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
 BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
 {
     int header_size;

@@ -281,7 +281,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 {
                   PNET_SESSIONCTX pNctxt = findSessionByContext(pStreamSession-> pSmbCtx);
                     if (pNctxt)
-                      rtsmb_srv_netssn_connection_close_session(pNctxt);
+                      SMBS_srv_netssn_connection_close_session(pNctxt);
                     pStream->psmb2Session = pCurrSession;
                     pStreamSession = pCurrSession;
                 }
