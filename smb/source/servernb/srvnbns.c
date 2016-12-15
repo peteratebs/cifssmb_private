@@ -343,7 +343,7 @@ int rtsmb_srv_nbns_fill_name_register_request (word transID, PFCHAR name, BBOOL 
 
 	data_buf = data;
 	PACK_WORD (data_buf, &data_size, (word) (group ? NB_FLAGS_GROUP : 0), TRUE, -1);
-	PACK_ITEM (data_buf, &data_size, rtsmb_srv_net_get_host_ip (), 4, -1);
+	PACK_ITEM (data_buf, &data_size, rtsmb_srv_netinfo_get_host_ip (), 4, -1);
 
 	buf = prtsmb_srv_ctx->namesrvBuffer;
 
@@ -387,7 +387,7 @@ void rtsmb_srv_nbns_send_name_register_request(word transID, PFCHAR name, BBOOL 
 		return;
 	}
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (), rtsmb_srv_net_get_broadcast_ip (), 
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (), rtsmb_srv_netinfo_get_broadcast_ip (),
                            rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, size);
 }
 
@@ -405,7 +405,7 @@ void rtsmb_srv_nbns_send_name_overwrite (word transID, PFCHAR name, BBOOL group)
 		return;
 	}
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (), rtsmb_srv_net_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, size);
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (), rtsmb_srv_netinfo_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, size);
 }
 
 #if (0)
@@ -422,7 +422,7 @@ void rtsmb_srv_nbns_send_name_refresh_request (word transID, PFCHAR name, BBOOL 
 		return;
 	}
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (), rtsmb_srv_net_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, size);
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (), rtsmb_srv_netinfo_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, size);
 }
 #endif
 
@@ -467,7 +467,7 @@ void rtsmb_srv_nbns_send_name_query(word transID, PFCHAR name)
 	buf = PADD (buf, r);
 	buf_size -= (rtsmb_size)r;
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (), rtsmb_srv_net_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, PDIFF (buf, prtsmb_srv_ctx->namesrvBuffer));
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (), rtsmb_srv_netinfo_get_broadcast_ip (), rtsmb_nbns_port, prtsmb_srv_ctx->namesrvBuffer, PDIFF (buf, prtsmb_srv_ctx->namesrvBuffer));
 }
 
 /* value is the response -- 0x0 for positive response, else negative response */
@@ -499,7 +499,7 @@ void rtsmb_srv_nbns_send_name_register_response (word transID, PFCHAR name, BBOO
 	resource.data = (PFBYTE) data;
 
 	rtsmb_pack_add_word (data, &data_size, (word) ((group ? 0x80 : 0)), TRUE);
-	rtsmb_pack_add (PADD (data, 2), &data_size, rtsmb_srv_net_get_host_ip (), 4);
+	rtsmb_pack_add (PADD (data, 2), &data_size, rtsmb_srv_netinfo_get_host_ip (), 4);
 
 	buf = prtsmb_srv_ctx->namesrvBuffer;
 
@@ -513,8 +513,8 @@ void rtsmb_srv_nbns_send_name_register_response (word transID, PFCHAR name, BBOO
 	buf = PADD (buf, r);
 	buf_size -= (rtsmb_size)r;
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (),
-		rtsmb_srv_net_get_last_remote_ip (), rtsmb_srv_net_get_last_remote_port (),
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (),
+		rtsmb_srv_netinfo_get_last_remote_ip (), rtsmb_srv_netinfo_get_last_remote_port (),
 		prtsmb_srv_ctx->namesrvBuffer, PDIFF (buf, prtsmb_srv_ctx->namesrvBuffer));
 }
 
@@ -551,7 +551,7 @@ void rtsmb_srv_nbns_send_positive_name_query_response (PRTSMB_NBNS_HEADER pHeade
 	resource.data = (PFBYTE) data;
 
 	rtsmb_pack_add_word (data, &data_size, 0, TRUE);
-	rtsmb_pack_add (PADD (data, 2), &data_size, rtsmb_srv_net_get_host_ip (), 4);
+	rtsmb_pack_add (PADD (data, 2), &data_size, rtsmb_srv_netinfo_get_host_ip (), 4);
 
 	buf = prtsmb_srv_ctx->namesrvBuffer;
 
@@ -565,8 +565,8 @@ void rtsmb_srv_nbns_send_positive_name_query_response (PRTSMB_NBNS_HEADER pHeade
 	buf = PADD (buf, r);
 	buf_size -= (rtsmb_size)r;
 
-	rtsmb_net_write_datagram (rtsmb_srv_net_get_nbns_socket (),
-		rtsmb_srv_net_get_last_remote_ip (), rtsmb_srv_net_get_last_remote_port (),
+	rtsmb_net_write_datagram (rtsmb_srv_netinfo_get_nbns_socket (),
+		rtsmb_srv_netinfo_get_last_remote_ip (), rtsmb_srv_netinfo_get_last_remote_port (),
 		prtsmb_srv_ctx->namesrvBuffer, PDIFF (buf, prtsmb_srv_ctx->namesrvBuffer));
 }
 
@@ -1010,7 +1010,7 @@ void rtsmb_srv_nbns_invalidate_ip (PFBYTE ip)
 
 #if INCLUDE_RTSMB_DC
 			if (isDC && tc_strcmp (nameCache[i].name, dcName) == 0)
-				rtsmb_srv_net_pdc_invalidate ();
+				rtsmb_srv_netssn_pdc_invalidate ();
 #endif
 		}
 	}
@@ -1043,7 +1043,7 @@ void rtsmb_srv_nbns_invalidate_one_name (PFCHAR name, byte type)
 
 #if INCLUDE_RTSMB_DC
 			if (isDC && tc_strcmp (nameCache[i].name, dcName) == 0)
-				rtsmb_srv_net_pdc_invalidate ();
+				rtsmb_srv_netssn_pdc_invalidate ();
 #endif
 
 			break;
@@ -1079,7 +1079,7 @@ void rtsmb_srv_nbns_invalidate_all_names (PFCHAR name)
 
 #if INCLUDE_RTSMB_DC
 			if (isDC && tc_strcmp (nameCache[i].name, dcName) == 0)
-				rtsmb_srv_net_pdc_invalidate ();
+				rtsmb_srv_netssn_pdc_invalidate ();
 #endif
 		}
 	}

@@ -1,6 +1,10 @@
 #ifndef __SRV_API_H__
 #define __SRV_API_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "smbdefs.h"
 
 #if (INCLUDE_RTSMB_SERVER)
@@ -50,5 +54,9 @@ void rtsmb_init_port_alt (void);
 void rtsmb_init_port_well_know (void);
 
 #endif /* INCLUDE_RTSMB_SERVER */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SRV_API_H__ */

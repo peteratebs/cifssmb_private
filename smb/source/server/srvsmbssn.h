@@ -34,8 +34,13 @@ EXTERN_C BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
 EXTERN_C BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
 EXTERN_C BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 
+EXTERN_C void rtsmb_srv_netssn_init (void);
+EXTERN_C void rtsmb_srv_netssn_cycle (long timeout);
+EXTERN_C void rtsmb_srv_netssn_shutdown (void);
+EXTERN_C void rtsmb_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx );
+EXTERN_C void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread);
+
 #endif // __SRV_SMBSSN_H__
 /* INCLUDE_RTSMB_SERVER */
-
 
 

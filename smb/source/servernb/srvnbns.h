@@ -1,5 +1,8 @@
 #ifndef __SRV_NBNS_H__
 #define __SRV_NBNS_H__
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "smbdefs.h"
 
@@ -36,5 +39,9 @@ BBOOL rtsmb_srv_nbns_remove_name (PFCHAR name, char suf);
 long rtsmb_srv_nbns_get_next_wake_timeout (void);
 
 #endif /* INCLUDE_RTSMB_SERVER */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SRV_NBNS_H__ */

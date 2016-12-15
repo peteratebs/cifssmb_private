@@ -208,7 +208,7 @@ int rtsmb_cli_session_share_find_close (int sid, PRTSMB_CLI_SESSION_SSTAT pstat)
  * is done.
  *
  * You may pass 0 for the ip and broadcast ip for enum_start.  It will then use the global
- * defaults set by rtsmb_net_set_ip.
+ * defaults set by rtsmb_netinfo_set_ip.
  */
 int rtsmb_cli_session_server_enum_start (PRTSMB_CLI_SESSION_SRVSTAT pstat, PFBYTE ip, PFBYTE bip);
 int rtsmb_cli_session_server_enum_cycle (PRTSMB_CLI_SESSION_SRVSTAT pstat, int timeout);

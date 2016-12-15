@@ -1,6 +1,10 @@
 #ifndef __SMB_NBDS_H__
 #define __SMB_NBDS_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "smbdefs.h"
 #include "smbnb.h"
 // 1021
@@ -101,5 +105,8 @@ int  rtsmb_nbds_write (PFVOID data, rtsmb_size size, PFBYTE remote, int port);
 #define RTSMB_NBDS_BROWSER_VERSION_MAJOR   0x01
 #define RTSMB_NBDS_BROWSER_VERSION         ((RTSMB_NBDS_BROWSER_VERSION_MAJOR << 8) | RTSMB_NBDS_BROWSER_VERSION_MINOR)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __SMB_NBDS_H__ */

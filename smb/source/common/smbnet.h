@@ -22,7 +22,7 @@ PFCHAR rtsmb_net_ip_to_str (PFBYTE pfAddr, PFCHAR pfAddrStr);
 
 int rtsmb_net_socket_new (RTP_SOCKET* sock_ptr, int port, BBOOL reliable);
 
-void rtsmb_net_set_ip (PFBYTE host_ip, PFBYTE mask_ip);
+void rtsmb_netinfo_set_ip (PFBYTE host_ip, PFBYTE mask_ip);
 PFBYTE rtsmb_net_get_host_ip (void);
 PFBYTE rtsmb_net_get_broadcast_ip (void);
 BBOOL rtsmb_net_are_valid_ips (void);	/* returns TRUE if some ip has been set */

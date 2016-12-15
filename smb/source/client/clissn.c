@@ -3341,7 +3341,7 @@ int rtsmb_cli_session_server_enum_start (PRTSMB_CLI_SESSION_SRVSTAT pstat, PFBYT
     /* if no one else is around to set ips, we'll start off with ours here */
     if (!rtsmb_net_are_valid_ips ())
     {
-        rtsmb_net_set_ip (ip, 0);
+        rtsmb_netinfo_set_ip (ip, 0);
     }
 
     if (ip)

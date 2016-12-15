@@ -342,61 +342,7 @@ int rtsmb_nbss_read_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStr
 
     return RTSMB_NBSS_HEADER_SIZE;
 }
-
-/**
- * At this point in the packet's life, only the first few bytes will be
- * read, in order to get the NetBios header.  This gives us the length
- * of the message, which we will then pull from the socket.
- *
- * Returns FALSE if we should end the session.
- */
-
-BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_net_session_cycle
-{
-	RTSMB_NBSS_HEADER header;
-    byte header_bytes[4];
-	if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
-	{
-		return FALSE;
-	}
-	if (rtsmb_nbss_read_header (pSCtx->readBuffer, RTSMB_NBSS_HEADER_SIZE, &header) < 0)
-	{
-		return FALSE;
-	}
-	switch (header.type)
-	{
-		case RTSMB_NBSS_COM_MESSAGE:	/* Session Message */
-            if (!header.size)
-            {
-               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG:: rtsmb_srv_nbss_process_packet ignoring 0-length packet\n");
-            }
-            else
-            {
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
-			  if (!SMBS_ProcSMBPacket (pSCtx, header.size))   //rtsmb_srv_nbss_process_packet stubs ?
-			  {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
-			    return FALSE;
-			  }
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
-			}
-			break;
-
-		case RTSMB_NBSS_COM_REQUEST:	/* Session Request */
-
-//			if (!rtsmb_srv_nbss_process_request (pSCtx->sock, &header))
-//			{
-//				return FALSE;
-//			}
-			break;
-
-		default:
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: Unhandled packet type %X\n", header.type);
-		break;
-	}
-
-	return TRUE;
-}
+// BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)   move to srvsmbssn.cpp
 
 
 #endif /* INCLUDE_RTSMB_SERVER */

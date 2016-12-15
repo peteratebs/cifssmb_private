@@ -69,27 +69,22 @@ typedef NET_THREAD_T RTSMB_FAR *PNET_THREAD;
 /*============================================================================   */
 /*    INTERFACE FUNCTION PROTOTYPES                                              */
 /*============================================================================   */
-void rtsmb_srv_net_init (void);
-void rtsmb_srv_net_cycle (long timeout);
-void rtsmb_srv_net_shutdown (void);
-void rtsmb_srv_net_connection_close_session(PNET_SESSIONCTX pSCtx );
 PNET_SESSIONCTX findSessionByContext (PSMB_SESSIONCTX pSctxt);
-void SMBS_PointSmbBuffersAtNetThreadBuffers (PSMB_SESSIONCTX pCtx, PNET_THREAD pThread);
 
 #if INCLUDE_RTSMB_DC
-void rtsmb_srv_net_pdc_invalidate (void);
+void rtsmb_srv_netssn_pdc_invalidate (void);
 #endif
 
 
-RTP_SOCKET rtsmb_srv_net_get_nbns_socket (void);
-RTP_SOCKET rtsmb_srv_net_get_nbss_socket (void);
+RTP_SOCKET rtsmb_srv_netinfo_get_nbns_socket (void);
+RTP_SOCKET rtsmb_srv_netinfo_get_nbss_socket (void);
 
-PFBYTE rtsmb_srv_net_get_last_remote_ip (void);
-int rtsmb_srv_net_get_last_remote_port (void);
+PFBYTE rtsmb_srv_netinfo_get_last_remote_ip (void);
+int rtsmb_srv_netinfo_get_last_remote_port (void);
 
-void rtsmb_srv_net_set_ip (PFBYTE host_ip, PFBYTE mask_ip);
-PFBYTE rtsmb_srv_net_get_host_ip (void);
-PFBYTE rtsmb_srv_net_get_broadcast_ip (void);
+void rtsmb_srv_netinfo_set_ip (PFBYTE host_ip, PFBYTE mask_ip);
+PFBYTE rtsmb_srv_netinfo_get_host_ip (void);
+PFBYTE rtsmb_srv_netinfo_get_broadcast_ip (void);
 
 #endif /* INCLUDE_RTSMB_SERVER */
 
