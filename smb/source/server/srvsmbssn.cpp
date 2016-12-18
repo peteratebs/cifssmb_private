@@ -26,6 +26,12 @@
 //
 /*                                                                        */
 
+#warning duplicate define
+#define CFG_RTSMB_MAX_SESSIONS              8
+
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
+
 #include "smbdefs.h"
 
 #include "rtpfile.h"
@@ -72,6 +78,15 @@ EXTERN_C BBOOL SMBS_ProcSMB2_Body (PSMB_SESSIONCTX pSctx);
 #include "srvyield.h"
 #endif
 
+
+void srvsmboo_init(void);
+void srvsmboo_cycle(int timeout);
+int srvsmboo_get_new_session_socket(RTP_SOCKET  *psock);
+int srvsmboo_new_session_socket(RTP_SOCKET  *psock);
+int srvsmboo_get_session_read_list(RTP_SOCKET *readList);
+void srvsmboo_close_socket(RTP_SOCKET sock);
+
+
 EXTERN_C RTP_SOCKET net_nsSock;
 EXTERN_C RTP_SOCKET net_ssnSock;
 EXTERN_C byte net_lastRemoteHost_ip[4];
@@ -87,8 +102,6 @@ static BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
 static BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 static PNET_SESSIONCTX allocateSession (void);
 static void freeSession (PNET_SESSIONCTX p);
-
-
 
 
 EXTERN_C BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, int priority, int bestEntry, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf);
@@ -113,11 +126,8 @@ static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
 static BBOOL SMBS_PushContextBuffers (PSMB_SESSIONCTX pCtx);
 
 
-static int SMBS_CheckPacketVersion(PFBYTE pInBuf);
 
 static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize);
-
-
 
 
 /*
@@ -139,19 +149,19 @@ static void SMBS_ProcSMBBodyPacketReplay (PSMB_SESSIONCTX pSctx)
   // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
   yield_c_clear_timeout(pSctx);
   int pcktsize = (int) (pSctx->in_packet_size - pSctx->current_body_size);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"YIELD:: SMBS_ProcSMBBodyPacketReplay: in_size:%d body_size:%d pcktsize:%d \n",pSctx->in_packet_size , pSctx->current_body_size,pcktsize);
   SMB2PROCBODYACTION r = SMBS_ProcSMBBodyPacketExecute (pSctx);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
   BBOOL dosend = (r== SEND_REPLY);
   if (r==OPLOCK_YIELD)
   {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketReplay yield: \n");
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"YIELD:: SMBS_ProcSMBBodyPacketReplay yield: \n");
     yield_c_set_timeout(pSctx);
     dosend = FALSE;
   }
   // Send output if there is any or process socket closures ok whetehr yielding or ruynning
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketReplay call Epilog with SendRequest %d: CloseRequest:%d\n", dosend, pSctx->doSessionClose);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketReplay call Epilog with SendRequest %d: CloseRequest:%d\n", dosend, pSctx->doSessionClose);
   BBOOL rr=SMBS_ProcSMBBodyPacketEpilog (pSctx, dosend);
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketReplay returned from Epilog r: %d\n",rr);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketReplay returned from Epilog r: %d\n",rr);
 }
 
 static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
@@ -171,11 +181,11 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
     yield_c_clear_timeout(pSctx);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
     if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
 //    if (packetSize > pSctx->readBufferSize)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
         return TRUE; /* eat the packet */
     }
 
@@ -184,7 +194,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
      */
     if (packetSize < 1)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: enlargening 0-length packet\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"Warning: enlargening 0-length packet\n");
         packetSize = 1;
     }
 
@@ -216,7 +226,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
         if ((length = rtsmb_net_read (pSctx->sock, pInBuf + pSctx->current_body_size,
             pSctx->readBufferSize - pSctx->current_body_size, packetSize - pSctx->current_body_size)) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
             return FALSE;
         }
         pSctx->current_body_size += (dword)length;
@@ -261,16 +271,20 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
          */
         if ((length = rtsmb_net_read (pSctx->sock, pInBuf, pSctx->readBufferSize, SMBSIGSIZE)) < 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Error on read.  Ending session.\n");
             return FALSE;
         }
-        protocol_version = SMBS_CheckPacketVersion(pInBuf);
+        if ((pInBuf[0] == 0xFF) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B')) protocol_version = 1;
+        else if ((pInBuf[0] == 0xFE) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B')) protocol_version = 2;
+        else protocol_version = 0;
+
+
         /**
          * If the packet is not an SMB, end connection.
          */
         if (protocol_version == 0)
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket: Not SMB or SMB2 packet\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket: Not SMB or SMB2 packet\n");
             /* If we were nice, we'd send a message saying we don't understand.            */
             /* But, we don't know any values to fill it with (like tid, uid) or whatever,  */
             /* so the client won't know which message was bad.  Plus, if they are          */
@@ -291,7 +305,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
 #if (DOPUSH)
           if (protocol_version == 2)
           {
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS_PushContextBuffers.\n");
             if (!SMBS_PushContextBuffers (pSctx))
                 return FALSE;
 #if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 0) // If using private session buffers
@@ -318,7 +332,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
              if (pNctxt)
                SMBS_srv_netssn_connection_close_session(pNctxt);
              pSctx->state = NOTCONNECTED;
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
            }
         }
@@ -338,7 +352,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
     {
         SMB2PROCBODYACTION bodyR;
         dword current_body_size = pSctx->current_body_size;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Call SMBS_ProcSMBBodyInner\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: Call SMBS_ProcSMBBodyInner\n");
         bodyR = SMBS_ProcSMBBodyInner (pSctx);
         doSend = (bodyR == SEND_REPLY);
         if (bodyR == OPLOCK_YIELD)
@@ -348,20 +362,20 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBPacket:  call SMBS_PushCon
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyInner yielded\n");
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyInner yielded\n");
         }
         if (pSctx->state == NOTCONNECTED)
         {
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG:Returned to not-connected stated\n");
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"DIAG:Returned to not-connected stated\n");
         }
         break;
     }
     default:
         return TRUE;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
     return SMBS_ProcSMBBodyPacketEpilog (pSctx, doSend);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBPacket back from Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *)"DIAG: SMBS_ProcSMBPacket back from Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
 }
 
 static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
@@ -378,17 +392,17 @@ static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend)
 
     if (doSend)
     {
-       if (oplock_diagnotics.performing_replay) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"YIELD:: SMBS_ProcSMBBodyPacketEpilog from replay seending bytes: %d\n", pSctx->outBodySize); }
+       if (oplock_diagnotics.performing_replay) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"YIELD:: SMBS_ProcSMBBodyPacketEpilog from replay seending bytes: %d\n", pSctx->outBodySize); }
         returnVal = SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
-       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
+       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
     }
-    else {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog called with no send request\n"); }
+    else {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog called with no send request\n"); }
     if (pSctx->doSessionClose)
     { // Do it if a session close is requested and return false so we close the socket
        if (oplock_diagnotics.performing_replay)
-        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from replay\n"); }
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from replay\n"); }
        else
-        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from NBSS layer\n"); }
+        { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog closing from NBSS layer\n"); }
        pSctx->doSessionClose = FALSE;
        PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pSctx);
        if (pNctxt)
@@ -430,7 +444,7 @@ static SMB2PROCBODYACTION SMBS_ProcSMBBodyInner (PSMB_SESSIONCTX pSctx)
         /* we must connect with the dc first   */
         if (!MS_GetPDCName (pdc))
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n");
 
             /* change our state to waiting on pdc name   */
             pSctx->state = WAIT_ON_PDC_NAME;
@@ -812,18 +826,6 @@ static BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
 
 
 
-static int SMBS_CheckPacketVersion(PFBYTE pInBuf)
-{
-  if ((pInBuf[0] == 0xFF) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B')) return 1;
-#ifdef SUPPORT_SMB2
-  if ((pInBuf[0] == 0xFE) && (pInBuf[1] == 'S') && (pInBuf[2] == 'M')  && (pInBuf[3] == 'B')) return 2;
-#endif
-    return 0;
-}
-
-
-
-
 RTSMB_STATIC void rtsmb_srv_netssn_thread_init (PNET_THREAD p, dword numSessions);
 RTSMB_STATIC BBOOL rtsmb_srv_netssn_thread_cycle (PNET_THREAD pThread, RTP_SOCKET *readList, int readListSize);
 RTSMB_STATIC BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster);
@@ -980,22 +982,27 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_close (PNET_THREAD p)
 }
 
 
-RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_netssn_connection_open (PNET_THREAD pThread)
+RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_netssn_connection_open (PNET_THREAD pThread, RTP_SOCKET  *psock)
 {
     PNET_SESSIONCTX pNetCtx;
     RTP_SOCKET      sock;
-    unsigned char clientAddr[4];
-    int clientPort;
-    int ipVersion;
-    /**
-     * Move connection to a shiny new port and socket.
-     */
-    if (rtp_net_accept ((RTP_SOCKET *) &sock,(RTP_SOCKET) net_ssnSock, clientAddr, &clientPort, &ipVersion) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_open: accept error\n");
-        return (PNET_SESSIONCTX)0;
-    }
 
+    if (psock)
+      sock = *psock;
+    else
+    {
+       unsigned char clientAddr[4];
+       int clientPort;
+       int ipVersion;
+      /**
+       * Move connection to a shiny new port and socket.
+       */
+       if (rtp_net_accept ((RTP_SOCKET *) &sock,(RTP_SOCKET) net_ssnSock, clientAddr, &clientPort, &ipVersion) < 0)
+       {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_open: accept error\n");
+          return (PNET_SESSIONCTX)0;
+       }
+    }
     pNetCtx = allocateSession();
 
     if(pNetCtx)
@@ -1034,12 +1041,15 @@ RTSMB_STATIC void rtsmb_srv_netssn_connection_close (PNET_SESSIONCTX pSCtx )
 
     SMBS_srv_netssn_connection_close_session(pSCtx);
 
+#if (TESTING_OO)
+   srvsmboo_close_socket((RTP_SOCKET) pSCtx->netsessiont_sock);
+#else
     /* kill conection */
     if (rtp_net_closesocket((RTP_SOCKET) pSCtx->netsessiont_sock))
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_close: Error in closesocket\n");
     }
-
+#endif
     freeSession (pSCtx);
 }
 
@@ -1227,10 +1237,10 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_init (PNET_THREAD p, dword numSessions
 /**
  * Allocates space for a new session, if available; else
  */
-RTSMB_STATIC BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster)
+RTSMB_STATIC BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKET  *psock)
 {
     /*new session */
-    PNET_SESSIONCTX pSCtx = rtsmb_srv_netssn_connection_open (pMaster);
+    PNET_SESSIONCTX pSCtx = rtsmb_srv_netssn_connection_open (pMaster, psock);
     PNET_THREAD pThread;
 
     if (pSCtx)
@@ -1669,7 +1679,6 @@ void SMBS_srv_netssn_init (void)      // called once from rtsmb_srv_init or rtsm
 {
 RTSMB_STATIC PNET_THREAD tempThread;
 
-
 #if INCLUDE_RTSMB_DC
     next_pdc_find = rtp_get_system_msec () + rtsmb_srv_netssn_pdc_next_interval ();
 #endif
@@ -1692,7 +1701,9 @@ RTSMB_STATIC PNET_THREAD tempThread;
     signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->threads[0].signal_object;
     rtsmb_srv_netssn_thread_init (prtsmb_srv_ctx->mainThread, 0);
     prtsmb_srv_ctx->threads[0].signal_object = saved_signal_object;
-
+#if (TESTING_OO)
+    srvsmboo_init();
+#else
     /* -------------------- */
     /* get the three major sockets */
     /* Name Service Datagram Socket */
@@ -1717,11 +1728,11 @@ RTSMB_STATIC PNET_THREAD tempThread;
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to listen on SSN Reliable socket.\n");
     }
-
     if (rtp_net_setbroadcast((RTP_SOCKET) net_nsSock, 1) < 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
     }
+#endif
 }
 
 /*
@@ -1737,6 +1748,11 @@ void SMBS_srv_netssn_cycle (long timeout)
     int len,signal_socket_index;
     word i;
 
+#if (TESTING_OO)
+    srvsmboo_cycle(timeout);
+    // Fall through an allow old school processing to run
+#endif
+
     if (!prtsmb_srv_ctx->mainThread)
     {
         for (i=0;i<10;i++) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_netssn_cycle sock: crashing lost mainTread %x \n",prtsmb_srv_ctx->mainThread);}
@@ -1744,6 +1760,20 @@ void SMBS_srv_netssn_cycle (long timeout)
         return;
     }
 
+#if (TESTING_OO == 1)
+    RTP_SOCKET sock;
+    if (srvsmboo_get_new_session_socket(&sock))
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_new_session_socket: returned %lu", sock);
+      rtsmb_srv_netssn_thread_new_session(prtsmb_srv_ctx->mainThread,&sock);
+    }
+    len = srvsmboo_get_session_read_list(readList);
+    if (len)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_session_read_list: returned %d", len);
+    }
+    rtsmb_srv_netssn_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
+#else
     /**
      * Build the list of sockets to poll, consisting of the
      * name service socket, session service socket, and
@@ -1779,7 +1809,6 @@ void SMBS_srv_netssn_cycle (long timeout)
         break;
       }
     }
-
     for (i = 0; i < len; i++)
     {
         if (readList[i] == net_nsSock)
@@ -1801,12 +1830,12 @@ void SMBS_srv_netssn_cycle (long timeout)
          */
         else if (readList[i] == net_ssnSock)
         {
-            rtsmb_srv_netssn_thread_new_session (prtsmb_srv_ctx->mainThread);
+            rtsmb_srv_netssn_thread_new_session (prtsmb_srv_ctx->mainThread,0);
         }
     }
-
     /* handle sessions we own */
     rtsmb_srv_netssn_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
+#endif // (TESTING_OO == 0)
 
 #if INCLUDE_RTSMB_DC
     /* now see if we need to query for the pdc again */
@@ -2029,5 +2058,4 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_main (PNET_THREAD pThread)
 
 }
 #endif //  (CFG_RTSMB_MAX_THREADS)
-
 #endif /* INCLUDE_RTSMB_SERVER */

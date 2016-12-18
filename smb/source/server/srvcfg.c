@@ -457,7 +457,9 @@ int rtsmb_server_config(void)
       threads[i]._outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].tmpBuffer   = &tmpBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
 #endif
+#if (TESTING_OO == 0)
       threads[i].signal_object  = yield_c_bind_signal(i);
+#endif
    }
 
    tc_strcpy (prtsmb_srv_ctx->local_master, "");
