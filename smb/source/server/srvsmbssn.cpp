@@ -1013,9 +1013,7 @@ RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_netssn_connection_open (PNET_THREAD pThre
 
         pNetCtx->netsessiont_lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pNetCtx->netsessiont_smbCtx), pNetCtx->netsessiont_sock);
-
         SMBS_PointSmbBuffersAtNetThreadBuffers (&pNetCtx->netsessiont_smbCtx, pThread);
-
         return pNetCtx;
     }
     else
@@ -1040,16 +1038,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_connection_close (PNET_SESSIONCTX pSCtx )
 {
 
     SMBS_srv_netssn_connection_close_session(pSCtx);
-
-#if (TESTING_OO)
-   srvsmboo_close_socket((RTP_SOCKET) pSCtx->netsessiont_sock);
-#else
-    /* kill conection */
-    if (rtp_net_closesocket((RTP_SOCKET) pSCtx->netsessiont_sock))
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_close: Error in closesocket\n");
-    }
-#endif
+    srvsmboo_close_socket((RTP_SOCKET) pSCtx->netsessiont_sock);
     freeSession (pSCtx);
 }
 
@@ -1555,90 +1544,6 @@ void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
 }
 
 
-void SMBS_Tree_Init (PTREE tree)
-{
-    int i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
-    {
-        tree->fids[i] = 0;
-    }
-
-    tree->inUse = TRUE;
-}
-
-void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
-    {
-        if (tree->fids[i])
-        {
-            if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
-            SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
-        }
-    }
-
-    tree->inUse = FALSE;
-}
-
-void SMBS_User_Init (PUSER user)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
-    {
-        user->searches[i].inUse = FALSE;
-    }
-
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-    {
-        user->fids[i] = 0;
-    }
-    user->inUse = TRUE;
-}
-
-
-void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
-        if (user->searches[i].inUse)
-            SMBFIO_GDone (pCtx, user->searches[i].tid, &user->searches[i].stat);
-
-    /* shut down all of the users files   */
-    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
-    {
-        if (user->fids[i])
-        {
-            /* Do not call close if it is a directory   */
-            if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
-                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
-            SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
-        }
-    }
-
-    user->inUse = FALSE;
-}
-
-void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
-{
-    word i;
-
-    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
-    {
-        if (pCtx->trees[i].internal == handle)
-        {
-            SMBS_Tree_Shutdown (pCtx, &pCtx->trees[i]);
-        }
-    }
-}
-
-
-
 /*
 ================
 This function frees resources held by an SMB session context.
@@ -1701,38 +1606,7 @@ RTSMB_STATIC PNET_THREAD tempThread;
     signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->threads[0].signal_object;
     rtsmb_srv_netssn_thread_init (prtsmb_srv_ctx->mainThread, 0);
     prtsmb_srv_ctx->threads[0].signal_object = saved_signal_object;
-#if (TESTING_OO)
     srvsmboo_init();
-#else
-    /* -------------------- */
-    /* get the three major sockets */
-    /* Name Service Datagram Socket */
-    if (rtsmb_net_socket_new (&net_nsSock, rtsmb_nbns_port, FALSE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"Could not allocate Name & Datagram service socket\n");
-    }
-
-    /* SSN Reliable Socket */
-  #ifdef RTSMB_ALLOW_SMB_OVER_TCP
-    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_direct_port, TRUE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Master Socket allocation failed Name & Datagram service socke\n");
-    }
-  #else
-    if (rtsmb_net_socket_new (&net_ssnSock, rtsmb_nbss_port, TRUE) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Master Socket allocation failed\n");
-    }
-  #endif
-    if (rtp_net_listen ((RTP_SOCKET) net_ssnSock, prtsmb_srv_ctx->max_sessions) != 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to listen on SSN Reliable socket.\n");
-    }
-    if (rtp_net_setbroadcast((RTP_SOCKET) net_nsSock, 1) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to set broadcast on Name & Datagram service socket\n");
-    }
-#endif
 }
 
 /*
@@ -1748,10 +1622,8 @@ void SMBS_srv_netssn_cycle (long timeout)
     int len,signal_socket_index;
     word i;
 
-#if (TESTING_OO)
     srvsmboo_cycle(timeout);
     // Fall through an allow old school processing to run
-#endif
 
     if (!prtsmb_srv_ctx->mainThread)
     {
@@ -1760,7 +1632,6 @@ void SMBS_srv_netssn_cycle (long timeout)
         return;
     }
 
-#if (TESTING_OO == 1)
     RTP_SOCKET sock;
     if (srvsmboo_get_new_session_socket(&sock))
     {
@@ -1773,70 +1644,6 @@ void SMBS_srv_netssn_cycle (long timeout)
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_session_read_list: returned %d", len);
     }
     rtsmb_srv_netssn_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
-#else
-    /**
-     * Build the list of sockets to poll, consisting of the
-     * name service socket, session service socket, and
-     * sessions' sockets we are handling.
-     */
-    len = 0;
-    readList[len++] = net_nsSock;  /* Name Service Socket */
-    readList[len++] = rtsmb_nbds_get_socket (); /* Datagram Service Socket */
-    readList[len++] = net_ssnSock; /* Session Service Socket */
-
-    for (i = 0; i < prtsmb_srv_ctx->mainThread->numSessions && len < 256; i++)
-    {
-        /* make sure we bind the thread to the net session context */
-        prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_pThread = prtsmb_srv_ctx->mainThread;
-        if (!yield_c_recieve_blocked(prtsmb_srv_ctx->mainThread->signal_object))
-          readList[len++] = prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_sock;
-    }
-    signal_socket_index = len;
-    readList[len++] =  yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object);
-
-    int in_len = len;
-    len = rtsmb_netport_select_n_for_read (readList, len, timeout);
-    /**
-     * Handle name requests, etc.
-     */
-    int j;
-    // Handle any session wake signals from blocked oplocks
-    for (j = 0; j < len; j++)
-    {
-      if (readList[j] == yield_c_get_signal_sock(prtsmb_srv_ctx->mainThread->signal_object))
-      {
-        yield_c_recieve_signal(prtsmb_srv_ctx->mainThread->signal_object);
-        break;
-      }
-    }
-    for (i = 0; i < len; i++)
-    {
-        if (readList[i] == net_nsSock)
-        {
-            byte datagram[RTSMB_NB_MAX_DATAGRAM_SIZE];
-
-            /*process datagram */
-            rtsmb_net_read_datagram (net_nsSock, datagram, RTSMB_NB_MAX_DATAGRAM_SIZE, net_lastRemoteHost_ip, &net_lastRemoteHost_port);
-
-            /* only handle datagrams that don't originate from us */
-            if (tc_memcmp (net_lastRemoteHost_ip, rtsmb_srv_netinfo_get_host_ip (), 4) != 0)
-            {
-                rtsmb_srv_nbns_process_packet (datagram, RTSMB_NB_MAX_DATAGRAM_SIZE);
-            }
-        }
-        /**
-         * If a new session has arrived and we have free threads, give half our
-         * sessions to them.
-         */
-        else if (readList[i] == net_ssnSock)
-        {
-            rtsmb_srv_netssn_thread_new_session (prtsmb_srv_ctx->mainThread,0);
-        }
-    }
-    /* handle sessions we own */
-    rtsmb_srv_netssn_thread_cycle (prtsmb_srv_ctx->mainThread, readList, len);
-#endif // (TESTING_OO == 0)
-
 #if INCLUDE_RTSMB_DC
     /* now see if we need to query for the pdc again */
     if (!MS_IsKnownPDCName () && next_pdc_find <= rtp_get_system_msec ())
@@ -1981,81 +1788,88 @@ PNET_SESSIONCTX SMBS_nextSession (PNET_SESSIONCTX pCtx)
 }
 
 
-#if (CFG_RTSMB_MAX_THREADS != 0) // This doesn't execute in non MT mode so don't worry about it
-RTSMB_STATIC void rtsmb_srv_netssn_thread_split (PNET_THREAD pMaster, PNET_THREAD pThread)
+void SMBS_Tree_Init (PTREE tree)
 {
-    int numSessions = (int)pMaster->numSessions;
-    int i, k = 0;
-    int end = numSessions / 2;
-    RTP_HANDLE newThread;
-    /**
-     * Set up thread, giving it half our sessions.
-     */
-    for (i =  numSessions - 1; i >= end; i--)
+    int i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
     {
-        pThread->sessionList[k] = pMaster->sessionList[i];
-
-        /**
-         * We must also switch buffer pointers to correct place.
-         */
-        SMBS_PointSmbBuffersAtNetThreadBuffers (&pThread->sessionList[k]->netsessiont_smbCtx, pThread);
-
-        k++;
-
-        pMaster->sessionList[i] = (PNET_SESSIONCTX)0;
-        pMaster->numSessions --;
+        tree->fids[i] = 0;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_netssn_thread_split: Giving %d", (int) (numSessions - end));
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL," session %s to a thread.\n", (numSessions - end == 1 ? "" : "s"));
 
-    rtsmb_srv_netssn_thread_init (pThread, (dword) (numSessions - end));
+    tree->inUse = TRUE;
+}
 
-    if (rtp_thread_spawn(&newThread, (RTP_ENTRY_POINT_FN) rtsmb_srv_netssn_thread_main, "SMBTHREAD", 0, 0, pThread))
+void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_netssn_thread_split: Couldn't start thread!\n");
+        if (tree->fids[i])
+        {
+            if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
+        }
+    }
+
+    tree->inUse = FALSE;
+}
+
+void SMBS_User_Init (PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+    {
+        user->searches[i].inUse = FALSE;
+    }
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        user->fids[i] = 0;
+    }
+    user->inUse = TRUE;
+}
+
+
+void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+        if (user->searches[i].inUse)
+            SMBFIO_GDone (pCtx, user->searches[i].tid, &user->searches[i].stat);
+
+    /* shut down all of the users files   */
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        if (user->fids[i])
+        {
+            /* Do not call close if it is a directory   */
+            if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
+        }
+    }
+
+    user->inUse = FALSE;
+}
+
+void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+    {
+        if (pCtx->trees[i].internal == handle)
+        {
+            SMBS_Tree_Shutdown (pCtx, &pCtx->trees[i]);
+        }
     }
 }
 
-RTSMB_STATIC void rtsmb_srv_netssn_thread_main (PNET_THREAD pThread)
-{
-    dword i;
-    RTP_SOCKET readList[256];
-    int j,len,in_len;
 
-    do
-    {
-        len = 0;
 
-        /* build list */
-        for(i = 0; i < pThread->numSessions && len < 256; i++)
-        {
-           /* make sure we bind the thread to the net session context */
-            pThread->sessionList[i]->netsessiont_pThread = pThread;
-            if (!yield_c_is_session_blocked(&pThread->sessionList[i]->netsessiont_smbCtx))
-            {
-              readList[len++] = pThread->sessionList[i]->sock;
-            }
-        }
-        readList[len++] = yield_c_get_signal_sock(pThread->signal_object);
-        /**
-         * Block on input.
-         */
-        in_len = len;
-
-        len = rtsmb_netport_select_n_for_read (readList, len, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT_YIELD);
-        for (j = 0; j < len; j++)
-        {
-          if (readList[j] && readList[j] == yield_c_get_signal_sock(pThread->signal_object))
-          {
-            yield_c_recieve_signal(pThread->signal_object);
-            break;
-          }
-        }
-    }
-    while (rtsmb_srv_netssn_thread_cycle (pThread, readList, len));
-
-    rtsmb_srv_netssn_thread_close (pThread);
-
-}
-#endif //  (CFG_RTSMB_MAX_THREADS)
 #endif /* INCLUDE_RTSMB_SERVER */

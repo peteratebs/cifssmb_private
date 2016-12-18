@@ -44,6 +44,7 @@
                                   check_master_socket_signal()
                                   check_signalling_socket_signal()
                                   add_to_active_sessions()
+                                  remove_from_active_sessions()
                                   add_to_establishing_sessions()
                                   clear_session_list_for_select()
                                   get_free_session()
@@ -147,8 +148,9 @@ public:
     for (int i=0;i<list_size;i++)
     {
       if (session_list[i]==pSession) {
+        for (int j=i;j<list_size;j++) session_list[j]= session_list[j+1]; // Runs off the end
         list_size -= 1;
-        for (int j=i;j<list_size-1;j++) session_list[j]= session_list[j+1]; // Runs off the end
+        break;
       }
     }
   }
@@ -179,6 +181,12 @@ public:
   int  check_signalling_socket_signal(void) { int r=signalling_signal_active; signalling_signal_active=0; return r;};                                      // done
 
   void add_to_active_sessions(class smbs_session_c  *new_session) {active_session_list.add_session_to_list(new_session);active_either_session_list.add_session_to_list(new_session);};
+  void remove_from_active_sessions(class smbs_session_c  *del_session)
+  {
+    active_session_list.remove_session_from_list(del_session);
+    active_either_session_list.remove_session_from_list(del_session);
+    free_session_list.add_session_to_list(del_session);
+  };
   void add_to_establishing_sessions(class smbs_session_c  *new_session)  {active_establishing_session_list.add_session_to_list(new_session);};
 
   void clear_session_list_for_select(void)
@@ -190,9 +198,13 @@ public:
     dead_session_list.empty_list();
   }
 
-  class smbs_session_c  * get_free_session(void) { free_session_list.get_next_session();}
+  class smbs_session_c  * get_free_session(void) {
+     class smbs_session_c  *pSession= free_session_list.get_next_session();
+     if (pSession) free_session_list.remove_session_from_list(pSession);
+     return pSession;
+  }
   class smbs_session_c  * get_next_activesession(void);
-  class smbs_session_c  * get_next_active_estabished_session()    { /* return */ active_established_session_list.get_next_session(); return active_either_session_list.get_next_session(); };
+  class smbs_session_c  * get_next_active_estabished_session()    { /* return */ active_established_session_list.get_next_session(); active_either_session_list.get_next_session(); };
   class smbs_session_c  * get_next_active_estabishing_session()   { /* return  */ active_establishing_session_list.get_next_session(); return 0; };
   class smbs_session_c  * socket_to_session(RTP_SOCKET sock);
 
@@ -239,6 +251,7 @@ public:
   int net_thread_initialize(void);                                          // done
   class smbs_session_c  *thread_socket_to_session(RTP_SOCKET sock) { return socket_to_session(sock);};
   void perform_session_cycle(int timeout);                                         //
+  void remove_from_active_sessions(class smbs_session_c  *del_session) { _net_thread_signal_c:: remove_from_active_sessions(del_session);};
   void process_established_session(void);
   void process_establishing_session(void);
   void process_yielded_session(void);
@@ -348,17 +361,24 @@ int _net_thread_signal_c::net_thread_signal_select(int timeout)
      if (pSession)
        read_return_list[read_list_size++] = pSession->get_session_socket();
     } while (pSession);
+// rtp_printf("net_thread_signal_select call select n = %d {%d] [%d]", read_list_size, read_return_list[0], read_return_list[1]);
+// if (read_list_size==3)
+//   rtp_printf("[%d]\n", read_return_list[2]);
+// else
+//   rtp_printf("\n");
+
     int len = rtsmb_netport_select_n_for_read (read_return_list, read_list_size, timeout);
+// rtp_printf("net_thread_signal_select select returned: %d\n", len);
     int active_list_size = len>=0?len:0;
     master_signal_active =
     signalling_signal_active = 0;
     if (active_list_size)
     {
-
       for (int socket_index = 0; socket_index<active_list_size;socket_index++)
       {
         if (read_return_list[socket_index] == master_socket)
         {
+// rtp_printf("Master hit\n");
           master_signal_active = 1;
         }
         else if (read_return_list[socket_index] == signal_socket)
@@ -438,6 +458,7 @@ void net_thread_c::perform_session_cycle(int timeout)
       // Establish new sessions as requested
       if (check_master_socket_signal())
       {
+// rtp_printf("check_master_socket_signal hit\n");
         stay_in_signals = 1;
         RTP_SOCKET      sock;
         unsigned char clientAddr[4]; int clientPort; int ipVersion;
@@ -445,10 +466,12 @@ void net_thread_c::perform_session_cycle(int timeout)
         {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "net_thread_c::perform_session_cycle: accept error\n");  }
         else
         {
+// rtp_printf("accept hit\n");
           smbs_session_c  *new_session = get_free_session();
           if (new_session)
           { // Set the socket number, set the state to establishing
             // See RTSMB_STATIC PNET_SESSIONCTX rtsmb_srv_netssn_connection_open (PNET_THREAD pThread) if we need more
+// rtp_printf("newsession hit\n");
             srvsmboo_remember_session_socket(sock);
             new_session->set_session_socket(sock);
             new_session->set_session_state(establishing);
@@ -458,7 +481,7 @@ void net_thread_c::perform_session_cycle(int timeout)
           }
           else
           {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_open:  No free sessions\n");
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "perform_session_cycle:  No free sessions\n");
              /* let them know we are rejecting their request */
              rtsmb_srv_nbss_send_session_response (sock, FALSE);
              rtp_net_closesocket(sock);
@@ -571,7 +594,13 @@ int readListSize=0;
 void srvsmboo_close_socket(RTP_SOCKET sock)
 {
 class smbs_session_c *pSession = master_thread.thread_socket_to_session(sock);
-  if (pSession) pSession->set_session_state(listening);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_close: sock :%d session: %x\n", sock, pSession);
+  if (pSession)
+  {
+    pSession->set_session_state(listening);
+    master_thread.remove_from_active_sessions(pSession);
+  }
+
   /* kill conection */
   if (rtp_net_closesocket(sock))
   {
