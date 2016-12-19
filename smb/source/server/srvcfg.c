@@ -449,6 +449,8 @@ int rtsmb_server_config(void)
       trees[i].fids = &tree_fids [i * CFG_RTSMB_MAX_FIDS_PER_TREE];
    }
 
+   // There's only one thread
+   // Pointers to it it ends up in  prtsmb_srv_ctx->mainThread and in the C++ thread structure
    for (i=0; i < CFG_RTSMB_MAX_THREADS + 1; i++)
    {
       threads[i].sessionList = &sessionList [i * CFG_RTSMB_MAX_SESSIONS];

@@ -1,20 +1,5 @@
-
-//
-//
-//
-//
-//
-//
-
-#warning duplicate define
-#define CFG_RTSMB_MAX_SESSIONS              8
-
-#pragma GCC diagnostic ignored "-Wwrite-strings"
-
-
-
 /*                                                                        */
-/* SRVPROCSMB.C -                                                             */
+/* SRVSMBSSNOO.CPP -                                                      */
 /*                                                                        */
 /* EBSnet - RTSMB                                                         */
 /*                                                                        */
@@ -70,6 +55,12 @@
                                   process_dead_session(void);
 888888888888888888888888888888888888888888888888888888888888888888888888888888 */
 
+#warning duplicate define
+#define CFG_RTSMB_MAX_SESSIONS              8
+
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
+
 #include "smbdefs.h"
 
 #include "rtpfile.h"
@@ -106,10 +97,16 @@
 #include "srvnbns.h"
 #include "srvyield.h"
 
+
+extern BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKET  sock);
+
+
+
 static void srvsmboo_remember_session_socket(RTP_SOCKET  sock);
 static void srvsmboo_remember_established_socket(RTP_SOCKET  sock);
 
 EXTERN_C void rtsmb_srv_nbss_send_session_response (RTP_SOCKET sock, BBOOL positive);
+EXTERN_C void srvsmboo_panic(char *panic_string);
 
 #define PACK_ATTRIBUTE  __attribute__((packed))
 
@@ -161,8 +158,7 @@ public:
         if (list_size && session_list[next_return_index]==0) // Messy, fix the qeueu logic
         {
 #warning Need panic strategy
-            rtp_printf("\n");
-            while (1) rtp_printf("panic: list error \r");
+            srvsmboo_panic("Session freelist error");
         }
         break;
       }
@@ -264,7 +260,7 @@ class net_thread_c : private _net_thread_signal_c {
 public:
   net_thread_c(void)  {};
   ~net_thread_c(void) {};
-  int net_thread_initialize(void);                                          // done
+  int net_thread_initialize(PNET_THREAD tempThread);                                          // done
   class smbs_session_c  *thread_socket_to_session(RTP_SOCKET sock) { return socket_to_session(sock);};
   void perform_session_cycle(int timeout);                                         //
   void remove_from_active_sessions(class smbs_session_c  *del_session) { _net_thread_signal_c:: remove_from_active_sessions(del_session);};
@@ -275,7 +271,7 @@ public:
   void process_dead_session(void);
   void send_signal(rtsmbSigStruct *psig)
     {_net_thread_signal_c::send_signal(psig);};                             // done
-
+  PNET_THREAD pThread;       // Pointer to the old c thread context
 //private:
 };
 
@@ -502,11 +498,12 @@ void net_thread_c::perform_session_cycle(int timeout)
 }
 
 
-int net_thread_c::net_thread_initialize(void)
+int net_thread_c::net_thread_initialize(PNET_THREAD tempThread)
 {
   // Open the udp signaling port, make sure it's flushed out
   // Also opens the master port and establishes those positions in the select read list
   int r = net_thread_signal_initialize(this);
+  pThread = tempThread;                                                     // Remember a pointer to the C thread
   if (r < 0) return r; // not good
   return r;
 };
@@ -556,9 +553,9 @@ static RTP_SOCKET remembered_established_sockets[8];
 static int remembered_established_socket_count;
 static RTP_SOCKET remembered_socket;
 
-void srvsmboo_init(void)
+void srvsmboo_init(PNET_THREAD pThread)
 {
-  master_thread.net_thread_initialize();
+  master_thread.net_thread_initialize(pThread);
 }
 void srvsmboo_cycle(int timeout)
 {
@@ -576,15 +573,6 @@ static void srvsmboo_remember_established_socket(RTP_SOCKET  sock)
 {
   remembered_established_sockets[remembered_established_socket_count++]=sock;
 }
-
-
-int srvsmboo_get_new_session_socket(RTP_SOCKET  *psock)
-{
-  *psock = remembered_socket;
-  remembered_socket = 0;
-  return (*psock != 0);
-}
-
 int srvsmboo_get_session_read_list(RTP_SOCKET *readList)
 {
 int readListSize=0;
@@ -593,6 +581,22 @@ int readListSize=0;
   remembered_established_socket_count = 0;
   return readListSize;
 }
+
+
+void srvsmboo_check_for_new_sessions(void)
+{
+  RTP_SOCKET sock = remembered_socket;
+  remembered_socket = 0;
+  if (sock)
+  {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_new_session_socket: returned %lu", sock);
+    if (!rtsmb_srv_netssn_thread_new_session(prtsmb_srv_ctx->mainThread,sock))
+    {
+      srvsmboo_panic("oo and non oo sessions out of sync");
+    }
+  }
+}
+
 
 void srvsmboo_close_session(RTP_SOCKET sock)
 {
@@ -613,4 +617,17 @@ void srvsmboo_close_socket(RTP_SOCKET sock)
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_srv_netssn_connection_close: Error in closesocket\n");
   }
 }
+
+void srvsmboo_netssn_shutdown(void)
+{
+#warning implement
+}
+EXTERN_C void srvsmboo_panic(char *panic_string)
+{
+#warning Need panic strategy
+   rtp_printf("\nPanic abort called: \n");
+   while (1) rtp_printf("panic: %s \r",panic_string);
+}
+
+
 #endif /* INCLUDE_RTSMB_SERVER */

@@ -866,6 +866,89 @@ PTREE SMBU_GetTree (PSMB_SESSIONCTX pCtx, int tid)
 	return rv;
 }
 
+void SMBS_Tree_Init (PTREE tree)
+{
+    int i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
+    {
+        tree->fids[i] = 0;
+    }
+
+    tree->inUse = TRUE;
+}
+
+void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
+    {
+        if (tree->fids[i])
+        {
+            if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
+        }
+    }
+
+    tree->inUse = FALSE;
+}
+
+void SMBS_User_Init (PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+    {
+        user->searches[i].inUse = FALSE;
+    }
+
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        user->fids[i] = 0;
+    }
+    user->inUse = TRUE;
+}
+
+
+void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
+        if (user->searches[i].inUse)
+            SMBFIO_GDone (pCtx, user->searches[i].tid, &user->searches[i].stat);
+
+    /* shut down all of the users files   */
+    for (i = 0; i < prtsmb_srv_ctx->max_fids_per_uid; i++)
+    {
+        if (user->fids[i])
+        {
+            /* Do not call close if it is a directory   */
+            if (user->fids[i]->flags != FID_FLAG_DIRECTORY)
+                SMBFIO_Close (pCtx, user->fids[i]->tid, user->fids[i]->internal_fid);
+            SMBU_ClearInternalFid (pCtx, user->fids[i]->external);
+        }
+    }
+
+    user->inUse = FALSE;
+}
+
+void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle)
+{
+    word i;
+
+    for (i = 0; i < prtsmb_srv_ctx->max_trees_per_session; i++)
+    {
+        if (pCtx->trees[i].internal == handle)
+        {
+            SMBS_Tree_Shutdown (pCtx, &pCtx->trees[i]);
+        }
+    }
+}
+
+
 
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external)
 {
