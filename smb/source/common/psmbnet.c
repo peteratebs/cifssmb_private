@@ -59,7 +59,10 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     {
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, timeoutMsec);
     }
-
+    if (result < 0)
+    {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: listSize: %d  rtp_net_select error returned : %d\n", result, listSize);
+    }
     if (result <= 0)
     {
         return (0);

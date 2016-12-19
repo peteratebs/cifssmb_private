@@ -84,6 +84,7 @@ void srvsmboo_cycle(int timeout);
 int srvsmboo_get_new_session_socket(RTP_SOCKET  *psock);
 int srvsmboo_new_session_socket(RTP_SOCKET  *psock);
 int srvsmboo_get_session_read_list(RTP_SOCKET *readList);
+void srvsmboo_close_session(RTP_SOCKET sock);
 void srvsmboo_close_socket(RTP_SOCKET sock);
 
 
@@ -330,7 +331,9 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
            {
              PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pSctx);
              if (pNctxt)
+             {
                SMBS_srv_netssn_connection_close_session(pNctxt);
+             }
              pSctx->state = NOTCONNECTED;
              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
@@ -1556,6 +1559,9 @@ This function frees resources held by an SMB session context.
 void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
 {
     word i;
+
+    srvsmboo_close_session((RTP_SOCKET) pSmbCtx->sock);
+
     /**
      * Only data worth freeing is in user data and trees.
      */
@@ -1662,6 +1668,7 @@ void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
    if (pSCtx->netsessiont_smbCtx.pCtxtsmb2Session)
      RTSmb2_SessionShutDown(pSCtx->netsessiont_smbCtx.pCtxtsmb2Session);
 #endif
+
    SMBS_CloseSession( &(pSCtx->netsessiont_smbCtx) );
    pSCtx->netsessiont_smbCtx.state = NOTCONNECTED;
 
