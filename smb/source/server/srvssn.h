@@ -11,7 +11,6 @@
 /*    INTERFACE REQUIRED HEADERS                                                 */
 /*============================================================================   */
 #include "smbdefs.h"
-
 #if (INCLUDE_RTSMB_SERVER)
 
 #include "psmbfile.h"
@@ -20,6 +19,8 @@
 #include "smbobjs.h"
 #include "smbnb.h"
 #include "smbnbss.h"
+#include "com_smb2_ssn.h"
+#include "srv_smb2_model.h"
 
 /*============================================================================   */
 /*    INTERFACE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS                     */
@@ -193,6 +194,21 @@ typedef struct smb_sessionCtx_sessionCtxSave_s
 typedef SMB_SESSIONCTX_SAVE_T RTSMB_FAR *PSMB_SESSIONCTX_SAVE;
 #endif
 
+typedef struct ProcSMB2_BodyContext_s {
+  dword *pPreviousNextOutCommand;
+  BBOOL isCompoundReply;
+  dword NextCommandOffset;
+  PFVOID   pInBufStart;
+  PFVOID   pOutBufStart;
+  BBOOL    sign_packet;
+  smb2_stream  smb2stream;
+#define ST_INIT        0
+#define ST_INPROCESS   1
+#define ST_FALSE       2
+#define ST_TRUE        3
+#define ST_YIELD       4
+  int      stackcontext_state;
+} SMB2_BODYCONTEXT_T;
 
 typedef struct smb_sessionCtx_s
 {
@@ -278,8 +294,11 @@ typedef struct smb_sessionCtx_s
     WRITE_RAW_INFO_T writeRawInfo;
 
 #ifdef SUPPORT_SMB2
-    struct s_Smb2SrvModel_Session  *pCtxtsmb2Session;
+    Smb2SrvModel_Session    Smb2SessionInstance;
+    Smb2SrvModel_Connection Smb2ConnectionInstance;
+    SMB2_BODYCONTEXT_T           SMB2_FrameState;
 #endif
+
     /* Below here is all smbv1 and should be in a seperate union.   */
     /**
      * headers

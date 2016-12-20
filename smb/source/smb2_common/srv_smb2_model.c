@@ -51,14 +51,10 @@
 #include "rtptime.h"
 #include "srvyield.h"
 
-extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
+extern void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);
-
-static Smb2SrvModel_Session Smb2Sessions[RTSMB2_CFG_MAX_SESSIONS];
-static Smb2SrvModel_Connection Smb2Connections[RTSMB2_CFG_MAX_CONNECTIONS];
-
 
 /*
 ================
@@ -345,53 +341,26 @@ void Smb2SrvModel_Global_Stats_Error_Update(void)
    pSmb2SrvGlobal->ServerStatistics.sts0_pwerrors += 1;
 }
 
-extern pSmb2SrvModel_Session Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
+extern void Smb2SrvModel_New_Session(PSMB_SESSIONCTX pSmbCtx)
 {
-    // TBD
-    int i;
-    for (i = 0; i < (int)(sizeof(Smb2Sessions)/sizeof(Smb2Sessions[0])); i++)
-    {
-      if (!Smb2Sessions[i].RTSMBisAllocated)
-        break;
-    }
-    if (i == (int)(sizeof(Smb2Sessions)/sizeof(Smb2Sessions[0])))
-    {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Leak:- Force session aloc\n");
-       i = 0;
-    }
-    MEMCLEAROBJ(Smb2Sessions[i]);
-    Smb2Sessions[i].SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
-    Smb2Sessions[i].RTSMBisAllocated=TRUE;
-    Smb2Sessions[i].pSmbCtx = pSmbCtx;
-    Smb2Sessions[i].SMB2_BodyContext=0;
-
-
-    return &Smb2Sessions[i];
+    MEMCLEAROBJ(pSmbCtx->Smb2SessionInstance);
+    pSmbCtx->Smb2SessionInstance.SessionId = pSmb2SrvGlobal->RTSMBNetSessionId++;
+    pSmbCtx->Smb2SessionInstance.RTSMBisAllocated=TRUE;
+    pSmbCtx->Smb2SessionInstance.Connection = &pSmbCtx->Smb2ConnectionInstance;
+    MEMCLEAROBJ(pSmbCtx->Smb2ConnectionInstance);
+    pSmbCtx->Smb2SessionInstance.Connection->RTSMBisAllocated = TRUE;
+    /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
+    pSmbCtx->Smb2SessionInstance.State = Smb2SrvModel_Session_State_InProgress;
+    pSmbCtx->isSMB2 = TRUE;
 }
 
 
 void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession)
 {
     if (pSession->Connection) pSession->Connection->RTSMBisAllocated = FALSE;
-    yield_c_free_body_context(pSession); // only frees if  (pSession->SMB2_BodyContext != 0)
     pSession->RTSMBisAllocated=FALSE;
 }
 
-pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void)
-{
-    // TBD
-    int i;
-    for (i = 0; i < (int)(sizeof(Smb2Connections)/sizeof(Smb2Connections[0])); i++)
-    {
-        if (!Smb2Connections[i].RTSMBisAllocated)
-        {
-          MEMCLEAROBJ(Smb2Connections[i]);
-          Smb2Connections[i].RTSMBisAllocated = TRUE;
-          return &Smb2Connections[i];
-        }
-    }
-    return 0;
-}
 #ifdef SUPPORT_SMB3
 pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection)
 {

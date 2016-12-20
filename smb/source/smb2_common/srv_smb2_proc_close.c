@@ -38,10 +38,10 @@ extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word e
 BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat)
 {
   BBOOL r=FALSE;
-  PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+  PFRTCHAR file_name = SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid);
   if (file_name&&pTree->type == ST_DISKTREE)
   {
-    if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, pstat))
+    if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, pstat))
     r = TRUE;
   }
   if (!r)
@@ -88,7 +88,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
 	// command.Reserved;
 	//  command.FileId[16];
 
-    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+    pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
 
     byte *MappedFileId =  RTSmb2_mapWildFileId(pStream, command.FileId);
     externalFid = RTSmb2_get_externalFid(MappedFileId);
@@ -97,17 +97,17 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
     {
       // Set the status to success
       ASSERT_SMB2_FID(pStream,externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
-      fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+      fid = SMBU_GetInternalFid (pStream->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
     }
     /**
      * If we are closing a print file, print it before exit and delete it afterwards.
      */
     if (pTree->type == ST_PRINTQ)
     {
-        if (SMBU_PrintFile (pStream->psmb2Session->pSmbCtx, fid))
+        if (SMBU_PrintFile (pStream->pSmbCtx, fid))
         { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcClose: Printing file on close failed.\n"); }
-        SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
-        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+        SMBFIO_Close (pStream->pSmbCtx, pStream->pSmbCtx->tid, fid);
+        SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
     }
     else
     {
@@ -119,12 +119,12 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         {
 		PUSER user;
             int _sid;
-            user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
+            user = SMBU_GetUser (pStream->pSmbCtx, pStream->pSmbCtx->uid);
             for (_sid = 0; _sid < prtsmb_srv_ctx->max_searches_per_uid; _sid++)
             {
               if (user->searches[_sid].inUse && tc_memcmp(user->searches[_sid].FileId, MappedFileId, sizeof(command.FileId))==0)
               {
-                SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[_sid].tid, &user->searches[_sid].stat);
+                SMBFIO_GDone (pStream->pSmbCtx, user->searches[_sid].tid, &user->searches[_sid].stat);
                 user->searches[_sid].inUse=FALSE;
                 break;
               }
@@ -147,21 +147,21 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         }
         if (fidflags != FID_FLAG_DIRECTORY)
-            SMBFIO_Close (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid);
+            SMBFIO_Close (pStream->pSmbCtx, pStream->pSmbCtx->tid, fid);
         // 0xffff is not real resource so don't do any file ops.
         if (pTree->type == ST_DISKTREE)// Close any directory scans associated with this file
         {
           // Call opclock_close in case we are releasing a locked fid
-          PFID pfid = SMBU_GetInternalFidPtr (pStream->psmb2Session->pSmbCtx, externalFid);
+          PFID pfid = SMBU_GetInternalFidPtr (pStream->pSmbCtx, externalFid);
 
 
           if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags&SMB2DELONCLOSE))
           {
             BBOOL ok=FALSE;
             if (fidflags != FID_FLAG_DIRECTORY)
-              ok=SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+              ok=SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
             else
-              ok=SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid));
+              ok=SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
              if ( prtsmb_srv_ctx->enable_oplocks&&ok)
                oplock_c_delete(pfid);
           }
@@ -173,7 +173,7 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         }
     }
 
-    SMBU_ClearInternalFid (pStream->psmb2Session->pSmbCtx, externalFid);
+    SMBU_ClearInternalFid (pStream->pSmbCtx, externalFid);
 
         // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;

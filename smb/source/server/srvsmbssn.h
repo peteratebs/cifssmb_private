@@ -32,12 +32,10 @@ EXTERN_C void SMBS_srv_netssn_cycle (long timeout);
 EXTERN_C void SMBS_srv_netssn_shutdown (void);
 EXTERN_C void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx );
 
-EXTERN_C void SMBS_claimSession (PNET_SESSIONCTX pCtx);
-EXTERN_C void SMBS_releaseSession (PNET_SESSIONCTX pCtx);
 EXTERN_C PNET_SESSIONCTX SMBS_firstSession (void);
 EXTERN_C PNET_SESSIONCTX SMBS_nextSession (PNET_SESSIONCTX pCtx);
 EXTERN_C PNET_SESSIONCTX SMBS_findSessionByContext (PSMB_SESSIONCTX pSctxt);
+EXTERN_C void SMBS_closeAllShares(PSR_RESOURCE pResource);
 
 #endif // __SRV_SMBSSN_H__
 /* INCLUDE_RTSMB_SERVER */
-

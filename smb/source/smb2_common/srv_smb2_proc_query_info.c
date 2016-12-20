@@ -65,11 +65,11 @@ const byte fs_info_05_array[] = {0x07,0x00,0x00,0x00,0xff,0x00,0x00,0x00,0x08,0x
 static PFRTCHAR RTSmb2_get_path_and_stat_from_fid(smb2_stream  *pStream, word externalFid, PSMBFSTAT pstat)
 {
 PFRTCHAR filepath=0;
-PTREE pTree =  SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+PTREE pTree =  SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
   if (pTree)
   {
-    filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-    if (filepath && SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, pstat))
+    filepath = SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid);
+    if (filepath && SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, filepath, pstat))
       return filepath;
     else
       filepath=0;

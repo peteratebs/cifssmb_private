@@ -58,7 +58,7 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
         return TRUE;
     }
 
-    pargs->pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+    pargs->pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
     tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
     pargs->externalFid = RTSmb2_get_externalFid(pargs->externalFidRaw);
 
@@ -72,7 +72,7 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     {
       // Set the status to success
       ASSERT_SMB2_FID(pStream,pargs->externalFid,FID_FLAG_ALL);     // Returns if the externalFid is not valid
-      pargs->fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, pargs->externalFid, FID_FLAG_ALL, &pargs->fidflags,0);
+      pargs->fid = SMBU_GetInternalFid (pStream->pSmbCtx, pargs->externalFid, FID_FLAG_ALL, &pargs->fidflags,0);
     }
     return FALSE;
 }
@@ -91,7 +91,7 @@ RTSMB2_FILEIOARGS fileioargs;
   {
     return TRUE;
   }
-  SMBFIO_Flush (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid);
+  SMBFIO_Flush (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid);
   // Set the status to success
   pStream->OutHdr.Status_ChannelSequenceReserved = 0;
   response.StructureSize = 4;
@@ -128,12 +128,12 @@ long bytesRead;
      toRead = (dword) MIN (toRead,(pStream->write_buffer_remaining-512));
 
     // note: command.Flags &0x01 == unbuffered;
-    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
+    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! seek failed\n");
        goto unsuccessful;
     }
-    else if ((bytesRead = SMBFIO_Read (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->WriteBufferParms[0].pBuffer, toRead)) < 0)
+    else if ((bytesRead = SMBFIO_Read (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, pStream->WriteBufferParms[0].pBuffer, toRead)) < 0)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! read failedd\n");
        goto unsuccessful;
@@ -182,13 +182,13 @@ long bytesWritten;
       goto free_and_out;
     }
 
-    if (SMBFIO_Seeku64 (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
+    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
     {
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
        pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
        goto free_and_out;
     }
-    else if ((bytesWritten = SMBFIO_Write(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileioargs.fid, pStream->ReadBufferParms[0].pBuffer, pStream->ReadBufferParms[0].byte_count)) < 0)
+    else if ((bytesWritten = SMBFIO_Write(pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, pStream->ReadBufferParms[0].pBuffer, pStream->ReadBufferParms[0].byte_count)) < 0)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Proc_smb2_Write failed\n");
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);

@@ -230,7 +230,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 
     // == Borrowed from srvtrans2 ==
 
-    user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
+    user = SMBU_GetUser (pStream->pSmbCtx, pStream->pSmbCtx->uid);
     // Compound requests send 0xffff ffff ffff ffff to mean the last file id returned by create
 //    byte * pFileId = command.FileId;
 //    if (tc_memcmp(command.FileId, FileIdWildcard, sizeof(command.FileId))==0)
@@ -245,7 +245,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     {
       if ((command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN)) )
       {   // Make sure to start over if we found an open directory on a rescan
-          SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+          SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
           glFile_index = 0;
           user->searches[sid].inUse=FALSE;
           searchFound=FALSE;
@@ -267,7 +267,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     		for (i = 1; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
     				sid = i;
-    		SMBFIO_GDone (pStream->psmb2Session->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+    		SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
             glFile_index = 0;
     	}
 	}
@@ -275,7 +275,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 //	stat = &user->searches[sid].stat;
 	user->searches[sid].lastUse = rtp_get_system_msec ();
 	user->searches[sid].inUse = TRUE;
-	user->searches[sid].tid = pStream->psmb2Session->pSmbCtx->tid;
+	user->searches[sid].tid = pStream->pSmbCtx->tid;
 	user->searches[sid].pid64 = pStream->InHdr.SessionId;
     // Save the ID
     tc_memcpy(user->searches[sid].FileId, pFileId, sizeof(command.FileId));
@@ -301,7 +301,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       word externalFid = RTSmb2_get_externalFid(RTSmb2_mapWildFileId(pStream, command.FileId));
       int field_size = sizeof(user->searches[sid].name)/sizeof(name[0]);
 
-	  name = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
+	  name = SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid);
       if (name)
       {
         PFRTCHAR temp;
@@ -338,12 +338,12 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
-       isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
+       isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
        glFile_index = 0;
     }
     else
     {
-	   isFound = SMBFIO_GNext (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
+	   isFound = SMBFIO_GNext (pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
        glFile_index += 1;
     }
 
@@ -388,7 +388,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
                 break;
             }
             // If not a single entry look for more matches
-            isFound = SMBFIO_GNext(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, &user->searches[sid].stat);
+            isFound = SMBFIO_GNext(pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
             if (isFound)
             {
                dword *prev_byte_pointer = byte_pointer;

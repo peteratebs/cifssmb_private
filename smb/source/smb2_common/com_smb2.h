@@ -71,8 +71,6 @@ EXTERN_C void  RTSmb2_Encryption_SignMessage(dword SessionGlobalId,TYPELESS Secu
 
 EXTERN_C const char *DebugSMB2CommandToString(int command);
 
-EXTERN_C byte *RTSmb2_mapWildFileId(smb2_stream  *pStream, byte * pFileId);
-EXTERN_C word RTSmb2_get_externalFid(byte *smb2_file_handle);
 
 
 

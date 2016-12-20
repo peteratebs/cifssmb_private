@@ -26,7 +26,7 @@
 #include "srvyield.h"
 #include "remotediags.h"
 #include "srvoplocks.h"
-
+#include "srvsmbssn.h"
 
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid);
 extern ddword smb2_stream_to_unique_userid(smb2_stream  *pStream);
@@ -298,8 +298,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         mode |= command.FileAttributes & 0x20 ? RTP_FILE_S_ARCHIVE : 0;
     }
 
-    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, (word)pStream->InHdr.TreeId);
-//    pTree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+    pTree = SMBU_GetTree (pStream->pSmbCtx, (word)pStream->InHdr.TreeId);
+//    pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
 
 
     if (pTree->type == ST_PRINTQ)
@@ -333,7 +333,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (oplock_diagnotics.performing_replay)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YILED: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
 
-      if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+      if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
       {
         ddword unique_userid = smb2_stream_to_unique_userid(pStream);
 
@@ -342,7 +342,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         if (result == oplock_c_create_yield)
         {
           //Queue up a yield for this session and create a fid to wait on
-          oplock_c_create_yield_ing_fid(SMBU_SmbSessionToNetSession(pStream->psmb2Session->pSmbCtx),&stat, (PFRTCHAR) file_name);
+          oplock_c_create_yield_ing_fid(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),&stat, (PFRTCHAR) file_name);
           pStream->doSessionYield=TRUE;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  yield while openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
           return FALSE;
@@ -360,7 +360,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       if (decoded_create_context.pQFid)
         wants_extra_pQfid_info = TRUE;
 
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
+      r = OpenOrCreate (pStream->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
 
       tc_memset(&stat, 0, sizeof(stat));
       // Fake stat to return 0 sizes, and directory attribute
@@ -385,12 +385,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
             if (ON (flags, RTP_FILE_O_CREAT))
             {
                 ASSERT_SMB2_PERMISSION (pStream, SECURITY_READWRITE);
-                SMBFIO_Mkdir (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+                SMBFIO_Mkdir (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name);
                 TURN_OFF (flags, RTP_FILE_O_EXCL);
                 CreateAction = 2; // File created
             }
         }
-        if (SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
         {
           if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
           { // Don't succeed if they are requesting a directory but the object is not one
@@ -408,15 +408,15 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
         if (ON(command.CreateOptions,FILE_DELETE_ON_CLOSE))
         {
            smb2flags = SMB2DELONCLOSE;
-           //         SMBFIO_Rmdir(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
-           //        SMBFIO_Delete (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name);
+           //         SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name);
+           //        SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name);
         }
       }
-      r = OpenOrCreate (pStream->psmb2Session->pSmbCtx, pTree, (PFRTCHAR) file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
+      r = OpenOrCreate (pStream->pSmbCtx, pTree, (PFRTCHAR) file_name, (word)flags, (word)mode, smb2flags, &externalFid, &fid);
       if (pTree->type == ST_DISKTREE)
       {
         // Stat the file
-        if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
         {
           RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
           return TRUE;
@@ -424,7 +424,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       }
       else // IPC
       { // Call stat, it should work but if it doesn't just zero
-        if (!SMBFIO_Stat(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, file_name, &stat))
+        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
         {
           tc_memset(&stat, 0, sizeof(stat));
         }
@@ -435,7 +435,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     if (r != 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate failed status == %X\n", r);
-        if (r == SMBU_MakeError (pStream->psmb2Session->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
+        if (r == SMBU_MakeError (pStream->pSmbCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE))
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  error: OpenOrCreate remapped status == %X\n", r);
         }
@@ -531,7 +531,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
-    PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
+    PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->pSmbCtx);
     if (pNctxt && prtsmb_srv_ctx->enable_oplocks)
     {
        PFID pfid =  SMBU_GetInternalFidPtr (&pNctxt->netsessiont_smbCtx, externalFid);

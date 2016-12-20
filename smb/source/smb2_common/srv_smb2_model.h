@@ -147,70 +147,13 @@ typedef struct s_Smb2SrvModel_Global {
 } Smb2SrvModel_Global;
 
 
-/* 3.3.1.6 Per Share ............................................................................................... 224 */
-
-
-#ifdef INCLUDE_UNUSED
-typedef struct s_Smb2SrvModel_Share
-{
-            /* A name for the shared resource on this server. */
-    rtsmb_char Name[RTSMB_MAX_SHARENAME_SIZE + 1];
-           /* The NetBIOS, fully qualified domain name (FQDN), or textual IPv4 or IPv6 address that the share is associated with.
-              For more information, see [MS-SRVS] section 3.1.1.7. */
-    rtsmb_char ServerName[RTSMB2_MAX_QUALIFIED_SHARENAME_SIZE];
-    /* A path that describes the local resource that is being shared. This MUST be a store that either provides
-      named pipe functionality, or that offers storage and/or retrieval of files. In the case of the latter,
-      it MAYbe a device that accepts a file and then processes it in some format, such as a printer. */
-    TYPELESS LocalPath;
-    TYPELESS ConnectSecurity;             /* An authorization policy such as an access control list that describes which users are allowed to connect to this share. */
-    TYPELESS FileSecurity;                /* An authorization policy such as an access control list that describes what actions users that connect to this share are allowed to perform on the shared resource.<165> */
-
-    /* The configured offline caching policy for this share. This value MUST be manual caching, automatic caching of files,
-       automatic caching of files and programs, or no offline caching. For more information, see section 2.2.10.
-       For more information about offline caching, see [OFFLINE]. */
-#define manual_caching                              1
-#define automatic_caching_of_files                  2
-#define automatic_caching_of_files_and_programs     3
-#define no_offline_caching                          0
-    byte CscFlags;
-    BBOOL IsDfs;                         /* If set, indicates that this share is configured for DFS. */
-        /* If set, indicates that the results of directory enumerations on this share MUST be trimmed to include only the
-           files and directories that the calling  user has the right to access. */
-    BBOOL DoAccessBasedDirectoryEnumeration;
-    BBOOL AllowNamespaceCaching;         /* Indicates that clients are allowed to cache directory enumeration results
-                                            for better performance.<166> */
-    BBOOL ForceSharedDelete;             /* Indicates that all opens on this share MUST include FILE_SHARE_DELETE in
-                                            the sharing access. */
-    BBOOL RestrictExclusiveOpens;        /* Indicates that users who request read-only access to a file are not allowed
-                                            to deny other readers. */
-    SHARE_T Type;                        /* The value indicates the type of share. It MUST be one of the values that
-                                            are listed in [MS-SRVS] section 2.2.2.4. */
-    rtsmb_char  Remark[RTSMB2_MAX_COMMENT_SIZE]; /* A pointer to a null-terminated Unicode UTF-16 string that specifies an optional
-                                             comment about the shared resource. */
-    int   MaxUses;                       /* Indicates the maximum number of concurrent connections that the shared
-                                            resource can accommodate. */
-    int   CurrentUses;                   /* Indicates the number of current trees connected to the shared resource. */
-    BBOOL ForceLevel2Oplock;             /* Indicates that the server does not issue exclusive caching rights on this share. */
-    BBOOL HashEnabled;                  /* A Boolean that, if set, indicates that the share supports hash generation for branch cache retrieval of data. */
-            /* If the server implements the SMB 3.x dialect family, it MUST implement the following: */
-    dword CATimeout;                     /* The minimum time, in milliseconds, before closing an unreclaimed persistent
-                                            handle on a continuously available share. */
-    BBOOL IsCA;                          /* Indicates that the share is continuously available. */
-    BBOOL EncryptData;                   /* Indicates that the server requires messages for accessing this share to be encrypted,
-                                            per the conditions specified in section 3.3.5.2.11. */
-} Smb2SrvModel_Share;
-#endif // INCLUDE_UNUSED
 
 /* 3.3.1.7 Per Transport Connection ......................................................................... 225 */
 typedef struct s_Smb2SrvModel_Connection
 {
     BBOOL  RTSMBisAllocated;
-// UNUSED    ddword CommandSequenceWindow[2];    /*  A list of the sequence numbers that is valid to receive from the client at this time.
-//                                            For more information, see section 3.3.1.1. */
-// UNUSED    pSmb2SrvModel_Request RequestList;     /*  A list of requests, as specified in section 3.3.1.13, that are currently
-//                                            being processed by the server. This list is indexed by the MessageId field. */
-    dword   ClientCapabilities;        /*  The capabilities of the client of this connection in a form that MUST
-                                             follow the syntax as specified in section 2.2.3. */
+    BBOOL SupportsMultiCredit;          /*  Indicates whether the connection supports multi-credit operations. */
+    pSmb2SrvModel_Session SessionTable[RTSMB2_CFG_MAX_SESSIONS];
     word    NegotiateDialect;          /*  A numeric value representing the current state of dialect negotiation
                                             between the client and server on this transport connection. */
     word Dialect;                      /*    The dialect of SMB2 negotiated with the client. This value MUST be either
@@ -219,12 +162,6 @@ typedef struct s_Smb2SrvModel_Connection
                                             generalization in the server processing rules, the condition that
                                             Connection.Dialect is equal to "3.000" or "3.002" is referred to as
                                             Connection.Dialect belongs to the SMB 3.x dialect family¡¨. */
-// UNUSED    pSmb2SrvModel_Request AsyncCommandList;/*  A list of client requests being handled asynchronously. Each request MUST
-//                                            have been assigned an AsyncId. */
-    BBOOL ShouldSign;                   /*  Indicates that all sessions on this connection (with the exception of
-                                            anonymous and guest sessions) MUST have signing enabled. */
-                            /*  A null-terminated Unicode UTF-16 IP address string, or NetBIOS host name of the client machine. */
-// UNUSED    byte ClientName[RTSMB2_MAX_QUALIFIED_CLIENTNAME_SIZE];
     dword MaxTransactSize;              /*  The maximum buffer size, in bytes, that the server allows on the transport
                                             that established this connection for QUERY_INFO, QUERY_DIRECTORY, SET_INFO
                                             and CHANGE_NOTIFY operations. This field is applicable only for buffers sent
@@ -234,26 +171,19 @@ typedef struct s_Smb2SrvModel_Connection
                                             the connection using the SMB2 WRITE Request. */
     dword MaxReadSize;                  /*  The maximum buffer size, in bytes, that the server allows to be read on the
                                             connection using the SMB2 READ Request. */
-
-    BBOOL SupportsMultiCredit;          /*  Indicates whether the connection supports multi-credit operations. */
-
+    BBOOL ShouldSign;                   /*  Indicates that all sessions on this connection (with the exception of
+                                            anonymous and guest sessions) MUST have signing enabled. */
     byte TransportName;                 /*  UNUSED (RTSMB2_TRANSPORT_SMB_OVER_RDMA|RTSMB2_TRANSPORT_SMB_OVER_TCP) An implementation-specific name of the transport used by this connection. */
                                         /*  A table of authenticated sessions, as specified in section 3.3.1.8,
                                             established on this SMB2 transport connection. The table MUST allow lookup
                                             by both Session.SessionId and by the security context of the user that
                                             established the connection. */
-    pSmb2SrvModel_Session SessionTable[RTSMB2_CFG_MAX_SESSIONS];
-    FILETIME_T CreationTime;            /*  The time when the connection was established. */
-       /* If the server implements the SMB 2.1 or 3.x dialect family, it MUST implement the following;  */
     byte ClientGuid[16];                /*  An identifier for the client machine. */
        /* If the server implements the SMB 3.x dialect family, it MUST implement the following;  */
-    dword ServerCapabilities;           /*  The capabilities sent by the server in the SMB2 NEGOTIATE Response on this
-                                            connection, in a form that MUST follow the syntax as specified in section 2.2.4. */
     word ClientSecurityMode;            /*  The security mode sent by the client in the SMB2 NEGOTIATE request on this
                                             connection, in a form that MUST follow the syntax as specified in section 2.2.3. */
-    word ServerSecurityMode;            /*  The security mode received from the server in the SMB2 NEGOTIATE response
-                                            on this connection, in a form that MUST follow the syntax as specified in
-                                            section 2.2.4. */
+    dword   ClientCapabilities;        /*  The capabilities of the client of this connection in a form that MUST
+                                             follow the syntax as specified in section 2.2.3. */
 } Smb2SrvModel_Connection;
 
 
@@ -264,8 +194,8 @@ typedef struct s_Smb2SrvModel_Session
     ddword  SessionId;                  /* A numeric value that is used as an index in GlobalSessionTable, and (transformed into a 64-bit number)
                                            is sent to clients as the SessionId in the SMB2 header. */
     BBOOL   RTSMBisAllocated;
-    struct smb_sessionCtx_s *pSmbCtx;   /* Temporary - Point back to the SMB1 session that links to this session */
-    void *SMB2_BodyContext;             /* Dynamically allocated saved cmntext if the session is preempted so it can wait for a client to  clear an oplock and reply */
+
+/////     struct smb_sessionCtx_s *pSmbCtx;   /* Temporary - Point back to the SMB1 session that links to this session */
 
 #define Smb2SrvModel_Session_State_InProgress  1
 #define Smb2SrvModel_Session_State_Valid       2
@@ -315,9 +245,7 @@ typedef struct s_Smb2SrvModel_TreeConnect
     TYPELESS TreeGlobalId;              /* A numeric value obtained via registration with [MS-SRVS], as specified in [MS-SRVS] section 3.1.6.6. */
     FILETIME_T CreationTime;            /* The time tree connect was established. */
 } Smb2SrvModel_TreeConnect;
-#endif
 
-#ifdef INCLUDE_UNUSED
 /* 3.3.1.10 Per Open .............................................................................................. 228 */
 typedef struct s_Smb2SrvModel_Open
 {
@@ -450,6 +378,55 @@ typedef struct s_Smb2SrvModel_Channel
     byte SigningKey[16];               /* A 128-bit key used for signing the SMB2 messages on this channel. */
     pSmb2SrvModel_Connection Connection;  /* The connection on which this channel was established. */
 } Smb2SrvModel_Channel;
+/* 3.3.1.6 Per Share ............................................................................................... 224 */
+typedef struct s_Smb2SrvModel_Share
+{
+            /* A name for the shared resource on this server. */
+    rtsmb_char Name[RTSMB_MAX_SHARENAME_SIZE + 1];
+           /* The NetBIOS, fully qualified domain name (FQDN), or textual IPv4 or IPv6 address that the share is associated with.
+              For more information, see [MS-SRVS] section 3.1.1.7. */
+    rtsmb_char ServerName[RTSMB2_MAX_QUALIFIED_SHARENAME_SIZE];
+    /* A path that describes the local resource that is being shared. This MUST be a store that either provides
+      named pipe functionality, or that offers storage and/or retrieval of files. In the case of the latter,
+      it MAYbe a device that accepts a file and then processes it in some format, such as a printer. */
+    TYPELESS LocalPath;
+    TYPELESS ConnectSecurity;             /* An authorization policy such as an access control list that describes which users are allowed to connect to this share. */
+    TYPELESS FileSecurity;                /* An authorization policy such as an access control list that describes what actions users that connect to this share are allowed to perform on the shared resource.<165> */
+
+    /* The configured offline caching policy for this share. This value MUST be manual caching, automatic caching of files,
+       automatic caching of files and programs, or no offline caching. For more information, see section 2.2.10.
+       For more information about offline caching, see [OFFLINE]. */
+#define manual_caching                              1
+#define automatic_caching_of_files                  2
+#define automatic_caching_of_files_and_programs     3
+#define no_offline_caching                          0
+    byte CscFlags;
+    BBOOL IsDfs;                         /* If set, indicates that this share is configured for DFS. */
+        /* If set, indicates that the results of directory enumerations on this share MUST be trimmed to include only the
+           files and directories that the calling  user has the right to access. */
+    BBOOL DoAccessBasedDirectoryEnumeration;
+    BBOOL AllowNamespaceCaching;         /* Indicates that clients are allowed to cache directory enumeration results
+                                            for better performance.<166> */
+    BBOOL ForceSharedDelete;             /* Indicates that all opens on this share MUST include FILE_SHARE_DELETE in
+                                            the sharing access. */
+    BBOOL RestrictExclusiveOpens;        /* Indicates that users who request read-only access to a file are not allowed
+                                            to deny other readers. */
+    SHARE_T Type;                        /* The value indicates the type of share. It MUST be one of the values that
+                                            are listed in [MS-SRVS] section 2.2.2.4. */
+    rtsmb_char  Remark[RTSMB2_MAX_COMMENT_SIZE]; /* A pointer to a null-terminated Unicode UTF-16 string that specifies an optional
+                                             comment about the shared resource. */
+    int   MaxUses;                       /* Indicates the maximum number of concurrent connections that the shared
+                                            resource can accommodate. */
+    int   CurrentUses;                   /* Indicates the number of current trees connected to the shared resource. */
+    BBOOL ForceLevel2Oplock;             /* Indicates that the server does not issue exclusive caching rights on this share. */
+    BBOOL HashEnabled;                  /* A Boolean that, if set, indicates that the share supports hash generation for branch cache retrieval of data. */
+            /* If the server implements the SMB 3.x dialect family, it MUST implement the following: */
+    dword CATimeout;                     /* The minimum time, in milliseconds, before closing an unreclaimed persistent
+                                            handle on a continuously available share. */
+    BBOOL IsCA;                          /* Indicates that the share is continuously available. */
+    BBOOL EncryptData;                   /* Indicates that the server requires messages for accessing this share to be encrypted,
+                                            per the conditions specified in section 3.3.5.2.11. */
+} Smb2SrvModel_Share;
 #endif // INCLUDE_UNUSED
 
 
@@ -475,7 +452,6 @@ EXTERN_C void Smb2SrvModel_Global_Stats_Send_Update(dword body_size);
 EXTERN_C void Smb2SrvModel_Global_Stats_Open_Update(int change);
 EXTERN_C void Smb2SrvModel_Global_Stats_Error_Update(void);
 EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
-EXTERN_C pSmb2SrvModel_Connection Smb2SrvModel_New_Connection(void);
 EXTERN_C pSmb2SrvModel_Channel Smb2SrvModel_New_Channel(pSmb2SrvModel_Connection Connection);
 EXTERN_C void RTSmb2_SessionShutDown(struct s_Smb2SrvModel_Session  *pStreamSession);
 EXTERN_C void Smb2SrvControl_Init(pSmb2SrvModel_Global pGlobal);

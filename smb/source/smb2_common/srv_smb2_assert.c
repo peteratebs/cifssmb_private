@@ -39,11 +39,11 @@ BBOOL assert_smb2_uid(smb2_stream  *pStream)
 
 
 	// no need to authenticate when in share mode
-	if (pStream->psmb2Session->pSmbCtx->accessMode == AUTH_SHARE_MODE)
+	if (pStream->pSmbCtx->accessMode == AUTH_SHARE_MODE)
 	{
 		return FALSE;
 	}
-	user = SMBU_GetUser (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->uid);
+	user = SMBU_GetUser (pStream->pSmbCtx, pStream->pSmbCtx->uid);
 	if (user == (PUSER)0)
 	{
         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_USER_SESSION_DELETED);
@@ -58,7 +58,7 @@ BBOOL assert_smb2_uid(smb2_stream  *pStream)
 // undefined behavior if uid doesn't exist
 BBOOL assertThissmb2Tid (smb2_stream  *pStream)
 {
-	if (SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid))
+	if (SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid))
 	{  // Ok the tree exists
 		return FALSE;
 	}
@@ -74,12 +74,12 @@ BBOOL assert_smb2_permission(smb2_stream  *pStream,byte permission)
 {
 	PTREE tree;
 
-	tree = SMBU_GetTree (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid);
+	tree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
 
 	if (!tree || tree->access == SECURITY_NONE ||
 		(tree->access != SECURITY_READWRITE && tree->access != permission))
 	{
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "failed permissions check with permission of %d against permission of %d on tid %d", permission,tree->access,pStream->psmb2Session->pSmbCtx->tid);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "failed permissions check with permission of %d against permission of %d on tid %d", permission,tree->access,pStream->pSmbCtx->tid);
         RtsmbWriteSrvStatus(pStream, SMB2_STATUS_ACCESS_DENIED);
 		return TRUE;
 	}
@@ -95,7 +95,7 @@ BBOOL assert_smb2_Fid (smb2_stream  *pStream, word external, word flag)
 	int fid;
 	byte ec = 0;
 	word error = 0;
-    PSMB_SESSIONCTX pCtx = pStream->psmb2Session->pSmbCtx;
+    PSMB_SESSIONCTX pCtx = pStream->pSmbCtx;
 
 	if ((fid = SMBU_GetInternalFid (pCtx, external, flag,0,0)) == -2)
 	{

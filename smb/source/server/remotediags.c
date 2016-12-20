@@ -96,6 +96,50 @@ struct FidObjectReferencesCB_t {
     int fid_count;
 };
 
+typedef int(*enumSessionFnType)(PNET_SESSIONCTX pnCtx, void *pargs);
+
+// Scans all active sessions used in remote diags and in
+static int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs)
+{
+    word i;
+    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+    {
+        if (prtsmb_srv_ctx->sessionsInUse[i])
+        {
+          int r = fn(&prtsmb_srv_ctx->sessions[i], enumargs);
+          if (r != 0)
+            return r;
+        }
+    }
+    return 0;
+}
+struct mapPidToSessionNumberCB_t { FID_T *pfid;    int answer;    int index;};
+static int mapPidToSessionNumberCB (PNET_SESSIONCTX pnCtx, void *pargs)
+{
+int i;
+ for (i=0; i < prtsmb_srv_ctx->max_fids_per_session;i++)
+ {
+  if (&pnCtx->netsessiont_smbCtx.fids[i] == ((struct mapPidToSessionNumberCB_t *)pargs)->pfid)
+  {
+    ((struct mapPidToSessionNumberCB_t *)pargs)->answer =   ((struct mapPidToSessionNumberCB_t *)pargs)->index;
+    return 1;
+  }
+ }
+ ((struct mapPidToSessionNumberCB_t *)pargs)->index += 1;
+ return 0;
+}
+//
+static int SMBU_FidToSessionNumber (FID_T *pfid)
+{
+struct mapPidToSessionNumberCB_t args = {
+        pfid: pfid,
+        answer: -1,
+        index:   0
+    };
+    SMBU_EnumerateSessions(mapPidToSessionNumberCB, (void *) &args);
+    return args.answer;
+}
+
 static int countFidObjectReferencesCB(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
 {
     if (SMBU_Fidobject(fid)== ((struct FidObjectReferencesCB_t*)pargs)->fidobject_address)

@@ -139,7 +139,7 @@ dword SMBU_MakeError (PSMB_SESSIONCTX pCtx, byte errorClass, word errorCode)
 {
   dword error = 0;
 #ifdef SUPPORT_SMB2
-  if (pCtx && pCtx->pCtxtsmb2Session)
+  if (pCtx && pCtx->isSMB2)
   {
     if (errorClass == SMB_EC_ERRDOS)
     {
@@ -379,60 +379,18 @@ PFIDOBJECT SMBU_Fidobject(FID_T *pfid)
   return pfid->_pfidobject;
 }
 
-// Scans all active sessions
-int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs)
-{
-    word i;
-    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
-    {
-        if (prtsmb_srv_ctx->sessionsInUse[i])
-        {
-          int r = fn(&prtsmb_srv_ctx->sessions[i], enumargs);
-          if (r != 0)
-            return r;
-        }
-    }
-    return 0;
-}
-
+#if (HARDWIRE_NO_SHARED_SESSION_BUFFERS == 1)
 int SMBU_SessionToIndex(PSMB_SESSIONCTX pSmbCtx)
 {
   int i;
-  for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
-  {
-    if (prtsmb_srv_ctx ==  pSmbCtx)
+   for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
+     if (&prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx == pSmbCtx)
        return i;
-  }
+   return &prtsmb_srv_ctx->sessions[0];
   return 0;
 }
+#endif
 
-struct mapPidToSessionNumberCB_t { FID_T *pfid;    int answer;    int index;};
-static int mapPidToSessionNumberCB (PNET_SESSIONCTX pnCtx, void *pargs)
-{
-int i;
- for (i=0; i < prtsmb_srv_ctx->max_fids_per_session;i++)
- {
-  if (&pnCtx->netsessiont_smbCtx.fids[i] == ((struct mapPidToSessionNumberCB_t *)pargs)->pfid)
-  {
-    ((struct mapPidToSessionNumberCB_t *)pargs)->answer =   ((struct mapPidToSessionNumberCB_t *)pargs)->index;
-    return 1;
-  }
- }
- ((struct mapPidToSessionNumberCB_t *)pargs)->index += 1;
- return 0;
-}
-
-//
-int SMBU_FidToSessionNumber (FID_T *pfid)
-{
-struct mapPidToSessionNumberCB_t args = {
-        pfid: pfid,
-        answer: -1,
-        index:   0
-    };
-    SMBU_EnumerateSessions(mapPidToSessionNumberCB, (void *) &args);
-    return args.answer;
-}
 
 
 // Scans all open FIDS
@@ -577,10 +535,10 @@ PNET_SESSIONCTX SMBU_SmbSessionToNetSession(PSMB_SESSIONCTX pSmbCtx)
   int i, j;
 #warning inefficient - need to fix
    i=0;
-   for (i = 0; i <  prtsmb_srv_ctx->sessionsInUse; i++)
+   for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
      if (&prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx == pSmbCtx)
        return &prtsmb_srv_ctx->sessions[i];
-  return &prtsmb_srv_ctx->sessions[0];
+   return &prtsmb_srv_ctx->sessions[0];
 
 }
 

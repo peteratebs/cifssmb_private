@@ -174,7 +174,7 @@ void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p)
 
 signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
 {
-  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
+  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->pSmbCtx);
   if (pNctxt)
   {
     return (pNctxt->netsessiont_pThread->signal_object);
@@ -186,7 +186,7 @@ signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
 // void RtsmbYieldSendSignalSocket(smb2_stream  *pStream)
 void yield_c_signal_to_stream(smb2_stream  *pStream)
 {
-  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->psmb2Session->pSmbCtx);
+  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->pSmbCtx);
   if (pNctxt)
   {
     yield_c_signal_to_session(pNctxt->netsessiont_pThread->signal_object);
@@ -218,16 +218,4 @@ void yield_c_execute_yield(smb2_stream *pStream)
 {
     pStream->doSessionYield = TRUE;
 
-}
-void yield_c_body_context(pSmb2SrvModel_Session pSession)
-{
-  yield_c_free_body_context(pSession); // Does nothing if already free
-  pSession->SMB2_BodyContext=             (void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
-}
-
-void yield_c_free_body_context(pSmb2SrvModel_Session pSession)
-{
-  if (pSession->SMB2_BodyContext) rtp_free(pSession->SMB2_BodyContext);
-  pSession->SMB2_BodyContext = 0;
-//  Smb2Sessions[i].SMB2_BodyContext=(void *)rtp_malloc(sizeof(ProcSMB2_BodyContext));
 }

@@ -26,10 +26,10 @@
 #include "rtpmem.h"
 
 /* Set signing rules on the stream. The message finalize process will sign the outgoing messge. */
-void  smb2_stream_set_signing_rule(smb2_stream *pstream, byte  *SigningKey, byte SigningRule)
+void  smb2_stream_set_signing_rule(smb2_stream *pStream, byte  *SigningKey, byte SigningRule)
 {
-    pstream->SigningKey =SigningKey;
-    pstream->SigningRule=SigningRule;
+    pStream->SigningKey =SigningKey;
+    pStream->SigningRule=SigningRule;
 }
 
 // This is referenced but it is never called. Needs more work to support packet encrytion.
@@ -80,14 +80,14 @@ static void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
 
 /* Start encryption. Called on a stream from the top level dispatch if the session is set up and known to be encrypted.
    Wraps the stream in a buffer with an SMB2 transform header prepended. The message finalize process will encrypt the outgoing messge. */
-void  smb2_stream_start_encryption(smb2_stream *pstream)
+void  smb2_stream_start_encryption(smb2_stream *pStream)
 {
-    pstream->EncryptMessage   = TRUE;
-    pstream->saved_write_origin = pstream->write_origin;
-    /* Request a buffer that can hold pstream->write_buffer_size, if encrypt in place is possible return the passed address, which is just beyond the transform header. The write buffer has padding to contain the header.  */
-    pstream->pOutBuf =
-    pstream->write_origin =
-        RTSmb2_Encryption_Get_Encrypt_Buffer( ((PFBYTE)pstream->saved_write_origin)+RTSMB2_NBSS_TRANSFORM_HEADER_SIZE, pstream->write_buffer_size);  /* SPR - added casting to fix compile error */
+    pStream->EncryptMessage   = TRUE;
+    pStream->saved_write_origin = pStream->write_origin;
+    /* Request a buffer that can hold pStream->write_buffer_size, if encrypt in place is possible return the passed address, which is just beyond the transform header. The write buffer has padding to contain the header.  */
+    pStream->pOutBuf =
+    pStream->write_origin =
+        RTSmb2_Encryption_Get_Encrypt_Buffer( ((PFBYTE)pStream->saved_write_origin)+RTSMB2_NBSS_TRANSFORM_HEADER_SIZE, pStream->write_buffer_size);  /* SPR - added casting to fix compile error */
 }
 
 

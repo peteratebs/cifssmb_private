@@ -50,7 +50,7 @@
 #include "wchar.h"
 #include "rtptime.h"
 #include "rtpmem.h"
-
+#include "srvsmbssn.h"
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
@@ -279,7 +279,7 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
                 /* Free the session we came in with and use the one we just found */
                 if (pStreamSession != pCurrSession)
                 {
-                  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStreamSession-> pSmbCtx);
+                  PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->pSmbCtx);
                     if (pNctxt)
                       SMBS_srv_netssn_connection_close_session(pNctxt);
                     pStream->psmb2Session = pCurrSession;
@@ -322,15 +322,15 @@ static byte spnego_blob_buffer[512];
             static byte b[8] = {0x01,0x23,0x45,0x67,0x89,0xab, 0xcd, 0xef};
 //           tc_memcpy (&(pCtx->encryptionKey[0]), b, 8);
             rtp_printf("Sending hardwired type 2 key \n");
-            tc_memcpy (&pStream->psmb2Session->pSmbCtx->encryptionKey[0], b, 8);
+            tc_memcpy (&pStream->pSmbCtx->encryptionKey[0], b, 8);
 #else
             for (i = 0; i < 4; i++)
             {
              word randnum = (word) tc_rand();    /* returns 15 bits of random data */
-             tc_memcpy (&(pStream->psmb2Session->pSmbCtx->encryptionKey[i * 2]), &randnum, 2);
+             tc_memcpy (&(pStream->pSmbCtx->encryptionKey[i * 2]), &randnum, 2);
             }
 #endif
-            spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->psmb2Session->pSmbCtx->encryptionKey);
+            spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->pSmbCtx->encryptionKey);
             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
             Spnego_isLast_token = 0;
@@ -347,7 +347,7 @@ static byte spnego_blob_buffer[512];
           int NegTokenTargDecodeResult =  spnego_decode_NegTokenTarg_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
           if (NegTokenTargDecodeResult == 0)
           {
-            extended_access = spnego_AuthenticateUser (pStream->psmb2Session->pSmbCtx, &decoded_targ_token, &extended_authId);
+            extended_access = spnego_AuthenticateUser (pStream->pSmbCtx, &decoded_targ_token, &extended_authId);
           }
           if (extended_access != AUTH_NOACCESS)
           {
@@ -388,7 +388,7 @@ static byte spnego_blob_buffer[512];
             if (decoded_targ_token.ntlm_response && decoded_targ_token.ntlm_response->size>16)
             {
                  // Look up the password by user. Fail if not found.
-                 calculate_ntlmv2_signing_key(pStream->psmb2Session->pSmbCtx->encryptionKey,
+                 calculate_ntlmv2_signing_key(pStream->pSmbCtx->encryptionKey,
                    &decoded_targ_token.ntlm_response->value_at_offset[16],
                    decoded_targ_token.ntlm_response->size-16,
                    decoded_targ_token.user_name?decoded_targ_token.user_name->value_at_offset:0,
@@ -703,7 +703,7 @@ static byte spnego_blob_buffer[512];
     else
     {
         pStream->OutHdr.SessionId       = pStreamSession->SessionId;
-        // Allocate a UID structure for this session and populate pStream->psmb2Session->pSmbCtx->uid
+        // Allocate a UID structure for this session and populate pStream->pSmbCtx->uid
         if (!Smb1SrvUidForStream (pStream))
         {
            pStream->doSessionClose = TRUE;
@@ -736,7 +736,7 @@ static void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer)
 
 static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
 {
-  PSMB_SESSIONCTX pCtx =  pStream->psmb2Session->pSmbCtx;
+  PSMB_SESSIONCTX pCtx =  pStream->pSmbCtx;
     pCtx->uid = 0;
     pCtx->accessMode = AUTH_USER_MODE;
     if (pCtx->accessMode == AUTH_USER_MODE)

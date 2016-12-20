@@ -18,7 +18,7 @@
 //****************************************************************************
 
 
-#define HARDWIRE_NO_SHARED_SESSION_BUFFERS             1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares
+#define HARDWIRE_NO_SHARED_SESSION_BUFFERS             1  // Set to 1 to force individual buffer pools per session
 
 // Definitions for development
 // See https://msdn.microsoft.com/en-us/library/cc236699.aspx for good NTLM reference

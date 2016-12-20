@@ -81,27 +81,8 @@ typedef struct smb2_stream_s {
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
     StreamInputPointerState_t StreamInputPointerState;
-
+    struct smb_sessionCtx_s *pSmbCtx;
 } smb2_stream;
-
-
-
-typedef struct ProcSMB2_BodyContext_s {
-  dword *pPreviousNextOutCommand;
-  BBOOL isCompoundReply;
-  BBOOL doFirstPacket;
-  dword NextCommandOffset;
-  PFVOID   pInBufStart;
-  PFVOID   pOutBufStart;
-  BBOOL    sign_packet;
-  smb2_stream  smb2stream;
-#define ST_INIT        0
-#define ST_INPROCESS   1
-#define ST_FALSE       2
-#define ST_TRUE        3
-#define ST_YIELD       4
-  int      stackcontext_state;
-} ProcSMB2_BodyContext;
 
 
 
@@ -121,6 +102,8 @@ extern int RtsmbWireVarDecode (smb2_stream *pStream, PFVOID origin, PFVOID buf, 
 extern int RtsmbWireVarDecodePartTwo (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize);
 extern int RtsmbWireVarEncode(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize);
 extern int RtsmbWireVarEncodePartTwo(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, dword UsedSize);
+
+EXTERN_C byte *RTSmb2_mapWildFileId(struct smb2_stream_s  *pStream, byte * pFileId);
 
 
 typedef int (* pVarEncodeFn_t) (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);

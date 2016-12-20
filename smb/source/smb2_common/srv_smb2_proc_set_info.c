@@ -84,12 +84,12 @@ RTSMB2_SET_INFO_R response;
         b[pRenameInfo->FileNameLength+1] =0;
         for(i=0; i < 2; i++)
         { // Loop twice, in case we fail but ReplaceIfExists is rue
-          if (SMBFIO_Rename(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid), pRenameInfo->Buffer))
+          if (SMBFIO_Rename(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid), pRenameInfo->Buffer))
             break;
           if (pRenameInfo->ReplaceIfExists)
           {
              pRenameInfo->ReplaceIfExists=0;
-             if (SMBFIO_Delete(pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid,pRenameInfo->Buffer))
+             if (SMBFIO_Delete(pStream->pSmbCtx, pStream->pSmbCtx->tid,pRenameInfo->Buffer))
                 continue;
           }
           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
@@ -107,7 +107,7 @@ RTSMB2_SET_INFO_R response;
         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
         word externalFid = RTSmb2_get_externalFid(pFileId);
        // Set the status to success
-        int fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+        int fid = SMBU_GetInternalFid (pStream->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
         if (fid >= 0)
         {
           if (pInfo->DeletePending)
@@ -116,7 +116,7 @@ RTSMB2_SET_INFO_R response;
           }
           else
             smb2flags&=~(SMB2FIDSIG|SMB2DELONCLOSE);
-          SMBU_SetFidSmb2Flags (pStream->psmb2Session->pSmbCtx,externalFid ,smb2flags );
+          SMBU_SetFidSmb2Flags (pStream->pSmbCtx,externalFid ,smb2flags );
           break;
         }
         else
@@ -137,14 +137,14 @@ RTSMB2_SET_INFO_R response;
         byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
         word externalFid = RTSmb2_get_externalFid(pFileId);
        // Set the status to success
-        int fid = SMBU_GetInternalFid (pStream->psmb2Session->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+        int fid = SMBU_GetInternalFid (pStream->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
 //        smb2status = SMB2_STATUS_INVALID_PARAMETER;
 //        smb2status = SMB2_STATUS_DISK_FULL;
 //        smb2status = SMB2_STATUS_INFO_LENGTH_MISMATCH;
 
         if (fid >= 0)
         {
-           if (!SMBFIO_Truncate (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fid, (dword) *pInfo))
+           if (!SMBFIO_Truncate (pStream->pSmbCtx, pStream->pSmbCtx->tid, fid, (dword) *pInfo))
            {
              RtsmbWriteSrvStatus(pStream,SMB2_STATUS_ACCESS_DENIED);
              goto free_bail;

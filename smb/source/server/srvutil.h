@@ -84,9 +84,6 @@ int SMBU_EnumerateFids(enumFidFnType fn, void *enumargs);
 extern PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid);
 
 
-typedef int(*enumSessionFnType)(PNET_SESSIONCTX pnCtx, void *pargs);
-int SMBU_EnumerateSessions(enumSessionFnType fn, void *enumargs);
-int SMBU_FidToSessionNumber (FID_T *pfid);
 PNET_SESSIONCTX SMBU_SmbSessionToNetSession(PSMB_SESSIONCTX pSmbCtx);
 
 struct SMBU_enumFidSearchUniqueidType_s {

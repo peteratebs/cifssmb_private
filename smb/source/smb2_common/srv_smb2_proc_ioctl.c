@@ -132,8 +132,8 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       PFRTCHAR filepath;
       byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
       word externalFid = RTSmb2_get_externalFid(pFileId);
-      filepath = SMBU_GetFileNameFromFid (pStream->psmb2Session->pSmbCtx, externalFid);
-      if (filepath && SMBFIO_Stat (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, filepath, &stat))
+      filepath = SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid);
+      if (filepath && SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, filepath, &stat))
          worked = TRUE;
       if(worked == FALSE)
       {
@@ -179,20 +179,20 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
          long l;
          // srvsvc layer will need the stream pointer to get to session info like user name and domain so pass it through the FD
          rtsmb_ipcrpc_bind_stream_pointer(fileid, (void *)pStream);
-         l = SMBFIO_Write (pStream->psmb2Session->pSmbCtx,
-              pStream->psmb2Session->pSmbCtx->tid,
+         l = SMBFIO_Write (pStream->pSmbCtx,
+              pStream->pSmbCtx->tid,
               fileid,
               pStream->ReadBufferParms[0].pBuffer,
               command.InputCount);
 
          if (l==-2 ) // l == -2 means, read 4 bytes and you'll get the status code to return
          {
-            l = SMBFIO_Read (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileid, &error_status, 4);
+            l = SMBFIO_Read (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileid, &error_status, 4);
             response.OutputCount = (unsigned long) 0;
          }
          else
          {
-            l = SMBFIO_Read  (pStream->psmb2Session->pSmbCtx, pStream->psmb2Session->pSmbCtx->tid, fileid, pStream->WriteBufferParms[0].pBuffer, 1024);
+            l = SMBFIO_Read  (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileid, pStream->WriteBufferParms[0].pBuffer, 1024);
             if (l > 0)
               response.OutputCount = (unsigned long) l;
           }
