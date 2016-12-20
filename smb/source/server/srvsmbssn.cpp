@@ -220,7 +220,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
     saved_in_packet_size = pSctx->in_packet_size;
 
 
-    switch (pSctx->state)
+    switch (pSctx->session_state)
     {
     case WRITING_RAW:
 
@@ -246,11 +246,11 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
             /* are we out of time?                                        */
             if (IS_PAST (pSctx->in_packet_timeout_base, RTSMB_NB_UCAST_RETRY_TIMEOUT))
             {
-                pSctx->state = IDLE;
+                pSctx->session_state = IDLE;
             }
             else
             {
-                pSctx->state = WRITING_RAW_READING;
+                pSctx->session_state = WRITING_RAW_READING;
             }
             return TRUE;
         }
@@ -267,7 +267,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
         pSctx->readBuffer = pSctx->smallReadBuffer;
         pSctx->readBufferSize = (dword)SMB_BUFFER_SIZE;
         pSctx->writeRawInfo.amWritingRaw = FALSE;
-        pSctx->state = IDLE;
+        pSctx->session_state = IDLE;
         break;
 #ifdef SUPPORT_SMB2
     case NOTCONNECTED:
@@ -333,7 +333,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
         }
         pSctx->protocol_version = protocol_version;
         // Start a new session if we are connected and the current protocol doesn't match the incoming packet
-        if (pSctx->state == IDLE)
+        if (pSctx->session_state == IDLE)
         {
            if ((protocol_version == 2 && !pSctx->isSMB2) || (protocol_version == 1 && pSctx->isSMB2))
            {
@@ -342,17 +342,18 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
              {
                SMBS_srv_netssn_connection_close_session(pNctxt);
              }
-             pSctx->state = NOTCONNECTED;
+             pSctx->session_state = NOTCONNECTED;
              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
            }
         }
 
-        if (pSctx->state == NOTCONNECTED)
+        if (pSctx->session_state == NOTCONNECTED)
         {
-            SMBS_InitSessionCtx_smb(pSctx, protocol_version); // Sets    pSctx->isSMB2 = TRUE/FALSE;
+            /* Initialize uids, tid, and fid buckets for the new session if it's version 2 also initialize v2 context block in pSmbCtx Sets pSctx->isSMB2 = TRUE/FALSE*/
+            SMBS_InitSessionCtx_smb(pSctx, protocol_version);
             // Okay we have a protocol
-            pSctx->state = IDLE;
+            pSctx->session_state = IDLE;
         }
 #endif
         pSctx->in_packet_size = packetSize;
@@ -383,7 +384,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
           pSctx->current_body_size = saved_body_size;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ReadNbssPacketToSessionCtxt yielded\n");
         }
-        if (pSctx->state == NOTCONNECTED)
+        if (pSctx->session_state == NOTCONNECTED)
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, (char *)"DIAG:Returned to not-connected stated\n");
         }
@@ -465,7 +466,7 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
     pOutBuf = SMB_OUTBUF (pSctx);
 #if (INCLUDE_RTSMB_DC)
     if (pInBuf[4] == SMB_COM_NEGOTIATE &&
-        pSctx->accessMode == AUTH_USER_MODE && pSctx->state == IDLE)
+        pSctx->accessMode == AUTH_USER_MODE && pSctx->session_state == IDLE)
     {
         char pdc [RTSMB_NB_NAME_SIZE + 1];
 
@@ -475,7 +476,7 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n");
 
             /* change our state to waiting on pdc name   */
-            pSctx->state = WAIT_ON_PDC_NAME;
+            pSctx->session_state = WAIT_ON_PDC_NAME;
 
             MS_SendPDCQuery (); /* jump start the search */
 
@@ -488,7 +489,7 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC ip.\n");
 
             /* change our state to waiting on pdc ip   */
-            pSctx->state = WAIT_ON_PDC_IP;
+            pSctx->session_state = WAIT_ON_PDC_IP;
 
             rtsmb_srv_nbns_start_query_for_name (pdc, RTSMB_NB_NAME_TYPE_SERVER);
 
@@ -519,15 +520,15 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
         /* are we out of time?   */
         if (IS_PAST (pSctx->in_packet_timeout_base, RTSMB_NB_UCAST_RETRY_TIMEOUT))
         {
-            pSctx->state = IDLE;
+            pSctx->session_state = IDLE;
         }
         else
         {
-            pSctx->state = READING;
+            pSctx->session_state = READING;
         }
         return SEND_NO_REPLY;
     }
-    pSctx->state = IDLE;
+    pSctx->session_state = IDLE;
     return EXECUTE_PACKET;
 }
 
@@ -658,7 +659,7 @@ static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx,
         SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
         doSend = TRUE;
     }
-    else if (pSctx->state == FAIL_NEGOTIATE)
+    else if (pSctx->session_state == FAIL_NEGOTIATE)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Failing pending negotiation.\n");
         SMBU_FillError (pSctx, &outCliHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
@@ -739,11 +740,10 @@ static void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
     pSmbCtx->accessMode = Auth_GetMode ();
 
 #ifdef SUPPORT_SMB2
-
-    pSmbCtx->state = NOTCONNECTED;
-
+    pSmbCtx->session_state = NOTCONNECTED;
 #else  /* SUPPORT_SMB2 */
-    pSmbCtx->state = IDLE;
+    pSmbCtx->session_state = IDLE;
+    /* Initialize uids, tid, and fid buckets for the new session if it's version 2 also initialize v2 context block in pSmbCtx Sets pSctx->isSMB2 = FALSE*/
     SMBS_InitSessionCtx_smb(pSmbCtx,1);
 #endif
     /**
@@ -922,7 +922,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_cycle (PNET_THREAD pThread,long timeou
        (*session)->netsessiont_pThread = pThread;
 
 //        srvobject_session_enter(pThread,session);
-        starting_state = (*session)->netsessiont_smbCtx.state;
+        starting_state = (*session)->netsessiont_smbCtx.session_state;
         for (n = 0; n < readListSize; n++)
         {
             if (readList[n] == (*session)->netsessiont_sock)
@@ -954,13 +954,13 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_cycle (PNET_THREAD pThread,long timeou
         /* if we changed states, and we are changing away from idle,
            we should block on this session.  If we are changing to idle,
            we should stop blocking on this session */
-        if ((*session) && starting_state != (*session)->netsessiont_smbCtx.state)
+        if ((*session) && starting_state != (*session)->netsessiont_smbCtx.session_state)
         {
             if (starting_state == IDLE)
             {
                 pThread->blocking_session = current_session_index;
             }
-            else if ((*session)->netsessiont_smbCtx.state == IDLE)
+            else if ((*session)->netsessiont_smbCtx.session_state == IDLE)
             {
                 pThread->blocking_session = -1;
             }
@@ -1085,7 +1085,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
     SMBS_claimSession (*session);
 
     /* keep session alive while we do stuff */
-    switch ((*session)->netsessiont_smbCtx.state)
+    switch ((*session)->netsessiont_smbCtx.session_state)
     {
     case BROWSE_MUTEX:
     case BROWSE_SENT:
@@ -1100,7 +1100,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
     }
 
     /* handle special state cases here, potentially skipping netbios layer */
-    switch ((*session)->netsessiont_smbCtx.state)
+    switch ((*session)->netsessiont_smbCtx.session_state)
     {
 #if (INCLUDE_RTSMB_DC)
     case WAIT_ON_PDC_NAME:
@@ -1128,7 +1128,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         int pcktsize = (int) ((*session)->netsessiont_smbCtx.in_packet_size - (*session)->netsessiont_smbCtx.current_body_size);
         if (pcktsize == 0)
         {
-           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_nbss_process_packet ignoring 0-length packet: %d \n", pcktsize);
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_netssn_session_cycle ignoring 0-length packet: %d \n", pcktsize);
         } else
         {
            SMBS_ProcSMBPacket (&(*session)->netsessiont_smbCtx, pcktsize);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
@@ -1167,7 +1167,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         rv = FALSE;
         // Set to not connected so we allow reception of SMB2 negotiate packets.
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Session closed\n");
-        (*session)->netsessiont_smbCtx.state = NOTCONNECTED;
+        (*session)->netsessiont_smbCtx.session_state = NOTCONNECTED;
     }
     else
     {
@@ -1496,6 +1496,7 @@ BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate)
     return: Nothing.
 ================
 */
+/* Initialize uids, tid, and fid buckets for the new session if it's version 2 also initialize v2 context block in pSmbCtx */
 void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
 {
     word i;
@@ -1526,15 +1527,13 @@ void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version)
         pSmbCtx->fids[i].internal_fid = -1;
     }
 
-    if (protocol_version == 2)
+    pSmbCtx->isSMB2 =  (protocol_version == 2);
+    if (pSmbCtx->isSMB2)
     {
         /* Allocate the smb2 session stuff it is embedded in pSmbCtx so it can't fail */
         Smb2SrvModel_New_Session(pSmbCtx);
     }
-    if (protocol_version < 2)
-    {
-        pSmbCtx->isSMB2 = FALSE;
-    }
+
 }
 
 
@@ -1641,7 +1640,7 @@ void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
 #endif
 
    SMBS_CloseSession( &(pSCtx->netsessiont_smbCtx) );
-   pSCtx->netsessiont_smbCtx.state = NOTCONNECTED;
+   pSCtx->netsessiont_smbCtx.session_state = NOTCONNECTED;
 
 }
 
@@ -1666,7 +1665,7 @@ PNET_SESSIONCTX SMBS_findSessionByContext (PSMB_SESSIONCTX pSctxt)
 // Legacy implementaion, close this share in all sessions.
 void SMBS_closeAllShares(PSR_RESOURCE pResource)
 {
-PNET_SESSIONCTX pCtx &prtsmb_srv_ctx->sessions[0];
+PNET_SESSIONCTX pCtx = &prtsmb_srv_ctx->sessions[0];
    /**
     * We have the session right where we want it.  It is not doing anything,
     * so we can close the tree itself and all the files it has open on this session.

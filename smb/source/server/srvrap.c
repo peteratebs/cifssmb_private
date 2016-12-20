@@ -249,7 +249,7 @@ int NetServerEnum2 (PSMB_SESSIONCTX pCtx, PRTSMB_RAP_REQUEST pFunc,
     header.available_entries = 0;
     info.info_total = 0;
 
-    if (pCtx->state == BROWSE_FAIL)
+    if (pCtx->session_state == BROWSE_FAIL)
     {
         /* domain is invalid.   tell client */
         header.status = RAP_NERR_INVALID_DOMAIN;
@@ -257,7 +257,7 @@ int NetServerEnum2 (PSMB_SESSIONCTX pCtx, PRTSMB_RAP_REQUEST pFunc,
             size_left, pOutHdr, &header);
         return r;
     }
-    else if (pCtx->state == BROWSE_FINISH)
+    else if (pCtx->session_state == BROWSE_FINISH)
     {
         /* we have previously been here and punted our netenum2 to another
            server.  here, we have the data now and we want to ship it out. */
@@ -287,7 +287,7 @@ int NetServerEnum2 (PSMB_SESSIONCTX pCtx, PRTSMB_RAP_REQUEST pFunc,
 
             /* we have a server enum request outside of our own workgroup. */
             /* punt it off to the browse layer, which will come up with something to hand over */
-            pCtx->state = BROWSE_MUTEX;
+            pCtx->session_state = BROWSE_MUTEX;
             pCtx->server_enum_type = command.server_type;
             tc_strcpy (pCtx->server_enum_domain, group_name);
 
@@ -949,4 +949,3 @@ int RAP_Proc (PSMB_SESSIONCTX pCtx,
 //****************************************************************************
 
 #endif /* INCLUDE_RTSMB_SERVER */
-

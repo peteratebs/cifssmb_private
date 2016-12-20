@@ -59,8 +59,6 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 
 #include "rtptime.h"
 
-extern void SMBS_InitSessionCtx_smb(PSMB_SESSIONCTX pSmbCtx, int protocol_version);
-
 extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
 extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
@@ -1008,7 +1006,7 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
     smb2_stream  smb2stream;
     smb2_stream * pStream;
 
-    SMBS_InitSessionCtx_smb(pSctx,2);
+    SMBS_InitSessionCtx_smb(pSctx,2); // Initialize uids, tid, and fid buckets for the new session. Also initialize v2 context block in pSmbCtx and sets pSctx->isSMB2 = TRUE
 
     pStream = &smb2stream;
 

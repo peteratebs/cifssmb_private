@@ -225,7 +225,7 @@ typedef struct smb_sessionCtx_s
     void  *current_yield_Cptr;   // Stores the resore point from srvyield.cpp
 
 
-    SMBS_SESSION_STATE state;   /* are we idle or waiting on something? */
+    SMBS_SESSION_STATE session_state;   /* are we idle or waiting on something? */
 
     /**
      * Pointers to the buffers we are currently using for reading or writing.

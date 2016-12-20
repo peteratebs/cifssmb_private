@@ -4305,7 +4305,7 @@ BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,
                 pSctx->readBuffer = temp;
                 pSctx->readBufferSize = (word) (SMB_BIG_BUFFER_SIZE & 0xFFFF);
                 pSctx->writeRawInfo.amWritingRaw = TRUE;
-                pSctx->state = WRITING_RAW;
+                pSctx->session_state = WRITING_RAW;
                 pInBuf = (PFBYTE) SMB_INBUF (pSctx);
             }
             else
