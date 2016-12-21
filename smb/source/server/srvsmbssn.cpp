@@ -123,7 +123,6 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx);    // Called
 #define SMB2PROCBODYACTION int
 static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx, BBOOL isReplay);
 static SMB2PROCBODYACTION SMBS_ProcSMB2BodyPacketExecute (PSMB_SESSIONCTX pSctx, BBOOL isReplay);
-static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pCtx);
 BBOOL gl_disablesmb2 = FALSE;
 
 static BBOOL SMBS_ProcSMBBodyPacketEpilog (PSMB_SESSIONCTX pSctx, BBOOL doSend);
@@ -246,11 +245,11 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
             /* are we out of time?                                        */
             if (IS_PAST (pSctx->in_packet_timeout_base, RTSMB_NB_UCAST_RETRY_TIMEOUT))
             {
-                pSctx->session_state = IDLE;
+                SMBS_Setsession_state(pSctx, IDLE);
             }
             else
             {
-                pSctx->session_state = WRITING_RAW_READING;
+                SMBS_Setsession_state(pSctx, WRITING_RAW_READING);
             }
             return TRUE;
         }
@@ -267,7 +266,7 @@ static BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize)
         pSctx->readBuffer = pSctx->smallReadBuffer;
         pSctx->readBufferSize = (dword)SMB_BUFFER_SIZE;
         pSctx->writeRawInfo.amWritingRaw = FALSE;
-        pSctx->session_state = IDLE;
+        SMBS_Setsession_state(pSctx, IDLE);
         break;
 #ifdef SUPPORT_SMB2
     case NOTCONNECTED:
@@ -342,7 +341,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
              {
                SMBS_srv_netssn_connection_close_session(pNctxt);
              }
-             pSctx->session_state = NOTCONNECTED;
+             SMBS_Setsession_state(pSctx, NOTCONNECTED);
              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  Protocol switch detected resetting session.\n");
              // We'll fall into the not connected handler and initialize based on the header
            }
@@ -353,7 +352,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
             /* Initialize uids, tid, and fid buckets for the new session if it's version 2 also initialize v2 context block in pSmbCtx Sets pSctx->isSMB2 = TRUE/FALSE*/
             SMBS_InitSessionCtx_smb(pSctx, protocol_version);
             // Okay we have a protocol
-            pSctx->session_state = IDLE;
+            SMBS_Setsession_state(pSctx, IDLE);
         }
 #endif
         pSctx->in_packet_size = packetSize;
@@ -364,7 +363,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
     {
         SMB2PROCBODYACTION bodyR;
         dword current_body_size = pSctx->current_body_size;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: Call SMBS_ReadNbssPacketToSessionCtxt\n");
         if (pSctx->isSMB2)
         {
            bodyR = SMBS_ProcSMB2BodyPacketExecute(pSctx, FALSE);
@@ -382,7 +380,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBPacket:  call SMBS
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ReadNbssPacketToSessionCtxt yielded\n");
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket yielded\n");
         }
         if (pSctx->session_state == NOTCONNECTED)
         {
@@ -450,8 +448,9 @@ SMB2PROCBODYACTION r;
    }
 }
 
+// return SEND_NO_REPLY or EXECUTE_PACKET
+// sets session_state to WAIT_ON_PDC_NAME,WAIT_ON_PDC_IP,IDLE,READINS
 static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSctx)
-//static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSctx)
 {
     PFBYTE pInBuf;
     PFVOID pOutBuf;
@@ -476,7 +475,7 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC name.\n");
 
             /* change our state to waiting on pdc name   */
-            pSctx->session_state = WAIT_ON_PDC_NAME;
+            SMBS_Setsession_state(pSctx, WAIT_ON_PDC_NAME);
 
             MS_SendPDCQuery (); /* jump start the search */
 
@@ -489,7 +488,7 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  NEGOTIATE being processed, must find PDC ip.\n");
 
             /* change our state to waiting on pdc ip   */
-            pSctx->session_state = WAIT_ON_PDC_IP;
+            SMBS_Setsession_state(pSctx, WAIT_ON_PDC_IP);
 
             rtsmb_srv_nbns_start_query_for_name (pdc, RTSMB_NB_NAME_TYPE_SERVER);
 
@@ -520,15 +519,15 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
         /* are we out of time?   */
         if (IS_PAST (pSctx->in_packet_timeout_base, RTSMB_NB_UCAST_RETRY_TIMEOUT))
         {
-            pSctx->session_state = IDLE;
+            SMBS_Setsession_state(pSctx, IDLE);
         }
         else
         {
-            pSctx->session_state = READING;
+            SMBS_Setsession_state(pSctx, READING);
         }
         return SEND_NO_REPLY;
     }
-    pSctx->session_state = IDLE;
+    SMBS_Setsession_state(pSctx, IDLE);
     return EXECUTE_PACKET;
 }
 
@@ -539,7 +538,7 @@ static SMB2PROCBODYACTION SMBS_ProcSMB2BodyPacketExecute (PSMB_SESSIONCTX pSctx,
     SMB2PROCBODYACTION r;
     if (!isReplay)
     { // Pull the remainder of the NBSS packet from the stream if it is not a replay. SMB1 PDC support is inside SMBS_ReadNbssPacketToSessionCtxt as well.
-      r=SMBS_ReadNbssPacketToSessionCtxt (pSctx);
+      r=SMBS_ReadNbssPacketToSessionCtxt (pSctx);   // Sets state to WAIT_ON_PDC_NAME,WAIT_ON_PDC_IP,IDLE,READINS
       if (r!=EXECUTE_PACKET)
         return r;
     }
@@ -578,7 +577,7 @@ static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx,
     if (!isReplay)
     { // Pull from the stream if it is not a replays shouldn't occur in V1
       SMB2PROCBODYACTION r;
-      r=SMBS_ReadNbssPacketToSessionCtxt (pSctx);
+      r=SMBS_ReadNbssPacketToSessionCtxt (pSctx);   // Sets state to WAIT_ON_PDC_NAME,WAIT_ON_PDC_IP,IDLE,READINS
       if (r!=EXECUTE_PACKET)
         return r;
     }
@@ -740,9 +739,9 @@ static void SMBS_InitSessionCtx (PSMB_SESSIONCTX pSmbCtx, RTP_SOCKET sock)
     pSmbCtx->accessMode = Auth_GetMode ();
 
 #ifdef SUPPORT_SMB2
-    pSmbCtx->session_state = NOTCONNECTED;
+    SMBS_Setsession_state(pSmbCtx, NOTCONNECTED);
 #else  /* SUPPORT_SMB2 */
-    pSmbCtx->session_state = IDLE;
+    SMBS_Setsession_state(pSmbCtx, IDLE);
     /* Initialize uids, tid, and fid buckets for the new session if it's version 2 also initialize v2 context block in pSmbCtx Sets pSctx->isSMB2 = FALSE*/
     SMBS_InitSessionCtx_smb(pSmbCtx,1);
 #endif
@@ -786,16 +785,16 @@ int session_index = SMBU_SessionToIndex(pCtx);
 #if (INCLUDE_RTSMB_DC)
 static BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx)
 {
-    if (pCtx->state != WAIT_ON_PDC_NAME)
+    if (pCtx->session_state != WAIT_ON_PDC_NAME)
         return TRUE;
 
     if (MS_IsKnownPDCName ())
     {
-        pCtx->state = FINISH_NEGOTIATE;
+        pCtx->session_state = FINISH_NEGOTIATE;
     }
     else if (pCtx->end_time <= rtp_get_system_msec() ())
     {
-        pCtx->state = FAIL_NEGOTIATE;
+        pCtx->session_state = FAIL_NEGOTIATE;
     }
 
     return TRUE;
@@ -805,24 +804,24 @@ static BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx)
 {
     char pdc [RTSMB_NB_NAME_SIZE + 1];
 
-    if (pCtx->state != WAIT_ON_PDC_IP)
+    if (pCtx->session_state != WAIT_ON_PDC_IP)
         return TRUE;
 
     if (!MS_GetPDCName (pdc))
     {
         /* we've should've already alotted time and sent out a query.   */
         /* let's not do it again                                        */
-        pCtx->state = WAIT_ON_PDC_NAME;
+        pCtx->session_state = WAIT_ON_PDC_NAME;
         return TRUE;
     }
 
     if (rtsmb_srv_nbns_is_in_name_cache (pdc, RTSMB_NB_NAME_TYPE_SERVER))
     {
-        pCtx->state = FINISH_NEGOTIATE;
+        pCtx->session_state = FINISH_NEGOTIATE;
     }
     else if (pCtx->end_time <= rtp_get_system_msec())
     {
-        pCtx->state = FAIL_NEGOTIATE;
+        pCtx->session_state = FAIL_NEGOTIATE;
     }
 
     return TRUE;
@@ -847,7 +846,7 @@ static BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx)
     pInBuf[4] = SMB_COM_NEGOTIATE;
 
     SMBS_ProcSMBBody (pCtx);
-    pCtx->state = IDLE;
+    pCtx->session_state = IDLE;
 
     return SMBS_SendMessage (pCtx, pCtx->outBodySize, TRUE);
 }
@@ -1077,15 +1076,67 @@ BBOOL dosend = TRUE;
     }
 }
 
+
+static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_netssn_session_cycle
+{
+  BBOOL isDead = FALSE;
+  RTSMB_NBSS_HEADER header;
+  byte header_bytes[4];
+  if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
+  {
+    isDead = TRUE;
+  }
+  else if (rtsmb_nbss_read_header (pSCtx->readBuffer, RTSMB_NBSS_HEADER_SIZE, &header) < 0)
+  {
+    isDead = TRUE;
+  }
+  else
+    {
+      switch (header.type)
+      {
+        case RTSMB_NBSS_COM_MESSAGE:  /* Session Message */
+          if (!header.size)
+          {
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG:: rtsmb_srv_nbss_process_packet ignoring 0-length packet\n");
+          }
+          else
+          {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
+            if (!SMBS_ProcSMBPacket (pSCtx, header.size))   //rtsmb_srv_nbss_process_packet stubs ?
+            {
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
+              isDead = TRUE;
+            }
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
+          }
+          break;
+        case RTSMB_NBSS_COM_REQUEST:  /* Session Request */
+            //      if (!rtsmb_srv_nbss_process_request (pSCtx->sock, &header))
+            //      {
+            //   isDead = TRUE;
+            //        return FALSE;
+            //      }
+          break;
+        default:
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: Unhandled packet type %X\n", header.type);
+        break;
+      }
+  }
+
+  return !isDead;
+}
+
 RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int ready)
 {
     BBOOL isDead = FALSE;
     BBOOL rv = TRUE;
+    PSMB_SESSIONCTX pSCtx = &(*session)->netsessiont_smbCtx;
 
     SMBS_claimSession (*session);
 
+
     /* keep session alive while we do stuff */
-    switch ((*session)->netsessiont_smbCtx.session_state)
+    switch (pSCtx->session_state)
     {
     case BROWSE_MUTEX:
     case BROWSE_SENT:
@@ -1100,18 +1151,18 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
     }
 
     /* handle special state cases here, potentially skipping netbios layer */
-    switch ((*session)->netsessiont_smbCtx.session_state)
+    switch (pSCtx->session_state)
     {
 #if (INCLUDE_RTSMB_DC)
     case WAIT_ON_PDC_NAME:
-        SMBS_StateWaitOnPDCName (&(*session)->netsessiont_smbCtx);
+        SMBS_StateWaitOnPDCName (pSCtx);
         break;
     case WAIT_ON_PDC_IP:
-        SMBS_StateWaitOnPDCIP (&(*session)->netsessiont_smbCtx);
+        SMBS_StateWaitOnPDCIP (pSCtx);
         break;
     case FINISH_NEGOTIATE:
     case FAIL_NEGOTIATE:
-        SMBS_StateContinueNegotiate (&(*session)->netsessiont_smbCtx);
+        SMBS_StateContinueNegotiate (pSCtx);
         break;
 #endif
 
@@ -1119,19 +1170,19 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
     case BROWSE_SENT:
     case BROWSE_FINISH:
     case BROWSE_FAIL:
-        rtsmb_srv_browse_finish_server_enum (&(*session)->netsessiont_smbCtx);
+        rtsmb_srv_browse_finish_server_enum (pSCtx);
         break;
 
     case READING:
     case WRITING_RAW_READING:
     {
-        int pcktsize = (int) ((*session)->netsessiont_smbCtx.in_packet_size - (*session)->netsessiont_smbCtx.current_body_size);
+        int pcktsize = (int) (pSCtx->in_packet_size - pSCtx->current_body_size);
         if (pcktsize == 0)
         {
            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_netssn_session_cycle ignoring 0-length packet: %d \n", pcktsize);
         } else
         {
-           SMBS_ProcSMBPacket (&(*session)->netsessiont_smbCtx, pcktsize);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
+           SMBS_ProcSMBPacket (pSCtx, pcktsize);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
         }
         break;
     }
@@ -1139,7 +1190,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         if (ready)
         {
             (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
-            if (rtsmb_srv_nbss_process_packet (&(*session)->netsessiont_smbCtx) == FALSE)
+            if (rtsmb_srv_nbss_process_packet (pSCtx) == FALSE)
             {
                 isDead = TRUE;
             }
@@ -1167,7 +1218,8 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         rv = FALSE;
         // Set to not connected so we allow reception of SMB2 negotiate packets.
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Session closed\n");
-        (*session)->netsessiont_smbCtx.session_state = NOTCONNECTED;
+        SMBS_Setsession_state(pSCtx, NOTCONNECTED);
+
     }
     else
     {
@@ -1242,50 +1294,6 @@ static void freeSession (PNET_SESSIONCTX p)
  * Returns FALSE if we should end the session.
  */
 
-static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called from rtsmb_srv_netssn_session_cycle
-{
-	RTSMB_NBSS_HEADER header;
-    byte header_bytes[4];
-	if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
-	{
-		return FALSE;
-	}
-	if (rtsmb_nbss_read_header (pSCtx->readBuffer, RTSMB_NBSS_HEADER_SIZE, &header) < 0)
-	{
-		return FALSE;
-	}
-	switch (header.type)
-	{
-		case RTSMB_NBSS_COM_MESSAGE:	/* Session Message */
-            if (!header.size)
-            {
-               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG:: rtsmb_srv_nbss_process_packet ignoring 0-length packet\n");
-            }
-            else
-            {
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
-			  if (!SMBS_ProcSMBPacket (pSCtx, header.size))   //rtsmb_srv_nbss_process_packet stubs ?
-			  {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
-			    return FALSE;
-			  }
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
-			}
-			break;
-
-		case RTSMB_NBSS_COM_REQUEST:	/* Session Request */
-//			if (!rtsmb_srv_nbss_process_request (pSCtx->sock, &header))
-//			{
-//				return FALSE;
-//			}
-			break;
-		default:
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_nbss_process_packet: Unhandled packet type %X\n", header.type);
-		break;
-	}
-
-	return TRUE;
-}
 
 static void SMBS_claimSession (PNET_SESSIONCTX pCtx)
 {
@@ -1640,8 +1648,12 @@ void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx )
 #endif
 
    SMBS_CloseSession( &(pSCtx->netsessiont_smbCtx) );
-   pSCtx->netsessiont_smbCtx.session_state = NOTCONNECTED;
+   SMBS_Setsession_state(&pSCtx->netsessiont_smbCtx,NOTCONNECTED);
 
+}
+void SMBS_Setsession_state(PSMB_SESSIONCTX pSctxt, SMBS_SESSION_STATE new_session_state)
+{
+   pSctxt->session_state = new_session_state;
 }
 
 PNET_SESSIONCTX SMBS_findSessionByContext (PSMB_SESSIONCTX pSctxt)
@@ -1686,3 +1698,4 @@ void SMBS_srv_netssn_shutdown (void)
 
 
 #endif /* INCLUDE_RTSMB_SERVER */
+

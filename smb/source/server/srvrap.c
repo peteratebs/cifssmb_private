@@ -287,7 +287,7 @@ int NetServerEnum2 (PSMB_SESSIONCTX pCtx, PRTSMB_RAP_REQUEST pFunc,
 
             /* we have a server enum request outside of our own workgroup. */
             /* punt it off to the browse layer, which will come up with something to hand over */
-            pCtx->session_state = BROWSE_MUTEX;
+            SMBS_Setsession_state(pCtx, BROWSE_MUTEX);
             pCtx->server_enum_type = command.server_type;
             tc_strcpy (pCtx->server_enum_domain, group_name);
 

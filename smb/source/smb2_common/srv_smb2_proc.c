@@ -155,6 +155,9 @@ static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx, BBOOL doFirstPack
 
 
 static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,smb2_stream *pStream);
+// Save the context for continuing or starting processing of a new SMB2 frame or subframe
+// If we are beginning a new command Read the header into smb2stream.inHdr
+// Save the next command offset from the incoming packet in case it is a compound packet
 
 static void SMBS_ProcSMB2_BodyPhaseLoop(PSMB_SESSIONCTX pSctx, BBOOL doFirstPacket)
 {
@@ -167,8 +170,9 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
        pSctx->SMB2_FrameState.pInBufStart = pStream->pInBuf;
        pSctx->SMB2_FrameState.pOutBufStart = pStream->pOutBuf;
 
+       // If we are beginning a new command Read the header into smb2stream.inHdr
        if (pStream->compound_output_index == 0)
-       {   // We are beginning a new command Read the header into smb2stream.inHdr
+       {
            if (cmd_read_header_smb2(pStream) != 64)
            { // Failed reading the header quite sure why returning TRUE here, if there's anything to send, from previous calls, then send
              pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;

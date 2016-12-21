@@ -36,7 +36,7 @@
 /* A is a smb header   */
 #define SMB_PID(A)      ((((dword) A->extra.pidHigh) << 16) | A->pid)
 
-typedef enum
+typedef enum // smbs_session_state
 {
 #ifdef SUPPORT_SMB2
     NOTCONNECTED,       /* -> IDLE                             - ready and waiting for input, protocol V1 or V2 not yet identified */
