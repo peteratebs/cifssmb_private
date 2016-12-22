@@ -1151,14 +1151,15 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
 
     pStream = &smb2stream;
 
-
     /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
     Smb1SrvCtxtToStream(pStream, pSctx);
 
     pStream->psmb2Session->Connection->ShouldSign = FALSE;
-
-    pStream->psmb2Session->Connection->Dialect = SMB2_DIALECT_WILD;
-    pStream->psmb2Session->Connection->NegotiateDialect = SMB2_DIALECT_WILD;
+// #define REPLY_DIALECT SMB2_DIALECT_WILD
+// Must Reply with 2002 dialect
+#define REPLY_DIALECT SMB2_DIALECT_2002
+    pStream->psmb2Session->Connection->Dialect = REPLY_DIALECT;
+    pStream->psmb2Session->Connection->NegotiateDialect = REPLY_DIALECT;
     pStream->psmb2Session->Connection->MaxTransactSize =
     pStream->psmb2Session->Connection->MaxWriteSize =
     pStream->psmb2Session->Connection->MaxReadSize = prtsmb_srv_ctx->max_smb2_transaction_size;
