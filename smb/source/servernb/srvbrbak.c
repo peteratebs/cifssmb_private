@@ -33,6 +33,7 @@ extern void Get_Srv_Session_State(int a);
 #endif
 
 #define RTSMB_SRV_BROWSE_BACKUP_NETENUM_INTERVAL   900000 /* 15 minutes == 900000 ms */
+EXTERN_C void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
 
 
 RTSMB_STATIC unsigned long rtsmb_srv_browse_backup_next_send_base;

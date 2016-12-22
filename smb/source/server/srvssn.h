@@ -40,6 +40,8 @@ typedef enum // smbs_session_state
 {
 #ifdef SUPPORT_SMB2
     NOTCONNECTED,       /* -> IDLE                             - ready and waiting for input, protocol V1 or V2 not yet identified */
+    OPLOCK_WAITING,       /* -> OPLOCK_SIGNALLED,IDLE                                          */
+    OPLOCK_SIGNALLED,     /* -> anything                         - ready and waiting for input */
 #endif
     IDLE,               /* -> anything                         - ready and waiting for input */
     READING,            /* -> IDLE                             - in the middle of reading a packet */
@@ -294,8 +296,8 @@ typedef struct smb_sessionCtx_s
     WRITE_RAW_INFO_T writeRawInfo;
 
 #ifdef SUPPORT_SMB2
-    Smb2SrvModel_Session    Smb2SessionInstance;
-    Smb2SrvModel_Connection Smb2ConnectionInstance;
+    Smb2SrvModel_Session         Smb2SessionInstance;
+    Smb2SrvModel_Connection      Smb2ConnectionInstance;
     SMB2_BODYCONTEXT_T           SMB2_FrameState;
 #endif
 

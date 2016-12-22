@@ -200,22 +200,3 @@ void yield_c_set_timeout(PSMB_SESSIONCTX pSctx)
  pSctx->_yieldTimeout = YIELD_DEFAULT_DURATION;
 
 }
-// These two routines save the necessary pointers in the stream structure
-// So that SMB2 create and write commands can exit and leave the stream strcuture usable in a replay
-void yield_c_push_stream_inpstate(smb2_stream *pStream)
-{
-  pStream->StreamInputPointerState.pInBuf = pStream->pInBuf;
-  pStream->StreamInputPointerState.read_buffer_remaining = pStream->read_buffer_remaining;
-}
-
-void yield_c_pop_stream_inpstate(smb2_stream *pStream)
-{
-  pStream->pInBuf = pStream->StreamInputPointerState.pInBuf;
-  pStream->read_buffer_remaining = pStream->StreamInputPointerState.read_buffer_remaining;
-}
-
-void yield_c_execute_yield(smb2_stream *pStream)
-{
-    pStream->doSessionYield = TRUE;
-
-}

@@ -61,6 +61,8 @@ extern oplock_diagnotics_t oplock_diagnotics;
 // Called from one spot only
 #define OPLOCK_DIAG_TEST_REPLAY                     {if (OPLOCK_DIAG_DO_SIGNAL_REPLAY_TEST&&!oplock_diagnotics.performing_replay) return oplock_c_create_yield;}
 
+#define TEST_REPLAY_EVERY_TIME                      0
+
 #define OPLOCK_DIAG_TEST_SEND_SIGNAL {if (OPLOCK_DIAG_DO_SIGNAL_SETTING_TEST&&!oplock_diagnotics.performing_replay&&oplock_diagnotics.yielded_pfid) { oplock_c_wake_waiting_fid(oplock_diagnotics.yielded_pfid, oplock_diagnotics.signal_object);})
 
 

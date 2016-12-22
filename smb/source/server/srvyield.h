@@ -38,9 +38,6 @@ void yield_c_set_timeout(PSMB_SESSIONCTX pSctx);
 void yield_c_clear_timeout(PSMB_SESSIONCTX pSctx);
 int  yield_c_check_timeout(PSMB_SESSIONCTX pSctx);           // Returns true if timedout
 
-void yield_c_push_stream_inpstate(smb2_stream *pStream);
-void yield_c_pop_stream_inpstate(smb2_stream *pStream);
-void yield_c_execute_yield(smb2_stream *pStream);
 
 void yield_c_new_session(PNET_SESSIONCTX pNetCtx);
 

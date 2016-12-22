@@ -181,7 +181,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 
     /* Read into command, TreeId will be present in the input header */
 
-    yield_c_push_stream_inpstate(pStream);
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
     if (!pStream->Success)
     {
@@ -327,11 +326,24 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
     }
-
+#if(TEST_REPLAY_EVERY_TIME)
+    if (pTree->type == ST_DISKTREE)
+    {
+        if (!oplock_diagnotics.performing_replay)
+        {
+          if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+          {
+            pStream->doSessionYield=TRUE;
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  yield while openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+            return FALSE;
+          }
+        }
+    }
+#endif
     if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
       if (oplock_diagnotics.performing_replay)
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YILED: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
 
       if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
       {

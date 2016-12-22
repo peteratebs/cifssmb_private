@@ -33,14 +33,6 @@ typedef struct
 typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
 
 
-// These two routines save the necessary pointers in the stream structure
-// So that SMB2 create and write commands can exit and leave the stream strcuture usable in a replay
-typedef struct StreamInputPointerState_s
-{
-  void *pInBuf;
-  rtsmb_size read_buffer_remaining;
-} StreamInputPointerState_t;
-
 
 typedef struct smb2_stream_s {
      // Signing rules. Set by calling smb2_stream_set_signing_rule
@@ -61,7 +53,8 @@ typedef struct smb2_stream_s {
     BBOOL    Success;                               // Indicates the current state of read or write operation is succesful.
     BBOOL    doSocketClose;                         // Indicates that the processing layer detected or enacted a session close and the socket should be closed.
     BBOOL    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
-    BBOOL    doSessionYield;                        // Indicates that the session should yield until sigalled or a timeout.
+    BBOOL    doSessionYield;                        // Indicates that the session should yield until signalled or a timeout.
+    BBOOL    doFirstPacket;                         // Indicates that a command being replayed is the first packet in the frame.
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
@@ -80,8 +73,8 @@ typedef struct smb2_stream_s {
                                                     // Cleared before processing a packet (compound request)
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
-    StreamInputPointerState_t StreamInputPointerState;
     struct smb_sessionCtx_s *pSmbCtx;
+
 } smb2_stream;
 
 

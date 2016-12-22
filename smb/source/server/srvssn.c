@@ -1753,6 +1753,140 @@ BBOOL ProcSMB1NegotiateProtocol (PSMB_SESSIONCTX pCtx, SMB_DIALECT_T dialect, in
     return TRUE;
 } /* End ProcNegotiateProtocol */
 
+
+
+/*
+================
+Proccess Negotiate protocol requests.  This function
+  figures out what the highest supported dialog on both machines can be used for the
+  remainder of the session.
+
+================
+*/
+
+
+/*============================================================================   */
+/*    IMPLEMENTATION PRIVATE STRUCTURES                                          */
+/*============================================================================   */
+
+#define DIALECT_TYPE rtsmb_char
+
+
+RTSMB_STATIC DIALECT_TYPE srv_dialect_core[] = {'P', 'C', ' ', 'N', 'E', 'T', 'W', 'O', 'R', 'K', ' ',
+'P', 'R', 'O', 'G', 'R', 'A', 'M', ' ', '1', '.', '0', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lanman[] = {'L', 'A', 'N', 'M', 'A', 'N', '1', '.', '0', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lm1_2x[] = {'L', 'M', '1', '.', '2', 'X', '0', '0', '2', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_lanman2[] = {'L', 'A', 'N', 'M', 'A', 'N', '2', '.', '1', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_ntlm[] = {'N', 'T', ' ', 'L', 'M', ' ', '0', '.', '1', '2', '\0'};
+#ifdef SUPPORT_SMB2    /* Some branching to SMB2 from this file, no major processing */
+RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2002[] = {'S', 'M', 'B',' ', '2', '.', '0', '0', '2', '\0'};
+RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2xxx[] = {'S', 'M', 'B',' ', '2', '.', '?', '?', '?', '\0'};
+// Use these instead as poor man's way to disable smb2002 need to implement max protocol
+// RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2002[] = {'N', 'O', 'N', 'E', '\0'};
+// RTSMB_STATIC DIALECT_TYPE srv_dialect_smb2xxx[] = {'N', 'O', 'N', 'E', '\0'};
+#endif
+
+
+struct dialect_entry_s
+{
+    SMB_DIALECT_T dialect;
+    DIALECT_TYPE * name;
+    int priority;
+}
+ dialectList[] =
+{
+    {PC_NETWORK, srv_dialect_core, 0},
+    {LANMAN_1_0, srv_dialect_lanman, 1},
+    {LM1_2X002, srv_dialect_lm1_2x, 2},
+    {LANMAN_2_1, srv_dialect_lanman2, 4},
+    {NT_LM, srv_dialect_ntlm, 5},
+#ifdef SUPPORT_SMB2
+    {SMB2_2002, srv_dialect_smb2002, 6},
+    {SMB2_2xxx, srv_dialect_smb2xxx, 7}
+#endif
+};
+SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
+
+// INTERFACE
+/*============================================================================   */
+/*    INTERFACE FUNCTIONS                                                        */
+/*============================================================================   */
+
+// Called from SMBS_ProcSMB1PacketExecute
+
+static BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSMB_HEADER pOutHdr, PFVOID pOutBuf)
+{
+    int i, entry, bestEntry;
+    SMB_DIALECT_T dialect = DIALECT_NONE;
+    DIALECT_TYPE dialect_bufs[32][21];
+    DIALECT_TYPE *dialects[32];
+    RTSMB_NEGOTIATE command;
+
+    for (i = 0; i < 32; i++)
+    {
+        dialects[i] = dialect_bufs[i];
+        *dialects[i]=0;
+    }
+
+    command.num_dialects = 32;
+    command.string_size = 20;
+    command.dialects = dialects;
+    READ_SMB (srv_cmd_read_negotiate);
+
+    /**
+     * Sending more than one negotiate is an error, cannot renegotiate
+     * the dialect
+     */
+    if (pCtx->dialect != DIALECT_NONE)
+    {
+        SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
+        return TRUE;
+    }
+
+    for (entry = 0; entry < command.num_dialects; entry++)
+    {
+        /*check dialect field against dialect list   */
+        for (i = PC_NETWORK; i < NUM_DIALECTS; i++)
+        {
+            if (dialectList[i].dialect > max_dialect)
+              continue;
+#ifdef SUPPORT_SMB2
+            if (dialectList[i].name == srv_dialect_smb2002 || dialectList[i].name == srv_dialect_smb2xxx)
+            {
+               if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
+               {
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ProcNegotiateProtocol:  Responding to 2.002 option. !!!!!!!!!!!!!!\n");
+                dialect = dialectList[i].dialect;
+                bestEntry = entry;
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Responding to 2.002 option:  dialect == %d Best entry == %X\n",(int)dialect,(int)bestEntry );
+            }
+            } else
+#endif
+            {
+            if (SMBU_DoesContain (dialects[entry], dialectList[i].name) == TRUE)
+            {
+                if ((dialect == DIALECT_NONE)
+                    || (dialectList[dialect].priority < dialectList[i].priority))
+                {
+                    dialect = dialectList[i].dialect;
+                    bestEntry = entry;
+                }
+            }
+            }
+        }
+    }
+#ifdef SUPPORT_SMB2
+    if (dialect >= SMB2_2002) /* PVO */
+    {
+        return SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (pCtx);
+    }
+#endif
+    return ProcSMB1NegotiateProtocol(pCtx,dialect, dialectList[dialect].priority,bestEntry, pInHdr, pInBuf, pOutHdr, pOutBuf);
+}
+
+
+
+
 /*
 ================
 Handles requests for connecting to a tree.
@@ -4143,7 +4277,6 @@ BBOOL ProcWritePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
 
 
 BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf)
-// BBOOL SMBS_ProcSMBPacketReplay (PSMB_SESSIONCTX pSctx, dword *yieldTimeout)
 {
     BBOOL doSend = FALSE;
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Processing a packet with command: ");
