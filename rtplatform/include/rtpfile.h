@@ -3,7 +3,7 @@
  |
  |   UNIVERSAL CODE - DO NOT CHANGE
  |
- | EBS - RT-Platform 
+ | EBS - RT-Platform
  |
  |  $Author: vmalaiya $
  |  $Date: 2006/07/17 15:29:00 $
@@ -48,9 +48,9 @@ typedef RTP_HANDLE RTP_FILE;
 /* for the mode argument to rtp_file_open */
 #define RTP_FILE_S_IWRITE        0x0001  /* Create a file with write permissions */
 #define RTP_FILE_S_IREAD         0x0002  /* Create a file with read permissions */
-#define RTP_FILE_S_HIDDEN        0x0020  /* Set hidden file attribute on created file */ 
-#define RTP_FILE_S_SYSTEM	     0x0040  /* Set system file attribute on created file */ 
-#define RTP_FILE_S_ARCHIVE       0x0080  /* Set archive file attribute on created file */ 
+#define RTP_FILE_S_HIDDEN        0x0020  /* Set hidden file attribute on created file */
+#define RTP_FILE_S_SYSTEM	     0x0040  /* Set system file attribute on created file */
+#define RTP_FILE_S_ARCHIVE       0x0080  /* Set archive file attribute on created file */
 
 /* for attribute member of RTPFSTAT struct */
 #define RTP_FILE_ATTRIB_ISDIR    0x01
@@ -76,6 +76,7 @@ int  rtp_file_close      (RTP_FILE fd);
 long rtp_file_read       (RTP_FILE fd, unsigned char * buf, long count);
 long rtp_file_write      (RTP_FILE fd, const unsigned char * buf, long count);
 long rtp_file_lseek      (RTP_FILE fd, long offset, int origin);
+long long rtp_file_llseek (RTP_HANDLE fd, long long offset, int origin);
 int  rtp_file_truncate   (RTP_FILE fd, long offset);
 int  rtp_file_flush      (RTP_FILE fd);
 int  rtp_file_rename     (const char * name, char * newname);
@@ -85,7 +86,7 @@ int  rtp_file_rmdir      (const char * name);
 int  rtp_file_setcwd     (const char * name);
 int  rtp_file_pwd        (char * name, long size);
 int  rtp_file_chmode     (const char * name, unsigned char attributes);
-int  rtp_file_get_free   (const char * name, unsigned long * total, unsigned long * free, 
+int  rtp_file_get_free   (const char * name, unsigned long * total, unsigned long * free,
 			              unsigned long * sectors_per_unit, unsigned short * bytes_per_sector);
 int  rtp_file_set_time   (RTP_FILE fd, RTP_DATE * adate, RTP_DATE * wdate, RTP_DATE * cdate, RTP_DATE * hdate);
 char rtp_file_get_path_seperator(void);

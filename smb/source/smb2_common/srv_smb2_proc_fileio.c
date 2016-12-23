@@ -41,6 +41,7 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     ASSERT_SMB2_UID(pStream)   // Returns TRUE if the UID is not valid
     ASSERT_SMB2_TID (pStream)  // Returns TRUE if the TID is not valid
 
+
     /* Read into command, TreeId will be present in the input header */
     RtsmbStreamDecodeCommand(pStream, command);
 
@@ -53,7 +54,7 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
 
     if (*pcommand_structure_size != command_size)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_filieio:  StructureSize invalid...\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_filieio:  StructureSize invalid... *pcommand_structure_size:%x != command_size %x\n", *pcommand_structure_size,command_size);
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
@@ -62,6 +63,7 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
     pargs->externalFid = RTSmb2_get_externalFid(pargs->externalFidRaw);
 
+#warning Investigate this
     if (pargs->externalFid == 0xffff)
     {
       printf("Close, exfd == 0xffff why ?\n");
@@ -89,6 +91,7 @@ RTSMB2_FILEIOARGS fileioargs;
   tc_memset(&command,0, sizeof(command));
   if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
   {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Flush !! prolog Failed\n");
     return TRUE;
   }
   SMBFIO_Flush (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid);
@@ -135,7 +138,7 @@ long bytesRead;
     }
     else if ((bytesRead = SMBFIO_Read (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, pStream->WriteBufferParms[0].pBuffer, toRead)) < 0)
     {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! read failedd\n");
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! read failed\n");
        goto unsuccessful;
     }
 	if ((dword)bytesRead < command.MinimumCount)

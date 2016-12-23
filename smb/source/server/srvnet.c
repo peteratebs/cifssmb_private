@@ -41,7 +41,6 @@
 #ifdef SUPPORT_SMB2
 #include "srv_smb2_model.h"
 #include "com_smb2_wiredefs.h"
-#include "srvyield.h"
 #endif
 #include "remotediags.h"
 

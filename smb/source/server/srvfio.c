@@ -22,6 +22,9 @@
 #include "srvutil.h"
 #include "smbutil.h"
 
+static long long SMBFIO_Seek64Internal (word tid, int fd, long long offset, int origin);
+
+
 /* 'name' is an SMB-encoded full name.  Thus, it looks like "\path\to\something\a.txt".
    This function determines if we dip outside of our share space.  The previous example
    does not.  A path like "\yo\..\a.txt" does not, but a path like "\..\..\a.txt" does.
@@ -297,32 +300,20 @@ long SMBFIO_Write (PSMB_SESSIONCTX pCtx, word tid, int fd, PFBYTE buf, dword cou
 ddword SMBFIO_Seeku64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword offset)
 {
 	PTREE tree;
+    ddword roffset = offset;
 
 	tree = SMBU_GetTree (pCtx, tid);
 	if (tree)
 	{
-        long loffset,r;
-        /* Unsigned 64 bit version of seek set */
-        // We can't actually do it yet
-        if ((offset & 0xffffffff00000000)!=0)
-              return  0xffffffffffffffff;
-
-        if ((offset & 0x8000000)==0)
-            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
+        long long r = SMBFIO_Seek64Internal ((word) tree->internal, fd, offset, RTSMB_SEEK_SET);
+        if (r < 0)
+          goto seek_64_fail;
         else
-        {
-            loffset = (long)(offset/2);
-            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
-            if (r != -1)
-            {
-                loffset = (long)(offset-(offset/2));
-                r=SMBFIO_SeekInternal ((word) tree->internal, fd, loffset, RTSMB_SEEK_CUR);
-            }
-        }
-        if (r != -1)
-		    return offset;
+          return r;
+        return roffset;
 	}
-
+seek_64_fail:
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Seek64 failed.\n");
 	return 0xffffffffffffffff;
 }
 dword SMBFIO_Seeku32 (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset)
@@ -677,6 +668,38 @@ long SMBFIO_WriteInternal (word tid, int fd, PFBYTE buf, dword count)
 	if (rv)	return rv;
 
 	rv = api->fs_write(fd, buf, count);
+
+	return rv;
+}
+
+static long long SMBFIO_Seek64Internal (word tid, int fd, long long offset, int origin)
+{
+	PSR_RESOURCE pResource;
+	PSMBFILEAPI api;
+	long long rv = 0;
+
+	CLAIM_SHARE ();
+	pResource = SR_ResourceById (tid);
+
+	switch (pResource->stype)
+	{
+	case ST_PRINTQ:
+		api = pResource->u.printer.api;
+        rv = (long long) api->fs_lseek (fd, (long) offset, origin);
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+        rv = (long long) api->fs_lseek (fd, (long) offset, origin);
+		break;
+	case ST_DISKTREE:
+		api = pResource->u.disktree.api;
+	    rv = api->fs_llseek (fd, offset, origin);
+		break;
+	default:
+		rv = -1;
+		break;
+	}
+	RELEASE_SHARE ();
 
 	return rv;
 }

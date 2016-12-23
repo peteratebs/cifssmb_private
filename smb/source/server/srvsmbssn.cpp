@@ -48,7 +48,6 @@
 
 #include "srvsmbssn.h"
 #include "srvnbns.h"
-#include "srvyield.h"
 
 
 #include "com_smb2.h"
@@ -117,13 +116,13 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
           }
           else
           {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
+//            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
             if (!SMBS_ProcSMBPacket (pSCtx, header.size, FALSE))   //rtsmb_srv_nbss_process_packet stubs ?
             {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
               isDead = TRUE;
             }
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
+//            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
           }
           break;
         case RTSMB_NBSS_COM_REQUEST:  /* Session Request */
@@ -161,9 +160,9 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     pSctx->doSessionClose = FALSE;
 
     // The command processor can query the flags (SMB2TIMEDOUT|SMB2SIGNALED) to see what happened
-    yield_c_clear_timeout(pSctx);
+    SMBS_clear_yield_timeout(pSctx);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
+//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
     if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
 //    if (packetSize > pSctx->readBufferSize)
     {
@@ -339,15 +338,15 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
         {
 #if (TEST_REPLAY_EVERY_TIME)
            // Set timeout so we know we are yielded when a signal comes in
-           yield_c_set_timeout(pSctx);
-           yield_c_signal_to_session(SMBU_SmbSessionToNetSession(pSctx)->netsessiont_pThread->signal_object);
+           SMBS_set_yield_timeout(pSctx);
+           SMBS_wake_session_from_yield(SMBU_SmbSessionToNetSession(pSctx));
 //           OPLOCK_DIAG_ENTER_REPLAY
 //           bodyR = SMBS_ProcSMB2BodyPacketExecute(pSctx, TRUE);
 //           OPLOCK_DIAG_EXIT_REPLAY
 //           doSend = (bodyR == SEND_REPLY);
 #else
           // Clear the yield status bits and set the yield timeout fence
-          yield_c_set_timeout(pSctx);
+          SMBS_set_yield_timeout(pSctx);
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
@@ -365,13 +364,13 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     }
     BBOOL returnVal  = TRUE;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
+//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
     if (doSend)
     {
        // if (oplock_diagnotics.performing_replay) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"YIELD:: SMBS_ProcSMBBodyPacketEpilog from replay sending bytes ctxt: %lu stream: %lu\n", pSctx->outBodySize, pSctx->SMB2_FrameState.smb2stream.OutBodySize); }
-       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sending bytes ctxt:%lu stream: %lu\n", pSctx->outBodySize, pSctx->SMB2_FrameState.smb2stream.OutBodySize); }
+//       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sending bytes ctxt:%lu stream: %lu\n", pSctx->outBodySize, pSctx->SMB2_FrameState.smb2stream.OutBodySize); }
        returnVal = SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
-       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
+//       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
     }
     else {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog called with no send request\n"); }
     if (pSctx->doSessionClose)
@@ -389,7 +388,7 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     if (pSctx->doSocketClose)
         returnVal = FALSE;
 
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *)"DIAG: SMBS_ProcSMBPacket back from Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
+//     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *)"DIAG: SMBS_ProcSMBPacket back from Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
      return returnVal;
 }
 
@@ -630,6 +629,5 @@ static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx,
 
 
 #endif /* INCLUDE_RTSMB_SERVER */
-
 
 

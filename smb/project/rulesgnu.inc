@@ -23,6 +23,7 @@ ifeq ($(pointersize),P32)
 ldflags += -m32 -L/usr/lib32 -lm -lc -lgcc -pthread -Wl,-Map=output.map
 # cflags  += -Wconversion -Wextra -Werror
 cflags  += -m32 -pthread -DBUILD_SMB_32BIT
+cflags  += -D_FILE_OFFSET_BITS=64
 # cflags  += -m64 -DBUILD_SMB_64BIT
 endif
 
@@ -72,11 +73,6 @@ $(OBJDIR)/srvsmbssn.o: $(lib_to_rtsmb_server_path)/srvsmbssn.cpp
 $(OBJDIR)/srvoplocks.o: $(lib_to_rtsmb_server_path)/srvoplocks.cpp
 	@echo COMPILING for CPP $<
 	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
-
-$(OBJDIR)/srvyield.o: $(lib_to_rtsmb_server_path)/srvyield.cpp
-	@echo COMPILING for CPP $<
-	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
-
 
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<

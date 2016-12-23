@@ -35,6 +35,7 @@ long rtplatform_read(int fd,  unsigned char RTSMB_FAR * buf, long count);
 long rtplatform_write(int fd,  unsigned char RTSMB_FAR * buf, long count);
 int  rtplatform_close(int fd);
 long rtplatform_lseek(int fd, long offset, int origin);
+long long rtplatform_llseek(int fd, long long offset, int origin);
 BBOOL rtplatform_truncate(int fd, long offset);
 BBOOL rtplatform_flush(int fd);
 BBOOL rtplatform_pwd(char RTSMB_FAR * to, long size);
@@ -110,6 +111,7 @@ int rtsmb_fileport_init(void)
     prtsmb_filesys->fs_read         =   (RTSMB_FS_READFN)        rtplatform_read;
     prtsmb_filesys->fs_write        =   (RTSMB_FS_WRITEFN)       rtplatform_write;
     prtsmb_filesys->fs_lseek        =   (RTSMB_FS_LSEEKFN)       rtplatform_lseek;
+    prtsmb_filesys->fs_llseek       =   (RTSMB_FS_LLSEEKFN)      rtplatform_llseek;
     prtsmb_filesys->fs_truncate     =   (RTSMB_FS_TRUNCATEFN)    rtplatform_truncate;
     prtsmb_filesys->fs_flush        =   (RTSMB_FS_FLUSHFN)       rtplatform_flush;
     prtsmb_filesys->fs_close        =   (RTSMB_FS_CLOSEFN)       rtplatform_close;
@@ -218,6 +220,18 @@ long rtplatform_lseek(int fd, long offset, int origin)
     long rv;
 
     rv = rtp_file_lseek ((RTP_HANDLE) fd, offset, origin);
+    if (rv < 0)
+    {
+        return -1;
+    }
+    return rv;
+
+}
+long long rtplatform_llseek(int fd, long long offset, int origin)
+{
+    long long rv;
+
+    rv = rtp_file_llseek ((RTP_HANDLE) fd, offset, origin);
     if (rv < 0)
     {
         return -1;

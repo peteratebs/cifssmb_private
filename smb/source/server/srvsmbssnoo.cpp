@@ -92,10 +92,10 @@
 #include "rtpmem.h"
 
 #include "rtptime.h"
-
+#include "remotediags.h"
 #include "srvsmbssn.h"
+#include "srvoplocks.h"
 #include "srvnbns.h"
-#include "srvyield.h"
 
 
 
@@ -127,10 +127,10 @@ typedef struct rtsmbSigOplockStruct_s {
 
 #define SMBS_SIGOPLOCK_NAME 0
 #define SMBS_SIGOPLOCK_SIZE 4
-#define SMBS_SIGOPLOCK(INODENUMBER) rtsmbSigOplockStruct = {SMBS_SIGOPLOCK_NAME,SMBS_SIGOPLOCK_SIZE,INODENUMBER};
-#define SMBS_SIGONOTIFY_NAME 0
+#define SMBS_SIGOPLOCK(SIGNAME,INODENUMBER) rtsmbSigOplockStruct SIGNAME; {SIGNAME.signame = SMBS_SIGOPLOCK_NAME;SIGNAME.payloadsize=SMBS_SIGOPLOCK_SIZE;SIGNAME.inodenumber=INODENUMBER};
+#define SMBS_SIGONOTIFY_NAME 1
 #define SMBS_SIGONOTIFY_SIZE 4
-#define SMBS_SIGNOTIFY(INODENUMBER) rtsmbSigNotifyStruct = {SMBS_SIGONOTIFY_NAME,SMBS_SIGONOTIFY_SIZE,INODENUMBER};
+#define SMBS_SIGNOTIFY(SIGNAME,INODENUMBER) rtsmbSigOplockStruct SIGNAME; {SIGNAME.signame = SMBS_SIGONOTIFY_NAME;SIGNAME.payloadsize=SMBS_SIGONOTIFY_SIZE;SIGNAME.inodenumber=INODENUMBER};
 
 typedef enum {listening,establishing,established,yielded, closing, dead,} smbs_session_session_state_e;
 
@@ -189,7 +189,6 @@ public:
 
   RTP_SOCKET  get_master_socket(void)     { return master_socket;};
   RTP_SOCKET  get_signalling_socket(void) { return signal_socket;};                                      // done
-  void        set_signalling_socket( RTP_SOCKET  _signal_socket) { signal_socket = _signal_socket;};    // done
 
   int  check_master_socket_signal(void)     { int r=master_signal_active;master_signal_active=0;return r;};
   int  check_signalling_socket_signal(void) { int r=signalling_signal_active; signalling_signal_active=0; return r;};                                      // done
@@ -274,7 +273,6 @@ public:
   void process_yielded_session(void);
   void process_closing_session(void);
   void process_dead_session(void);
-  // void        set_signalling_socket( RTP_SOCKET  _signal_socket) { signal_socket = _signal_socket;};    // done
 
   void send_signal(rtsmbSigStruct *psig)
     {_net_thread_signal_c::send_signal(psig);};                             // done
@@ -518,7 +516,6 @@ int net_thread_c::net_thread_initialize(PNET_THREAD tempThread)
   // Also opens the master port and establishes those positions in the select read list
   int r = net_thread_signal_initialize(this);
   // signal_socket_portnumber = current_net_thread_signal_socketnumber++;
-  set_signalling_socket(yield_c_get_signal_sock(tempThread->signal_object));
   pThread = tempThread;                                                     // Remember a pointer to the C thread
   if (r < 0) return r; // not good
   return r;
@@ -721,7 +718,7 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
     if(pCtx)
     {
         pCtx->netsessiont_sock = sock;
-        yield_c_new_session(pCtx);
+        SMBS_new_session_yield_signal(pCtx);
 
         pCtx->netsessiont_lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pCtx->netsessiont_smbCtx), pCtx->netsessiont_sock);
@@ -862,9 +859,9 @@ RTSMB_STATIC PNET_THREAD tempThread;
     prtsmb_srv_ctx->threadsInUse[0] = 1;
     prtsmb_srv_ctx->mainThread = &prtsmb_srv_ctx->threads[0]; // rtsmb_srv_netssn_thread_new ();   /* this will succeed because there is at least one thread free at start */
     // We do something strage here and discard thread 0 swap it with temp thread, so save off and restore what we did with thread[0]
-    signalobject_Cptr saved_signal_object = prtsmb_srv_ctx->mainThread->signal_object;
+    yield_signal_t saved_yield_signal_content = prtsmb_srv_ctx->mainThread->yield_signal_object;
     rtsmb_srv_netssn_thread_init (prtsmb_srv_ctx->mainThread, 0);
-    prtsmb_srv_ctx->mainThread->signal_object = saved_signal_object;
+    prtsmb_srv_ctx->mainThread->yield_signal_object = saved_yield_signal_content;
     srvsmboo_init(prtsmb_srv_ctx->mainThread);
 }
 
@@ -929,7 +926,7 @@ void SMBS_srv_netssn_cycle (long timeout)
     readListSize = srvsmboo_get_session_read_list(readList);               // list of sockets with traffic
     if (readListSize > 0)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_session_read_list: returned %d", readListSize);
+//        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"srvsmboo_get_session_read_list: returned %d", readListSize);
         // Fall through an allow old school processing to run
 
         /**
@@ -971,7 +968,7 @@ void SMBS_srv_netssn_cycle (long timeout)
 
             // A yielded session's socket won't be in the socket list so check
             // if it is yielded and then check the countdown and wakup triggers
-            if (yield_c_is_session_blocked(&(*session)->netsessiont_smbCtx))
+            if (SMBS_is_yield_signal_blocked(&(*session)->netsessiont_smbCtx))
             {
               rtsmb_srv_netssn_session_yield_cycle (session);
             }
@@ -1026,16 +1023,16 @@ BBOOL dosend = TRUE;
 
     if ((*session)->netsessiont_smbCtx.isSMB2)
     {
-        if (yield_c_check_signal(&(*session)->netsessiont_smbCtx))
+        if (SMBS_check_yield_signal(&(*session)->netsessiont_smbCtx))
        {
           OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_SIGNAL
           doCB=TRUE;
        }
        else
        {
-         if(yield_c_check_timeout(&(*session)->netsessiont_smbCtx))
+         if(SMBS_check_yield_timeout(&(*session)->netsessiont_smbCtx))
          { // Clear it so it doesn't fire right away
-           yield_c_clear_timeout(&(*session)->netsessiont_smbCtx);
+           SMBS_clear_yield_timeout(&(*session)->netsessiont_smbCtx);
            doCB=TRUE;
            OPLOCK_DIAG_YIELD_SESSION_RUN_FROM_TIMEOUT
          }
@@ -1183,6 +1180,66 @@ RTSMB_STATIC void rtsmb_srv_netssn_thread_init (PNET_THREAD p, dword numSessions
     // p->yield_sock; A udp socket dedicated to signalling yield sessions was initialized at startup
 }
 
+
+void SMBS_set_yield_timeout(PSMB_SESSIONCTX pSctx)
+{
+ pSctx->_yieldTimeout = YIELD_DEFAULT_DURATION;
+}
+#define YIELDSIGNALLED         0x01   /* if a yielded event was signaled */
+
+//static const byte local_ip_address[] = {0x7f,0,0,1};
+//static const byte local_ip_mask[] = {0xff,0,0,0};
+
+
+void SMBS_bind_yield_signal(yield_signal_t *yield_signal_instance, int thread_index)
+{
+  yield_signal_instance->yield_socket_portnumber = YIELD_BASE_PORTNUMBER+thread_index;
+  int r = rtsmb_net_socket_new (&yield_signal_instance->yield_socket, yield_signal_instance->yield_socket_portnumber, FALSE);
+}
+
+
+void SMBS_new_session_yield_signal(PNET_SESSIONCTX pNetCtx)
+{
+  pNetCtx->netsessiont_smbCtx._yieldFlags &=~YIELDSIGNALLED;
+// Initialize state variable for a new connection
+//void RtsmbYieldNetSessionInit(PNET_SESSIONCTX pNetCtx)
+}
+
+
+// BBOOL RtsmbYieldCheckSignalled(PSMB_SESSIONCTX pSctx)
+int SMBS_check_yield_signal(PSMB_SESSIONCTX pSctx)
+{
+  int r = ((pSctx->_yieldFlags & YIELDSIGNALLED)!=0);
+  pSctx->_yieldFlags &=~YIELDSIGNALLED;
+  return r;
+}
+
+void SMBS_set_yield_signal(PSMB_SESSIONCTX pSctx)       // Not called ???
+{
+  pSctx->_yieldFlags |= YIELDSIGNALLED;
+}
+
+int  SMBS_check_yield_timeout(PSMB_SESSIONCTX pSctx)
+{
+  return (rtp_get_system_msec() > pSctx->_yieldTimeout);
+
+}
+void SMBS_clear_yield_timeout(PSMB_SESSIONCTX pSctx)
+{
+    pSctx->_yieldTimeout = 0;
+}
+
+int SMBS_is_yield_signal_blocked(PSMB_SESSIONCTX pSctx)
+{
+  return pSctx->_yieldTimeout != 0;
+}
+
+void SMBS_wake_session_from_yield(PNET_SESSIONCTX pnCtx)
+{
+//  class yield_signal_c *p  = (class yield_signal_c *) pnCtx->netsessiont_pThread->signal_object;
+//#define SMBS_SIGOPLOCK(SIGNAME,INODENUMBER) rtsmbSigOplockStruct SIGNAME; {SIGNAME.signame = SMBS_SIGOPLOCK_NAME;SIGNAME.payloadsize=SMBS_SIGOPLOCK_SIZE;SIGNAME.inodenumber=INODENUMBER};
+//  p->send_signal(p);
+}
 
 
 // Close the session out but don't close the socket.

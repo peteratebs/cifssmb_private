@@ -215,8 +215,9 @@ RTSMB2_FILEIOARGS fileioargs;
     tc_memset(&command,0, sizeof(command));
 
 
-    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,49))
+    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
     {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Oplock !! prolog Failed\n");
       return TRUE;
     }
     // HEREHERE Proc_smb2_Lock - todo

@@ -689,7 +689,7 @@ PACK_PRAGMA_POP
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_LOCK_REQUEST_C
 {
-    word    StructureSize; // 48
+    word    StructureSize; // 24
 	word    LockCount;
 	dword   LockSequence;
 	byte    FileId[16];

@@ -25,6 +25,8 @@
 * Headers
 ************************************************************************/
 
+#define _LARGEFILE64_SOURCE
+
 #include "rtp.h"
 #include "rtpfile.h"
 #include "rtpdebug.h"
@@ -37,6 +39,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /************************************************************************
@@ -88,7 +91,7 @@ int fileHandle;
 //    fileHandle = open (name, _rtp_flag_to_operation(flag), 00777); // _rtp_mode_to_permission(mode));
 //    fileHandle = open (name, _rtp_flag_to_operation(flag),_rtp_mode_to_permission(mode)|0755);
     umask(~0777);
-    fileHandle = open (name, _rtp_flag_to_operation(flag), _rtp_mode_to_permission(mode)|0777);
+    fileHandle = open (name, _rtp_flag_to_operation(flag)|O_LARGEFILE, _rtp_mode_to_permission(mode)|0777);
 
     if (fileHandle == (-1))
     {
@@ -200,14 +203,58 @@ ssize_t result;
 
     if ((result = write ((int) fileHandle, (void *) buffer, (size_t) count)) < 0)
     {
-#ifdef RTP_DEBUG
-        RTP_DEBUG_OUTPUT_STR("rtp_file_write: error returned ");
-        RTP_DEBUG_OUTPUT_INT(errno);
-        RTP_DEBUG_OUTPUT_STR(".\n");
-#endif
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_file_write: errno:%d: %s \n", errno, strerror(errno));
         return (-1);
     }
     return ((long) result);
+}
+
+
+
+/*----------------------------------------------------------------------*
+                              rtp_file_lseek
+ *----------------------------------------------------------------------*/
+long long rtp_file_llseek (RTP_HANDLE fd, long long offset, int origin)
+{
+long long roffset;
+unsigned int  relative_to;
+
+#ifdef RTP_DEBUG
+    /* ----------------------------------- */
+    /*  Clear the error state by setting   */
+    /*  to 0.                              */
+    /* ----------------------------------- */
+    errno = 0;
+#endif
+
+    switch (origin)
+    {
+        case 0:
+            relative_to = SEEK_SET;
+            break;
+        case 1:
+            relative_to = SEEK_CUR;
+            break;
+        case 2:
+            relative_to = SEEK_END;
+            break;
+        default:
+#ifdef RTP_DEBUG
+            errno = EINVAL;
+            RTP_DEBUG_OUTPUT_STR("rtp_file_lseek: error returned ");
+            RTP_DEBUG_OUTPUT_INT(errno);
+            RTP_DEBUG_OUTPUT_STR(".\n");
+#endif
+            return (-1);
+            break;
+    }
+
+    if ((roffset = lseek64( fd, offset,relative_to)) == -1)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"lseek64 failed.\n");
+        return (-1);
+    }
+    return (roffset);
 }
 
 

@@ -49,7 +49,6 @@
 #include "smbnet.h"
 #include "rtpmem.h"
 #include "rtptime.h"
-#include "srvyield.h"
 
 extern void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 

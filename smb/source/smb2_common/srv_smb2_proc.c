@@ -50,7 +50,6 @@
 #include "sha256.h"
 
 #include "wchar.h"
-#include "srvyield.h"
 #include "remotediags.h"
 
 

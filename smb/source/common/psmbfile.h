@@ -31,6 +31,7 @@ typedef int  (RTSMB_FAR *RTSMB_FS_OPENFN)(char RTSMB_FAR * name, unsigned short 
 typedef int  (RTSMB_FAR *RTSMB_FS_READFN)(int fd,  unsigned char RTSMB_FAR * buf, unsigned int count);
 typedef int  (RTSMB_FAR *RTSMB_FS_WRITEFN)(int fd, unsigned char RTSMB_FAR * buf, unsigned int count);
 typedef long (RTSMB_FAR *RTSMB_FS_LSEEKFN)(int fd, long offset, int origin);
+typedef long long (RTSMB_FAR *RTSMB_FS_LLSEEKFN)(int fd, long long offset, int origin);
 typedef int  (RTSMB_FAR *RTSMB_FS_CLOSEFN)(int fd);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_TRUNCATEFN)(int fd, dword offset);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_FLUSHFN)(int fd);
@@ -72,6 +73,7 @@ typedef struct smbfileapi
 	RTSMB_FS_READFN        fs_read;
 	RTSMB_FS_WRITEFN       fs_write;
 	RTSMB_FS_LSEEKFN       fs_lseek;
+	RTSMB_FS_LLSEEKFN      fs_llseek;
 	RTSMB_FS_TRUNCATEFN    fs_truncate;
 	RTSMB_FS_FLUSHFN       fs_flush;
 	RTSMB_FS_CLOSEFN       fs_close;

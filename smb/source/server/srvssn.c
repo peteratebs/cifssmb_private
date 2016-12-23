@@ -51,7 +51,6 @@
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
 extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
-#include "srvyield.h"
 #endif
 /*============================================================================   */
 /*    SERVER STATE DIAGNOSTICS (COMPILE TIME)                                    */

@@ -56,8 +56,8 @@ oplock_c_break_acknowledge_return_e oplock_c_break_acknowledge(uint8_t *unique_f
 
 void oplock_c_break_update_pending_locks(uint8_t *unique_fileid, uint8_t oplock_level);
 void oplock_c_break_send_pending_breaks(void);
-void oplock_c_break_check_wating_break_requests();
-void oplock_c_wake_waiting_fid(void *_pfid, void *signal_object);
+void oplock_c_break_check_wating_break_requests(void);
+void oplock_c_wake_waiting_fid(void *_pfid, PNET_SESSIONCTX pnCtx);
 
 // in smboplocks2
 void SendOplockBreak(PFID pfid);

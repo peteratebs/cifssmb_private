@@ -22,7 +22,6 @@
 #include "psmbos.h"
 #include "rtpsignl.h"
 #include "smbdebug.h"
-#include "srvyield.h"
 #include "rtpmem.h"
 
 #ifndef ALLOC_FROM_HEAP
@@ -459,7 +458,8 @@ int rtsmb_server_config(void)
       threads[i]._outBuffer   = &outBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
       threads[i].tmpBuffer   = &tmpBuffer   [i * CFG_RTSMB_SMALL_BUFFER_SIZE];
 #endif
-      threads[i].signal_object  = yield_c_bind_signal(i);
+      SMBS_bind_yield_signal(&threads[i].yield_signal_object, i);
+
    }
 
    tc_strcpy (prtsmb_srv_ctx->local_master, "");

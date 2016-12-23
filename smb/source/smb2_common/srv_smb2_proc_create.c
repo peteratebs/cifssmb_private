@@ -23,7 +23,6 @@
 #include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
-#include "srvyield.h"
 #include "remotediags.h"
 #include "srvoplocks.h"
 #include "srvsmbssn.h"

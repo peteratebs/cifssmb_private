@@ -102,6 +102,7 @@ int rtsmb_ipcrpc_filesys_init(void)
     prtsmb_ipcrpc_filesys->fs_read         =   (RTSMB_FS_READFN)        ipcrpc_read;
     prtsmb_ipcrpc_filesys->fs_write        =   (RTSMB_FS_WRITEFN)       ipcrpc_write;
     prtsmb_ipcrpc_filesys->fs_lseek        =   (RTSMB_FS_LSEEKFN)       ipcrpc_lseek;
+    prtsmb_ipcrpc_filesys->fs_llseek       =   (RTSMB_FS_LLSEEKFN)      ipcrpc_lseek;   // not used for IPC
     prtsmb_ipcrpc_filesys->fs_truncate     =   (RTSMB_FS_TRUNCATEFN)    ipcrpc_truncate;
     prtsmb_ipcrpc_filesys->fs_flush        =   (RTSMB_FS_FLUSHFN)       ipcrpc_flush;
     prtsmb_ipcrpc_filesys->fs_close        =   (RTSMB_FS_CLOSEFN)       ipcrpc_close;

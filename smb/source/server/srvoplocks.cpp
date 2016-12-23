@@ -7,8 +7,8 @@
 #include "com_smb2_ssn.h"
 #include "srvutil.h"
 #include "remotediags.h"
+#include "srvsmbssn.h"
 #include "srvoplocks.h"
-#include "srvyield.h"
 
 #include "rtpnet.h"
 #include "rtpnet.h"
@@ -109,9 +109,8 @@ void oplock_c_create_yield_ing_fid(PNET_SESSIONCTX pnCtx,SMBFSTAT *pstat,PFRTCHA
   PFID pfid  =  SMBU_GetInternalFidPtr (&pnCtx->netsessiont_smbCtx, externalFid);
   pfid->OplockFlags |= SMB2WAITOPLOCKFLAGREPLY;
   pfid->OplockTimeout = OPLOCK_DEFAULT_DURATION;
-// #define OPLOCK_DIAG_YIELD_SESSION_YIELD             {oplock_diagnotics.session_yields += 1;oplock_diagnotics.yielded_pfid=pfid;oplock_diagnotics.yielded_signal_object=pCtx->netsessiont_smbCtx.pThread->signal_object;}
   OPLOCK_DIAG_YIELD_SESSION_YIELD
-  yield_c_set_timeout(&pnCtx->netsessiont_smbCtx);
+  SMBS_set_yield_timeout(&pnCtx->netsessiont_smbCtx);
 }
 
 
@@ -157,13 +156,13 @@ oplock_c_break_acknowledge_return_e r;
   return r;
 }
 
-void oplock_c_wake_waiting_fid(void *_pfid, void *signal_object)
+void oplock_c_wake_waiting_fid(void *_pfid, PNET_SESSIONCTX pnCtx)
 {
 PFID pfid = (PFID) _pfid;
   OPLOCK_DIAG_YIELD_SESSION_SEND_SIGNAL
   pfid->OplockTimeout = 0;
   pfid->OplockFlags &= ~SMB2WAITOPLOCKFLAGREPLY;
-  yield_c_signal_to_session(signal_object);
+  SMBS_wake_session_from_yield(pnCtx);
 }
 // enumerate FIDs and signal lock release if we have a match. Send break responses to waiting clients if  required
 struct oplock_c_break_update_pending_locks_s { uint8_t *unique_fileid; uint8_t oplock_level;};
@@ -176,7 +175,7 @@ static int oplock_c_break_update_pending_locksCB (PFID pfid, PNET_SESSIONCTX pnC
       if ( pfid->OplockLevel >= ((struct oplock_c_break_update_pending_locks_s *) pargs)->oplock_level)
       {
         SMBU_FidobjectSetheld_oplock_level(pfid, SMB2_OPLOCK_LEVEL_NONE);
-        oplock_c_wake_waiting_fid( (void *)pfid, (void *) pnCtx->netsessiont_pThread->signal_object);
+        oplock_c_wake_waiting_fid( (void *)pfid, pnCtx);
       }
     }
   }
@@ -215,7 +214,7 @@ static int oplock_c_break_check_wating_break_requestsCB (PFID fid, PNET_SESSIONC
        SMBU_FidobjectSetheld_oplock_level(fid, SMB2_OPLOCK_LEVEL_NONE);
        fid->OplockFlags &= ~SMB2WAITOPLOCKFLAGREPLY;
        OPLOCK_DIAG_YIELD_SESSION_SEND_TIMEOUT
-       yield_c_signal_to_session(pNctxt->netsessiont_pThread->signal_object);
+       SMBS_wake_session_from_yield(pNctxt);
      }
   }
   return 0;
