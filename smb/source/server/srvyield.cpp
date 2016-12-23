@@ -69,7 +69,8 @@ private:
 class yield_signal_c * yield_signal_c::bind_signal(void)
 {
   _yield_socket_portnumber = yield_manager.get_next_socket_number();
-  this->_yield_socket = rtsmb_net_socket_new (&_yield_socket, _yield_socket_portnumber, FALSE);
+  int r = rtsmb_net_socket_new (&this->_yield_socket, _yield_socket_portnumber, FALSE);
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "YIELD:: new sig sock sock:%d r:%d\n", _yield_socket_portnumber, r);
   return this;
 }
 class yield_signal_c yield_signals[CFG_RTSMB_MAX_SESSIONS];
@@ -136,40 +137,8 @@ int yield_c_recieve_blocked(signalobject_Cptr signal_object)
 
 int yield_c_is_session_blocked(PSMB_SESSIONCTX pSctx)
 {
-
   return pSctx->_yieldTimeout != 0;
 }
-
-
-class yield_point_c {
-  public:
-    yield_point_c(smb2_stream *pStream) { this->StreamCopy = *pStream; };
-    ~yield_point_c(){} ;
-    void resume_stream(smb2_stream *pStream) { *pStream = this->StreamCopy; };
-    void save_stream(smb2_stream *pStream)   { /* Copy */};
-    private:
-      smb2_stream StreamCopy;
-};
-
-
-
-yield_Cptr yield_c_new_yield_point(smb2_stream *pStream)
-{
-  OPLOCK_DIAG_YIELD_ALLOCATE
-  return (yield_Cptr) new yield_point_c(pStream);
-}
-void yield_c_drop_yield_point(yield_Cptr p)
-{
-  delete (class yield_point_c *) p;
-  OPLOCK_DIAG_YIELD_DEALLOCATE
-}
-
-
-void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p)
-{
-  ((class yield_point_c *)p)->resume_stream(pStream);
-}
-
 
 
 signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
@@ -179,6 +148,7 @@ signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream)
   {
     return (pNctxt->netsessiont_pThread->signal_object);
   }
+  return 0;
 }
 
 

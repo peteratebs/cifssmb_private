@@ -54,6 +54,7 @@
 #include "com_smb2.h"
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
+#include "remotediags.h"
 
 
 
@@ -336,12 +337,22 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
         doSend = (bodyR == SEND_REPLY);
         if (bodyR == OPLOCK_YIELD)
         {
+#if (TEST_REPLAY_EVERY_TIME)
+           // Set timeout so we know we are yielded when a signal comes in
+           yield_c_set_timeout(pSctx);
+           yield_c_signal_to_session(SMBU_SmbSessionToNetSession(pSctx)->netsessiont_pThread->signal_object);
+//           OPLOCK_DIAG_ENTER_REPLAY
+//           bodyR = SMBS_ProcSMB2BodyPacketExecute(pSctx, TRUE);
+//           OPLOCK_DIAG_EXIT_REPLAY
+//           doSend = (bodyR == SEND_REPLY);
+#else
           // Clear the yield status bits and set the yield timeout fence
           yield_c_set_timeout(pSctx);
           pSctx->in_packet_size = saved_in_packet_size;
           pSctx->readBuffer = pSavedreadBuffer;
           pSctx->current_body_size = saved_body_size;
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket yielded\n");
+#endif
         }
         if (pSctx->session_state == NOTCONNECTED)
         {
@@ -382,20 +393,6 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
      return returnVal;
 }
 
-
-
-static void SMBS_ProcSMBBody (PSMB_SESSIONCTX pSctx)
-{
-SMB2PROCBODYACTION r;
-   if (pSctx->isSMB2)
-   {
-     r = SMBS_ProcSMB2BodyPacketExecute(pSctx, FALSE);
-   }
-   else
-   {
-     r = SMBS_ProcSMB1BodyPacketExecute (pSctx, FALSE);
-   }
-}
 
 // return SEND_NO_REPLY or EXECUTE_PACKET
 // sets session_state to WAIT_ON_PDC_NAME,WAIT_ON_PDC_IP,IDLE,READINS
@@ -500,9 +497,6 @@ static SMB2PROCBODYACTION SMBS_ProcSMB2BodyPacketExecute (PSMB_SESSIONCTX pSctx,
     // Proc_smb2_Create() and Proc_smb2_Write() use this to wait for an oplock/record lock releases
     // A timeout is allocated when it exits so it can be cleared if a reply is not recieved.
 
-#if (TEST_REPLAY_EVERY_TIME)
-   isReplay = FALSE;
-#endif
     int stackcontext_state = SMBS_ProccessCompoundFrame (pSctx,isReplay);
     if (stackcontext_state == ST_FALSE)
       r = SEND_NO_REPLY;
@@ -512,20 +506,7 @@ static SMB2PROCBODYACTION SMBS_ProcSMB2BodyPacketExecute (PSMB_SESSIONCTX pSctx,
     }
     else if (stackcontext_state == ST_YIELD)
     {
-#if (TEST_REPLAY_EVERY_TIME)
-       OPLOCK_DIAG_ENTER_REPLAY
-       r = SMBS_ProccessCompoundFrame (pSctx, TRUE);
-       OPLOCK_DIAG_EXIT_REPLAY
-#else
       r = OPLOCK_YIELD;
-#endif
-    }
-    // Hold onto the context in a suspended state if we're yielding
-    // Otherwise we can free the context and grab another one when we enter again
-    if (r != OPLOCK_YIELD)
-    {
-      yield_c_drop_yield_point(pSctx->current_yield_Cptr);
-      pSctx->current_yield_Cptr=0;
     }
     return r;
 }

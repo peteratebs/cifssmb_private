@@ -84,6 +84,7 @@ int smbservermain (int argc, char **argv)
 #else
   _smbservermain ();
 #endif
+ return 0;
 }
 
 RTSMB_STATIC char spinner[4] = {'\\', '-', '/', '|'};

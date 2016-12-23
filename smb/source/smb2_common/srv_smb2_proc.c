@@ -133,16 +133,6 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     // If not replaying, clear the stream structure and set buffer pointers from the smbv1 style SMB_SESSIONCTX structure
     if (!replay)
       Smb1SrvCtxtToStream(pStream, pSctx);
-//    if (pSctx->current_yield_Cptr)
-//    {
-//      yield_c_resume_yield_point(&pSctx->SMB2_FrameState.smb2stream, pSctx->current_yield_Cptr);
-//    }
-//    else
-//    {
-//      /* Save the stream state so we can replay it if we need to*/
-//      Smb1SrvCtxtToStream(pStream, pSctx);
-//      pSctx->current_yield_Cptr = yield_c_new_yield_point(&pSctx->SMB2_FrameState.smb2stream);
-//    }
     /* read header */
     if (cmd_read_header_raw_smb2( pStream->read_origin, pStream->read_origin,  pStream->InBodySize, &(pStream->InHdr)) == -1)
     {

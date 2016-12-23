@@ -31,10 +31,10 @@ class oplock_c {
       ITERATEOPLOCKHEAP {if (oplock_core[i].in_use) { if (tc_memcmp(oplock_core[i].unique_fileid, unique_fileid, SMB_UNIQUE_FILEID_SIZE)==0) return &oplock_core[i];}}
       return 0;
     }
-    static class oplock_c *new_fid_oplock(PFID pfid, unique_userid_t unique_userid_of_owner,uint8_t held_lock_level)
-    {
-      allocate_oplock()->oplock_setvals(pfid, unique_userid_of_owner, held_lock_level);
-    };
+//    static class oplock_c *new_fid_oplock(PFID pfid, unique_userid_t unique_userid_of_owner,uint8_t held_lock_level)
+//    {
+//      return allocate_oplock()->oplock_setvals(pfid, unique_userid_of_owner, held_lock_level);    // not being called ?
+//    };
   private:
     static int   oplocks_in_use;
     static class oplock_c oplock_core[CFG_RTSMB_MAX_OPLOCKS];

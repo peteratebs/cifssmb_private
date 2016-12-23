@@ -1342,9 +1342,9 @@ PFBYTE cli_util_client_encrypt_password_ntlmv2 (PFRTCHAR name, PFCHAR password, 
 	return (PFBYTE )output;
 }
 
-PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16]);
-PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16]);
-PFBYTE cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output);
+static void cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16]);
+static void cli_util_encrypt_signing_key_response (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16]);
+static void  cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output);
 
 // This works to produce the signing key
 
@@ -1416,12 +1416,8 @@ BYTE user_domain[512];
 
   if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("User_Domain", user_domain, user_name_size+domain_name_size, DUMPASCII);}
   // Encrypt the user and domain. (not doing domain now)
-  cli_util_encrypt_signing_key_responese (outowf, user_domain, user_name_size+domain_name_size, 0, 0,kr);
+  cli_util_encrypt_signing_key_response (outowf, user_domain, user_name_size+domain_name_size, 0, 0,kr);
   if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);}
-
-//  rtsmb_dump_bytes("User_Domain fixed:", gluser, sizeof(gluser)-2, DUMPASCII);
-//  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
-//  rtsmb_dump_bytes("NTLMv2 enrypted key calculated output fixed: ", kr, 16, DUMPBIN);
 
    // Comes from  pStream->psmb2Session->pSmbCtx->encryptionKey, the encrypted key send by the client.
   if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);}
@@ -1446,12 +1442,12 @@ BYTE user_domain[512];
 
 }
 
-PFBYTE cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16])
+static void cli_util_nt_password_hash(PFBYTE password, int password_l, BYTE output[16])
 {
   RTSMB_MD4(password, password_l, output);
 }
 
-PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16])
+static void cli_util_encrypt_signing_key_response (PFBYTE owf, PFBYTE user, int user_l, PFBYTE domain, int domain_l,BYTE output[16])
 {
   BYTE concatChallenge[1024];
   BYTE output_value[16];
@@ -1463,14 +1459,14 @@ PFBYTE cli_util_encrypt_signing_key_responese (PFBYTE owf, PFBYTE user, int user
                &owf[0],		     /*  */
                16,				/* length of authentication key */
                (PFBYTE ) output_value);
-    if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("cli_util_encrypt_signing_key_responese output: ", output_value, 16, DUMPBIN);}
+    if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("cli_util_encrypt_signing_key_response output: ", output_value, 16, DUMPBIN);}
 	tc_memcpy(&output[0], output_value, 16);
 
 }
 
 
 
-PFBYTE cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output)
+static void cli_util_encrypt_signing_key_ntlmv2 (PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, BYTE *kr, PFCHAR output)
 {
 	// The HMAC-MD5 message authentication code algorithm is applied to
 	// the unicode (username,domainname) using the 16-byte NTLM hash as the key.
@@ -2170,11 +2166,11 @@ printf("sign size data: %d\n", sizeof(gltestdata));
   rtsmb_dump_bytes("NTLMv2 owf nt hash: ", outowf, 16, DUMPBIN);
   rtsmb_dump_bytes("NTLMv2 glowf nt hash: ", glowf, 16, DUMPBIN);
 
-  cli_util_encrypt_signing_key_responese (glowf, gluser, sizeof(gluser)-2, 0, 0,kr);
+  cli_util_encrypt_signing_key_response (glowf, gluser, sizeof(gluser)-2, 0, 0,kr);
   // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
   rtsmb_dump_bytes("NTLMv2 enrypted key response output: ", kr, 16, DUMPBIN);
 
-  cli_util_encrypt_signing_key_responese (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
+  cli_util_encrypt_signing_key_response (outowf, gluser, sizeof(gluser)-2, 0, 0,kr);
   // this should be  {0xF0, 0xD9, 0x2E, 0x15, 0x28, 0xED, 0x5D, 0x09, 0x90, 0xD0, 0xEF, 0x3F, 0x1E, 0xE5, 0x71, 0x49};
   rtsmb_dump_bytes("NTLMv2 enrypted key calculated output: ", kr, 16, DUMPBIN);
 

@@ -33,6 +33,8 @@ cflags  += -m64 -pthread -DBUILD_SMB_64BIT
 # cflags  += -m64 -DBUILD_SMB_64BIT
 endif
 
+cflags  += -Wall -Wno-unused-parameter -Wno-unused-variable
+
 #   cflags  += -Wall -Werror -Wextra
 
 ######################################################################

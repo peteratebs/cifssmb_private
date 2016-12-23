@@ -120,15 +120,6 @@ extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
     size    = (rtsmb_size)pStream->write_buffer_remaining; \
     s = buf;
 
-//#define FILL_EPILOG_TEMPLATE \
-//	e = buf;\
-//    if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);\
-//    consumed = (rtsmb_size)PDIFF (e, s);\
-//    ((PFBYTE)pStream->pOutBuf) += consumed;\
-//    pStream->write_buffer_remaining-=consumed;\
-//    pStream->OutBodySize+=consumed;\
-//	return (int) consumed;
-
 #define FILL_EPILOG_TEMPLATE \
 	e = buf;\
     if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);\

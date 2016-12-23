@@ -189,6 +189,7 @@ public:
 
   RTP_SOCKET  get_master_socket(void)     { return master_socket;};
   RTP_SOCKET  get_signalling_socket(void) { return signal_socket;};                                      // done
+  void        set_signalling_socket( RTP_SOCKET  _signal_socket) { signal_socket = _signal_socket;};    // done
 
   int  check_master_socket_signal(void)     { int r=master_signal_active;master_signal_active=0;return r;};
   int  check_signalling_socket_signal(void) { int r=signalling_signal_active; signalling_signal_active=0; return r;};                                      // done
@@ -219,7 +220,7 @@ public:
      return pSession;
   }
   class smbs_session_c  * get_next_activesession(void);
-  class smbs_session_c  * get_next_active_estabished_session()    { /* return */ active_established_session_list.get_next_session(); active_either_session_list.get_next_session(); };
+  class smbs_session_c  * get_next_active_estabished_session()    { /* return */ active_established_session_list.get_next_session(); return active_either_session_list.get_next_session(); };
   class smbs_session_c  * get_next_active_estabishing_session()   { /* return  */ active_establishing_session_list.get_next_session(); return 0; };
   class smbs_session_c  * socket_to_session(RTP_SOCKET sock);
 
@@ -231,7 +232,8 @@ private:
 #define FIRST_SESSION_SOCKET_INDEX  2
   RTP_SOCKET  master_socket;
   RTP_SOCKET  nameserver_socket;
-  RTP_SOCKET  signal_socket;   int         signal_socket_portnumber;
+  RTP_SOCKET  signal_socket;
+  int         signal_socket_portnumber;
 
 
   int signalling_signal_active;
@@ -272,6 +274,8 @@ public:
   void process_yielded_session(void);
   void process_closing_session(void);
   void process_dead_session(void);
+  // void        set_signalling_socket( RTP_SOCKET  _signal_socket) { signal_socket = _signal_socket;};    // done
+
   void send_signal(rtsmbSigStruct *psig)
     {_net_thread_signal_c::send_signal(psig);};                             // done
   PNET_THREAD pThread;       // Pointer to the old c thread context
@@ -313,9 +317,9 @@ static const byte local_ip_mask[] = {0xff,0,0,0};
 // Initialises the UDP signaling thread, also initializes and puts the master socket on the listen list.
 int  _net_thread_signal_c::net_thread_signal_initialize(class net_thread_c *net_thread_iam_partof)
 {
-  signal_socket_portnumber = current_net_thread_signal_socketnumber++;
-  if (rtsmb_net_socket_new (&signal_socket, signal_socket_portnumber, FALSE) < 0)
-    return -1; // YIKES
+  // signal_socket_portnumber = current_net_thread_signal_socketnumber++;
+  //if (rtsmb_net_socket_new (&signal_socket, signal_socket_portnumber, FALSE) < 0)
+  //  return -1; // YIKES
 
     /* -------------------- */
     /* get the three major sockets */
@@ -372,7 +376,10 @@ int _net_thread_signal_c::net_thread_signal_select(int timeout)
     do {
      pSession = active_session_list.get_next_session();
      if (pSession)
-       read_return_list[read_list_size++] = pSession->get_session_socket();
+     { // don't queue yielded sockets
+       if (pSession->get_session_state() != yielded)
+         read_return_list[read_list_size++] = pSession->get_session_socket();
+     }
     } while (pSession);
 
     int len = rtsmb_netport_select_n_for_read (read_return_list, read_list_size, timeout);
@@ -403,6 +410,7 @@ int _net_thread_signal_c::net_thread_signal_select(int timeout)
         }
       }
     }
+    return read_list_size;
 }
 
 // Sends an rtsmbSigStruct message to the session
@@ -418,8 +426,11 @@ static rtsmbSigStruct return_sig;
   byte remote_ip[4];
   int  size, remote_port;
   size = rtsmb_net_read_datagram (signal_socket, &return_sig, sizeof(return_sig), remote_ip, &remote_port);
-  if (size == sizeof(return_sig))  {  return &return_sig;   }
-    else if (size != 0) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved invalid message size %d\n", size);}
+  if (size == sizeof(return_sig))  {
+    { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved a signal of size %d\n", size);}
+    return &return_sig;
+  }
+  else if (size != 0) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved invalid message size %d\n", size);}
   return 0;
 }
 
@@ -506,6 +517,8 @@ int net_thread_c::net_thread_initialize(PNET_THREAD tempThread)
   // Open the udp signaling port, make sure it's flushed out
   // Also opens the master port and establishes those positions in the select read list
   int r = net_thread_signal_initialize(this);
+  // signal_socket_portnumber = current_net_thread_signal_socketnumber++;
+  set_signalling_socket(yield_c_get_signal_sock(tempThread->signal_object));
   pThread = tempThread;                                                     // Remember a pointer to the C thread
   if (r < 0) return r; // not good
   return r;

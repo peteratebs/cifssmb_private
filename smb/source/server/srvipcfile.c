@@ -296,6 +296,8 @@ static int ipcrpc_close(int fd)
         rv = 0;
       }
     }
+	// always return safely for ipc file closes
+    return 0;
 }
 
 static long ipcrpc_lseek(int fd, long offset, int origin)

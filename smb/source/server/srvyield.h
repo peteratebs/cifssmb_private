@@ -15,15 +15,9 @@ extern "C" {
 #include "srvoplocks.h"
 
 
-yield_Cptr yield_c_new_yield_point(smb2_stream *pStream);
-void yield_c_drop_yield_point(yield_Cptr p);
-void yield_c_resume_yield_point(smb2_stream *pStream, yield_Cptr p);
-
 
 signalobject_Cptr yield_c_bind_signal(int i);
-
 signalobject_Cptr yield_c_stream_to_signal_object(smb2_stream  *pStream);
-
 RTP_SOCKET  yield_c_get_signal_sock(signalobject_Cptr);
 
 void yield_c_signal_to_session(signalobject_Cptr);           // Send a wakeup

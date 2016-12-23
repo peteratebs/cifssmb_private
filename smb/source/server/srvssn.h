@@ -224,7 +224,6 @@ typedef struct smb_sessionCtx_s
 
 	word  _yieldFlags;          // Private for use only by srvyield.cpp
 	dword _yieldTimeout;        // Private for use only by srvyield.cpp
-    void  *current_yield_Cptr;   // Stores the resore point from srvyield.cpp
 
 
     SMBS_SESSION_STATE session_state;   /* are we idle or waiting on something? */

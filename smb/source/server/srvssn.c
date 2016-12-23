@@ -887,6 +887,7 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
               return 0;
           }
       }
+#warning HEREHERE - check for colon
       else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
       {
           return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);

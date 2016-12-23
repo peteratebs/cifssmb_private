@@ -1479,6 +1479,7 @@ decode_token_stream_t decode_bitstream_stream;
   }
   r = (int) (decode_bitstream_stream.stream_pointer-saved_stream_pointer);
 
+  return r; // Code had been not returning a value here. Returning r does not break it so it should help
 }
 
 // Extract an asn1 encoded length value from a stream

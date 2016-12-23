@@ -124,6 +124,10 @@ void SMBU_FillNtError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, dword errorC
 {
 	int size;
 
+    if (pCtx->isSMB2)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBU_FillNtError called frm SMB2.\n");
+    }
 	pOutHdr->status = errorCode;
 
 	size = srv_cmd_fill_header (pCtx->write_origin, pCtx->write_origin,
@@ -211,8 +215,12 @@ dword SMBU_MakeError (PSMB_SESSIONCTX pCtx, byte errorClass, word errorCode)
 void SMBU_FillError (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pOutHdr, byte errorClass, word errorCode)
 {
 	int size;
-
 	pOutHdr->status = SMBU_MakeError (pCtx ,errorClass, errorCode);
+
+    if (pCtx->isSMB2)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBU_FillError called frm SMB2.\n");
+    }
 
 	size = srv_cmd_fill_header (pCtx->write_origin, pCtx->write_origin,
 		prtsmb_srv_ctx->small_buffer_size, pOutHdr);
