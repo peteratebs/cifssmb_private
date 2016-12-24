@@ -289,7 +289,7 @@ void rtp_file_get_unique_id(void * dirobj, unsigned char *unique_fileid)
 /*----------------------------------------------------------------------*
                             rtp_file_get_size
  *----------------------------------------------------------------------*/
-int rtp_file_get_size (void * dirobj, unsigned long * size)
+int rtp_file_get_size64 (void * dirobj, unsigned long * size_hi,unsigned long * size)
 {
     if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
     {
@@ -301,8 +301,12 @@ int rtp_file_get_size (void * dirobj, unsigned long * size)
 
 	if (size)
 	{
-		*size = (unsigned long) (((FSOBJ *)dirobj)->statdata.st_size);
+		*size = (unsigned long) ((((FSOBJ *)dirobj)->statdata.st_size)&0xffffffff);
 	}
+	if (size_hi)
+    {
+		*size_hi = (unsigned long) ((((FSOBJ *)dirobj)->statdata.st_size>>32)&0xffffffff);
+    }
 #ifdef RTP_DEBUG
 	else
 	{
@@ -310,6 +314,13 @@ int rtp_file_get_size (void * dirobj, unsigned long * size)
 	}
 #endif
     return (0);
+
+}
+
+
+int rtp_file_get_size (void * dirobj, unsigned long * size)
+{
+  return rtp_file_get_size64 (dirobj, 0, size);
 }
 
 

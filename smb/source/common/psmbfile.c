@@ -609,7 +609,8 @@ void rtplatform_translate_dstat (PSMBDSTAT dstat, void * rtp_dirobj)
     dstat->fhtime64.low_time = htime.low_time;
     dstat->fhtime64.high_time = htime.high_time;
 
-    rtp_file_get_size(rtp_dirobj, &dstat->fsize);
+//    rtp_file_get_size(rtp_dirobj, &dstat->fsize);
+    rtp_file_get_size64(rtp_dirobj, &dstat->fsize_hi,&dstat->fsize);
 
 	rtp_file_get_unique_id(rtp_dirobj, dstat->unique_fileid);
 

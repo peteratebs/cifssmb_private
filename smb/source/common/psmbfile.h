@@ -148,6 +148,7 @@ struct smbdstat
 	                                            or non-zero when it is unicode */
 	unsigned char  fattributes;
 	unsigned long  fsize;
+	unsigned long  fsize_hi;
 
 	TIME           fatime64; /* last access time */
 	TIME           fwtime64; /* last write time */

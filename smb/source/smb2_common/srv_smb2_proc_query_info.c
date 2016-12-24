@@ -15,8 +15,14 @@
 #include "smbdefs.h"
 #include "rtpmem.h"
 
-#define FAKE_ALLOCATION_UNITS               0x10000000
-#define FAKE_AVAILABLE_UNITS                0x01000000
+// Filesystem                1K-blocks      Used Available Use% Mounted on
+// 0a_share_with_virtual_box 249068540 112020068 137048472  45% /media/sf_0a_share_with_virtual_box
+
+#define FAKE_ALLOCATION_UNITS               249068540
+#define FAKE_AVAILABLE_UNITS                137048472
+
+// #define FAKE_ALLOCATION_UNITS               0x10000000
+// #define FAKE_AVAILABLE_UNITS                0x01000000
 #define FAKE_SECTORS_PER_ALLOCATION_UNIT    2
 #define FAKE_BYTES_PER_SECTOR               512
 
@@ -462,9 +468,9 @@ int fillSMB_FIND_FILE_BOTH_DIRECTORY_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER p
     pinfo->low_change_time = stat->fhtime64.low_time;
     pinfo->high_change_time = stat->fhtime64.high_time;
     pinfo->low_end_of_file = stat->fsize;
-    pinfo->high_end_of_file = 0;
+    pinfo->high_end_of_file = stat->fsize_hi;
     pinfo->low_allocation_size = stat->fsize;
-    pinfo->high_allocation_size = 0;
+    pinfo->high_allocation_size = stat->fsize_hi;
 
     pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 

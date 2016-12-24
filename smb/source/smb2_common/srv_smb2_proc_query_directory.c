@@ -502,9 +502,9 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	pinfo->low_change_time = stat->fhtime64.low_time;
 	pinfo->high_change_time = stat->fhtime64.high_time;
 	pinfo->low_end_of_file = stat->fsize;
-	pinfo->high_end_of_file = 0;
+	pinfo->high_end_of_file = stat->fsize_hi;
 	pinfo->low_allocation_size = stat->fsize;
-	pinfo->high_allocation_size = 0;
+	pinfo->high_allocation_size = stat->fsize_hi;
 	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 	pinfo->filename_size = filename_size;
 	pinfo->file_index = glFile_index;
