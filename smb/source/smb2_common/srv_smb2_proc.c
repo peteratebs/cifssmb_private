@@ -737,8 +737,8 @@ static BBOOL Proc_smb2_NegotiateProtocol (smb2_stream  *pStream)
         pStream->psmb2Session->SigningRequired = TRUE;
     }
     /* DialectRevision MUST be set to the common dialect. */
-// XXXX    response.DialectRevision    = pStream->psmb2Session->Connection->Dialect;
-    response.DialectRevision    = SMB2_DIALECT_2100;
+    response.DialectRevision    = pStream->psmb2Session->Connection->Dialect;
+//    response.DialectRevision    = SMB2_DIALECT_2100;
     response.Reserved = 0;
     /* ServerGuid is set to the global ServerGuid value. */
     tc_memcpy(response.ServerGuid,pSmb2SrvGlobal->ServerGuid,16);

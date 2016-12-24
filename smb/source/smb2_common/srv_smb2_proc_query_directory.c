@@ -548,30 +548,64 @@ static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_siz
     return 0;
 }
 
-static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat)
-{
-    RTSMB2_FILE_FULL_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_FULL_DIRECTORY_INFO *) byte_pointer;
-    RTSMB2_FILE_SHORT_DIRECTORY_INFO *pshortinfo;
-    int base_size;
-    rtsmb_size filename_size = (rtsmb_size) rtsmb_len(stat->filename) * sizeof (rtsmb_char);
 
-    if (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO)+sizeof(RTSMB2_FILE_SHORT_DIRECTORY_INFO)+filename_size > (rtsmb_size) bytes_remaining)
+// See MS-FSCC - 2.4.14 FileFullDirectoryInformation
+PACK_PRAGMA_ONE
+typedef struct
+{
+	dword next_entry_offset;
+	dword file_index;
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword low_allocation_size;
+	dword high_allocation_size;
+
+	dword  extended_file_attributes;
+	dword  filename_size;
+	dword  EaSize;
+
+	byte ShortNameLength;	/* size in characters */
+	byte Reserved;	/* size in characters */
+	rtsmb_char ShortName[12];	/* 8.3 name */
+//	PFRTCHAR filename;
+
+} RTSMB2_FILE_BOTH_DIRECTORY_INFO;
+PACK_PRAGMA_POP
+
+static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+{
+    RTSMB2_FILE_BOTH_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_BOTH_DIRECTORY_INFO *) byte_pointer;
+    int base_size;
+    byte *pfilename;
+    rtsmb_size filename_size = (rtsmb_size) rtsmb_len(pstat->filename) * sizeof (rtsmb_char);
+
+    if (sizeof(RTSMB2_FILE_BOTH_DIRECTORY_INFO)+filename_size > (rtsmb_size) bytes_remaining)
        return 0;
     tc_memset(pinfo, 0, sizeof(*pinfo));
-    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat);
+    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat);
     if (base_size ==0)
        return 0;
-    byte_pointer = PADD(byte_pointer,base_size);
-    pshortinfo = (RTSMB2_FILE_SHORT_DIRECTORY_INFO *) byte_pointer;
-	pshortinfo->short_name_length =   (rtsmb_size) rtsmb_len(stat->short_filename) * sizeof (rtsmb_char);
-	pshortinfo->reserved           =  0;
-	tc_memcpy(pshortinfo->short_name, stat->short_filename, sizeof(pshortinfo->short_name));
-    byte_pointer = PADD(byte_pointer,sizeof(RTSMB2_FILE_SHORT_DIRECTORY_INFO));
-    // Copy the filename just after the small file info
+	pinfo->Reserved            =  0;
+	pinfo->EaSize              =  0;
     pinfo->filename_size = filename_size;
-    tc_memcpy(byte_pointer, stat->filename, filename_size);
-//    tc_memcpy(&pinfo->FileId, stat->unique_fileid, sizeof(pinfo->FileId));
-    return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) + pinfo->filename_size);
+	pinfo->ShortNameLength =   (rtsmb_size) rtsmb_len(pstat->short_filename) * sizeof (rtsmb_char);
+	tc_memcpy(pinfo->ShortName, pstat->short_filename, sizeof(pinfo->ShortName));
+    // Copy the filename just after the small file info
+    pfilename = (byte *) pinfo->ShortName;
+    pfilename += sizeof(pinfo->ShortName);
+
+    tc_memcpy(pfilename, pstat->filename, filename_size);
+//    tc_memcpy(&pinfo->FileId, pstat->unique_fileid, sizeof(pinfo->FileId));
+//    return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) +
+    return (int) (sizeof(RTSMB2_FILE_BOTH_DIRECTORY_INFO)-1 + filename_size);
 }
 
 
