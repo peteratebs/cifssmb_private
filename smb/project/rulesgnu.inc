@@ -29,8 +29,8 @@ endif
 
 ifeq ($(pointersize),P64)
 ### COMPILER AND LINKER FLAGS ########################################
-ldflags += -m64 -L/usr/lib64 -lm -lc -lgcc -pthread -Wl,-Map=output.map
-cflags  += -m64 -pthread -DBUILD_SMB_64BIT
+ldflags += -m64 -L/usr/lib64  -lm -lc -lgcc -pthread -Wl,-Map=output.map
+cflags  +=  -fpack-struct=1 -m64 -pthread -DBUILD_SMB_64BIT
 # cflags  += -m64 -DBUILD_SMB_64BIT
 endif
 
@@ -78,13 +78,15 @@ $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
 	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
-$(OBJDIR)/%.$(obj): %.cpp
-	@echo cpp COMPILING $<
-	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+#$(OBJDIR)/%.$(obj): %.cpp
+#	@echo cpp COMPILING $<
+#	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 %.$(exe):
 	@echo LINKING $@
-	@g++ $(ldflags) -o $(notdir $@) $^
+	@echo LINKING $@  $(ldflags) -o $(notdir $@) $^
+	@gcc $(ldflags) -o $(notdir $@) $^
+#	@g++ $(ldflags) -o $(notdir $@) $^
 
 endif #	GNUCOMPILER
 

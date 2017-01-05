@@ -68,7 +68,7 @@ rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
 
 #endif
 
-static char *trans2Commandname(int command);
+static const char *trans2Commandname(int command);
 static void DebugOutputSMB1Command(int command);
 static void DebugOutputTrans2Command(int command);
 extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
@@ -107,10 +107,6 @@ extern void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
 extern void SMBS_User_Init  (PUSER user);
 extern void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
 extern void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
-extern void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
-extern BBOOL SMBS_StateWaitOnPDCName (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateWaitOnPDCIP (PSMB_SESSIONCTX pCtx);
-extern BBOOL SMBS_StateContinueNegotiate (PSMB_SESSIONCTX pCtx);
 
 
 
@@ -4523,7 +4519,7 @@ BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,
 static void DebugOutputSMB1Command(int command)
 {
 #ifdef RTSMB_DEBUG
-char *CommandName;
+const char *CommandName;
     switch(command)
     {
     case SMB_COM_CREATE_DIRECTORY :
@@ -4750,7 +4746,7 @@ static void DebugOutputTrans2Command(int command)
     /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\n");                           */
 #endif
 }
-static char *trans2Commandname(int command)
+static const char *trans2Commandname(int command)
 {
 #ifdef RTSMB_DEBUG
     switch(command)

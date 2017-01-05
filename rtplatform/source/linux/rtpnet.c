@@ -40,6 +40,7 @@
 #ifndef IPPROTO_IPV6
 #include <netinet/ip6.h>
 #endif
+#include "rtpdebug.h"
 
 /************************************************************************
 * Defines
@@ -603,6 +604,7 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
     errno = 0;
 
     conSocket = accept((int) serverSock, (struct sockaddr *) &clientAddr, &clientLen);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtp_net_accept returned %d\n",conSocket);
 
     if (conSocket == -1)
     {
@@ -624,6 +626,7 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
             (errno == EOPNOTSUPP) ||
             (errno == ENETUNREACH))
         {
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtp_net_accept non fatal error %d :%s\n",errno, strerror(errno));
 #ifdef RTP_DEBUG
             RTP_DEBUG_OUTPUT_STR("rtp_net_accept: non-fatal error returned ");
             RTP_DEBUG_OUTPUT_INT(errno);
@@ -636,6 +639,7 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
         RTP_DEBUG_OUTPUT_INT(errno);
         RTP_DEBUG_OUTPUT_STR(".\n");
 #endif
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtp_net_accept fatal error %d :%s\n",errno, strerror(errno));
         return (-1);
     }
 
@@ -652,7 +656,10 @@ int rtp_net_accept (RTP_HANDLE *connectSock, RTP_HANDLE serverSock,
     {
         *port = ntohs(SS_PORT(&clientAddr));
     }
-
+    if (port && ipAddr)
+    {
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtp_net_accepted port: %d clientAddr :%x,%x,%x,%x\n", *port,ipAddr[0],ipAddr[1],ipAddr[2],ipAddr[3]);
+    }
     return (0);
 }
 

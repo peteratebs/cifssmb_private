@@ -22,12 +22,6 @@ typedef struct net_sessionctxt
 } NET_SESSIONCTX_T;
 typedef NET_SESSIONCTX_T RTSMB_FAR *PNET_SESSIONCTX;
 
-typedef struct yield_signal_s
-{
-  int yield_socket_portnumber;
-  RTP_SOCKET yield_socket;
-} yield_signal_t;
-
 
 typedef struct net_thread_s
 {
@@ -46,7 +40,6 @@ typedef struct net_thread_s
 	 */
 	int blocking_session;
 
-    yield_signal_t    yield_signal_object;
 	signalobject_Cptr signal_object;
 
 	/**

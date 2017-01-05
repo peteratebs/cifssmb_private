@@ -26,9 +26,13 @@
 #include "remotediags.h"
 #include "srvoplocks.h"
 #include "srvsmbssn.h"
+#include "srvfio.h"
 
 extern dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word flags, word mode, dword smb2flags, PFDWORD answer_external_fid, PFINT answer_fid);
 extern ddword smb2_stream_to_unique_userid(smb2_stream  *pStream);
+
+static void SendPendingCreate(smb2_stream  *pStream, PNET_SESSIONCTX pNetctxt, RTSMB2_CREATE_C *pCreateCommand);
+static void FinishPendingCreate(smb2_stream  *pStream);
 
 const unsigned char pMxAc_info_response[] =
 {0x00,0x00,0x00,0x00,
@@ -138,7 +142,7 @@ word RTSmb2_get_externalFid(byte *smb2_file_handle)
 }
 
 
-BBOOL Proc_smb2_Create(smb2_stream  *pStream)
+BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
 {
 	RTSMB2_CREATE_C command;
 	RTSMB2_CREATE_R response;
@@ -162,6 +166,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
     BBOOL reentering = FALSE;
     BBOOL signalled  = FALSE;
     BBOOL timedout  = FALSE;
+    PNET_SESSIONCTX pNetctxt = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
 
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -325,10 +330,10 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       file_name[command.NameLength] = 0;
       file_name[command.NameLength+1] = 0;
     }
-#if(TEST_REPLAY_EVERY_TIME)
+#if(0 && TEST_REPLAY_EVERY_TIME)
     if (pTree->type == ST_DISKTREE)
     {
-        if (!oplock_diagnotics.performing_replay)
+        if (!replay)
         {
           if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
           {
@@ -341,21 +346,18 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
 #endif
     if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
-      if (oplock_diagnotics.performing_replay)
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
+      if (replay)  {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));}
 
       if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
       {
         ddword unique_userid = smb2_stream_to_unique_userid(pStream);
-
+       // Pass the socket down to the oplock test in case we need to yield and queue a break request
         oplock_c_create_return_e result;
-        result = oplock_c_check_create_path(stat.unique_fileid, unique_userid, command.RequestedOplockLevel);
+        result = oplock_c_check_create_path(pNetctxt, stat.unique_fileid, unique_userid, command.RequestedOplockLevel);
         if (result == oplock_c_create_yield)
-        {
-          //Queue up a yield for this session and create a fid to wait on
-          oplock_c_create_yield_ing_fid(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),&stat, (PFRTCHAR) file_name);
+        { // Send an asynchonrous interim response
+          SendPendingCreate(pStream,pNetctxt, &command);
           pStream->doSessionYield=TRUE;
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  yield while openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
           return FALSE;
         }
       }
@@ -542,11 +544,19 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream)
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
-    PNET_SESSIONCTX pNctxt = SMBS_findSessionByContext(pStream->pSmbCtx);
-    if (pNctxt && prtsmb_srv_ctx->enable_oplocks)
+    if (prtsmb_srv_ctx->enable_oplocks && pTree->type == ST_DISKTREE)
     {
-       PFID pfid =  SMBU_GetInternalFidPtr (&pNctxt->netsessiont_smbCtx, externalFid);
-       if (pfid) oplock_c_create(pfid,command.RequestedOplockLevel);
+      if (pNetctxt)
+      {
+         PFID pfid =  SMBU_GetInternalFidPtr (&pNetctxt->netsessiont_smbCtx, externalFid);
+         if (pfid)
+           oplock_c_create(pNetctxt,pfid,smb2_stream_to_unique_userid(pStream),command.RequestedOplockLevel);
+      }
+    }
+    if (replay)
+    { // If this is a replay we must set the async flag and ID
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  FinishPendingCreate lock test was %d\n", pStream->pSmbCtx->session_state == OPLOCK_SIGNALLED);
+      FinishPendingCreate(pStream);
     }
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
     return TRUE;
@@ -587,7 +597,7 @@ PACK_PRAGMA_POP
 
 static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values);
 
-int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length);
+// int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length);
 
 
 int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length)
@@ -715,7 +725,6 @@ error_return:
   return -1;
 }
 
-
 static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_INTERNAL p_decoded_create_context_request_values,int n_create_context_request_values)
 {
 int i;
@@ -730,6 +739,66 @@ int i;
     printf("p_decoded_create_context_request_values[i].p_context_entry_wire->p_payload: %X\n", p_decoded_create_context_request_values[i].p_payload);
   }
 }
+
+PACK_PRAGMA_ONE
+struct PACK_ATTRIBUTE s_RTSMB2_HPLUS_CREATE_R
+{
+  byte nbss_header_type;
+  byte nbss_size[3];
+  RTSMB2_ASYNC_HEADER header;
+  RTSMB2_CREATE_R command;
+};
+PACK_PRAGMA_POP
+
+static ddword CurrentAsyncId = 0x1000;
+
+static void FinishPendingCreate(smb2_stream  *pStream)
+{
+RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
+  pAsyncOut->AsyncId = CurrentAsyncId;
+  pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
+  CurrentAsyncId += 1;
+}
+
+static void SendPendingCreate(smb2_stream  *pStream, PNET_SESSIONCTX pNetctxt, RTSMB2_CREATE_C *pCreateCommand)
+{
+struct s_RTSMB2_HPLUS_CREATE_R p;
+dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
+
+  tc_memset (&p, 0,sizeof(p));
+  tc_memset (&p, 0,sizeof(p));
+
+  p.nbss_header_type = 0;
+  p.nbss_size[0] =  (byte) (mysize>>16 & 0xFF);
+  p.nbss_size[1] =  (byte) (mysize>>8 & 0xFF);
+  p.nbss_size[2] =  (byte) (mysize & 0xFF);
+  p.header.ProtocolId[0] = 0xFE;  p.header.ProtocolId[1] = 'S';   p.header.ProtocolId[2] = 'M';   p.header.ProtocolId[3] = 'B';
+  p.header.StructureSize = 64;
+  p.header.CreditCharge  = 0; /* (2 bytes): In the SMB 2.002 dialect, this field MUST NOT be used and MUST be reserved. */
+  p.header.Status_ChannelSequenceReserved =  0x00000103;  // Status pending
+  p.header.Command = SMB2_CREATE;
+  p.header.CreditRequest_CreditResponse = 0;
+  p.header.Flags = 3;                             // ASYNC|RESPONSE
+  p.header.NextCommand = 0;
+//    ddword MessageId;
+//    ddword AsyncId;
+//    ddword SessionId;
+  p.header.MessageId   = pStream->InHdr.MessageId;
+  p.header.AsyncId    =  CurrentAsyncId;
+  p.header.SessionId   = pStream->InHdr.SessionId;
+//  header.Signature[16] = {0};
+
+  p.command.StructureSize = 9;
+
+  if (rtsmb_net_write (pNetctxt->netsessiont_sock, &p,sizeof(p)) < 0)
+  {
+     char buff[80];
+//     sprintf(buff, "rtsmb_net_write failed send failure to [%d]", pfilesession->netsessiont_heap_index);
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendPendingCreate rtsmb_net_write failed\n");
+  }
+}
+
+
 
 
 

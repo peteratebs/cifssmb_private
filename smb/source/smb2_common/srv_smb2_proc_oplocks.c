@@ -80,7 +80,7 @@
 #include "srv_smb2_proc_fileio.h"
 #include "remotediags.h"
 #include "srvoplocks.h"
-
+#include "smbnet.h"
 
 // Still experimental for now
 extern ddword smb2_stream_to_unique_userid(smb2_stream  *pStream)
@@ -110,11 +110,14 @@ BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
 {
  RTSMB2_OPLOCK_BREAK_C command;
  RTSMB2_OPLOCK_BREAK_R response;
+
+ OPLOCK_DIAG_RECV_BREAK
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  recved...\n");
  if (!pStream->Success)
  {
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_OplockBreak:  RtsmbStreamDecodeCommand failed...\n");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  RtsmbStreamDecodeCommand failed...\n");
      RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
      return TRUE;
  }
@@ -122,27 +125,25 @@ BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
  oplock_c_break_acknowledge_return_e r;
  dword status_toreturn = 0;
 
-  r = oplock_c_break_acknowledge(command.FileId, unique_userid, command.OplockLevel,&status_toreturn);
+  r = oplock_c_break_acknowledge(SMBU_SmbSessionToNetSession(pStream->pSmbCtx), command.FileId, unique_userid, command.OplockLevel,&status_toreturn);
   if (r == oplock_c_break_acknowledge_error)
-  {  // Send corect status with respoonse
+  {  // Send corect status with response
      RtsmbWriteSrvStatus(pStream, status_toreturn);
      return TRUE;
   }
-
-  /* enumerate FIDs and signal lock release if we have a match. Send breaka responses to waiting clients if  required */
-  oplock_c_break_update_pending_locks (command.FileId, command.OplockLevel);
-
+  // Set the status to success
+  pStream->OutHdr.Status_ChannelSequenceReserved = 0;
   /* Format the response to the break ack */
   tc_memset(&response,0, sizeof(response));
   response.StructureSize = 24;
   response.OplockLevel = command.OplockLevel;
   tc_memcpy(response.FileId,command.FileId, sizeof(response.FileId));
-
+  RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
   return TRUE;
 }
 
 PACK_PRAGMA_ONE
-struct s_RTSMB2_HPLUS_OPLOCK_BREAK_C
+struct PACK_ATTRIBUTE s_RTSMB2_HPLUS_OPLOCK_BREAK_C
 {
   byte nbss_header_type;
   byte nbss_size[3];
@@ -151,10 +152,13 @@ struct s_RTSMB2_HPLUS_OPLOCK_BREAK_C
 };
 PACK_PRAGMA_POP
 
-void SendOplockBreak(PFID pfid)
+
+void SendOplockBreak(RTP_SOCKET sock, byte *unique_fileid,uint8_t requested_oplock_level)
 {
 struct s_RTSMB2_HPLUS_OPLOCK_BREAK_C p;
 dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
+
+   OPLOCK_DIAG_SEND_BREAK;
 
    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SendOplockBreak: top.\n");
 
@@ -179,31 +183,24 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
 //  header.Signature[16] = {0};
 
   p.command.StructureSize = 24;
-  p.command.OplockLevel =  pfid->requested_oplock_level;
+  p.command.OplockLevel =  requested_oplock_level;
   p.command.Reserved = 0;
   p.command.Reserved2 = 0;
-  tc_memcpy (p.command.FileId,SMBU_Fidobject(pfid)->unique_fileid ,SMB_UNIQUE_FILEID_SIZE);
+  tc_memcpy (p.command.FileId, unique_fileid ,SMB_UNIQUE_FILEID_SIZE);
 
-  PNET_SESSIONCTX pfilesession = SMBU_Fid2Session(pfid);
-  if (!pfilesession)
+  if (rtsmb_net_write (sock, &p,sizeof(p)) < 0)
   {
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak SMBU_Fid2Session() failed \n");
-  }
-  else if (rtsmb_net_write (pfilesession->netsessiont_smbCtx, &p,sizeof(p)) < 0)
-  {
-     char buff[80];
-//     sprintf(buff, "rtsmb_net_write failed send failure to [%d]", pfilesession->netsessiont_heap_index);
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write failed\n");
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: SendOplockBreak to socket: %d rtsmb_net_write failed\n",sock);
   }
   else
   {
-     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak fake rtsmb_net_write succeeded \n");
-     return;
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write succeeded \n");
   }
  /* Read into command to pull it from the input queue */
  // RtsmbStreamEncodeAlert(psession, (PFVOID ) &command);
  return;
 }
+
 
 BBOOL Proc_smb2_Lock(smb2_stream  *pStream)
 {

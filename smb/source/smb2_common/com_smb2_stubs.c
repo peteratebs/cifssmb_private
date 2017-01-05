@@ -127,7 +127,7 @@ byte node_address[6];
 
 const char *DebugSMB2CommandToString(int command)
 {
-char * r = 0;
+const char * r = 0;
 	switch(command)
 	{
         case SMB2_NEGOTIATE:

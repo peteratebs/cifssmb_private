@@ -3,7 +3,7 @@
  |
  |   UNIVERSAL CODE - DO NOT CHANGE
  |
- | EBS - RT-Platform 
+ | EBS - RT-Platform
  |
  |  $Author: vmalaiya $
  |  $Date: 2006/07/17 15:29:00 $
@@ -38,12 +38,12 @@ typedef long                              RTP_INT32;
 typedef RTP_CONST long                    RTP_CINT32;
 typedef unsigned long                     RTP_UINT32;
 typedef RTP_CONST unsigned long           RTP_CUINT32;
-                                     
+
 typedef char                              RTP_CHAR;
 typedef RTP_CONST char                    RTP_CCHAR;
 typedef unsigned char                     RTP_UCHAR;
 typedef RTP_CONST unsigned char           RTP_CUCHAR;
-                                     
+
 typedef char RTP_FAR*                     RTP_PFINT8;
 typedef unsigned char RTP_FAR*            RTP_PFUINT8;
 typedef RTP_CONST unsigned char RTP_FAR*  RTP_PFCUINT8;
@@ -75,7 +75,8 @@ typedef int RTP_FAR *                     RTP_PFINT;
 typedef void  RTP_FAR *                   RTP_PFVOID;
 typedef long  RTP_FAR *                   RTP_PFLONG;
 typedef KS_CONSTANT char  RTP_FAR * PFCCHAR;
-#if (0)  /* 64bitpointer */ /* tbd - move to rtplatform */
+
+#ifdef BUILD_SMB_64BIT
 #define RTP_UINT64     unsigned long long
 #define RTP_INT64      long long
 #define RTP_UADDR      RTP_UINT64

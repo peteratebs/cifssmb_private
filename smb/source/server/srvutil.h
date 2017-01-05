@@ -103,7 +103,6 @@ int SMBU_EnumerateFidObjects(enumFidObjectFnType fn, void *enumargs);
 void *ptralign(void *ptr, int a);
 dword dwordalign(dword original, int a);
 ddword SMBU_UniqueUserId(ddword SessionId, dword TreeId, dword Processid);
-void SMBU_FidobjectSetheld_oplock_level(FID_T *pfid,int held_oplock_level);
 
 
 //============================================================================

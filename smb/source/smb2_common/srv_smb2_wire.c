@@ -42,8 +42,6 @@
 
 
 
-extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
-extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
 
 static int RtsmbWireVarEncodeNegotiateResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
 static int RtsmbWireVarEncodeSessionSetupResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);

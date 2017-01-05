@@ -23,6 +23,9 @@
 #include "rtpprint.h"
 #include "smbdebug.h"
 
+#include <sys/ioctl.h>
+
+
 RTSMB_STATIC RTSMB_CONST byte rtsmb_net_default_host_ip [4] = {127,   0,   0,   1};
 RTSMB_STATIC RTSMB_CONST byte rtsmb_net_default_mask_ip [4] = {255, 255, 255,   0};
 
@@ -103,17 +106,23 @@ int rtsmb_net_read_simple () - Get data sent by a reliable connection.
 RTSMB_STATIC
 int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
 {
-    int bytesRead;
+    int bytesRead=0;
 
     if(!pData)
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_net_read_simple: NULL buffer\n");
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: NULL buffer\n");
         return -1;
     }
 
+int count;
+ioctl(sock, FIONREAD, &count);
+
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: request size: %d available :%d\n",size, count);
     bytesRead = rtp_net_recv (sock, pData, size);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: bytesRead finished %d of %d\n",bytesRead, size);
     if (bytesRead == 0)
     {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: return -1\n");
         // other side has closed connection
         return -1;
     }
@@ -166,8 +175,11 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
     while ((dword) bytesRead < length)
     {
         int num_socks;
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull have: %d need: %d \n", rtp_get_system_msec(), bytesRead, length);
 
         num_socks = rtsmb_netport_select_n_for_read (&sock, 1, RTSMB_NB_UCAST_RETRY_TIMEOUT);
+
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull back sel with %d\n", rtp_get_system_msec(), num_socks);
 
         if (num_socks)
         {
@@ -190,6 +202,8 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
     /**
      * Now we clear out any remaining bytes on wire.
      */
+
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull have: %d need: %d \n", rtp_get_system_msec(), bytesRead, length);
     if ((dword) bytesRead >= length && (dword) size > length)
     {
         dword diff = (dword)size - length;

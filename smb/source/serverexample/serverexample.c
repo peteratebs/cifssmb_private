@@ -421,6 +421,7 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip)
  struct ifreq ifr;
  unsigned char *p;
  char *interface_name = "eth0";
+// char *interface_name = "enp0s3";
 
 
  fd = socket(AF_INET, SOCK_DGRAM, 0);

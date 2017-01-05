@@ -45,12 +45,12 @@ ARG_SECTION_TYPE;
 RTSMB_STATIC ARG_SECTION_TYPE RTSMB_GetNextArgSectionType (int f)
 {
 #define ARG_SECTION_TITLE_SIZE  50
-#define ARG_SECTION_TITLE_USER      "user"
-#define ARG_SECTION_TITLE_GROUP     "group"
-#define ARG_SECTION_TITLE_GLOBAL    "global"
-#define ARG_SECTION_TITLE_SHARE     "share"
-#define ARG_SECTION_TITLE_IPC       "ipc"
-#define ARG_SECTION_TITLE_PRINTER   "printer"
+#define ARG_SECTION_TITLE_USER      (char*)"user"
+#define ARG_SECTION_TITLE_GROUP     (char*)"group"
+#define ARG_SECTION_TITLE_GLOBAL    (char*)"global"
+#define ARG_SECTION_TITLE_SHARE     (char*)"share"
+#define ARG_SECTION_TITLE_IPC       (char*)"ipc"
+#define ARG_SECTION_TITLE_PRINTER   (char*)"printer"
 
     int i, r;
     char title [ARG_SECTION_TITLE_SIZE + 1];
@@ -108,7 +108,7 @@ RTSMB_STATIC ARG_SECTION_TYPE RTSMB_GetNextArgSectionType (int f)
 
     // do a quick check to make sure we don't use [end] markers if
     // they are in wrong places
-    if (!rtsmb_strcasecmp (title, "end", CFG_RTSMB_USER_CODEPAGE))
+    if (!rtsmb_strcasecmp (title, (char*)"end", CFG_RTSMB_USER_CODEPAGE))
         return RTSMB_GetNextArgSectionType (f);
 
     if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_USER, CFG_RTSMB_USER_CODEPAGE))     return ARG_USER;
@@ -230,7 +230,7 @@ RTSMB_STATIC BBOOL RTSMB_GetStringValue (PFCHAR section, PFCHAR key, PFCHAR dest
         if (*place == '\0')
             done = TRUE;
 
-        rtp_sprintf (scanner, " %%%is = %%*s \\n", RTSMB_ARG_KEY_SIZE);
+        rtp_sprintf (scanner, (char*)" %%%is = %%*s \\n", RTSMB_ARG_KEY_SIZE);
 
         matched = rtp_sscanf (section, scanner, keybuf);
 
@@ -272,7 +272,7 @@ RTSMB_STATIC BBOOL RTSMB_GetStringValue (PFCHAR section, PFCHAR key, PFCHAR dest
 
         if (done)
         {
-            if (size) tc_strcpy (dest, "");
+            if (size) tc_strcpy (dest, (char*)"");
             return FALSE;
         }
     }
@@ -301,7 +301,7 @@ RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
         else
             done = TRUE;
 
-        rtp_sprintf (scanner, " %%%is = %%i \\n", RTSMB_ARG_KEY_SIZE);
+        rtp_sprintf (scanner, (char*)" %%%is = %%i \\n", RTSMB_ARG_KEY_SIZE);
 
         matched = rtp_sscanf (section, scanner, keybuf, i);
 
@@ -336,11 +336,11 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
     tc_memset(g, 0, RTSMB_ARG_MAX_SECTION_SIZE);
 
     /* First, grab name and password */
-    if (!RTSMB_GetStringValue (section, "name", name,
+    if (!RTSMB_GetStringValue (section, (char*)"name", name,
             CFG_RTSMB_MAX_USERNAME_SIZE + 1))
         return FALSE;
 
-    if (RTSMB_GetStringValue (section, "password", passbuf,
+    if (RTSMB_GetStringValue (section, (char*)"password", passbuf,
             CFG_RTSMB_MAX_PASSWORD_SIZE + 1))
         password = passbuf;
     else
@@ -351,7 +351,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
     rtsmb_srv_register_user (name, password);
 
     /* Now get the user's groups */
-    RTSMB_GetStringValue (section, "groups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
+    RTSMB_GetStringValue (section, (char*)"groups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
 
     index = 0;
     gIndex = 0;
@@ -403,14 +403,14 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
     int sIndex;
     int index;
 
-    if (!RTSMB_GetStringValue (section, "name", name,
+    if (!RTSMB_GetStringValue (section, (char*)"name", name,
             CFG_RTSMB_MAX_GROUPNAME_SIZE + 1))
         return FALSE;
 
     if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group %s\n", name);}
     rtsmb_srv_register_group (name);
 
-    RTSMB_GetStringValue (section, "shares", shares, RTSMB_ARG_MAX_SECTION_SIZE);
+    RTSMB_GetStringValue (section, (char*)"shares", shares, RTSMB_ARG_MAX_SECTION_SIZE);
 
     index = 0;
     sIndex = 0;
@@ -439,11 +439,11 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             rw_perm[1] = *tmp;
             rw_perm[2] = 0;
 
-            if (!rtsmb_strcasecmp (rw_perm, "ro", CFG_RTSMB_USER_CODEPAGE))
+            if (!rtsmb_strcasecmp (rw_perm, (char*)"ro", CFG_RTSMB_USER_CODEPAGE))
                 permissions = SECURITY_READ;
-            else if (!rtsmb_strcasecmp (rw_perm, "wo", CFG_RTSMB_USER_CODEPAGE))
+            else if (!rtsmb_strcasecmp (rw_perm, (char*)"wo", CFG_RTSMB_USER_CODEPAGE))
                 permissions = SECURITY_WRITE;
-            else if (!rtsmb_strcasecmp (rw_perm, "rw", CFG_RTSMB_USER_CODEPAGE))
+            else if (!rtsmb_strcasecmp (rw_perm, (char*)"rw", CFG_RTSMB_USER_CODEPAGE))
                 permissions = SECURITY_READWRITE;
             else
                 permissions = SECURITY_NONE;
@@ -489,45 +489,45 @@ RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section)
     char permission_str [5];
     char flags_str [100];
 
-    if (!RTSMB_GetStringValue (section, "name", name,
+    if (!RTSMB_GetStringValue (section, (char*)"name", name,
             RTSMB_MAX_SHARENAME_SIZE + 1))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "comment", comment,
+    if (!RTSMB_GetStringValue (section, (char*)"comment", comment,
             RTSMB_MAX_COMMENT_SIZE + 1))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "path", path,
+    if (!RTSMB_GetStringValue (section, (char*)"path", path,
             MAX_PATH_PREFIX_SIZE + 1))
         return FALSE;
 
-    if (RTSMB_GetStringValue (section, "password", passbuf,
+    if (RTSMB_GetStringValue (section, (char*)"password", passbuf,
             CFG_RTSMB_MAX_PASSWORD_SIZE + 1))
         password = passbuf;
     else
         password = (PFCHAR)0;
 
-    if (!RTSMB_GetStringValue (section, "permission", permission_str, 5))
+    if (!RTSMB_GetStringValue (section, (char*)"permission", permission_str, 5))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "flags", flags_str, 100))
+    if (!RTSMB_GetStringValue (section, (char*)"flags", flags_str, 100))
         return FALSE;
 
-    if (!rtsmb_strcasecmp (permission_str, "ro", CFG_RTSMB_USER_CODEPAGE))
+    if (!rtsmb_strcasecmp (permission_str, (char*)"ro", CFG_RTSMB_USER_CODEPAGE))
         permissions = SECURITY_READ;
-    else if (!rtsmb_strcasecmp (permission_str, "wo", CFG_RTSMB_USER_CODEPAGE))
+    else if (!rtsmb_strcasecmp (permission_str, (char*)"wo", CFG_RTSMB_USER_CODEPAGE))
         permissions = SECURITY_WRITE;
-    else if (!rtsmb_strcasecmp (permission_str, "rw", CFG_RTSMB_USER_CODEPAGE))
+    else if (!rtsmb_strcasecmp (permission_str, (char*)"rw", CFG_RTSMB_USER_CODEPAGE))
         permissions = SECURITY_READWRITE;
     else
         permissions = SECURITY_NONE;
 
     flags = 0;
-    if (tc_strstr (flags_str, "create"))
+    if (tc_strstr (flags_str, (char*)"create"))
         flags |= SHARE_FLAGS_CREATE;
-    if (tc_strstr (flags_str, "case_sensitive"))
+    if (tc_strstr (flags_str, (char*)"case_sensitive"))
         flags |= SHARE_FLAGS_CASE_SENSITIVE;
-    if (tc_strstr (flags_str, "dos_names"))
+    if (tc_strstr (flags_str, (char*)"dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
     if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share %s\n", name);}
@@ -549,40 +549,40 @@ RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section)
     int number;
     char drivername [SMBF_FILENAMESIZE + 1];
 
-    if (!RTSMB_GetStringValue (section, "name", name,
+    if (!RTSMB_GetStringValue (section, (char*)"name", name,
             RTSMB_MAX_SHARENAME_SIZE + 1))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "comment", comment,
+    if (!RTSMB_GetStringValue (section, (char*)"comment", comment,
             RTSMB_MAX_COMMENT_SIZE + 1))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "path", path,
+    if (!RTSMB_GetStringValue (section, (char*)"path", path,
             MAX_PATH_PREFIX_SIZE + 1))
         return FALSE;
 
-    if (RTSMB_GetStringValue (section, "password", passbuf,
+    if (RTSMB_GetStringValue (section, (char*)"password", passbuf,
             CFG_RTSMB_MAX_PASSWORD_SIZE + 1))
         password = passbuf;
     else
         password = (PFCHAR)0;
 
-    if (!RTSMB_GetStringValue (section, "drivername", drivername,
+    if (!RTSMB_GetStringValue (section, (char*)"drivername", drivername,
             SMBF_FILENAMESIZE + 1))
         return FALSE;
 
-    if (!RTSMB_GetIntegerValue (section, "number", &number))
+    if (!RTSMB_GetIntegerValue (section, (char*)"number", &number))
         return FALSE;
 
-    if (!RTSMB_GetStringValue (section, "flags", flags_str, 100))
+    if (!RTSMB_GetStringValue (section, (char*)"flags", flags_str, 100))
         return FALSE;
 
     flags = 0;
-    if (tc_strstr (flags_str, "create"))
+    if (tc_strstr (flags_str, (char*)"create"))
         flags |= SHARE_FLAGS_CREATE;
-    if (tc_strstr (flags_str, "case_sensitive"))
+    if (tc_strstr (flags_str, (char*)"case_sensitive"))
         flags |= SHARE_FLAGS_CASE_SENSITIVE;
-    if (tc_strstr (flags_str, "dos_names"))
+    if (tc_strstr (flags_str, (char*)"dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
      if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer %s\n",name);}
@@ -598,7 +598,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section)
     char passbuf [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
     PFCHAR password;
 
-    if (RTSMB_GetStringValue (section, "password", passbuf,
+    if (RTSMB_GetStringValue (section, (char*)"password", passbuf,
             CFG_RTSMB_MAX_PASSWORD_SIZE + 1))
         password = passbuf;
     else
@@ -618,25 +618,25 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
     int index;
     int gIndex;
 
-    if (RTSMB_GetStringValue (section, "enable_oplocks", oplocks_str, 10))
+    if (RTSMB_GetStringValue (section, (char*)"enable_oplocks", oplocks_str, 10))
     {
-      if (!rtsmb_strcasecmp (oplocks_str, "yes", CFG_RTSMB_USER_CODEPAGE))
+      if (!rtsmb_strcasecmp (oplocks_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
         prtsmb_srv_ctx->enable_oplocks       = TRUE;
       else
         prtsmb_srv_ctx->enable_oplocks       = FALSE;
     }
 
-    if (!RTSMB_GetStringValue (section, "mode", mode_str, 10))
+    if (!RTSMB_GetStringValue (section, (char*)"mode", mode_str, 10))
     {
-        tc_strcpy (mode_str, "share");
+        tc_strcpy (mode_str, (char*)"share");
     }
 
-    if (!RTSMB_GetStringValue (section, "guest", guest_str, 10))
+    if (!RTSMB_GetStringValue (section, (char*)"guest", guest_str, 10))
     {
-        tc_strcpy (guest_str, "no");
+        tc_strcpy (guest_str, (char*)"no");
     }
 
-    if (!rtsmb_strcasecmp (mode_str, "user", CFG_RTSMB_USER_CODEPAGE))
+    if (!rtsmb_strcasecmp (mode_str, (char*)"user", CFG_RTSMB_USER_CODEPAGE))
     {
         rtsmb_srv_set_mode (AUTH_USER_MODE);
     }
@@ -645,16 +645,16 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         rtsmb_srv_set_mode (AUTH_SHARE_MODE);
     }
 
-    if (!rtsmb_strcasecmp (guest_str, "yes", CFG_RTSMB_USER_CODEPAGE))
+    if (!rtsmb_strcasecmp (guest_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
     {
         char groups [RTSMB_ARG_MAX_SECTION_SIZE];
         char g [RTSMB_ARG_MAX_SECTION_SIZE];
 
         if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");}
-        rtsmb_srv_register_user (SMB_GUESTNAME, (PFCHAR)0);
+        rtsmb_srv_register_user ((char *)SMB_GUESTNAME, (PFCHAR)0);
 
         /* Now get the guest's groups */
-        RTSMB_GetStringValue (section, "guestgroups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
+        RTSMB_GetStringValue (section, (char*)"guestgroups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
 
         index = 0;
         gIndex = 0;
@@ -674,7 +674,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         do
         {
             if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group %s \n",g);}
-            rtsmb_srv_add_user_to_group (SMB_GUESTNAME, g);
+            rtsmb_srv_add_user_to_group ((char *)SMB_GUESTNAME, g);
 
             *g = '\0';
             gIndex = 0;

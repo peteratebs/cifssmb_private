@@ -74,13 +74,20 @@ typedef enum // smbs_session_state
 #define FID_FLAG_DIRECTORY      0x0001
 #define FID_FLAG_ALL            0xFFFF
 
+typedef struct fidlockctrl_s
+{
+  struct net_sessionctxt *owning_session;                          // Session that owns the lock, don't send breaks to the owner
+  struct net_sessionctxt *break_send_requesting_session;           // If non zero one of the session requested a break be sent
+  byte send_break_level;                                           // if break_send_requesting_session is !NULL, this is the level to send in the break
+  byte held_oplock_level;                                          // current oplock level
+  word held_oplock_uid;
+} FIDLOCKCTRL_T;
+
 typedef struct fidobject_s
 {
   int die;                                // For testing, poke this every time we access it
   int reference_count;
-   byte held_oplock_level;         /* current level if (smb2flags&SMB2OPLOCKFLAGHELD) */
-   word held_oplock_uid;
-
+  FIDLOCKCTRL_T fidoplock_control;
   dword inode_number;                     // Numeric
   unsigned char  unique_fileid[SMB_UNIQUE_FILEID_SIZE];        /* The on-disk inode that identifies it uniquely on the volume. */
   rtsmb_char name[SMBF_FILENAMESIZE + 1];
@@ -97,23 +104,11 @@ typedef struct fid_s
 #define SMB2FIDSIG 0x11000000
 #define SMB2DELONCLOSE SMB2FIDSIG|0x01
     dword smb2flags;
-    dword OplockFlags;       //  =   SMB2_OPLOCK_LEVEL_NONE;
-    int   OplockLevel;       //  =   SMB2_OPLOCK_LEVEL_NONE;
-    int   OplockState;       //  =   OplockStateNone; // OplockStateNone; OplockStateBreaking;
-    dword OplockTimeout;     //  =     0;
-   // These can go soon
-    byte requested_oplock_level;    /* requested level if (smb2flags&SMB2SENDOPLOCKFLAGBREAK|SMB2WAITOPLOCKFLAGREPLY)  */
-
-
-
-
-
 
     word tid;       /* owning tree */
     word uid;       /* owning user */
     dword pid;      /* owning process */
     dword error;    /* delayed error */
-//    FIDOBJECT_T      _empfidobject;               // Read only acces through SMBU_Fidobject()
     PFIDOBJECT      _pfidobject;               // Read only acces through SMBU_Fidobject()
 } FID_T;
 typedef FID_T RTSMB_FAR *PFID;
@@ -212,6 +207,16 @@ typedef struct ProcSMB2_BodyContext_s {
   int      stackcontext_state;
 } SMB2_BODYCONTEXT_T;
 
+
+typedef struct sessionlockctrl_s
+{
+  BBOOL  _wakeSession;
+  BBOOL  _yieldSession;          // Private for use only by srvyield.cpp
+  dword  _yieldTimeout;          // Private for use only by srvyield.cpp
+  byte   requested_lock_level;                  // What it's waiting for if blocked
+  byte   unique_fileid[SMB_UNIQUE_FILEID_SIZE]; // Who it's waiting for if blocked
+} SESSIONLOCKCTRL_T;
+
 typedef struct smb_sessionCtx_s
 {
     RTP_SOCKET sock;
@@ -220,10 +225,8 @@ typedef struct smb_sessionCtx_s
     BBOOL isSMB2;               /* Set true when SMB2 negotiated */
     BBOOL doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
+    SESSIONLOCKCTRL_T sessionoplock_control;
 
-
-	word  _yieldFlags;          // Private for use only by srvyield.cpp
-	dword _yieldTimeout;        // Private for use only by srvyield.cpp
 
 
     SMBS_SESSION_STATE session_state;   /* are we idle or waiting on something? */

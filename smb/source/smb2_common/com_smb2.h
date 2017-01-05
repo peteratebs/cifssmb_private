@@ -72,8 +72,6 @@ EXTERN_C void  RTSmb2_Encryption_SignMessage(dword SessionGlobalId,TYPELESS Secu
 EXTERN_C const char *DebugSMB2CommandToString(int command);
 
 
-
-
 //****************************************************************************
 //**
 //**    END HEADER smb2.h

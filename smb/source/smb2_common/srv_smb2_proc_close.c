@@ -31,9 +31,10 @@
 #include "srvutil.h"
 #include "srvauth.h"
 #include "smbdebug.h"
+#include "srvoplocks.h"
+#include "srvfio.h"
 
 extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat);
-
 
 BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat)
 {
@@ -154,6 +155,8 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           // Call opclock_close in case we are releasing a locked fid
           PFID pfid = SMBU_GetInternalFidPtr (pStream->pSmbCtx, externalFid);
 
+          // free the oplock, if this fid owns it
+          oplock_c_close(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),pfid);
 
           if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags&SMB2DELONCLOSE))
           {
@@ -162,19 +165,10 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
               ok=SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
             else
               ok=SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
-             if ( prtsmb_srv_ctx->enable_oplocks&&ok)
-               oplock_c_delete(pfid);
-          }
-          else
-          {
-             if (prtsmb_srv_ctx->enable_oplocks)
-               oplock_c_close(pfid);
           }
         }
     }
-
     SMBU_ClearInternalFid (pStream->pSmbCtx, externalFid);
-
         // Set the status to success
     pStream->OutHdr.Status_ChannelSequenceReserved = 0;
     response.StructureSize = 60;

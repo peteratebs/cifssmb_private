@@ -94,9 +94,9 @@ int rtsmb_osport_printer_init (int ioPort)
 
 #ifdef __linux
 #   ifdef PRINT_VIA_CUPS //This file has to be deleted after printing via fork() and execve() lpr
-    char *linux_printer[] = {"BAD", "/tmp/tempprnfile1","/tmp/tempprnfile2","/tmp/tempprnfile3","/tmp/tempprnfile4"};
+    const char *linux_printer[] = {"BAD", "/tmp/tempprnfile1","/tmp/tempprnfile2","/tmp/tempprnfile3","/tmp/tempprnfile4"};
 #   else
-    char *linux_printer[] = {"BAD", "/dev/usb/lp0","/dev/usb/lp1","/dev/usb/lp2","/dev/usb/lp3", "/dev/usb/lp4" };
+    const char *linux_printer[] = {"BAD", "/dev/usb/lp0","/dev/usb/lp1","/dev/usb/lp2","/dev/usb/lp3", "/dev/usb/lp4" };
 #   endif
 #endif
 

@@ -135,7 +135,17 @@ void _rtp_debug_syslog_open(char *name, unsigned long level_mask)
 
 
 
-void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...)
+// syslog when rtpsyslogFilter is enabled but the message was not filtered
+void __rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...)
+{
+ va_list argptr;
+ va_start(argptr,fmt);
+ vsyslog(LOG_MAKEPRI(dbg_lvl, LOG_INFO), fmt, argptr);
+// vsyslog(LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO), fmt, argptr);
+ va_end(argptr);
+}
+
+void _rtp_debug_syslog_printf(int dbg_lvl, const char *fmt, ...)
 {
 char buffer[RTP_DEBUG_STRING_LEN];
  va_list argptr;
@@ -150,6 +160,8 @@ char buffer[RTP_DEBUG_STRING_LEN];
      va_end(argptr);
      return;
    }
+   __rtp_debug_syslog_printf(dbg_lvl, "%s", syslog_filterbuffer);
+   return;
  }
  vsyslog(LOG_MAKEPRI(dbg_lvl, LOG_INFO), fmt, argptr);
 // vsyslog(LOG_MAKEPRI(LOG_SYSLOG, LOG_INFO), fmt, argptr);

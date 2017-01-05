@@ -22,16 +22,14 @@
 #include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
-
-
 #include "rtptime.h"
 #include "rtpmem.h"
-
 #include "srvssn.h"
 #include "srvutil.h"
 #include "srvauth.h"
 #include "smbdebug.h"
 #include "srvcfg.h"
+#include "srvfio.h"
 
 // FileInformationClass
 #define FileDirectoryInformation        0x01
@@ -46,6 +44,7 @@
 #define SMB2_RETURN_SINGLE_ENTRY        0x02
 #define SMB2_INDEX_SPECIFIED            0x04
 #define SMB2_REOPEN                     0x10
+
 
 static int glFile_index;   // Temporary patch for debugging, needs to be built into the GFIRST/GNEXT code
 

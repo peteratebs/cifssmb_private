@@ -24,14 +24,12 @@
 #include "srv_smb2_assert.h"
 #include "com_smb2_wiredefs.h"
 #include "srv_smb2_model.h"
-
-
 #include "rtptime.h"
-
 #include "srvssn.h"
 #include "srvutil.h"
 #include "srvauth.h"
 #include "smbdebug.h"
+#include "srvfio.h"
 
 
 BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream)

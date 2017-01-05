@@ -27,22 +27,6 @@ EXTERN_C void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree);
 EXTERN_C void SMBS_User_Init (PUSER user);
 EXTERN_C void SMBS_User_Shutdown (PSMB_SESSIONCTX pCtx, PUSER user);
 EXTERN_C void SMBS_CloseShare ( PSMB_SESSIONCTX pCtx, word handle);
-EXTERN_C void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx);
-
-
-EXTERN_C void SMBS_new_session_yield_signal(PNET_SESSIONCTX pNetCtx);
-EXTERN_C int  SMBS_check_yield_signal(PSMB_SESSIONCTX pSctx);
-EXTERN_C void SMBS_set_yield_signal(PSMB_SESSIONCTX pSctx);        // Not called ???
-EXTERN_C void SMBS_set_yield_timeout(PSMB_SESSIONCTX pSctx);
-EXTERN_C void SMBS_clear_yield_timeout(PSMB_SESSIONCTX pSctx);
-EXTERN_C int  SMBS_check_yield_timeout(PSMB_SESSIONCTX pSctx);           // Returns true if timedout
-EXTERN_C void SMBS_wake_session_from_yield(PNET_SESSIONCTX pnCtx);
-EXTERN_C void SMBS_bind_yield_signal(yield_signal_t *yield_signal_instance, int thread_index);
-EXTERN_C int SMBS_is_yield_signal_blocked(PSMB_SESSIONCTX pSctx);
-
-
-
-
 
 
 EXTERN_C void SMBS_srv_netssn_init (void);

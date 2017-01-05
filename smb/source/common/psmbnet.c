@@ -14,7 +14,35 @@
 #include "psmbnet.h"
 #include "rtpnet.h"
 #include "smbdefs.h"
+#include "errno.h"
+#include "string.h"
 
+
+extern RTP_SOCKET diag_socket;
+
+// select failed check one at a time for bad sockets
+static void rtsmb_netport_select_n_diag(RTP_SOCKET *socketList, int listSize, int listIndex)
+{
+    int n;
+    int result;
+    RTP_FD_SET readList;
+    RTP_FD_SET errorList;
+    //Clear readList
+    rtp_fd_zero (&readList);
+    rtp_fd_zero (&errorList);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu Select: NSOCKS:%d [%d,%d,%d,%d,%d]\n", rtp_get_system_msec(), listSize, socketList[0],socketList[1],socketList[2],socketList[3],socketList[3]);
+    rtp_fd_set(&readList, socketList[listIndex]);
+    rtp_fd_set(&errorList, socketList[listIndex]);
+    result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, 100);
+    if (result < 0)
+    {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu socket index : %d  rtp_net_select error errno string: %s\n", rtp_get_system_msec(), listIndex, strerror(errno));
+    }
+    else
+    {
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu socket index : %d  rtp_net_select succeeded\n", rtp_get_system_msec(),listIndex);
+    }
+}
 
 extern volatile int keyboard_break_pressed_count;
 int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long timeoutMsec)
@@ -40,7 +68,6 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     //Clear readList
     rtp_fd_zero (&readList);
     rtp_fd_zero (&errorList);
-
     for (n=0; n<listSize; n++)
     {
         rtp_fd_set(&readList, socketList[n]);
@@ -53,15 +80,29 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
 
     if (timeoutMsec < 0)
     {
+        if (diag_socket!=tempList[0])    // display socks unless it's diag
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu Blocking tmo:%ld Select: NSOCKS:%d [%d,%d,%d,%d,%d]\n",rtp_get_system_msec(),timeoutMsec, listSize, socketList[0],socketList[1],socketList[2],socketList[3],socketList[4]);
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, -1);
     }
     else
     {
+        if (diag_socket!=tempList[0])    // display socks unless it's diag
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Blocking tmo:%ld Select: NSOCKS:%d [%d,%d,%d,%d,%d]\n",timeoutMsec, listSize, socketList[0],socketList[1],socketList[2],socketList[3],socketList[4]);
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, timeoutMsec);
+    }
+    if (diag_socket!=tempList[0])    // display socks unless it's diag
+    {
+      if (result < 0)
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu:  rtp_net_select error errno string: %s\n", rtp_get_system_msec(), strerror(errno));
+      else
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtp_net_select succeeded\n", rtp_get_system_msec());
     }
     if (result < 0)
     {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: listSize: %d  rtp_net_select error returned : %d\n", result, listSize);
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_netport_select_n_for_read: listSize: %d  rtp_net_select error returned : %d errno string: %s\n", listSize, result, strerror(errno));
+       for (n=0; n<listSize; n++)    // which socket
+         rtsmb_netport_select_n_diag(tempList, listSize, n);
+       srvsmboo_panic("Select error");
     }
     if (result <= 0)
     {

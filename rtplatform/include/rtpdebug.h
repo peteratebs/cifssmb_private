@@ -67,7 +67,7 @@ void _rtp_debug_output_neterrno (
 void _rtp_debug_output_int (
 	long val
 	);
-void _rtp_debug_syslog_printf(int dbg_lvl, char *fmt, ...);
+void _rtp_debug_syslog_printf(int dbg_lvl, const char *fmt, ...);
 void _rtp_debug_syslog_open(char *name, unsigned long level_mask);
 typedef int (*rtpsyslogFilterType)(char *str_buffer);
 void _rtp_debug_syslog_filter(rtpsyslogFilterType pfilter);

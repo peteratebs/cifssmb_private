@@ -34,6 +34,7 @@ typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
 
 
 
+PACK_PRAGMA_ONE
 typedef struct smb2_stream_s {
      // Signing rules. Set by calling smb2_stream_set_signing_rule
     byte     *SigningKey;                           // For writes, the key for signing, For reads the key for checking the signature
@@ -74,9 +75,11 @@ typedef struct smb2_stream_s {
 	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
     struct smb_sessionCtx_s *pSmbCtx;
+} PACK_ATTRIBUTE smb2_stream;
+PACK_PRAGMA_POP
 
-} smb2_stream;
-
+EXTERN_C int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
+EXTERN_C int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
 
 
 //============================================================================

@@ -14,6 +14,8 @@
 
 #include "smbdefs.h"
 #include "rtpmem.h"
+#include "srvfio.h"
+
 
 // Filesystem                1K-blocks      Used Available Use% Mounted on
 // 0a_share_with_virtual_box 249068540 112020068 137048472  45% /media/sf_0a_share_with_virtual_box

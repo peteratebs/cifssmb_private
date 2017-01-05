@@ -14,7 +14,7 @@
 #include "smbdebug.h"
 #include "rtpdebug.h"
 
-void rtsmb_dump_bytes(char *prompt, void *_pbytes, int length, int format)
+void rtsmb_dump_bytes(const char *prompt, void *_pbytes, int length, int format)
 {
 int i;
 int charno = 0;

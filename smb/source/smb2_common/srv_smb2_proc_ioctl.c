@@ -26,6 +26,7 @@
 #include "srvssn.h"
 #include "smbdebug.h"
 #include "srvutil.h"
+#include "srvfio.h"
 
 static BBOOL isAnInvalidFSCTLRequest(dword requestid)
 {
@@ -72,6 +73,7 @@ static BBOOL isAnInvalidFSCTLRequest(dword requestid)
   }
   return FALSE;
 }
+
 extern void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer);
 
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;

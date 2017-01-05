@@ -39,6 +39,8 @@ void rtsmb_srv_diag_config(void)
 
 void rtsmb_thread_diag (void *p)
 {
+  // Sleep 10 secconds before we run
+  sleep(10);
   if (!srvobject_bind_diag_socket())
   {
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Error occurred while trying to open diag socket\n");
@@ -162,7 +164,11 @@ static int DiagFormatSessionsCB (PNET_SESSIONCTX pnCtx, void *pargs)
  if ( ((struct  DiagFormatSessionsCB_t*)pargs)->doCount)
    ((struct  DiagFormatSessionsCB_t*)pargs)->numSessions+=1;
  else
-   ((struct  DiagFormatSessionsCB_t*)pargs)->buffer +=  tc_sprintf(((struct DiagFormatSessionsCB_t *)pargs)->buffer, "  Last activity: %lu\n", pnCtx->netsessiont_lastActivity);
+ ((struct  DiagFormatSessionsCB_t*)pargs)->buffer +=  tc_sprintf(((struct DiagFormatSessionsCB_t *)pargs)->buffer, "  Last activity: %lu Yielded ??: %d Signaled: %d State:%x \n",
+   pnCtx->netsessiont_lastActivity,
+   pnCtx->netsessiont_smbCtx.sessionoplock_control._yieldSession,
+   pnCtx->netsessiont_smbCtx.sessionoplock_control._wakeSession,
+   pnCtx->netsessiont_smbCtx.session_state);
  return 0;
 }
 
@@ -180,12 +186,19 @@ struct DiagFormatSessionsCB_t args = {
     SMBU_EnumerateSessions(DiagFormatSessionsCB, (void *) &args);
     return args.buffer;
 }
+EXTERN_C char *SMBU_DiagFormatNetStats(char *buffer);
 
 static int SMBU_DiagFormatFidList(char *buffer)
 {
 char *start=buffer;
 PFIDOBJECT pNewfidObject = 0;  // result
 
+ buffer += tc_sprintf(buffer, (char *)"====================== SESSION STATISTICS  ==========================================\n");
+ buffer = SMBU_DiagFormatSessions(buffer);
+ buffer += tc_sprintf(buffer, (char *)"====================== NETWORK STATISTICS  ==========================================\n");
+ buffer =  SMBU_DiagFormatNetStats(buffer);
+
+#if (1)
  buffer += tc_sprintf(buffer, (char *)"====================== FID STATISTICS  ==========================================\n");
  buffer += tc_sprintf(buffer, (char *)"### OBJADDR     REFS   FIDADDR OPENS FLGS  LCK  TID    UID SES#   INODE   FILENAME\n");
  int  i;
@@ -211,34 +224,28 @@ PFIDOBJECT pNewfidObject = 0;  // result
         i,
         objaddress,
         reference_count,
-        p,fidcount, p->smb2flags,SMBU_Fidobject(p)->held_oplock_level,p->tid,p->uid, SMBU_FidToSessionNumber(p),SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, SMB_UNIQUE_FILEID_SIZE, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
+        p,fidcount, p->smb2flags,
+        0, // SMBU_Fidobject(p)->held_oplock_level
+        p->tid,p->uid, SMBU_FidToSessionNumber(p),SMBU_format_fileid(SMBU_Fidobject(p)->unique_fileid, SMB_UNIQUE_FILEID_SIZE, temp0),SMBU_format_filename(SMBU_Fidobject(p)->name,sizeof(temp1),temp1));
       }
     }
   }
+
   buffer += tc_sprintf(buffer, (char *)"====#======#====#=====#=====#====#====#=======#=== \n");
 
+
   buffer += tc_sprintf(buffer, (char *)"====================== OPLOCK STATISTICS  ==========================================\n");
-  if (!prtsmb_srv_ctx->enable_oplocks)
-     buffer += tc_sprintf(buffer, (char *)"Oplocks are disabled:\n");
-  else
-  {
-    buffer += tc_sprintf(buffer, (char *)"Oplocks are enabled:\n");
-    buffer += tc_sprintf(buffer, (char *)"  session_replays               :  %lu \n", oplock_diagnotics.session_replays               );
-    buffer += tc_sprintf(buffer, (char *)"  session_yields                :  %lu \n", oplock_diagnotics.session_yields                );
-    buffer += tc_sprintf(buffer, (char *)"  session_wakeups               :  %lu \n", oplock_diagnotics.session_wakeups               );
-    buffer += tc_sprintf(buffer, (char *)"  session_wake_signalled        :  %lu \n", oplock_diagnotics.session_wake_signalled        );
-    buffer += tc_sprintf(buffer, (char *)"  session_sent_signals          :  %lu \n", oplock_diagnotics.session_sent_signals          );
-    buffer += tc_sprintf(buffer, (char *)"  session_sent_timeouts         :  %lu \n", oplock_diagnotics.session_sent_timeouts         );
-    buffer += tc_sprintf(buffer, (char *)"  session_wake_timedout         :  %lu \n", oplock_diagnotics.session_wake_timedout         );
-    buffer += tc_sprintf(buffer, (char *)"  session_sent_breaks           :  %lu \n", oplock_diagnotics.session_sent_breaks           );
-  }
+  buffer = SMBU_DiagFormatOplocks(buffer);
   buffer += tc_sprintf(buffer, (char *)"====================== SESSION STATISTICS  ==========================================\n");
   buffer = SMBU_DiagFormatSessions(buffer);
+  buffer += tc_sprintf(buffer, (char *)"====================== NETWORK STATISTICS  ==========================================\n");
+  buffer =  SMBU_DiagFormatNetStats(buffer);
+#endif
   return (int) (buffer - start);
 }
 
 static int diag_remote_portnumber = -1;
-static RTP_SOCKET diag_socket = -1;
+RTP_SOCKET diag_socket = -1;
 static const byte local_ip_address[] = {0x7f,0,0,1};
 // Request come in here. replies go out.
 static int  remote_port=-1;

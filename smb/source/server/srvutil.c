@@ -113,7 +113,6 @@ ddword a;
 PFRTCHAR SMBU_ShortenSMBPath (PFRTCHAR path)
 {
 	int i;
-
 	for(i=0; i < 3; path = &(path[1]))
 		if(path[0] == '\\') i++;
 
@@ -374,15 +373,12 @@ int SMBU_SetFidError (PSMB_SESSIONCTX pCtx, word external, byte ec, word error )
 	return -1; // bad external
 }
 
-void SMBU_FidobjectSetheld_oplock_level(FID_T *pfid,int held_oplock_level)
-{
-  SMBU_Fidobject(pfid)->held_oplock_level = held_oplock_level;
-//  return &pfid->__fidobject;
-}
 
 PFIDOBJECT SMBU_Fidobject(FID_T *pfid)
 {
 //  pfid->_pfidobject = &pfid->_empfidobject;
+  if (!pfid->_pfidobject)
+   srvsmboo_panic("SMBU_Fidobject: null");
   pfid->_pfidobject->die = 1;
   return pfid->_pfidobject;
 }
@@ -473,15 +469,14 @@ struct mapUniquIdToFidObjectCB_t {
 static int mapUniquIdToFidObjectCB(PFIDOBJECT pfidObject, void *pargs)
 {
 #warning hash this to speed up
-    if (tc_memcmp(pfidObject->unique_fileid, ((struct mapUniquIdToFidObjectCB_t*)pargs)->unique_fileid, sizeof(pfidObject->unique_fileid) ) == 0)
-//    if (pfidObject->inode_number == ((struct mapUniquIdToFidObjectCB_t*)pargs)->inode_number )
+    if (tc_memcmp(pfidObject->unique_fileid, ((struct mapUniquIdToFidObjectCB_t*)pargs)->unique_fileid, SMB_UNIQUE_FILEID_SIZE ) == 0)
     {
       ((struct mapUniquIdToFidObjectCB_t*)pargs)->pfidObject=pfidObject;
       return 1;
     }
     return 0;
 }
-static PFIDOBJECT mapUniquIdToFidObject(byte *unique_fileid)
+PFIDOBJECT findFidObjectbyUniquId(byte *unique_fileid)
 {
 struct mapUniquIdToFidObjectCB_t args = {
         inode_number: 0,
@@ -498,22 +493,25 @@ struct mapUniquIdToFidObjectCB_t args = {
    }
    return 0;
 }
+PFIDOBJECT mapUniqueIdToFidObject(byte *unique_fileid, PFRTCHAR name)
+{
+PFIDOBJECT pfidObject = findFidObjectbyUniquId(unique_fileid);
+ if (!pfidObject)
+ {
+   pfidObject = SMBU_AllocateFidObject();
+   tc_memcpy(pfidObject->unique_fileid,unique_fileid,SMB_UNIQUE_FILEID_SIZE);
+   rtsmb_cpy (pfidObject->name,name);
+ }
+ return pfidObject;
+}
 
 
 //	tc_memcpy(pCtx->fids[k])->unique_fileid,unique_fileid,sizeof(SMBU_Fidobject(&pCtx->fids[k])->unique_fileid));
 static void SMBU_FidobjectSetFileid(PFID pfid, byte *unique_fileid, PFRTCHAR name)
 {
 PFIDOBJECT pfidObject;
-//    if (prtsmb_srv_ctx->enable_oplocks)
-   pfidObject = mapUniquIdToFidObject(unique_fileid);
-//    else
-//      pfidObject = &pfid->_empfidobject;
-   if (!pfidObject)
-   {
-      pfidObject = SMBU_AllocateFidObject();
-      tc_memcpy(pfidObject->unique_fileid,unique_fileid,SMB_UNIQUE_FILEID_SIZE);
-      rtsmb_cpy (pfidObject->name,name);
-   }
+
+    pfidObject = mapUniqueIdToFidObject(unique_fileid, name);
 #warning assert
    if (pfidObject)
      pfid->_pfidobject = pfidObject;
@@ -560,7 +558,6 @@ PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
 }
 
 
-
 static int _SMBU_SearchUniqueidCB (PFID pfid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
 {
   struct SMBU_enumFidSearchUniqueidType_s * pArgs = (struct SMBU_enumFidSearchUniqueidType_s *) pargs;
@@ -581,6 +578,7 @@ int SMBU_SearchFidsByUniqueId (byte *unique_fileid, struct SMBU_enumFidSearchUni
 //    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBU_SeardFidByUniqueId no match for %s\n", SMBU_format_fileid(unique_fileid, SMB_UNIQUE_FILEID_SIZE, temp0));
   return pResults->match_count;
 }
+
 
 
 // uid, tid must be valid
@@ -659,8 +657,6 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
 	pCtx->fids[k].smb2flags = smb2flags;
 	SMBU_FidobjectSetFileid(&pCtx->fids[k],unique_fileid, name);     // This has to go first
 	SMBU_FidobjectSetFileName(&pCtx->fids[k],name);
-    // Not involved in any locking activity yet so clear
-    oplock_c_new_unlocked_fid(&pCtx->fids[k]);
 	return k;
 }
 
@@ -751,7 +747,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	}
 
 	if (!tree)
-		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No user for fid:%d\n",external);
+		RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: No tree for fid:%d\n",external);
 	if (tree)
 	{
 		// find fid in tree list and nullify
@@ -765,6 +761,8 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 		if (j < prtsmb_srv_ctx->max_fids_per_tree)	// if we found it...
 		{
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: close fid[%x]\n" , tree->fids[j]);
+            oplock_c_close(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);          // Release from oplocks if fid owns an oplock
 			tree->fids[j] = (PFID)0;
 		}
         else
@@ -774,21 +772,13 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	}
 
 	// clear the fid in master list
-#warning SMBU_ClearInternalFid needs to call void RtsmbYieldOplockCloseFile(PSMB_SESSIONCTX pCtx, PFID pfid)
 
     // NULL everything except internal (-1 == free)
     PFIDOBJECT      _pfidobject = pCtx->fids[k]._pfidobject;
     // Release the reference to the FIDOBJECT
-//    if (prtsmb_srv_ctx->enable_oplocks)
-      SMBU_ReleaseFidObject(pCtx->fids[k]._pfidobject);
+    SMBU_ReleaseFidObject(pCtx->fids[k]._pfidobject);
     tc_memset(&pCtx->fids[k], 0, sizeof(FID_T));
     pCtx->fids[k].internal_fid = -1;
-#warning
-//    if (prtsmb_srv_ctx->enable_oplocks)
-//      pCtx->fids[k]._pfidobject = SMBU_AllocateFidObject();
-//    else // Don't do this, we'll reallocate
-//      pCtx->fids[k]._pfidobject = _pfidobject;
-
 }
 
 
@@ -847,17 +837,17 @@ void SMBS_Tree_Init (PTREE tree)
 void SMBS_Tree_Shutdown (PSMB_SESSIONCTX pCtx, PTREE tree)
 {
     word i;
+    word tid = (word)(((dword)tree)&0xffff);
 
     for (i = 0; i < prtsmb_srv_ctx->max_fids_per_tree; i++)
     {
         if (tree->fids[i])
-        {
+        {   // Release any opclocks associated with it
             if (tree->fids[i]->flags != FID_FLAG_DIRECTORY)
                 SMBFIO_Close (pCtx, tree->external, tree->fids[i]->internal_fid);
             SMBU_ClearInternalFid (pCtx, tree->fids[i]->external);
         }
     }
-
     tree->inUse = FALSE;
 }
 

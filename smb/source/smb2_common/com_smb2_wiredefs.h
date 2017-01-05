@@ -134,7 +134,7 @@
 #define SMB2_STATUS_NO_SUCH_FILE                0xC000000F
 
 
-
+#define SMB2_STATUS_FILE_CLOSED                 0xC0000128
 
 
 #define  STG_E_WRITEFAULT  0x8003001D
@@ -242,6 +242,25 @@ typedef struct s_RTSMB2_HEADER
 } PACK_ATTRIBUTE RTSMB2_HEADER;
 PACK_PRAGMA_POP
 typedef RTSMB2_HEADER RTSMB_FAR *PRTSMB2_HEADER;
+
+
+PACK_PRAGMA_ONE
+typedef struct s_RTSMB2_ASYNC_HEADER
+{
+    byte ProtocolId[4];
+    word StructureSize; // 64
+    word CreditCharge; /* (2 bytes): In the SMB 2.002 dialect, this field MUST NOT be used and MUST be reserved. */
+    dword Status_ChannelSequenceReserved; /*  (4 bytes): */
+    word Command;
+    word CreditRequest_CreditResponse;
+    dword Flags;
+    dword NextCommand;
+    ddword MessageId;
+    ddword AsyncId;
+    ddword SessionId;
+    byte Signature[16];
+
+} PACK_ATTRIBUTE RTSMB2_ASYNC_HEADER;
 
 
 PACK_PRAGMA_ONE

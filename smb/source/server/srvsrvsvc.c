@@ -287,7 +287,7 @@ PACK_PRAGMA_POP
 
 
 
-static void srvsrvc_dump_bytes(char *prompt, void *_pbytes, int length)
+static void srvsrvc_dump_bytes(const char *prompt, void *_pbytes, int length)
 {
    if (prtsmb_srv_ctx->display_login_info) rtsmb_dump_bytes(prompt, _pbytes, length, DUMPUNICODE);
 }

@@ -12,11 +12,13 @@ cflags+= -D SUPPORT_SMB2
 # cflags+= -Wno-sign-conversion -Wno-sign-compare -Wno-format
 # -Wno-conversion eliminates 50 of our 150 warning
 cflags+= -Wno-conversion -Wextra
-# don't complain wehn we use #warning
+# don't complain when we use #warning
 #cflags+= -Wno-cpp
-cflags+=-funsigned-char
 cflags+= -Wno-format
+cflags+= -Wpointer-sign
+cflags+= -Wwrite-strings
 
+cflags+= -funsigned-char
 
 ## SET SMB_PATH
 SMB_PATH = ../..

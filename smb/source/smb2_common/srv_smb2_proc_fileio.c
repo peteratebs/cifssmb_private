@@ -33,6 +33,7 @@
 #include "srvauth.h"
 #include "smbdebug.h"
 #include "rtpmem.h"
+#include "srvfio.h"
 
 
 BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream, PFVOID command, PFVOID pcommand_structure_Fileid,word *pcommand_structure_size, word command_size)

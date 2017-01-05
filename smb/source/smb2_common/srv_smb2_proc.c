@@ -59,8 +59,6 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 
 #include "rtptime.h"
 
-extern int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
-extern int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
@@ -68,9 +66,10 @@ extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
 static void Smb1SrvCtxtToStream(smb2_stream * pStream, PSMB_SESSIONCTX pSctx);
 static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream);
-static void SMBS_ProccessFrame(PSMB_SESSIONCTX pSctx, BBOOL doFirstPacket);
-static BBOOL SMBS_ProccessPacket (smb2_stream * pStream);
+static void SMBS_ProccessFrame(PSMB_SESSIONCTX pSctx, BBOOL doFirstPacket, BBOOL replay);
+static BBOOL SMBS_ProccessPacket (smb2_stream * pStream, BBOOL replay);
 static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufStart);
+
 
 // SMBS_ProccessCompoundFrame (PSMB_SESSIONCTX pSctx, BBOOL replay)
 //
@@ -109,12 +108,11 @@ BBOOL r=FALSE;
 BBOOL doFirstPacket;
 smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
-    // If we are replaying test if from teh beginning
+    // If we are replaying test if from the beginning
     if (replay)
       doFirstPacket = pStream->doFirstPacket;
     else
       doFirstPacket = TRUE; // Always true if not replaying
-
     if (doFirstPacket)
     {
       // Initialize the handling of a compound packet containing one or more SMB2 commands
@@ -136,7 +134,6 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     if (cmd_read_header_raw_smb2( pStream->read_origin, pStream->read_origin,  pStream->InBodySize, &(pStream->InHdr)) == -1)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProccessCompoundFrame: Badly formed header");
-       rtsmb_dump_bytes("RAWH",  pStream->read_origin, pStream->InBodySize,  DUMPBIN);
        SESSIONCTXSTATICS.stackcontext_state = ST_FALSE;
     }
     /**  Do a quick check here that the first command we receive is a negotiate.*/
@@ -173,7 +170,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
     while (SESSIONCTXSTATICS.stackcontext_state==ST_INPROCESS)
     {
-       SMBS_ProccessFrame(pSctx,doFirstPacket);
+       SMBS_ProccessFrame(pSctx,doFirstPacket,replay);
        doFirstPacket = FALSE;
     }
 
@@ -252,7 +249,7 @@ static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,smb2_stream *pStre
 // If we are beginning a new command Read the header into smb2stream.inHdr
 // Save the next command offset from the incoming packet in case it is a compound packet
 
-static void SMBS_ProccessFrame(PSMB_SESSIONCTX pSctx, BBOOL doFirstPacket)
+static void SMBS_ProccessFrame(PSMB_SESSIONCTX pSctx, BBOOL doFirstPacket, BBOOL replay)
 {
 smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
@@ -307,7 +304,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     // Make sure yield state is cleared. The command processor may set it
     // Check if a command might yield and save the stream off if it can.
 
-    BBOOL SendCommandResponse = SMBS_ProccessPacket (pStream);
+    BBOOL SendCommandResponse = SMBS_ProccessPacket (pStream,replay);
 
     // If the command process requested a yield.
     // rewind the stream to where we strted this frame return with (pSctx) == ST_YIELD; to start the yield
@@ -344,8 +341,9 @@ static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,smb2_stream *pStre
 {
 PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
        PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
-       // Set out process id to input process id \n");
-       pOutHeader->Reserved = pStream->InHdr.Reserved;
+       // Set out process id to input process id if the packet is not asynchronous
+       if ((pOutHeader->Flags & SMB2_FLAGS_ASYNC_COMMAND)==0)
+         pOutHeader->Reserved = pStream->InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
 
        // Remember the next command adddress in the buffer in case we have to fix it up
@@ -393,6 +391,11 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
                SESSIONCTXSTATICS.isCompoundReply = FALSE;
           }
        }
+       if (pOutHeader->CreditRequest_CreditResponse == 0)
+       {
+         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Force credit response to 1:\n");
+         pOutHeader->CreditRequest_CreditResponse = 1;
+       }
        // Sign the packet
 #if (1)
         PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
@@ -406,7 +409,7 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
        if (pStream->psmb2Session->SigningRequired)
          SESSIONCTXSTATICS.sign_packet = TRUE;
 #warning Note that we are overriding and always signing.
-       SESSIONCTXSTATICS.sign_packet = TRUE;
+//       SESSIONCTXSTATICS.sign_packet = TRUE;
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          SESSIONCTXSTATICS.sign_packet = TRUE;
@@ -475,7 +478,7 @@ unsigned int SkipCount;
 
 
 extern BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream);
-extern BBOOL Proc_smb2_Create(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay);
 extern BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Close(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream);
@@ -502,7 +505,7 @@ extern BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream);
 
 
 
-static BBOOL SMBS_ProccessPacket (smb2_stream * pStream)
+static BBOOL SMBS_ProccessPacket (smb2_stream * pStream, BBOOL replay)
 {
 	int header_size;
 	int length;
@@ -566,9 +569,9 @@ static BBOOL SMBS_ProccessPacket (smb2_stream * pStream)
     			doSend = Proc_smb2_TreeDisConnect(pStream);
     			break;
             case SMB2_CREATE         :
-                if (oplock_diagnotics.performing_replay)   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create: replay enter\n");
-    			doSend = Proc_smb2_Create(pStream);
-                if (oplock_diagnotics.performing_replay)
+                if (replay)   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create: replay enter\n");
+    			doSend = Proc_smb2_Create(pStream,replay);
+                if (replay)
                   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay complete dosend:%d\n",doSend);
     			break;
             case SMB2_CLOSE          :
@@ -1123,7 +1126,6 @@ static void DebugOutputSMB2Command(int command)
 //    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "SMBS_ProccessCompoundFrame:  Processing a packet with command: %s \n", (char *)DebugSMB2CommandToString(command));
 #endif // RTSMB_DEBUG
 }
-
 
 
 /* Called from SMBS_ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
