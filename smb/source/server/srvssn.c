@@ -1795,13 +1795,14 @@ struct dialect_entry_s
     {LANMAN_1_0, srv_dialect_lanman, 1},
     {LM1_2X002, srv_dialect_lm1_2x, 2},
     {LANMAN_2_1, srv_dialect_lanman2, 4},
-    {NT_LM, srv_dialect_ntlm, 5},
+    {NT_LM, srv_dialect_ntlm, 5},                    // 1000
 #ifdef SUPPORT_SMB2
-    {SMB2_2002, srv_dialect_smb2002, 6},
-    {SMB2_2xxx, srv_dialect_smb2xxx, 7}
+    {SMB2_2002, srv_dialect_smb2002, 6},             // 2002
+    {SMB2_2xxx, srv_dialect_smb2xxx, 7}              // 2100
 #endif
 };
-SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
+
+
 
 // INTERFACE
 /*============================================================================   */
@@ -1817,6 +1818,7 @@ static BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pIn
     DIALECT_TYPE dialect_bufs[32][21];
     DIALECT_TYPE *dialects[32];
     RTSMB_NEGOTIATE command;
+    SMB_DIALECT_T max_dialect = SMB2_2xxx; // NT_LM;
 
     for (i = 0; i < 32; i++)
     {
@@ -1838,11 +1840,25 @@ static BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pIn
         SMBU_FillError (pCtx, pOutHdr, SMB_EC_ERRSRV, SMB_ERRSRV_ERROR);
         return TRUE;
     }
+    switch (prtsmb_srv_ctx->max_protocol) {
+     case 2100:
+       max_dialect = SMB2_2xxx;
+       break;
+     case 2002:
+       max_dialect = SMB2_2xxx;
+       break;
+     case 1000:
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: ProcNegotiateProtocol:  Force 1000. !!!!!!!!!!!!!!\n");
+     default:
+       max_dialect = NT_LM; // NT_LM;
+       break;
+    }
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Max dialect %d:\n",max_dialect);
 
     for (entry = 0; entry < command.num_dialects; entry++)
     {
         /*check dialect field against dialect list   */
-        for (i = PC_NETWORK; i < NUM_DIALECTS; i++)
+        for (i = PC_NETWORK; i < max_dialect+1; i++)
         {
             if (dialectList[i].dialect > max_dialect)
               continue;

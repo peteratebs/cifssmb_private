@@ -85,8 +85,7 @@ $(OBJDIR)/%.$(obj): %.c
 %.$(exe):
 	@echo LINKING $@
 	@echo LINKING $@  $(ldflags) -o $(notdir $@) $^
-	@gcc $(ldflags) -o $(notdir $@) $^
-#	@g++ $(ldflags) -o $(notdir $@) $^
+	@gcc $(ldflags) -o $(notdir $@) $^ -lstdc++
 
 endif #	GNUCOMPILER
 

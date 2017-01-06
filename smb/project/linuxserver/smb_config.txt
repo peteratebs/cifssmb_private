@@ -163,4 +163,8 @@ guest = yes
 guestgroups = trusted
 # Set enable_oplocks to no or yes. If no oplocks are ignored and breaks are not sent
 enable_oplocks = no
+# Maximum protocl, 2100, 2002 or 1000
+# max_protocol = 2100
+max_protocol = 1000
+
 [end]

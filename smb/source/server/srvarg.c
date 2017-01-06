@@ -626,6 +626,9 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         prtsmb_srv_ctx->enable_oplocks       = FALSE;
     }
 
+    if (!RTSMB_GetIntegerValue (section, (char*)"max_protocol", &prtsmb_srv_ctx->max_protocol))
+      prtsmb_srv_ctx->max_protocol = 2100;
+
     if (!RTSMB_GetStringValue (section, (char*)"mode", mode_str, 10))
     {
         tc_strcpy (mode_str, (char*)"share");

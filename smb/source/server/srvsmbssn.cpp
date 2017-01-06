@@ -67,7 +67,6 @@ EXTERN_C BBOOL ProcWriteRaw2 (PSMB_SESSIONCTX pCtx, PFBYTE data, PFVOID pOutBuf,
 #define SMB2PROCBODYACTION int
 static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx, BBOOL isReplay);
 SMB2PROCBODYACTION SMBS_ProcSMB2BodyPacketExecute (PSMB_SESSIONCTX pSctx, BBOOL isReplay);
-BBOOL gl_disablesmb2 = FALSE;
 
 
 
@@ -292,7 +291,8 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
 #ifdef SUPPORT_SMB2
         if (!pSctx->protocol_version)
            pSctx->protocol_version=1;
-        if (protocol_version == 2 && gl_disablesmb2)
+
+        if (protocol_version == 2 && prtsmb_srv_ctx->max_protocol < 2002)
         {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket:  SMB2 disabled.\n");
           return FALSE;
