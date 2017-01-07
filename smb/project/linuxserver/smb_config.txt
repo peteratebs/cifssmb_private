@@ -36,7 +36,8 @@
 name = share0
 comment = native fs
 # path = /media
-path = /home/peter/smbtest
+path = /media/sf_0a_share_with_virtual_box/mountpoint
+# path = /home/peter/smbtest
 flags = create
 permission = rw
 # password = smb

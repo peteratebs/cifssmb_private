@@ -80,22 +80,16 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
 
     if (timeoutMsec < 0)
     {
-        if (diag_socket!=tempList[0])    // display socks unless it's diag
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu Blocking tmo:%ld Select: NSOCKS:%d [%d,%d,%d,%d,%d]\n",rtp_get_system_msec(),timeoutMsec, listSize, socketList[0],socketList[1],socketList[2],socketList[3],socketList[4]);
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, -1);
     }
     else
     {
-        if (diag_socket!=tempList[0])    // display socks unless it's diag
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Blocking tmo:%ld Select: NSOCKS:%d [%d,%d,%d,%d,%d]\n",timeoutMsec, listSize, socketList[0],socketList[1],socketList[2],socketList[3],socketList[4]);
         result = rtp_net_select (&readList, (RTP_FD_SET*)0, &errorList, timeoutMsec);
     }
     if (diag_socket!=tempList[0])    // display socks unless it's diag
     {
       if (result < 0)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu:  rtp_net_select error errno string: %s\n", rtp_get_system_msec(), strerror(errno));
-      else
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtp_net_select succeeded\n", rtp_get_system_msec());
     }
     if (result < 0)
     {
@@ -115,10 +109,10 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     {
         if (rtp_fd_isset(&errorList, tempList[n]))
         {
-           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
            if (keyboard_break_pressed_count)
            {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: ketboard breakr on : %d\n",c);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: ketboard break on : %d\n",c);
              keyboard_break_pressed_count =0;
              continue;
            }

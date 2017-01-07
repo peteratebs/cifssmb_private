@@ -69,7 +69,7 @@ rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
 #endif
 
 static const char *trans2Commandname(int command);
-static void DebugOutputSMB1Command(int command);
+const char * DebugSMB1CommandName(int command);
 static void DebugOutputTrans2Command(int command);
 extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
 
@@ -463,7 +463,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
            }
            else
            {
-              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "EXTENDED_SECURITY - Lost Got command.security_blob[0] unknown value:%X\n",command.security_blob[0]);
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: EXTENDED_SECURITY - Lost Got command.security_blob[0] unknown value:%X\n",command.security_blob[0]);
               SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
            }
 
@@ -485,7 +485,7 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
        {
          if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
          {
-           if (prtsmb_srv_ctx->display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"display_login_info: Got extended !!!  phase 1\n");}
+           if (prtsmb_srv_ctx->display_login_info) {RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: display_login_info: Got extended !!!  phase 1\n");}
            access = 0;
            authId = 0;
          }
@@ -2577,11 +2577,11 @@ BBOOL ProcTransaction2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBu
             tmpbuf = trans2Commandname(command.setup[0]);
             if (tmpbuf)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcTransaction2: sub command (%s) unhandled\n", tmpbuf);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: ProcTransaction2: sub command (%s) unhandled\n", tmpbuf);
             }
             else
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"ProcTransaction2: unknown sub command <%X> \n", command.setup[0]);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: ProcTransaction2: unknown sub command <%X> \n", command.setup[0]);
             }
         }
 #endif
@@ -4291,9 +4291,8 @@ BBOOL ProcWritePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
 BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,PFBYTE pInBuf, RTSMB_HEADER *poutCliHdr, PFVOID pOutBuf)
 {
     BBOOL doSend = FALSE;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Processing a packet with command: ");
-    DebugOutputSMB1Command(pinCliHdr->command);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL," (%d)\n",pinCliHdr->command);
+
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMB1PacketExecute:  Processing a packet with command: \n",  DebugSMB1CommandName(pinCliHdr->command));
 
     /**
      * Ok, we now see what kind of command has been requested, and
@@ -4532,9 +4531,8 @@ BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,
 }
 
 
-static void DebugOutputSMB1Command(int command)
+const char * DebugSMB1CommandName(int command)
 {
-#ifdef RTSMB_DEBUG
 const char *CommandName;
     switch(command)
     {
@@ -4746,8 +4744,7 @@ const char *CommandName;
         CommandName = "UNKOWN COMMAND";
         break;
     }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"%s\n", CommandName);
-#endif /* RTSMB_DEBUG */
+    return CommandName;
 }
 
 static void DebugOutputTrans2Command(int command)

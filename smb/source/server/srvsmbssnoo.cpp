@@ -408,8 +408,6 @@ static RTP_SOCKET  get_master_socket(void)     { return master_socket;};
 static RTP_SOCKET  get_signalling_socket(void) { return signal_socket;};
 void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycle based on select and timeouts
 {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  Session cycle in\n", rtp_get_system_msec());
-
     if (!prtsmb_srv_ctx->mainThread)
     {
         srvsmboo_panic("rtsmb_srv_netssn_cycle sock: lost mainTread");
@@ -458,7 +456,6 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     {
       RTP_SOCKET      sock;
       unsigned char clientAddr[4]; int clientPort; int ipVersion;
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: master signal received\n");
       if (rtp_net_accept ((RTP_SOCKET *) &sock,(RTP_SOCKET) get_master_socket(), clientAddr, &clientPort, &ipVersion) < 0)
       {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: accept error\n");  }
       else
@@ -515,9 +512,7 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
                 if (readList[n] == (*session)->netsessiont_sock)
                 {
                     rtsmb_srv_pdc_session_cycle (session);
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle data in on socket:%d \n", rtp_get_system_msec(),readList[n]);
                     rtsmb_srv_netssn_session_cycle (session, TRUE);
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle out\n", rtp_get_system_msec());
                     break;
                 }
             }
@@ -551,7 +546,6 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
                 {
                     pThread->blocking_session = current_session_index;
                     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle set blocking:%d \n", rtp_get_system_msec());
-
                 }
                 else if ((*session)->netsessiont_smbCtx.session_state == IDLE)
                 {
@@ -578,8 +572,6 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     }
 // ==================================
     _srv_netssn_pdc_cycle();
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  Session cycle out\n", rtp_get_system_msec());
-
 }
 
 extern void SMBS_ProcSMBReplay(PSMB_SESSIONCTX pSctx);
