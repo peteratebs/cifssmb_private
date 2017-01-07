@@ -16,6 +16,8 @@ EXTERN_C long SMBFIO_Write (PSMB_SESSIONCTX pCtx, word tid, int fd, PFBYTE buf, 
 EXTERN_C long SMBFIO_Seek (PSMB_SESSIONCTX pCtx, word tid, int fd, long offset, int origin);
 EXTERN_C dword SMBFIO_Seeku32 (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset);
 EXTERN_C ddword SMBFIO_Seeku64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword offset);
+#define SEEK64ERROR 0xffffffffffffffff
+
 EXTERN_C BBOOL SMBFIO_Truncate (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset);
 EXTERN_C BBOOL SMBFIO_Flush (PSMB_SESSIONCTX pCtx, word tid, int fd);
 EXTERN_C int SMBFIO_Close (PSMB_SESSIONCTX pCtx, word tid, int fd);

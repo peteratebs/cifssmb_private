@@ -325,12 +325,12 @@ dword SMBFIO_Seeku32 (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset)
 	{
         long loffset,r;
         /* Unsigned 32 bit version of seek set */
-        if ((offset & 0x8000000)==0)
+        if ((offset & 0x80000000)==0)
             r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
         else
         {
             loffset = (long)(offset/2);
-            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)offset, RTSMB_SEEK_SET);
+            r=SMBFIO_SeekInternal ((word) tree->internal, fd, (long)loffset, RTSMB_SEEK_SET);
             if (r != -1)
             {
                 loffset = (long)(offset-(offset/2));

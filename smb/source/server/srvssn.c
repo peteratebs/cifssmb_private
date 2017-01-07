@@ -1371,8 +1371,8 @@ int ProcReadAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
 #endif
     {
         toRead = (dword) MIN (pCtx->tmpSize, command.max_count);
-
-        if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset) == 0xffffffff)
+        ddword offset64 = (ddword)(command.offset_high)<<32|(ddword)command.offset;
+        if (SMBFIO_Seeku64 (pCtx, pCtx->tid, fid, offset64) == SEEK64ERROR)    //offset_high
         {
             pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
             return 0;
@@ -1422,7 +1422,8 @@ int ProcWriteAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
     fid = SMBU_GetInternalFid (pCtx, command.fid, FID_FLAG_ALL,0,0);
 
-    if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset) == 0xffffffff)
+    ddword offset64 = (ddword)(command.offset_high)<<32|(ddword)command.offset;
+    if (SMBFIO_Seeku64 (pCtx, pCtx->tid, fid, offset64) == SEEK64ERROR)    //offset_high
     {
         pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRHRD, SMB_ERRHRD_SEEK);
         return 0;
@@ -4059,7 +4060,11 @@ BBOOL ProcReadRaw (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PR
 
     /* see if we have enough space for all of it   */
     spaceLeft = MIN (pCtx->writeBufferSize, command.max_count);
-    if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset)==0xffffffff)
+
+    ddword offset64 = 0;
+    if (command.valid_offset_high) offset64 = (ddword)(command.offset_high)<<32;
+    offset64 = offset64|(ddword)command.offset;
+    if (SMBFIO_Seeku64 (pCtx, pCtx->tid, fid, offset64) == SEEK64ERROR)    //offset_high
         bytesRead = -1;
     else
         bytesRead = SMBFIO_Read (pCtx, pCtx->tid, fid, pOutBuf, spaceLeft);
@@ -4114,7 +4119,10 @@ BBOOL ProcWriteRaw1 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, 
     pCtx->writeRawInfo.maxCount = (word) ((command.count - command.data_size) & 0xFFFF);
     pCtx->writeRawInfo.writeThrough = ON (command.write_mode, 1);
 
-    SMBFIO_Seeku32 (pCtx, pCtx->tid, pCtx->writeRawInfo.internal, command.offset);
+    ddword offset64 = 0;
+    if (command.valid_offset_high) offset64 = (ddword)(command.offset_high)<<32;
+    offset64 = offset64|(ddword)command.offset;
+    SMBFIO_Seeku64 (pCtx, pCtx->tid, pCtx->writeRawInfo.internal, offset64);
 
     /**
      * Write the data sent to us now.
@@ -4308,7 +4316,7 @@ BBOOL SMBS_ProcSMB1PacketExecute (PSMB_SESSIONCTX pSctx,RTSMB_HEADER *pinCliHdr,
 {
     BBOOL doSend = FALSE;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMB1PacketExecute:  Processing a packet with command: \n",  DebugSMB1CommandName(pinCliHdr->command));
+//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: SMBS_ProcSMB1PacketExecute:  Processing a packet with command: \n",  DebugSMB1CommandName(pinCliHdr->command));
 
     /**
      * Ok, we now see what kind of command has been requested, and
