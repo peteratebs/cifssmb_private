@@ -40,6 +40,8 @@
 
 #include "rtpsignl.h"
 #include "smbdebug.h"
+#include "srvsmbssn.h"
+
 //============================================================================
 //    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS
 //============================================================================

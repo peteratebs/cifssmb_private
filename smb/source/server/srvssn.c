@@ -43,6 +43,7 @@
 #include "rtpmem.h"
 
 #include "rtptime.h"
+#include "srvsmbssn.h"
 
 #define DOPUSH 1
 
@@ -63,6 +64,7 @@ rtsmb_char _rtsmb_srvsvc_pipe_name [8] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char pipe_protocol[7] = {'\\','P','I','P','E','\\','\0'};
 
 rtsmb_char _rtsmb2_srvsvc_pipe_name [8] = {'s','r','v','s','v','c',0};
+rtsmb_char _rtsmb2_alt_srvsvc_pipe_name [9] = {'\\','s','r','v','s','v','c',0};
 rtsmb_char _rtsmb2_larpc_pipe_name[7] = {'l','s','a','r','p','c',0};
 
 
@@ -627,8 +629,8 @@ int ProcSetupAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, P
 
     response.next_command = next_command;
     if (response.extended_security)
-    {
-       glencryptionKey = pCtx->encryptionKey;
+    {   // WRITE_SMB_AND_X doesn't have the context so use glencryptionKey to pass the address of pCtx->encryptionKey
+        glencryptionKey = pCtx->encryptionKey;
         WRITE_SMB_AND_X (srv_cmd_fill_session_setup_extended_and_x);
     }
     else
@@ -723,7 +725,8 @@ int ProcTreeConAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf,
             response.optional_support = 0;
 
             response.service = SR_ServiceToStr(pResource->stype);
-            response.native_fs = NtfsStr;
+            if (pResource->stype == ST_DISKTREE)
+              response.native_fs = NtfsStr;
 
             tree = SMBU_GetTree (pCtx, -1);
 
@@ -945,6 +948,14 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
  *          success                                    /
  * -------------------------------------------------- */
 
+static word truncatedtmpSize(PSMB_SESSIONCTX pCtx)
+{
+ if (pCtx->tmpSize>0xffff)
+  return 0xffff;
+ else
+  return (word) pCtx->tmpSize & 0xFFFF;
+}
+
 int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PRTSMB_HEADER pOutHdr, PFVOID *pOutBuf)
 {
     RTSMB_OPEN_AND_X command;
@@ -962,7 +973,7 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
     ASSERT_UID (pCtx);
     ASSERT_TID (pCtx);
 
-    command.filename_size = pCtx->tmpSize;
+    command.filename_size = truncatedtmpSize(pCtx);
     command.filename = (PFRTCHAR) pCtx->tmpBuffer;
     READ_SMB_AND_X (srv_cmd_read_open_and_x);
 
@@ -1102,7 +1113,7 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
     ASSERT_UID (pCtx);
     ASSERT_TID (pCtx);
 
-    command.filename_size = (word) (pCtx->tmpSize & 0xFFFF);
+    command.filename_size = truncatedtmpSize(pCtx);
     command.filename = (PFRTCHAR) pCtx->tmpBuffer;
     READ_SMB_AND_X (srv_cmd_read_nt_create_and_x);
 
@@ -1578,12 +1589,17 @@ BBOOL ProcAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     {
         pOutHdr->status = SMBU_MakeError (pCtx, SMB_EC_ERRSRV, SMB_ERRSRV_SRVERROR);
     }
-
     if (pOutHdr->status)
     {
-#warning SMB_NT_STATUS_MORE_PROCESSING_REQUIRED May have to support all 32 bit errors if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
-        pCtx->outBodySize = last_body_size + 3;
-        tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
+        if (pOutHdr->status == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+        { // If SMB_NT_STATUS_MORE_PROCESSING_REQUIRED the extended login info was added to the outbody
+          ; // printf(" SMB_NT_STATUS_MORE_PROCESSING_REQUIRED May have to support all 32 bit errors\n");
+        }
+        else
+        { // Normal SMB1 processing
+          pCtx->outBodySize = last_body_size + 3;
+          tc_memset (PADD (pCtx->write_origin, last_body_size), 0, 3);
+        }
     }
 
     return TRUE;
@@ -2061,7 +2077,7 @@ BBOOL ProcSearch (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRT
     ASSERT_DISK (pCtx)
 
     command.filename = (PFRTCHAR) pCtx->tmpBuffer;
-    command.filename_size = pCtx->tmpSize;
+    command.filename_size = truncatedtmpSize(pCtx);
     READ_SMB (srv_cmd_read_search);
 
     user = SMBU_GetUser (pCtx, pCtx->uid);
@@ -2702,7 +2718,7 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     ASSERT_UID (pCtx)
     ASSERT_TID (pCtx)
 
-    command.filename_size = pCtx->tmpSize;
+    command.filename_size = truncatedtmpSize(pCtx);
     string = (PFRTCHAR) pCtx->tmpBuffer;
     command.filename = string;
     command.filename_size = SMBF_FILENAMESIZE;
@@ -2949,7 +2965,7 @@ BBOOL ProcRead (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
         return TRUE;
     }
 #endif
-    spaceLeft = (word) (MIN (command.count, (word) (pCtx->tmpSize & 0xFFFF)));
+    spaceLeft = (word) (MIN(command.count, truncatedtmpSize(pCtx)) );
 
     if (SMBFIO_Seeku32 (pCtx, pCtx->tid, fid, command.offset) == 0xffffffff)
     {
@@ -3107,7 +3123,7 @@ BBOOL ProcWrite (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTS
     ASSERT_PERMISSION (pCtx, SECURITY_WRITE)
 
     command.data = pCtx->tmpBuffer;
-    command.data_size = (word) (pCtx->tmpSize & 0xFFFF);    /* only use what protocol can handle */
+    command.data_size = truncatedtmpSize(pCtx);
 
     if (srv_cmd_read_write (pCtx->read_origin, pInBuf, pCtx->current_body_size - (rtsmb_size)(PDIFF(pInBuf, pCtx->read_origin)), pInHdr, &command) == -1)
     {
@@ -3161,7 +3177,7 @@ BBOOL ProcEcho (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
     }
 
     command.data = pCtx->tmpBuffer;
-    command.data_size = (word) (pCtx->tmpSize & 0xFFFF); /* only use what protocol can handle */
+    command.data_size = truncatedtmpSize(pCtx);
     READ_SMB (srv_cmd_read_echo);
 
     response.data = pCtx->tmpBuffer;
@@ -3970,7 +3986,7 @@ BBOOL ProcWriteAndClose (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInB
     ASSERT_PERMISSION (pCtx, SECURITY_WRITE)
 
     command.data = pCtx->tmpBuffer;
-    command.data_size = (word) (pCtx->tmpSize & 0xFFFF); /* only use what protocol can handle */
+    command.data_size = truncatedtmpSize(pCtx);
     READ_SMB (srv_cmd_read_write_and_close);
 
     ASSERT_FID (pCtx, command.fid, 0)
@@ -4081,7 +4097,7 @@ BBOOL ProcWriteRaw1 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, 
     ASSERT_PERMISSION (pCtx, SECURITY_READ)
 
     command.data = pCtx->tmpBuffer;
-    command.data_size = pCtx->tmpSize;
+    command.data_size = truncatedtmpSize(pCtx);
     READ_SMB (srv_cmd_read_write_raw);
 
     ASSERT_FID (pCtx, command.fid, 0)
@@ -4272,7 +4288,7 @@ BBOOL ProcWritePrintFile (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pIn
     ASSERT_PERMISSION (pCtx, SECURITY_WRITE)
 
     command.data = pCtx->tmpBuffer;
-    command.data_size = (word) (pCtx->tmpSize & 0xFFFF);    /* only use what protocol can handle */
+    command.data_size = truncatedtmpSize(pCtx);
 
     READ_SMB (srv_cmd_read_write_print_file);
 

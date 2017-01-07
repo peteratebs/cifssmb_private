@@ -34,7 +34,7 @@
 #define HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE  1  // Set to zero to force the client to reply with NTLM1 resonse not NTLM2 (not ntlmv2, that's different) response. If HARDWIRED_EXTENDED_SECURITY and client requests exended security.
 #define HARDWIRED_DEBUG_ENCRYPTION_KEY        1  // send 0123456789abcde for an encrypion key for easier debugging of hash functions
 #define HARDWIRED_FORCE_EXTENDED_SECURITY_OK  0  // If one force a successful login even though the password checker failed
-#define HARDWIRED_ENCRYPION_KEY_HACK          1  // Must be fixed. Use a global to pass the encryption key between levels in trans.
+#define HARDWIRED_ENCRYPION_KEY_HACK          1  // Not critical, use a temporary global to pass the encryption key to SMB1 encode / decode macros.
 
 
 #define HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF    1  // FILE ALL INFO structure okay for server, seems wrong in client, needs investigation.
@@ -287,10 +287,11 @@ extern ddword swapdword(const ddword i);
 //**
 //****************************************************************************
 #if (HARDWIRED_INCLUDE_DCE)
-extern rtsmb_char _rtsmb_srvsvc_pipe_name[8];  // '\\','s','r','v','s','v','c',0 File name HARDWIRED_SRVSVC_FID maps to this name
-extern rtsmb_char pipe_protocol[7];            // '\\','P','I','P','E','\\','\0'
+// extern rtsmb_char _rtsmb_srvsvc_pipe_name[8];  // '\\','s','r','v','s','v','c',0 File name HARDWIRED_SRVSVC_FID maps to this name
+// extern rtsmb_char pipe_protocol[7];            // '\\','P','I','P','E','\\','\0'
 #ifdef SUPPORT_SMB2
 extern rtsmb_char _rtsmb2_srvsvc_pipe_name[8]; //  = {'\\','s','r','v','s','v','c',0};
+extern rtsmb_char _rtsmb2_alt_srvsvc_pipe_name[9]; //  = {'\\','s','r','v','s','v','c',0};
 extern rtsmb_char _rtsmb2_larpc_pipe_name[7];  //  = {'l','s','a','r','p','c',0};
 #endif
 #endif

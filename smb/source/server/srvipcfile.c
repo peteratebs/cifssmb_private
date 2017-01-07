@@ -196,7 +196,11 @@ void rtsmb_ipcrpc_bind_stream_pointer(int fd, void *stream_pointer)
 }
 static BBOOL ipcrpc_is_srvsvc(PFRTCHAR name)
 {
-  return ( rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
+  return ( rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 ||
+           rtsmb_casecmp ((PFRTCHAR)name, _rtsmb2_alt_srvsvc_pipe_name, CFG_RTSMB_USER_CODEPAGE) == 0 );
+rtsmb_char _rtsmb2_alt_srvsvc_pipe_name [9] = {'\\','s','r','v','s','v','c',0};
+
+
 }
 static BBOOL ipcrpc_is_lsarpc(PFRTCHAR name)
 {
