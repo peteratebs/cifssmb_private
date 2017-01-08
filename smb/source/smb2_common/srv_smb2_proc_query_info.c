@@ -360,25 +360,51 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        break;
        case SMB2_FS_INFO_FSIZE: // 03
        {
+         dword blocks, bfree, sectors, bytes;
          MSFSCC_FILE_FS_SIZE_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_SIZE_INFO));
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_SIZE_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
-         pInfo->TotalAllocationUnits      =  FAKE_ALLOCATION_UNITS;
-         pInfo->AvailableAllocationUnits  =  FAKE_AVAILABLE_UNITS;
-         pInfo->SectorsPerAllocationUnit  =  FAKE_SECTORS_PER_ALLOCATION_UNIT ;
-         pInfo->BytesPerSector            =  FAKE_BYTES_PER_SECTOR;
+         PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
+         if (!pTree || pTree->type != ST_DISKTREE || SMBFIO_GetFree (pStream->pSmbCtx, pStream->pSmbCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
+         {
+           pInfo->TotalAllocationUnits      =  0;
+           pInfo->AvailableAllocationUnits  =  0;
+           pInfo->SectorsPerAllocationUnit  =  1;
+           pInfo->BytesPerSector            =  512;
+         }
+         else
+         {
+           pInfo->TotalAllocationUnits      =  blocks;
+           pInfo->AvailableAllocationUnits  =  bfree;
+           pInfo->SectorsPerAllocationUnit  =  sectors;
+           pInfo->BytesPerSector            =  bytes;
+         }
        }
        break;
        case SMB2_FS_INFO_SIZE_7: // 07
        {
+         dword blocks, bfree, sectors, bytes;
          MSFSCC_FILE_FS_FULL_SIZE_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO));
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
-         pInfo->TotalAllocationUnits      =  FAKE_ALLOCATION_UNITS;
-         pInfo->CallerAvailableAllocationUnits  =  FAKE_AVAILABLE_UNITS;
-         pInfo->ActualAvailableAllocationUnits  =  FAKE_AVAILABLE_UNITS;
-         pInfo->SectorsPerAllocationUnit  =  FAKE_SECTORS_PER_ALLOCATION_UNIT ;
-         pInfo->BytesPerSector            =  FAKE_BYTES_PER_SECTOR;
+         PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
+         if (!pTree || pTree->type != ST_DISKTREE || SMBFIO_GetFree (pStream->pSmbCtx, pStream->pSmbCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
+         {
+           pInfo->TotalAllocationUnits      =  0;
+           pInfo->CallerAvailableAllocationUnits  =  0;
+           pInfo->ActualAvailableAllocationUnits  =  0;
+           pInfo->SectorsPerAllocationUnit  =  1;
+           pInfo->BytesPerSector            =  512;
+
+         }
+         else
+         {
+           pInfo->TotalAllocationUnits      =  blocks;
+           pInfo->CallerAvailableAllocationUnits  =  bfree;
+           pInfo->ActualAvailableAllocationUnits  =  bfree;
+           pInfo->SectorsPerAllocationUnit  =  sectors;
+           pInfo->BytesPerSector            =  bytes;
+         }
        }
        break;
 
