@@ -261,8 +261,8 @@ int fillSMB_INFO_STANDARD2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRTSMB_H
 	info.last_write_time = wdate.time;
 
 	// allocationSize may not be correct
-	info.file_size = stat->f_size;
-	info.allocation_size = stat->f_size;
+	info.file_size = stat->fsize;
+	info.allocation_size = stat->fsize;
 	info.attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->f_attributes);
 
 	return srv_cmd_fill_info_standard (pCtx->write_origin, pOutBuf, size,
@@ -314,8 +314,8 @@ int fillSMB_INFO_QUERY_EA_SIZE2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRT
 	info.last_write_date = wdate.date;
 	info.last_write_time = wdate.time;
 
-	info.file_size = stat->f_size;
-	info.allocation_size = stat->f_size;
+	info.file_size = stat->fsize;
+	info.allocation_size = stat->fsize;
 	info.attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->f_attributes);
 	info.ea_size = 0;
 
@@ -336,9 +336,9 @@ int fillSMB_FIND_FILE_DIRECTORY_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr
 	info.low_change_time = stat->fhtime64.low_time;
 	info.high_change_time = stat->fhtime64.high_time;
 	info.low_end_of_file = stat->fsize;
-	info.high_end_of_file = 0;
+	info.high_end_of_file = stat->fsize_hi;
 	info.low_allocation_size = stat->fsize;
-	info.high_allocation_size = 0;
+	info.high_allocation_size = stat->fsize_hi;
 
 	info.extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 
@@ -393,9 +393,9 @@ int fillSMB_FIND_FILE_BOTH_DIRECTORY_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER p
 	info.low_change_time = stat->fhtime64.low_time;
 	info.high_change_time = stat->fhtime64.high_time;
 	info.low_end_of_file = stat->fsize;
-	info.high_end_of_file = 0;
+	info.high_end_of_file = stat->fsize_hi;
 	info.low_allocation_size = stat->fsize;
-	info.high_allocation_size = 0;
+	info.high_allocation_size = stat->fsize_hi;
 
 	info.extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 
@@ -459,9 +459,9 @@ int fillSMB_QUERY_FILE_STANDARD_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr
 {
 	RTSMB_QUERY_FILE_STANDARD_INFO info;
 
-	info.low_allocation_size = stat->f_size;
-	info.high_allocation_size = 0;
-	info.low_end_of_file = stat->f_size;
+	info.low_allocation_size = stat->fsize;
+	info.high_allocation_size = stat->fsize_hi;
+	info.low_end_of_file = stat->fsize;
 	info.high_end_of_file = 0;
 
 	info.number_of_links = 1; // we have no way to know
@@ -488,10 +488,10 @@ int fillSMB_QUERY_FILE_ALL_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PRT
 
    info.ext_file_attributes   =  (dword) rtsmb_util_rtsmb_to_smb_attributes (stat->f_attributes);
   info.Reserved1              = 0;
-  info.low_allocation_size    = stat->f_size;
-  info.high_allocation_size   = HARDWIRED_FAKED_ZERO_VALUE;
-  info.low_end_of_file        = stat->f_size;
-  info.high_end_of_file       = HARDWIRED_FAKED_ZERO_VALUE;
+  info.low_allocation_size    = stat->fsize;
+  info.high_allocation_size   = stat->fsize_hi;
+  info.low_end_of_file        = stat->fsize;
+  info.high_end_of_file       = stat->fsize_hi;
 
 	info.number_of_links = 1; // we have no way to know
 	info.delete_pending = FALSE; // we have no way to know
@@ -532,8 +532,8 @@ int fillSMB_QUERY_FILE_COMPRESSION_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pIn
 {
 	RTSMB_QUERY_FILE_COMPRESSION_INFO info;
 
-	info.low_compressed_file_size = stat->f_size;
-	info.high_compressed_file_size = 0;
+	info.low_compressed_file_size = stat->fsize;
+	info.high_compressed_file_size = stat->fsize_hi;
 
 	info.compression_format = 0;
 	info.compression_unit_shift = 0;
@@ -548,10 +548,10 @@ int fillSMB_QUERY_FILE_STREAM_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, 
 {
 	RTSMB_QUERY_FILE_STREAM_INFO info;
 
-	info.low_stream_size = stat->f_size;
-	info.high_stream_size = 0;
-	info.low_allocation_size = stat->f_size;
-	info.high_allocation_size = 0;
+	info.low_stream_size = stat->fsize;
+	info.high_stream_size = stat->fsize_hi;
+	info.low_allocation_size = stat->fsize;
+	info.high_allocation_size = stat->fsize_hi;
 
 	info.stream_name = filename;
 
@@ -1224,7 +1224,7 @@ static void ST2_ProcAllocationInfo (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr,
 		return;
 	}
 	offset = info.low_allocation_size;
-    if(offset > stat.f_size)
+    if(offset > stat.fsize)
     {
         /* Store file pointer */
         if ((size = SMBFIO_Seek (pCtx, pCtx->tid, fid, 0, RTSMB_SEEK_CUR)) < 0)

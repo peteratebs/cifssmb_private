@@ -376,13 +376,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       r = OpenOrCreate (pStream->pSmbCtx, pTree, (PFRTCHAR)file_name, (word)0/*flags*/, (word)0/*mode*/, smb2flags, &externalFid, &fid);
 
       tc_memset(&stat, 0, sizeof(stat));
-      // Fake stat to return 0 sizes, and directory attribute
-//      stat.f_ctime64 =
-//      stat.f_atime64 =
-//      stat.f_wtime64 =
-//      stat.f_htime64 = 0;
-//      stat.f_size = 0;
-//      stat.f_size = 0;
       stat.f_attributes = RTP_FILE_ATTRIB_ISDIR;
     }
     else
@@ -473,8 +466,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
     response.LastAccessTime =  *((ddword *) &stat.f_atime64);
     response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
     response.ChangeTime     =  *((ddword *) &stat.f_htime64);
-    response.AllocationSize  = stat.f_size;
-    response.EndofFile       = stat.f_size;
+    response.AllocationSize  = (ddword)(stat.fsize_hi)<<32|(ddword)stat.fsize;
+    response.EndofFile       = (ddword)(stat.fsize_hi)<<32|(ddword)stat.fsize;
     response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
     // response.FileId[0] = 1; response.FileId[1] = 2; response.FileId[2] = 3; response.FileId[3] = 4; response.FileId[4] = 5;
     {

@@ -143,8 +143,8 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           response.LastAccessTime =  *((ddword *) &stat.f_atime64);
           response.LastWriteTime  =  *((ddword *) &stat.f_wtime64);
           response.ChangeTime     =  *((ddword *) &stat.f_htime64);
-          response.AllocationSize  = stat.f_size;
-          response.EndofFile       = stat.f_size;
+          response.AllocationSize  = (ddword)(stat.fsize_hi)<<32|(ddword)stat.fsize;
+          response.EndofFile       = (ddword)(stat.fsize_hi)<<32|(ddword)stat.fsize;
           response.FileAttributes  = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         }
         if (fidflags != FID_FLAG_DIRECTORY)

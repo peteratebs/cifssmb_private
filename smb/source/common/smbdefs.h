@@ -22,13 +22,11 @@
 // Definitions for development
 // See https://msdn.microsoft.com/en-us/library/cc236699.aspx for good NTLM reference
 #define HARDWIRE_SERVER_SETTINGS           1  // Set to zero to prompt for settings and allow more flexibility like run-time add of shares
-#define HARDWIRED_USER_NAME  "ebs"
-#define HARDWIRED_PASSWORD   "password" // "SecREt01" // "password"
-#define HARDWIRED_SHARE_NAME  "share0"
-#define HARDWIRED_SHARE_PATH "/media"
-#define HARDWIRED_TEMP_PATH "/tmp"
+
+// These are only used by nbns
 #define HARDWIRED_HOST_NAME  "EBSRTSMB"
 #define HARDWIRED_GROUP_NAME "WORKGROUP"
+
 #define HARDWIRED_EXTENDED_SECURITY           1  // Use extended security (SPNEO_) if true and client supports it. Set to zero to authenticate through the NTLM1 method, where the clint sends LM or NTLM1
                                                  // credentials in the setup request
 #define HARDWIRED_INCLUDE_NTLM2_IN_CHALLENGE  1  // Set to zero to force the client to reply with NTLM1 resonse not NTLM2 (not ntlmv2, that's different) response. If HARDWIRED_EXTENDED_SECURITY and client requests exended security.
@@ -38,7 +36,6 @@
 
 
 #define HARDWIRED_OVERRIDE_CLIENT_EXT_FILE_ALL_INFO_DEF    1  // FILE ALL INFO structure okay for server, seems wrong in client, needs investigation.
-#define HARDWIRED_FAKED_ZERO_VALUE                         0  // Search around for these, must be updated with real values.
 #define HARDWIRED_NTLM_EXTENSIONS                          1  // Fixes for missing extensions, may cause mal;formed issues for earlier than NTLM1.2.
 #define HARDWIRED_NEGOTIATE_CHALLENGE_SIZE                 0  // TBD: MAC does not respond to protocol reponse unless this is 0,
                                                               // for mac based client, 8 for windows client
@@ -69,20 +66,20 @@
 #endif
 
 // Passed with the extended security client challenge. Target configuration strings.
-// #define HARDWIRED_TARGET_NAME       "TARGETNAME"
+// These are used and passed with the extended security client challenge. Target configuration strings, should be put into the config file.
 #define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"
 #define HARDWIRED_NBDOMAIN_NAME     "DOMAIN"
 #define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
 #define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
 #define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"
 
-
-#define HARDWIRED_CLIENT_EXTENDED_SECURITY 1                  // Client side Spnego
 #define HARDWIRED_INCLUDE_DCE                             1       // Experimental DCE support for NetShareEnumAll
 
 #define HARDWIRED_DISABLE_SIGNING 0                           // Disables signing
 
 #define SMB_UNIQUE_FILEID_SIZE 8    // How much we store in UID field
+
+// #define HARDWIRED_CLIENT_EXTENDED_SECURITY 1                  // Client side Spnego
 
 //============================================================================
 //    INTERFACE REQUIRED HEADERS

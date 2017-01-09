@@ -1069,7 +1069,7 @@ int ProcOpenAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf, PR
         response.granted_access = 0;
         SMB_ACCESS_MODE_SET_SHARING (response.granted_access, 4);   /* deny none.  VFILE limitation */
         SMB_ACCESS_MODE_SET_ACCESS (response.granted_access, permissions);
-        response.file_size = stat.f_size;
+        response.file_size = stat.fsize;
         response.last_write_time = rtsmb_util_time_ms_to_unix (stat.f_wtime64);
         response.file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
 
@@ -1257,10 +1257,10 @@ int ProcNTCreateAndx (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID *pInBuf
      }
     response.creation_time_high = stat.f_ctime64.high_time;
     response.creation_time_low = stat.f_ctime64.low_time;
-    response.allocation_size_high = 0;
-    response.allocation_size_low = stat.f_size;
-    response.end_of_file_high = 0;
-    response.end_of_file_low = stat.f_size;
+    response.allocation_size_low = stat.fsize;
+    response.allocation_size_high = stat.fsize_hi;;
+    response.end_of_file_low = stat.fsize;
+    response.end_of_file_high = stat.fsize_hi;
     response.change_time_high = stat.f_htime64.high_time;
     response.change_time_low = stat.f_htime64.low_time;
     response.last_access_time_high = stat.f_atime64.high_time;
@@ -2239,7 +2239,7 @@ BBOOL ProcQueryInformation (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID p
 
         response.file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         response.last_write_time = rtsmb_util_time_ms_to_unix (stat.f_wtime64);
-        response.file_size = stat.f_size;
+        response.file_size = stat.fsize;
 
         WRITE_SMB (srv_cmd_fill_query_information);
     }
@@ -2291,8 +2291,8 @@ BBOOL ProcQueryInformation2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID 
         response.creation_time = cdate.time;
         response.last_write_date = wdate.date;
         response.last_write_time = wdate.time;
-        response.file_size = stat.f_size;
-        response.file_allocation_size = stat.f_size;
+        response.file_size = stat.fsize;
+        response.file_allocation_size = stat.fsize;
         response.file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
 
         WRITE_SMB (srv_cmd_fill_query_information2);
@@ -2823,7 +2823,7 @@ BBOOL ProcOpen (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf, PRTSM
         response.fid = (word)external;
         response.file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
         response.last_write_time = rtsmb_util_time_ms_to_unix (stat.f_wtime64);
-        response.file_size = stat.f_size;
+        response.file_size = stat.fsize;
 
         pOutHdr->flags &= NOT_FLAG(byte,SMB_FLG_OPLOCK); /* ~SMB_FLG_OPLOCK;    we refuse all oplock requests */
 

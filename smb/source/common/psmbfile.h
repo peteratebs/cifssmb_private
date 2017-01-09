@@ -118,7 +118,8 @@ typedef SMBFILEAPI RTSMB_FAR *PSMBFILEAPI;
 struct smbfstat
 {
 	unsigned char  f_attributes;
-	unsigned long  f_size;    /* file size, in bytes */
+	unsigned long  fsize;    /* file size, in bytes */
+	unsigned long  fsize_hi;    /* file size, in bytes */
 	TIME           f_atime64; /* last access time */
 	TIME           f_wtime64; /* last write time */
 	TIME           f_ctime64; /* last create time */

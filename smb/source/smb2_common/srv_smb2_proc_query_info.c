@@ -175,10 +175,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->high_last_write_time = stat.f_wtime64.high_time;
          pInfo->low_change_time = stat.f_htime64.low_time;
          pInfo->high_change_time = stat.f_htime64.high_time;
-         pInfo->low_end_of_file = stat.f_size;
-         pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.f_size;
-         pInfo->high_allocation_size = 0;
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = stat.fsize_hi;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = stat.fsize_hi;
          pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
          pInfo->reserved = 0;
          break;
@@ -220,10 +220,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->high_last_write_time = stat.f_wtime64.high_time;
          pInfo->low_change_time = stat.f_htime64.low_time;
          pInfo->high_change_time = stat.f_htime64.high_time;
-         pInfo->low_end_of_file = stat.f_size;
-         pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.f_size;
-         pInfo->high_allocation_size = 0;
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = stat.fsize_hi;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = stat.fsize_hi;
          pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
 //         pInfo->filename_size = file_name_len_bytes/sizeof(rtsmb_char);       // dword filename_size;
 //         pInfo->ea_size = 0;       // dword ea_size;
@@ -291,10 +291,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pInfo->high_last_write_time = stat.f_wtime64.high_time;
          pInfo->low_change_time = stat.f_htime64.low_time;
          pInfo->high_change_time = stat.f_htime64.high_time;
-         pInfo->low_end_of_file = stat.f_size;
-         pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.f_size;
-         pInfo->high_allocation_size = 0;
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = stat.fsize_hi;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = stat.fsize_hi;
          pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
          pInfo->filename_size = file_name_len_bytes/sizeof(rtsmb_char);       // dword filename_size;
          pInfo->ea_size = 0;       // dword ea_size;
@@ -321,10 +321,10 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_STANDARD_DIRECTORY_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
 
-         pInfo->low_end_of_file = stat.f_size;
-         pInfo->high_end_of_file = 0;
-         pInfo->low_allocation_size = stat.f_size;
-         pInfo->high_allocation_size = 0;
+         pInfo->low_end_of_file = stat.fsize;
+         pInfo->high_end_of_file = stat.fsize_hi;
+         pInfo->low_allocation_size = stat.fsize;
+         pInfo->high_allocation_size = stat.fsize_hi;
          pInfo->number_of_links=1;
          pInfo->delete_pending=0;
 

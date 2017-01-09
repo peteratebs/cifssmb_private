@@ -636,12 +636,14 @@ void rtplatform_translate_fstat (PSMBFSTAT fstat, void * rtp_dirobj)
     if (cdate.year != 0) ctime = rtsmb_util_time_rtp_date_to_ms(cdate);
     if (hdate.year != 0) htime = rtsmb_util_time_rtp_date_to_ms(hdate);
 
-    rtp_file_get_size(rtp_dirobj, &fstat->f_size);   /* file size, in bytes */
+//    rtp_file_get_size(rtp_dirobj, &fstat->f_size);   /* file size, in bytes */
+    rtp_file_get_size64(rtp_dirobj, &fstat->fsize_hi,&fstat->fsize);
 
     fstat->f_atime64 = atime;
     fstat->f_ctime64 = ctime;
     fstat->f_wtime64 = wtime;
     fstat->f_htime64 = htime;
+
 
     rtp_file_get_attrib(rtp_dirobj, &fstat->f_attributes);
 	rtp_file_get_unique_id(rtp_dirobj, fstat->unique_fileid);
