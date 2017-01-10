@@ -3043,8 +3043,9 @@ int srv_cmd_fill_locking_and_x (PFVOID origin, PFVOID buf, rtsmb_size size,
   RTSMB_PACK_BYTE (pLockingR->next_command);
   RTSMB_PACK_BYTE (0);  /* reserved */
   poffset = buf;
-//  RTSMB_PACK_WORD (0);  /* offset to next and_x */
-  RTSMB_PACK_BYTE (0);  /* offset to next and_x */
+// 1-10-2017 Changed this back to word from byte, which was wrong
+  RTSMB_PACK_WORD (0);  /* offset to next and_x */
+//  RTSMB_PACK_BYTE (0);  /* offset to next and_x */
   RTSMB_PACK_WORD (0);  /* byte count */
 
 

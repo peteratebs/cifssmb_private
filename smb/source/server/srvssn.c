@@ -2468,6 +2468,9 @@ static BBOOL ProcFakeNotifyTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInH
     if (size == -1) return FALSE;
     buf = PADD (buf, size);
 
+#warning SMB1 Notify is not implemented
+    return FALSE;    // Return false, these fake returns were causing a lot of network traffic
+
     response.parameter_count = sizeof(myFakes);
     response.parameter = (PFBYTE)myFakes;
 
