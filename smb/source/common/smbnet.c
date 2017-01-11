@@ -117,9 +117,7 @@ int rtsmb_net_read_simple (RTP_SOCKET sock, PFVOID pData, int size)
 int count;
 ioctl(sock, FIONREAD, &count);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: request size: %d available :%d\n",size, count);
     bytesRead = rtp_net_recv (sock, pData, size);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: bytesRead finished %d of %d\n",bytesRead, size);
     if (bytesRead == 0)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_net_read_simple: return -1\n");
@@ -175,12 +173,8 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
     while ((dword) bytesRead < length)
     {
         int num_socks;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull have: %d need: %d \n", rtp_get_system_msec(), bytesRead, length);
 
         num_socks = rtsmb_netport_select_n_for_read (&sock, 1, RTSMB_NB_UCAST_RETRY_TIMEOUT);
-
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull back sel with %d\n", rtp_get_system_msec(), num_socks);
-
         if (num_socks)
         {
             int moreBytesRead = rtsmb_net_read (sock, (PFBYTE) buf + bytesRead,
@@ -203,7 +197,6 @@ int rtsmb_net_read (RTP_SOCKET sock, PFVOID buf, dword bufsize, int size)
      * Now we clear out any remaining bytes on wire.
      */
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_net_read pull have: %d need: %d \n", rtp_get_system_msec(), bytesRead, length);
     if ((dword) bytesRead >= length && (dword) size > length)
     {
         dword diff = (dword)size - length;

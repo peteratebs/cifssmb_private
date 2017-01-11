@@ -35,6 +35,7 @@
 #include "srvfio.h"
 
 extern BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat);
+extern void close_fileid_notify_requests(smb2_stream  *pStream, uint8_t *fileid);
 
 BBOOL RTSmb2_get_stat_from_fid(smb2_stream  *pStream, PTREE pTree, word externalFid, PSMBFSTAT pstat)
 {
@@ -154,6 +155,9 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
         {
           // Call opclock_close in case we are releasing a locked fid
           PFID pfid = SMBU_GetInternalFidPtr (pStream->pSmbCtx, externalFid);
+
+          // free a queue notify request this if fid owns one
+          close_fileid_notify_requests(pStream, SMBU_Fidobject(pfid)->unique_fileid);
 
           // free the oplock, if this fid owns it
           oplock_c_close(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),pfid);

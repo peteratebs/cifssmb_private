@@ -51,6 +51,7 @@
 
 #include "wchar.h"
 #include "remotediags.h"
+#include "srvnotify.h"
 
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
@@ -199,7 +200,6 @@ static BBOOL Proc_smb2_LogOff(smb2_stream  *pStream);
 
 static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream);
 static BBOOL Proc_smb2_TreeDisConnect(smb2_stream  *pStream);
-static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream);
 
 
 static void DebugOutputSMB2Command(int command);
@@ -393,7 +393,7 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
        }
        if (pOutHeader->CreditRequest_CreditResponse == 0)
        {
-         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Force credit response to 1:\n");
+#warning RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Force credit response to 1:\n");
          pOutHeader->CreditRequest_CreditResponse = 1;
        }
        // Sign the packet
@@ -408,8 +408,6 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
        // Always sign if signing is required.
        if (pStream->psmb2Session->SigningRequired)
          SESSIONCTXSTATICS.sign_packet = TRUE;
-#warning Note that we are overriding and always signing.
-//       SESSIONCTXSTATICS.sign_packet = TRUE;
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
          SESSIONCTXSTATICS.sign_packet = TRUE;
@@ -490,6 +488,7 @@ extern BBOOL Proc_smb2_Lock(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_Cancel(smb2_stream  *pStream);
 extern BBOOL Proc_smb2_SetInfo(smb2_stream  *pStream);
+extern BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream);
 
 
 
@@ -1076,13 +1075,6 @@ static BBOOL Proc_smb2_Echo(smb2_stream  *pStream)
 
 }
 
-static BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
-{
- RTSMB2_CHANGE_NOTIFY_C command;
- /* Read into command to pull it from the input queue */
- RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
- return FALSE;
-}
 
 static  rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};
 static  rtsmb_char srv_dialect_smb2100[] = {'S', 'M', 'B', '2', '.', '1', '0', '0', '\0'};

@@ -97,7 +97,6 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
   RTSMB_NBSS_HEADER header;
   byte header_bytes[4];
 
-//  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet pull RTSMB_NBSS_HEADER_SIZE\n", rtp_get_system_msec());
   if (rtsmb_net_read (pSCtx->sock, pSCtx->readBuffer, pSCtx->readBufferSize, RTSMB_NBSS_HEADER_SIZE) == -1)
   {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet pull RTSMB_NBSS_HEADER_SIZE failed\n", rtp_get_system_msec());
@@ -105,7 +104,6 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
   }
   if (!isDead)
   {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet call rtsmb_nbss_read_header\n", rtp_get_system_msec());
     if (rtsmb_nbss_read_header (pSCtx->readBuffer, RTSMB_NBSS_HEADER_SIZE, &header) < 0)
     {
       isDead = TRUE;
@@ -113,7 +111,6 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
   }
   if (!isDead)
   {
-//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet Top content\n", rtp_get_system_msec());
     switch (header.type)
     {
       case RTSMB_NBSS_COM_MESSAGE:  /* Session Message */
@@ -123,15 +120,11 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
         }
         else
         {
-//          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n");
-          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet call SMBS_ProcSMBPacket\n", rtp_get_system_msec());
           if (!SMBS_ProcSMBPacket (pSCtx, header.size, FALSE, FALSE))   //rtsmb_srv_nbss_process_packet stubs ?
           {
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
             isDead = TRUE;
           }
-//          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_nbss_process_packet back SMBS_ProcSMBPacket\n", rtp_get_system_msec());
-//          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket success\n");
         }
         break;
       case RTSMB_NBSS_COM_REQUEST:  /* Session Request */
@@ -168,9 +161,7 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     pSctx->doSocketClose = FALSE;
     pSctx->doSessionClose = FALSE;
 
-//    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: NBSS Packet rcved: of size %lu\n",packetSize);
     if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
-//    if (packetSize > pSctx->readBufferSize)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
         return TRUE; /* eat the packet */
@@ -336,7 +327,6 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     {
         SMB2PROCBODYACTION bodyR;
         dword current_body_size = pSctx->current_body_size;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  SMBS_ProcSMBPacket execute in\n", rtp_get_system_msec());
         if (pSctx->isSMB2)
         {
    if (replay)   {    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: call SMBS_ProcSMB2BodyPacketExecute state == %d\n", pSctx->session_state);    }
@@ -368,13 +358,11 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     }
     BBOOL returnVal  = TRUE;
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket call Epilog with SendRequest %d: CloseRequest:%d\n", doSend, pSctx->doSessionClose);
     if (doSend)
     {
        if (oplock_diagnotics.performing_replay)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"YIELD:: SMBS_ProcSMBBodyPacketEpilog from replay sending bytes ctxt: %lu stream: %lu\n", pSctx->outBodySize, pSctx->SMB2_FrameState.smb2stream.OutBodySize); }
        returnVal = SMBS_SendMessage (pSctx, pSctx->outBodySize, TRUE);
        if (!returnVal) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket SMBS_SendMessage failed\n"); }
-//       { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog sent %lu returned: %d\n",pSctx->outBodySize, returnVal); }
     }
     else {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBBodyPacketEpilog called with no send request\n"); }
     if (pSctx->doSessionClose)
@@ -395,8 +383,6 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
         returnVal = FALSE;
     }
 
-     if (!returnVal)
-     { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket returning FALSE\n"); }
      return returnVal;
 }
 
@@ -542,13 +528,11 @@ static SMB2PROCBODYACTION SMBS_ProcSMB1BodyPacketExecute (PSMB_SESSIONCTX pSctx,
 {
     // Replay option is temporarilly disabled, will refactor
     // if (!isReplay)
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMB1BodyPacketExecute entered\n");
     { // Pull from the stream if it is not a replays shouldn't occur in V1
       SMB2PROCBODYACTION r;
       r=SMBS_ReadNbssPacketToSessionCtxt (pSctx);   // Sets state to WAIT_ON_PDC_NAME,WAIT_ON_PDC_IP,IDLE,READINS
       if (r!=EXECUTE_PACKET)
       {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: FAIL SMBS_ProcSMB1BodyPacketExecute r!=EXECUTE_PACKET :%d\n", r);
         return r;
       }
     }

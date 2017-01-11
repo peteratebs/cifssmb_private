@@ -64,6 +64,9 @@ EXTERN_C void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 EXTERN_C void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
 
+EXTERN_C uint8_t *notify_retreive_message(RTP_SOCKET sock, uint32_t *pmessage_size);
+EXTERN_C void close_session_notify_requests(PNET_SESSIONCTX pCtx);
+
 static void freeSession (PNET_SESSIONCTX p);
 
 
@@ -385,7 +388,7 @@ RTP_SOCKET diagreadList[256];
 
 
 static RTP_SOCKET  get_master_socket(void)     { return master_socket;};
-static RTP_SOCKET  get_signalling_socket(void) { return signal_socket;};
+extern "C" RTP_SOCKET  get_signalling_socket(void) { return signal_socket;};
 void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycle based on select and timeouts
 {
     if (!prtsmb_srv_ctx->mainThread)
@@ -452,7 +455,12 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     }
     if (signalling_signal_active)
     {
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: signal received\n");
+       uint32_t message_size;
+       uint8_t *message_data;
+       message_data = notify_retreive_message(signal_socket, &message_size);
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: notify signal buffer size id %d\n",message_size);
+       if (message_data)
+         RTP_FREE(message_data);
 //       rtsmbSigStruct *recvSig = recv_signal(); // Must copy to use
        // Make sure we
     }
@@ -603,13 +611,9 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
     // Give replay a chance to execute
     // rtsmb_srv_netssn_session_yield_cycle(session);
 
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle claim in\n", rtp_get_system_msec());
-
     SMBS_claimSession (pNetCtxt);
 
     oplock_c_break_clear_pending_break_send_queue();  // Processing may queue up oplock breaks to send, requires breaks (see: oplock_c_break_send_pending_breaks()) below
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle claim out\n", rtp_get_system_msec());
 
     /* handle special state cases here, potentially skipping netbios layer */
     switch (pSCtx->session_state)
@@ -631,14 +635,12 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         if (ready)
         {
             (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle proc in\n", rtp_get_system_msec());
             if (SMBS_ProcSMBPacket (pSCtx, 0, TRUE, FALSE)== FALSE) /* pull a new nbss packet and process it */
             {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: SMBS_ProcSMBPacket failed on %ld \n",sock);
               socket_requested_shutdowns += 1;
               isDead = TRUE;
             }
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle proc out\n", rtp_get_system_msec());
         }
         else
         {
@@ -661,7 +663,6 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         break;
     }
     SMBS_releaseSession (pNetCtxt);
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle release out\n", rtp_get_system_msec());
 
     // Send breaks to any other sessions
     oplock_c_break_send_pending_breaks();
@@ -783,17 +784,18 @@ static void SMBS_CloseSession(PSMB_SESSIONCTX pSmbCtx)
 }
 
 
-void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pSCtx ) // Close the session out but don't close the socket. Used when an SMB2 session tries to reconnect the session without closing the socket
+void SMBS_srv_netssn_connection_close_session(PNET_SESSIONCTX pCtx ) // Close the session out but don't close the socket. Used when an SMB2 session tries to reconnect the session without closing the socket
 {
+  close_session_notify_requests(pCtx);
 #ifdef SUPPORT_SMB2
+   if (pCtx->netsessiont_smbCtx.isSMB2)
 
-   if (pSCtx->netsessiont_smbCtx.isSMB2)
 // if (pSCtx->netsessiont_smbCtx.pCtxtsmb2Session)
-     RTSmb2_SessionShutDown(&pSCtx->netsessiont_smbCtx.Smb2SessionInstance);
+     RTSmb2_SessionShutDown(&pCtx->netsessiont_smbCtx.Smb2SessionInstance);
 #endif
 
-   SMBS_Setsession_state(&pSCtx->netsessiont_smbCtx,NOTCONNECTED);
-   SMBS_CloseSession( &(pSCtx->netsessiont_smbCtx) );
+   SMBS_Setsession_state(&pCtx->netsessiont_smbCtx,NOTCONNECTED);
+   SMBS_CloseSession( &(pCtx->netsessiont_smbCtx) );
 
 }
 void SMBS_Setsession_state(PSMB_SESSIONCTX pSctxt, SMBS_SESSION_STATE new_session_state)      // Set the state of a session for strategy of what to do in session cycle NOTCONNECTED, READING IDLE etc.

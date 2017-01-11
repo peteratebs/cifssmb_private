@@ -82,6 +82,8 @@
 #include "srvoplocks.h"
 #include "smbnet.h"
 
+extern BBOOL cancel_notify_request(smb2_stream  *pStream);
+
 // Still experimental for now
 extern ddword smb2_stream_to_unique_userid(smb2_stream  *pStream)
 {
@@ -99,9 +101,14 @@ BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
  if (pStream->Success)
  {
 // HEREHERE Cancel these guys
-    pStream->InHdr.MessageId; // ddword
-    pStream->InHdr.TreeId;    // dword
-    pStream->InHdr.SessionId; // ddword
+
+    if (cancel_notify_request(pStream))   // Return if we used it so we don't waste time
+      return FALSE;
+    // Cancel oplocks here probably
+
+//    pStream->InHdr.MessageId; // ddword
+//    pStream->InHdr.TreeId;    // dword
+//    pStream->InHdr.SessionId; // ddword
  }
   return FALSE;
 }
