@@ -19,6 +19,7 @@
 #include "smbdefs.h"
 
 #include "rtpfile.h"
+#include "srvnotify.h"
 #include "rtprand.h"
 #include "rtpwcs.h"
 #include "smbdebug.h"
@@ -66,27 +67,6 @@ EXTERN_C void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
 static void freeSession (PNET_SESSIONCTX p);
 
 
-#define PACK_ATTRIBUTE  __attribute__((packed))
-
-typedef struct rtsmbSigStruct_s {
-  word signame;
-  word payloadsize;
-// Payload
-}  PACK_ATTRIBUTE rtsmbSigStruct;
-
-typedef struct rtsmbSigOplockStruct_s {
-  word signame;
-  word payloadsize;
-  dword inodenumber;
-}  PACK_ATTRIBUTE rtsmbSigOplockStruct;
-
-#define SMBS_SIGOPLOCK_NAME 0
-#define SMBS_SIGOPLOCK_SIZE 4
-#define SMBS_SIGOPLOCK(SIGNAME,INODENUMBER) rtsmbSigOplockStruct SIGNAME; {SIGNAME.signame = SMBS_SIGOPLOCK_NAME;SIGNAME.payloadsize=SMBS_SIGOPLOCK_SIZE;SIGNAME.inodenumber=INODENUMBER};
-#define SMBS_SIGONOTIFY_NAME 1
-#define SMBS_SIGONOTIFY_SIZE 4
-#define SMBS_SIGNOTIFY(SIGNAME,INODENUMBER) rtsmbSigOplockStruct SIGNAME; {SIGNAME.signame = SMBS_SIGONOTIFY_NAME;SIGNAME.payloadsize=SMBS_SIGONOTIFY_SIZE;SIGNAME.inodenumber=INODENUMBER};
-
 
 
 #define NOSOCKET 0xffff
@@ -111,25 +91,25 @@ static dword socket_timeout_shutdowns;
 static    dword socket_requested_shutdowns;
 
 // Sends an rtsmbSigStruct message to the session
-static void send_signal(rtsmbSigStruct *psig)
-{
-    rtsmb_net_write_datagram ( signal_socket, (byte *)local_ip_address, signal_socket_portnumber, (void *)psig, psig->payloadsize);
-}
+//static void send_signal(rtsmbSigStruct *psig)
+//{
+//    rtsmb_net_write_datagram ( signal_socket, (byte *)local_ip_address, signal_socket_portnumber, (void *)psig, psig->payloadsize);
+//}
 
 // Returns a rtsmbSigStruct if one is pending (should be because select was called) on the UDP port else null
-static rtsmbSigStruct *recv_signal(void)
-{
-static rtsmbSigStruct return_sig;
-  byte remote_ip[4];
-  int  size, remote_port;
-  size = rtsmb_net_read_datagram (signal_socket, &return_sig, sizeof(return_sig), remote_ip, &remote_port);
-  if (size == sizeof(return_sig))  {
-    { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved a signal of size %d\n", size);}
-    return &return_sig;
-  }
-  else if (size != 0) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved invalid message size %d\n", size);}
-  return 0;
-}
+//static void recv_signal(void)
+//{
+//static rtsmbSigStruct return_sig;
+//  byte remote_ip[4];
+//  int  size, remote_port;
+//  size = rtsmb_net_read_datagram (signal_socket, &return_sig, sizeof(return_sig), remote_ip, &remote_port);
+//  if (size == sizeof(return_sig))  {
+//    { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved a signal of size %d\n", size);}
+//    return &return_sig;
+//  }
+//  else if (size != 0) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: _net_thread_signal_c recved invalid message size %d\n", size);}
+//  return 0;
+//}
 
 
 void srvsmboo_init(PNET_THREAD pThread)
@@ -473,7 +453,7 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     if (signalling_signal_active)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: signal received\n");
-       rtsmbSigStruct *recvSig = recv_signal(); // Must copy to use
+//       rtsmbSigStruct *recvSig = recv_signal(); // Must copy to use
        // Make sure we
     }
 
@@ -664,6 +644,8 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         {
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle not ready  in\n", rtp_get_system_msec());
             /*check for time out */
+//            #define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     30000
+//            if (((long) (rtp_get_system_msec () - ((unsigned long)(*session)->netsessiont_lastActivity))) >= (long) (RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
             if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
 //            if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT*4))
             {
