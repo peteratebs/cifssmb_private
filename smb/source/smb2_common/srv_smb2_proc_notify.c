@@ -43,6 +43,7 @@
 typedef struct notify_request_s {
  BBOOL in_use;
  uint64_t MessageId;                   // Message ID from the header so we can find it to cancel it
+ uint64_t AsyncId;                     // We have to remember the async id of our reply for when we send an unsoliceted notices
  rtplatform_notify_request_args args;
  RTSMB2_CHANGE_NOTIFY_C command;
 } notify_request_t;
@@ -91,6 +92,7 @@ static void call_rtplatform_notify_queue(int notify_index)
   void rtplatform_notify_request(rtplatform_notify_request_args *prequest);
 }
 
+// Called when a cancel is received
 BBOOL cancel_notify_request(smb2_stream  *pStream)
 {
   int closed = 0;
@@ -112,6 +114,26 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
   if (closed)
   {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: cancel_notify_request: nfree:%d \n", MAX_PENDING_NOTIFIES-notify_requests_in_use);
+  }
+}
+
+
+
+// Called when file object is released
+void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid)
+{
+  int closed = 0;
+  int notify_index = find_notify_request(pCtx->netsessiont_smbCtx.tid, SMBU_Fidobject(pfid)->unique_fileid);
+  if (notify_index >= 0)
+  {
+    call_rtplatform_notify_cancel(notify_index);
+    notify_requests[notify_index].in_use = FALSE;
+    notify_requests_in_use -= 1;
+    closed += 1;
+  }
+  if (closed)
+  {
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: close_fileid_notify_requests: nfree:%d \n", MAX_PENDING_NOTIFIES-notify_requests_in_use);
   }
 }
 
@@ -156,10 +178,15 @@ void close_fileid_notify_requests(smb2_stream  *pStream, uint8_t *fileid)
   }
 }
 
+extern ddword CurrentAsyncId;
+
+
+
 BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
 {
  rtplatform_notify_request_args args;
  RTSMB2_CHANGE_NOTIFY_C command;
+ RTSMB2_CHANGE_NOTIFY_R response;
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
  if (!pStream->Success)
@@ -184,11 +211,35 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  notify_requests[notify_index].MessageId = pStream->InHdr.MessageId; // Save the messageID in case we're asked need to cancel
  tc_memcpy(&notify_requests[notify_index].command, &command, sizeof(command));
  tc_memcpy(&notify_requests[notify_index].args, &args, sizeof(args));
- rtplatform_notify_request(&args);
- // Now pass args to the OS
  // rtplatform_notify_request(&args);
+ rtplatform_notify_request(&args);
+
+ // Set the status to pending
+ pStream->OutHdr.Status_ChannelSequenceReserved =  0x00000103;  // Status pending
+ response.StructureSize = 9;
+ response.OutputBufferOffset = 0;
+ response.OutputBufferLength = 0;
+ response.Buffer = 0;
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before async: %d\n",response.StructureSize);
+ // Respond with a pending status
+ RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
+ pAsyncOut->AsyncId = CurrentAsyncId;
+ pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
+ notify_requests[notify_index].AsyncId = CurrentAsyncId; // Remember the async id for when we send an unsolicted notice
+
+ CurrentAsyncId += 1;
+
+
+
+
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before RtsmbStreamEncodeResponse: %d\n",response.StructureSize);
+ /* Success - see above if the client asked for stats */
+ RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+ return TRUE;
+
  return FALSE;
 }
+
 
 #endif
 #endif

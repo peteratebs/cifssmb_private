@@ -74,6 +74,7 @@
 //    INTERFACE FUNCTIONS
 //============================================================================
 
+extern void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid);
 
 
 dword dwordalign(dword original, int a)
@@ -762,6 +763,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		if (j < prtsmb_srv_ctx->max_fids_per_tree)	// if we found it...
 		{
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: close fid[%x]\n" , tree->fids[j]);
+            close_pfid_notify_requests(pCtx, tree->fids[j]);
             oplock_c_close(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);          // Release from oplocks if fid owns an oplock
 			tree->fids[j] = (PFID)0;
 		}

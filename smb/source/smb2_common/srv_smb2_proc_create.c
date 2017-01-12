@@ -743,7 +743,7 @@ struct PACK_ATTRIBUTE s_RTSMB2_HPLUS_CREATE_R
 };
 PACK_PRAGMA_POP
 
-static ddword CurrentAsyncId = 0x1000;
+ddword CurrentAsyncId = 0x1000;
 
 static void FinishPendingCreate(smb2_stream  *pStream)
 {

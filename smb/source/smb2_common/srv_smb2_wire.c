@@ -227,7 +227,8 @@ int rv = -1;
             rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  8, RtsmbWireVarEncodeQueryDirectoryResponseCb);
             break;
         case SMB2_CHANGE_NOTIFY  :
-            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  8, RtsmbWireVarEncodeChangeNotifyResponseCb);
+//            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  8, RtsmbWireVarEncodeChangeNotifyResponseCb);
+            rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  9, 0);
             break;
         case SMB2_QUERY_INFO     :
             rv = RtsmbWireEncodeSmb2(pStream, (PFVOID) pItem,  8, RtsmbWireVarEncodeQueryInfoResponseCb);
@@ -284,6 +285,9 @@ PRTSMB2_QUERY_DIRECTORY_R pResponse = (PRTSMB2_QUERY_DIRECTORY_R )pItem;
 static int RtsmbWireVarEncodeChangeNotifyResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
 {
 PRTSMB2_CHANGE_NOTIFY_R pResponse = (PRTSMB2_CHANGE_NOTIFY_R )pItem;
+
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size inside RtsmbWireVarEncodeChangeNotifyResponseCb: %d\n", pResponse->StructureSize);
+
     return RtsmbWireVarEncode(pStream, origin, buf, size, pResponse->OutputBufferOffset, pResponse->OutputBufferLength, pResponse->StructureSize);
 }
 
