@@ -21,6 +21,7 @@
 #include "smbnbss.h"
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
+#include "srvnotify.h"
 
 /*============================================================================   */
 /*    INTERFACE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS                     */
@@ -217,6 +218,7 @@ typedef struct sessionlockctrl_s
   byte   unique_fileid[SMB_UNIQUE_FILEID_SIZE]; // Who it's waiting for if blocked
 } SESSIONLOCKCTRL_T;
 
+
 typedef struct smb_sessionCtx_s
 {
     RTP_SOCKET sock;
@@ -225,9 +227,8 @@ typedef struct smb_sessionCtx_s
     BBOOL isSMB2;               /* Set true when SMB2 negotiated */
     BBOOL doSocketClose;        /* Set true when SMB command handler wants the network layer code to close the socket when it is convenient. */
     BBOOL doSessionClose;       /* Set true when SMB2 command handler wants the network layer code the session after the stream is flushed. */
-    SESSIONLOCKCTRL_T sessionoplock_control;
-
-
+    SESSIONLOCKCTRL_T   sessionoplock_control;
+    int queued_notify_sends;    /* Incremented for each notify message that should be sent the next time the session is processed */
 
     SMBS_SESSION_STATE session_state;   /* are we idle or waiting on something? */
 

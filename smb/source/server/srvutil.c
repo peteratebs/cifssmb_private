@@ -558,6 +558,13 @@ PNET_SESSIONCTX SMBU_Fid2Session(PFID pfid)
   return args.netsession;
 }
 
+PFRTCHAR SMBU_UniqueIdToFileName(byte *unique_fileid)
+{
+PFIDOBJECT pfidObject = findFidObjectbyUniquId(unique_fileid);
+ if (!pfidObject)
+   return 0;
+ return pfidObject->name;
+}
 
 static int _SMBU_SearchUniqueidCB (PFID pfid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs)
 {
@@ -568,6 +575,7 @@ static int _SMBU_SearchUniqueidCB (PFID pfid, PNET_SESSIONCTX pnCtx, PSMB_SESSIO
   }
   return 0;
 }
+
 
 int SMBU_SearchFidsByUniqueId (byte *unique_fileid, struct SMBU_enumFidSearchUniqueidType_s *pResults)
 {
@@ -762,7 +770,6 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 		if (j < prtsmb_srv_ctx->max_fids_per_tree)	// if we found it...
 		{
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "FID: SMBU_ClearInternalFid: close fid[%x]\n" , tree->fids[j]);
             close_pfid_notify_requests(pCtx, tree->fids[j]);
             oplock_c_close(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);          // Release from oplocks if fid owns an oplock
 			tree->fids[j] = (PFID)0;

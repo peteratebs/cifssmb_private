@@ -32,7 +32,7 @@ void rtsmb_srv_syslog_config(void)
 }
 void rtsmb_srv_diag_config(void)
 {
-   prtsmb_srv_ctx->display_login_info    = TRUE;
+   prtsmb_srv_ctx->display_login_info    = FALSE;
    prtsmb_srv_ctx->display_config_info    = FALSE;
 }
 

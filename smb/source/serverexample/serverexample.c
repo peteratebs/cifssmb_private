@@ -44,11 +44,14 @@ volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill sup
 volatile quit_sig_pressed = 0;
 volatile int keyboard_break_pressed_count;
 
+extern void rtsmb_thread_iwatch (void *p);
+
 extern void rtsmb_srv_syslog_config(void);
 
 #if (INCLUDE_SRVOBJ_REMOTE_DIAGS_THREAD)
 RTP_HANDLE mainThread;
 RTP_HANDLE diagThread;
+RTP_HANDLE watcherThread;
 static int _smbservermain (void);
 RTSMB_STATIC void rtsmb_thread_main (void *p)
 {
@@ -64,6 +67,10 @@ void rtsmb_srv_fork_main(void)
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_fork_main: Couldn't start thread!\n");
     }
     if (rtp_thread_spawn(&diagThread, (RTP_ENTRY_POINT_FN) rtsmb_thread_diag, "DIAGTHREAD", 0, 0, pArgs))
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_fork_main: Couldn't start thread!\n");
+    }
+    if (rtp_thread_spawn(&diagThread, (RTP_ENTRY_POINT_FN) rtsmb_thread_iwatch, "DIAGTHREAD", 0, 0, pArgs))
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_srv_fork_main: Couldn't start thread!\n");
     }

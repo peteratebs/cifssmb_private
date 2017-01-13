@@ -215,9 +215,20 @@ RTSMB2_LOCK_REQUEST_C command;
 RTSMB2_LOCK_REQUEST_R response;
 RTSMB2_FILEIOARGS fileioargs;
 
-    tc_memset(&response,0, sizeof(response));
-    tc_memset(&command,0, sizeof(command));
+ tc_memset(&response,0, sizeof(response));
+ tc_memset(&command,0, sizeof(command));
 
+ RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  recved...\n");
+ if (!pStream->Success)
+ {
+     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  RtsmbStreamDecodeCommand failed...\n");
+     RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
+     return TRUE;
+ }
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  fake error.\n");
+ RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
+ return TRUE;
 
     if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
     {

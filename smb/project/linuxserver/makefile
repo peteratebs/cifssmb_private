@@ -95,7 +95,7 @@ cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_query_directory.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_wire.c
 cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_assert.c
 cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
-
+cfiles += $(lib_to_rtsmb2_common_path)/srv_smb2_proc_notify.c
 
 cfiles += $(lib_to_rtsmb_crypto_path)/des_enc.c
 cfiles += $(lib_to_rtsmb_crypto_path)/ecb_enc.c

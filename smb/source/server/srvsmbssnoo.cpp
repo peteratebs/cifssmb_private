@@ -64,8 +64,9 @@ EXTERN_C void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 EXTERN_C void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
 
-EXTERN_C uint8_t *notify_retreive_message(RTP_SOCKET sock, uint32_t *pmessage_size);
+// EXTERN_C uint8_t *notify_retreive_message(RTP_SOCKET sock, uint32_t *pmessage_size);
 EXTERN_C void close_session_notify_requests(PNET_SESSIONCTX pCtx);
+EXTERN_C int send_session_notify_messages(PNET_SESSIONCTX pCtx);
 
 static void freeSession (PNET_SESSIONCTX p);
 
@@ -455,12 +456,12 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     }
     if (signalling_signal_active)
     {
-       uint32_t message_size;
-       uint8_t *message_data;
-       message_data = notify_retreive_message(signal_socket, &message_size);
-       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: net_thread_c::perform_session_cycle: notify signal buffer size id %d\n",message_size);
-       if (message_data)
-         RTP_FREE(message_data);
+       uint32_t message_size = 0;
+//       uint8_t *message_data;
+//       message_data = notify_retreive_message(signal_socket, &message_size);
+       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, (char *) "DIAG: unexpected net_thread_c::perform_session_cycle: notify signal buffer size id %d\n",message_size);
+//       if (message_data)
+//         RTP_FREE(message_data);
 //       rtsmbSigStruct *recvSig = recv_signal(); // Must copy to use
        // Make sure we
     }
@@ -515,7 +516,7 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
             //RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_yield_cycle out\n", rtp_get_system_msec());
 
             // May have been a wakeup for a yield or just a timeout, process timers either way
-            if (n == readListSize)
+            if (n == active_list_size)
             { // A non yielded session timeded out, check for KEEPALIVES
                  rtsmb_srv_pdc_session_cycle (session);
                 //RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_yield_cycle done in\n", rtp_get_system_msec());
@@ -644,21 +645,24 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         }
         else
         {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle not ready  in\n", rtp_get_system_msec());
             /*check for time out */
 //            #define RTSMB_NBNS_KEEP_ALIVE_TIMEOUT     30000
 //            if (((long) (rtp_get_system_msec () - ((unsigned long)(*session)->netsessiont_lastActivity))) >= (long) (RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
-            if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
-//            if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT*4))
+//            if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT))
+            if(IS_PAST ((*session)->netsessiont_lastActivity, RTSMB_NBNS_KEEP_ALIVE_TIMEOUT*4))
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: Connection timed out on socket %ld \n",(*session)->netsessiont_sock);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: Ignore Connection timed out on socket %ld \n",(*session)->netsessiont_sock);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: current: %lu prev: %lu delta: %lu \n", rtp_get_system_msec(), (*session)->netsessiont_lastActivity, (*session)->netsessiont_lastActivity-rtp_get_system_msec() );
                 // (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
-                socket_timeout_shutdowns+=1;
-                isDead = TRUE;
+                (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
+//                socket_timeout_shutdowns+=1;
+//                isDead = TRUE;
             }
+            // run down any notify alerts dor this session
+            if (send_session_notify_messages(*session)<0)
+                ; // isDead = TRUE;
             // run down any oplock timers
             oplock_c_break_check_waiting_break_requests();
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle not ready  out\n", rtp_get_system_msec());
         }
         break;
     }
