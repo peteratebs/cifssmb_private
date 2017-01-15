@@ -346,6 +346,7 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
          pOutHeader->Reserved = pStream->InHdr.Reserved;
        pOutHeader->NextCommand = 0; // We'll override this if needed
 
+
        // Remember the next command adddress in the buffer in case we have to fix it up
        SESSIONCTXSTATICS.pPreviousNextOutCommand     =  &pOutHeader->NextCommand;// Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
 
@@ -396,6 +397,13 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
 #warning RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Force credit response to 1:\n");
          pOutHeader->CreditRequest_CreditResponse = 1;
        }
+
+       if ((pOutHeader->Flags & SMB2_FLAGS_ASYNC_COMMAND) && pOutHeader->Command == SMB2_CHANGE_NOTIFY)
+       {
+         pOutHeader->CreditCharge = 0;
+         pOutHeader->CreditRequest_CreditResponse = 0;
+       }
+
        // Sign the packet
 #if (1)
         PRTSMB2_HEADER pOutHdr = (PRTSMB2_HEADER)pOutBufStart;
@@ -966,7 +974,10 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
                     {
 				        response.MaximalAccess          =   SMB2_FPP_ACCESS_MASK_FILE_READ_DATA|
 				                                            SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA|
+                                                            SMB2_FPP_ACCESS_MASK_SYNCHRONIZE|       // Added this but changing this doesn't make windows work with notify
 				                                            SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA;
+// Tried but changing this doesn't make windows work with notify
+// 				        response.MaximalAccess          =   0x001f01ff; // Samba's values
                     }
 				    externaltid = (word) (((int) (tree)) & 0xFFFF);
 				    pStream->OutHdr.TreeId = (dword) externaltid;

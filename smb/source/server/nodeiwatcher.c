@@ -67,8 +67,8 @@ static int SendInotifyEventToRtsmb(struct inotify_event *event)
 {
 uint32_t mapped_masked = 0;
     printf("    wd =%2d; ", event->wd);
-    if (find_notify_request_from_alert(event->wd))
-      ;
+    //if (find_notify_request_from_alert(event->wd))
+    //  ;
     if (event->mask & IN_ATTRIB)
        mapped_masked |=  FILE_ACTION_MODIFIED           ;        // The file was modified. This may be a change to the data or attributes of the file.
     if (event->mask & IN_CLOSE_WRITE)
@@ -80,7 +80,7 @@ uint32_t mapped_masked = 0;
        mapped_masked |=  FILE_ACTION_REMOVED            ;        // The file was removed from the directory.
        // mapped_masked |=  FILE_ACTION_REMOVED_BY_DELETE  ;        // The file was removed by delete.
     }
-    if (event->mask & IN_DELETE_SELF)
+    if (0 && event->mask & IN_DELETE_SELF)
     {
        mapped_masked |=  FILE_ACTION_REMOVED            ;        // The file was removed from the directory.
        // mapped_masked |=  FILE_ACTION_REMOVED_BY_DELETE  ;        // The file was removed by delete.
@@ -92,6 +92,18 @@ uint32_t mapped_masked = 0;
       mapped_masked |=  FILE_ACTION_RENAMED_OLD_NAME   ;        // The file was renamed, and this is the old name. If the new name resides within the directory being monitored, the client will also receive the FILE_ACTION_RENAMED_NEW_NAME bit value as described in the next list item. If the new name resides outside of the directory being monitored, the client will not receive the FILE_ACTION_RENAMED_NEW_NAME bit value.
     if (event->mask & IN_MOVED_TO)
       mapped_masked |=  FILE_ACTION_RENAMED_NEW_NAME   ;        // The file was renamed, and this is the new name. If the old name resides within the directory being monitored, the client will also receive the FILE_ACTION_RENAME_OLD_NAME bit value. If the old name resides outside of the directory being monitored, the client will not receive the FILE_ACTION_RENAME_OLD_NAME bit value.
+
+#if (0)
+    mapped_masked = 0;
+    if (event->mask & IN_CREATE)
+      mapped_masked |=  FILE_ACTION_ADDED              ;        // The file was added to the directory.
+    if (event->mask & IN_DELETE)
+    {
+       mapped_masked |=  FILE_ACTION_REMOVED            ;        // The file was removed from the directory.
+       // mapped_masked |=  FILE_ACTION_REMOVED_BY_DELETE  ;        // The file was removed by delete.
+    }
+#endif
+
     if (mapped_masked)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:SendInotifyEventToRtsmb mask: %lu\n", mapped_masked);
@@ -124,22 +136,24 @@ ssize_t numRead;
 
         printf("Read %ld bytes from inotify fd\n", (long) numRead);
         /* Process all of the events in buffer returned by read() */
-        for (p = buf; p < buf + numRead; ) {
-            event = (struct inotify_event *) p;
-            displayInotifyEvent(event);
-            p += sizeof(struct inotify_event) + event->len;
-        }
+//        for (p = buf; p < buf + numRead; ) {
+//            event = (struct inotify_event *) p;
+//            displayInotifyEvent(event);
+//            p += sizeof(struct inotify_event) + event->len;
+//        }
         for (p = buf; p < buf + numRead; ) {
             event = (struct inotify_event *) p;
             if (SendInotifyEventToRtsmb(event))
-              ; // break;  // Try only sending one message
+            {
+              displayInotifyEvent(event);
+              break;  // Try only sending one message
+            }
             p += sizeof(struct inotify_event) + event->len;
         }
     }
 }
 void rtsmb_thread_iwatch (void *p)
 {
-  sleep(10);
   doWatch();
 }
 
@@ -182,3 +196,9 @@ uint32_t linux_mask;
   }
 }
 
+
+void linux_inotify_cancel_watch(int wd)
+{
+  inotify_rm_watch(inotifyFd, wd);
+
+}

@@ -98,6 +98,8 @@
 
 #define SMB_STATUS_ACCOUNT_RESTRICTION          0xC000006E /* The client request to the server contains an invalid UID value. */
 
+#define SMB2_STATUS_CANCELLED                   0xC0000120
+
 
 #define SMB2_STATUS_BUFFER_OVERFLOW             0x80000005 /* The data was too large to fit into the specified buffer. */
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */

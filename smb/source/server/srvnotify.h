@@ -25,6 +25,7 @@ typedef struct rtplatform_notify_request_args_s {
   uint64_t SessionId;                                                       // From the request packet also accessible through session index
   uint16_t session_index;                                                   // small integer value 0 to MAX_SESSIONS to include in notify message
   uint16_t notify_index;                                                    // small integer value 0 to MAX_NOTIFIES_PER_SESSION  to include in notify message
+  uint64_t AsyncId;                                                         // Async ID of async pending reply to notify request
   uint64_t MessageId;                                                       // Message ID from the header so we can use it it in send completion
   uint16_t smb_protocol;                                                    // SMB protocol, 1 or 2. TBD if preformatted replies are different
   uint16_t tid;                                                             //

@@ -100,10 +100,12 @@ BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
  if (pStream->Success)
  {
-// HEREHERE Cancel these guys
-
-    if (cancel_notify_request(pStream))   // Return if we used it so we don't waste time
-      return FALSE;
+    // Queue matching pending notify replies to reply with canceled status to their original command
+    // Oplock cancel needs to be supported similarly.
+    if (cancel_notify_request(pStream))
+    {
+      return TRUE;
+    }
     // Cancel oplocks here probably
 
 //    pStream->InHdr.MessageId; // ddword
@@ -226,39 +228,23 @@ RTSMB2_FILEIOARGS fileioargs;
      RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
      return TRUE;
  }
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  fake error.\n");
- RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
- return TRUE;
-
-    if (Process_smb2_fileio_prolog(&fileioargs, pStream, (PFVOID) &command, (PFVOID) (&command.FileId[0]),&command.StructureSize ,24))
-    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Oplock !! prolog Failed\n");
-      return TRUE;
-    }
-    // HEREHERE Proc_smb2_Lock - todo
-    rtp_printf("Num Lock regions: %d\n", command.LockCount);
-    {
-      RTSMB2_LOCK_ELEMENT *pLock;
-      int i;
-
-      pLock = &command.Locks;
-      for (i=0; i < command.LockCount;i++, pLock++)
-      {
-        rtp_printf(" Offset: %ld Length: %ld\n", (dword) pLock->Offset, (dword)pLock->Length);
-      }
-    }
-    // Set the status to success
-    // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
-    response.StructureSize = 4;
-    /* Success - see above if the client asked for stats */
-    RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-    return TRUE;
+#if (0)
+  int i;
+  RTSMB2_LOCK_ELEMENT *pLock;
+  // Set the status to success
+  // pStream->OutHdr.Status_ChannelSequenceReserved = 0;
+  pLock = &command.Locks;
+  for (i=0; i < command.LockCount;i++, pLock++)
+  {
+    rtp_printf(" Offset: %ld Length: %ld\n", (dword) pLock->Offset, (dword)pLock->Length);
+  }
+#endif
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  fake success...\n");
+  response.StructureSize = 4;
+  /* Success - see above if the client asked for stats */
+  RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+  return TRUE;
 }
-
-
-
-
-
 
 #endif
 #endif
