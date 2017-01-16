@@ -404,7 +404,12 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  args.notify_index       = notify_index;
  args.smb_protocol       = 2;
  args.tid                = pStream->pSmbCtx->tid;                          //
- tc_memcpy(args.file_id, &command.FileId, 16);
+
+ // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
+ // Map if neccessary
+ byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+ tc_memcpy(args.file_id, pFileId, 16);
+// tc_memcpy(args.file_id, &command.FileId, 16);
  args.max_notify_message_size = command.OutputBufferLength;           // Maximum payload size to embed in notify messages
  args.completion_filter = command.CompletionFilter;                                               // 0 means clear or others below.
  args.Flags             = command.Flags;
