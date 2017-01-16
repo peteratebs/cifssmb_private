@@ -363,7 +363,8 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       }
     }
 
-    if (command.NameLength==0)
+//  Fake an open for zero length filenames unless it's a disktree which ends up opening the directory that is root of the share of a disk tree
+    if (command.NameLength==0  && pTree->type != ST_DISKTREE)
     { // opening the root of the share
       flags = RTP_FILE_O_RDONLY;
       TURN_ON(command.FileAttributes, 0x80);
@@ -384,7 +385,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       file_name[command.NameLength+1] = 0;
       if (pTree->type == ST_DISKTREE)
       { /* If we have a normal disk filename. check if the client is trying to make a directory.  If so, make it Logic is the same for smb2  */
-//RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_Create:  openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
       /* We check if the client is trying to make a directory.  If so, make it   */
         if (/*ON (command.FileAttributes, 0x80) |*/ ON (command.CreateOptions, 0x1))
         {
