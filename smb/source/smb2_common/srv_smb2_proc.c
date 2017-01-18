@@ -277,7 +277,6 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
           return;
         }
     }
-    // Why do we do this I wonder
     pStream->pSmbCtx->tid = (word)pStream->InHdr.TreeId;
     // Set up outgoing header.
     pStream->OutHdr = pStream->InHdr;
@@ -982,6 +981,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				    externaltid = (word) (((int) (tree)) & 0xFFFF);
 				    pStream->OutHdr.TreeId = (dword) externaltid;
 
+
 				    tree->external = externaltid;
 				    tree->internal = (word) tid;
                     // Zero the file id structures
@@ -989,6 +989,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				    tree->access = access;
 				    tree->type = pResource->stype;
                     pStream->pSmbCtx->tid = externaltid;
+                    SMBFIO_GetVolumeIdInternal(tree->internal, tree->VolumeId);  // Get Volume Id the share is already claimed
 				}
 			}
 			else
@@ -996,7 +997,7 @@ printf("TBD: Hardwiring TREE security to SECURITY_READWRITE\n");
 				error_status = SMB2_STATUS_ACCESS_DENIED;
 			}
        }
-       RELEASE_SHARE ();
+       RELEASE_SHARE();
     }
 
 
