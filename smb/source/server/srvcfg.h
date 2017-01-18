@@ -50,6 +50,8 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	int               server_table_size;
 	int               domain_table_size;
     BBOOL             enable_oplocks;
+    BBOOL             enable_notify;
+
 	int               max_protocol;       // 1
 
 	/* MUTEX HANDLES */

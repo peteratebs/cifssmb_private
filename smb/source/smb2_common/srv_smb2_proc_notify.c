@@ -271,6 +271,8 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
   int checked=0;
   int i;
 
+  if (!prtsmb_srv_ctx->enable_notify) return FALSE;  // If notify disabled just ignore it we shouldn't respond anyway
+
   display_notify_requests("cancel_notify_request top");
 
   PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
@@ -327,6 +329,8 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
 // Called when file object is released
 void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid)
 {
+  if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
+
   int closed = 0;
   int notify_index = find_notify_request(pCtx->netsessiont_smbCtx.tid, SMBU_Fidobject(pfid)->unique_fileid);
   if (notify_index >= 0)
@@ -353,6 +357,9 @@ void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid)
 void close_session_notify_requests(PNET_SESSIONCTX pCtx)
 {
   int i;
+
+  if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
+
   int session_index      = INDEX_OF (prtsmb_srv_ctx->sessions, pCtx);
   int checked = 0;
   int closed = 0;
@@ -379,6 +386,8 @@ void close_session_notify_requests(PNET_SESSIONCTX pCtx)
 // Called when file is closing, or canceled
 void close_fileid_notify_requests(smb2_stream  *pStream, uint8_t *fileid)
 {
+  if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
+
   int closed = 0;
   PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
   int notify_index = find_notify_request(pStream->pSmbCtx->tid, fileid);
@@ -413,9 +422,9 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  RTSMB2_CHANGE_NOTIFY_R response;
  int notify_index_found;
  int notify_index;
- display_notify_requests("Proc_smb2_ChangeNotify top");
  uint16_t CurrentStatus = 0;        // 0 means, send a reply synchronously SMB_NT_STATUS_PENDING means send async
  PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
+
 
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
@@ -424,6 +433,11 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_ChangeNotify:  RtsmbStreamDecodeCommand failed...\n");
     return FALSE;
  }
+ // If notify disabled just ignore it we shouldn't respond anyway
+ if (!prtsmb_srv_ctx->enable_notify)
+   return FALSE;
+
+ display_notify_requests("Proc_smb2_ChangeNotify top");
  // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
  // Map if neccessary
  byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
@@ -525,6 +539,7 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
 
 // Return the index of a request waiting for an alert on wd
 int find_notify_request_from_alert(int wd) {
+ if (!prtsmb_srv_ctx->enable_notify) return -1;  // If notify disabled return
  int checked = 0;
  int i;
   for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
@@ -543,6 +558,7 @@ int find_notify_request_from_alert(int wd) {
 
 void send_notify_request_from_alert(int wd,char *name, uint32_t mapped_alert)
 {
+ if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
  int notify_index = find_notify_request_from_alert(wd);
  if (notify_index >= 0)
  {
@@ -568,6 +584,8 @@ static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtpla
 int send_session_notify_messages(PNET_SESSIONCTX pCtx)
 {
 int r=0;
+
+  if (!prtsmb_srv_ctx->enable_notify) return 0;  // If notify disabled return
 
   int session_index      = INDEX_OF (prtsmb_srv_ctx->sessions, pCtx);
   if (pCtx->netsessiont_smbCtx.queued_notify_sends)

@@ -615,8 +615,17 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
     char mode_str [10];
     char guest_str [10];
     char oplocks_str[10];
+    char notify_str[10];
     int index;
     int gIndex;
+
+    if (RTSMB_GetStringValue (section, (char*)"enable_notify", notify_str, 10))
+    {
+      if (!rtsmb_strcasecmp (notify_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
+        prtsmb_srv_ctx->enable_notify       = TRUE;
+      else
+        prtsmb_srv_ctx->enable_notify      = FALSE;
+    }
 
     if (RTSMB_GetStringValue (section, (char*)"enable_oplocks", oplocks_str, 10))
     {
