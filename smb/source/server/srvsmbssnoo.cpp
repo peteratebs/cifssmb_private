@@ -568,7 +568,6 @@ extern void SMBS_ProcSMBReplay(PSMB_SESSIONCTX pSctx);
 RTSMB_STATIC void rtsmb_srv_netssn_session_yield_cycle (PNET_SESSIONCTX *session) // Call from top level SMBS_srv_netssn_cycle() to test if a session is yielded and if it should execute
 {
 BBOOL doCB=FALSE;
-BBOOL dosend = TRUE;
     if (!prtsmb_srv_ctx->enable_oplocks)
       return;
     if (!(*session)->netsessiont_smbCtx.isSMB2)
@@ -807,27 +806,93 @@ void SMBS_Setsession_state(PSMB_SESSIONCTX pSctxt, SMBS_SESSION_STATE new_sessio
    pSctxt->session_state = new_session_state;
 }
 
+#define SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME 0  // Set to 1 to split out async rplies from compund sends like Samba does. Tested and does not change behavior of notifies on windows.
+#if (SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME)
+// Return the length of the next segment. Split segmments an async message is in a compound message and not first.
+static dword SMBS_GetMessageSegmentSize(byte *writeBuffer, dword size, int *more_coming)
+{
+  uint32_t CommandLengthTotal = 0;
+  RTSMB2_HEADER *prevHeader = 0;
+  *more_coming = 0;
+  do
+  {
+     RTSMB2_HEADER *pHeader = (RTSMB2_HEADER *)writeBuffer;
+     if (pHeader->Flags & SMB2_FLAGS_ASYNC_COMMAND)
+     {
+        if (prevHeader)
+        { // Terminate the previous message here
+           prevHeader->NextCommand = 0;                         // Zero next command
+           prevHeader->Flags &= ~SMB2_FLAGS_RELATED_OPERATIONS; // Clear chained
+           *more_coming = 1;
+           return CommandLengthTotal;
+        }
+        else
+        { // Return and send the whole
+           *more_coming = 0;
+           return size;
+        }
+     }
+     if (pHeader->NextCommand)
+     {
+       prevHeader = pHeader;
+       if (CommandLengthTotal + pHeader->NextCommand <= size)
+       {
+         writeBuffer += pHeader->NextCommand;
+         CommandLengthTotal += pHeader->NextCommand;
+       }
+       else
+         writeBuffer = 0;
+     }
+     else
+       writeBuffer = 0;
+   } while (writeBuffer);
+   // Fall through and send the whole packet
+   *more_coming = 0;
+   return size;
+}
+#endif
+
+
 BBOOL SMBS_SendMessage (PSMB_SESSIONCTX pCtx, dword size, BBOOL translate) // Fill the nbss session header and send contents of pCtx->writeBuffer
 {
     RTSMB_NBSS_HEADER header;
-    int r;
 
     size = MIN (size, pCtx->writeBufferSize);
 
-    header.type = RTSMB_NBSS_COM_MESSAGE;
-    header.size = size;
+    // Disable to see if windows crash stops
+#if (SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME)
+    if (pCtx->isSMB2)
+    { // If smb2, split segments if async message are embnedded
+      int more_coming = 0;
+      byte *nbss_write_buffer = pCtx->writeBuffer;
+      byte *smb_write_buffer = pCtx->writeBuffer + RTSMB_NBSS_HEADER_SIZE;
+      dword segment_size;
+      do
+      {
+        more_coming = 0;
+        segment_size = SMBS_GetMessageSegmentSize(smb_write_buffer, size, &more_coming);
+        header.type = RTSMB_NBSS_COM_MESSAGE;
+        header.size = segment_size;
+        rtsmb_nbss_fill_header (nbss_write_buffer, RTSMB_NBSS_HEADER_SIZE, &header);
+        int r =  rtsmb_net_write (pCtx->sock, nbss_write_buffer, (int)(RTSMB_NBSS_HEADER_SIZE + segment_size));
+        if (r < 0)
+          return FALSE;
 
-    r = rtsmb_nbss_fill_header (pCtx->writeBuffer, RTSMB_NBSS_HEADER_SIZE, &header);
-    if (r < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_SendMessage: Error writing netbios header!\n");
-        return FALSE;
+        nbss_write_buffer += segment_size;
+        smb_write_buffer += segment_size;
+        size -= segment_size;
+      } while (more_coming);
     }
     else
-    {
-        r =  rtsmb_net_write (pCtx->sock, pCtx->writeBuffer, (int)(RTSMB_NBSS_HEADER_SIZE + size));
-        if (r < 0)
-            return FALSE;
+#endif
+    { // SMB1 send in one blob
+      header.type = RTSMB_NBSS_COM_MESSAGE;
+      header.size = size;
+      rtsmb_nbss_fill_header (pCtx->writeBuffer, RTSMB_NBSS_HEADER_SIZE, &header);
+      int r;
+      r =  rtsmb_net_write (pCtx->sock, pCtx->writeBuffer, (int)(RTSMB_NBSS_HEADER_SIZE + size));
+      if (r < 0)
+        return FALSE;
     }
     return TRUE;
 }
