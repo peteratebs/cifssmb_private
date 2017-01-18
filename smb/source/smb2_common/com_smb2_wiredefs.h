@@ -134,6 +134,7 @@
 #define SMB2_STATUS_DISK_FULL                   0xC000007F
 #define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
 #define SMB2_STATUS_NO_SUCH_FILE                0xC000000F
+#define SMB2_STATUS_NOTIFY_ENUM_DIR             0x0000010C
 
 
 #define SMB2_STATUS_FILE_CLOSED                 0xC0000128

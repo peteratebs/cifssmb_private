@@ -39,6 +39,9 @@
 #include "srvsmbssn.h"   // YIELD_BASE_PORTNUMBER
 
 // #define USE_DEEP_DIAGS
+
+#define USE_NON_ASYNC_REPLY 0 // Set to 1 to use experimental queue events between notifies. 1
+
 // API for rtsmb send a notify queue request or cancelation to the OS.
 static int rtplatform_notify_request(smb2_stream  *pStream, rtplatform_notify_request_args *prequest);
 
@@ -158,6 +161,9 @@ static void free_notify_request(int i) {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
 #endif
     notify_requests[i].in_use=FALSE;
+    if (notify_requests[i].notify_control.message_buffer)
+      RTP_FREE(notify_requests[i].notify_control.message_buffer);
+    notify_requests[i].notify_control.message_buffer = 0;
     if(notify_requests_in_use)notify_requests_in_use-=1;
   }
 }
@@ -175,6 +181,26 @@ int i;
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: index :%d  Async: %lu mssgmid: %lu wd:%d\n",  i,  (dword)notify_requests[i].AsyncId, (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_notify_request);
     }
   }
+}
+
+// Return the index of a request structure with tid:inode portion of fileid
+static int find_notify_request_by_inode(uint16_t tid, uint8_t *file_id) {
+int checked = 0;
+int i;
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Search  by inode inuse: %d \n",  notify_requests_in_use);
+  for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
+  {
+    if (notify_requests[i].in_use)
+    {
+      checked += 1;
+      if (notify_requests[i].args.tid == tid && tc_memcmp(notify_requests[i].command.FileId,file_id, 4)==0)
+      {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Found by inode index :%d \n",  i);
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 // Return the index of a request structure with tid:fileid
@@ -385,8 +411,11 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  rtplatform_notify_request_args args;
  RTSMB2_CHANGE_NOTIFY_C command;
  RTSMB2_CHANGE_NOTIFY_R response;
- int wd;
+ int notify_index_found;
+ int notify_index;
  display_notify_requests("Proc_smb2_ChangeNotify top");
+ uint16_t CurrentStatus = 0;        // 0 means, send a reply synchronously SMB_NT_STATUS_PENDING means send async
+ PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
 
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
@@ -395,63 +424,97 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_ChangeNotify:  RtsmbStreamDecodeCommand failed...\n");
     return FALSE;
  }
- PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
-
- int notify_index = allocate_notify_request();
-
- args.session_index      = INDEX_OF (prtsmb_srv_ctx->sessions, pCtx);
- args.signal_port_number = YIELD_BASE_PORTNUMBER+args.session_index;
- args.notify_index       = notify_index;
- args.smb_protocol       = 2;
- args.tid                = pStream->pSmbCtx->tid;                          //
-
  // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
  // Map if neccessary
  byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
- tc_memcpy(args.file_id, pFileId, 16);
-// tc_memcpy(args.file_id, &command.FileId, 16);
- args.max_notify_message_size = command.OutputBufferLength;           // Maximum payload size to embed in notify messages
- args.completion_filter = command.CompletionFilter;                                               // 0 means clear or others below.
- args.Flags             = command.Flags;
- args.MessageId         = pStream->InHdr.MessageId; // Save the messageID for send;
- args.AsyncId           = CurrentAsyncId;           // Diagnostic , we are stomping it for some reason.
- args.SessionId         = pStream->InHdr.SessionId; // Save the SessionId for send;;
- notify_requests[notify_index].MessageId = pStream->InHdr.MessageId; // Save the messageID in case we're asked need to cancel
- tc_memcpy(&notify_requests[notify_index].command, &command, sizeof(command));
- tc_memcpy(&notify_requests[notify_index].args, &args, sizeof(args));
+#if (USE_NON_ASYNC_REPLY==0)
+ // Force allocate of a new request every time and send and async reply
+ notify_index_found = notify_index = -1;
+#else
+ notify_index_found = notify_index = find_notify_request(pStream->pSmbCtx->tid, pFileId);
+ if (notify_index_found < 0)
+   notify_index_found = notify_index = find_notify_request_by_inode(pStream->pSmbCtx->tid, pFileId);
+#endif
+ if (notify_index_found >= 0)
+ {
+  if (notify_requests[notify_index].notify_control.notify_reply_data_present)
+  {  // Need to send reply synchronousy
+    notify_requests[notify_index].notify_control.notify_reply_data_present = 0;
+    notify_requests[notify_index].notify_control.client_notify_request_is_pending = 0;
+    CurrentStatus = 0;
+  }
+  else
+  {  // Need to reply asynchronously
+    notify_requests[notify_index].notify_control.notify_reply_data_present = 0;
+    notify_requests[notify_index].notify_control.client_notify_request_is_pending = 1;
+    CurrentStatus = SMB_NT_STATUS_PENDING;
+  }
+  }
+  else
+  {   // No event already queued
+    CurrentStatus = SMB_NT_STATUS_PENDING;
+    notify_index = allocate_notify_request();
+    notify_requests[notify_index].args.session_index      = INDEX_OF (prtsmb_srv_ctx->sessions, pCtx);
+    notify_requests[notify_index].args.signal_port_number = YIELD_BASE_PORTNUMBER+args.session_index;
+    notify_requests[notify_index].args.notify_index       = notify_index;
+    notify_requests[notify_index].args.smb_protocol       = 2;
+    notify_requests[notify_index].args.tid                = pStream->pSmbCtx->tid;                          //
+    tc_memcpy(notify_requests[notify_index].args.file_id, pFileId, 16);
+    notify_requests[notify_index].args.SessionId         = pStream->InHdr.SessionId; // Save the SessionId for send;;
+  }
+  // Fall through for existing and new watches
+  notify_requests[notify_index].args.max_notify_message_size = command.OutputBufferLength;           // Maximum payload size to embed in notify messages
+  notify_requests[notify_index].args.completion_filter = command.CompletionFilter;                                               // 0 means clear or others below.
+  notify_requests[notify_index].args.Flags             = command.Flags;
+  notify_requests[notify_index].args.MessageId         = pStream->InHdr.MessageId; // Save the messageID for send;
+  notify_requests[notify_index].args.AsyncId           = CurrentAsyncId;           // Diagnostic , we are stomping it for some reason.
+  notify_requests[notify_index].MessageId = pStream->InHdr.MessageId; // Save the messageID in case we're asked need to cancel
+  tc_memcpy(&notify_requests[notify_index].command, &command, sizeof(command));
+
+  if (notify_index_found < 0)
+  { // Fire up a new watcher request if we need to
+    int wd = rtplatform_notify_request(pStream, &notify_requests[notify_index].args);
+    if (wd < 0)
+    {
+      { int i = notify_index; RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:  rtplatform_notify_request failed:  freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId); }
+      display_notify_requests("Proc_smb2_ChangeNotify exit");
+      free_notify_request(notify_index);
+      return FALSE;
+    }
+    notify_requests[notify_index].rtplatform_notify_request = wd;
+  }
 #ifdef USE_DEEP_DIAGS
  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:XXX alloc notify. index: %d messageID:%lu location :%X  \n", notify_index,(dword) notify_requests[notify_index].args.MessageId, &notify_requests[notify_index]);
 #endif
- // rtplatform_notify_request(&args);
- wd = rtplatform_notify_request(pStream, &args);
- if (wd < 0)
- {
-    {
-    int i = notify_index;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:  rtplatform_notify_request failed:  freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
-    }
-   display_notify_requests("Proc_smb2_ChangeNotify exit");
-
-   free_notify_request(notify_index);
-   return FALSE;
- }
- notify_requests[notify_index].rtplatform_notify_request = wd;
 #ifdef USE_DEEP_DIAGS
  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG:XXX Proc_smb2_ChangeNotify: set(%d) async id to: %lu\n",notify_index,CurrentAsyncId);
 #endif
- notify_requests[notify_index].AsyncId = CurrentAsyncId; // Remember the async id for when we send an unsolicted notice
- // Set the status to pending
- pStream->OutHdr.Status_ChannelSequenceReserved =  0x00000103;  // Status pending
- response.StructureSize = 9;
- response.OutputBufferOffset = 0;
- response.OutputBufferLength = 0;
- response.Buffer             = 0x21;                            // Sapture value from samba <-> OSX
-// RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before async: %d\n",response.StructureSize);
- // Modify header to async
- RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
- pAsyncOut->AsyncId = CurrentAsyncId;
- pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
- CurrentAsyncId += 1;
+ notify_requests[notify_index].AsyncId = 0; // Remember the async id for when we send an unsolicted notice
+ pStream->OutHdr.Status_ChannelSequenceReserved =  CurrentStatus;  // Status pending or success
+ if (CurrentStatus == SMB_NT_STATUS_PENDING)
+ {
+   notify_requests[notify_index].AsyncId = CurrentAsyncId; // Remember the async id for when we send an unsolicted notice
+   // Set the status to pending
+   response.StructureSize = 9;
+   response.OutputBufferOffset = 0;
+   response.OutputBufferLength = 0;
+   response.Buffer             = 0x21;                            // Sapture value from samba <-> OSX
+   // RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before async: %d\n",response.StructureSize);
+   // Modify header to async
+   RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
+   pAsyncOut->AsyncId = CurrentAsyncId;
+   pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
+   CurrentAsyncId += 1;
+ }
+ else
+ {
+   pStream->OutHdr.Status_ChannelSequenceReserved =  SMB2_STATUS_NOTIFY_ENUM_DIR;  // Status pending or success
+   pStream->OutHdr.Flags = 1;
+   response.StructureSize = 9;
+   response.OutputBufferOffset = 0;
+   response.OutputBufferLength = 0;
+   response.Buffer             = 0x21;
+ }
 
 // RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before RtsmbStreamEncodeResponse: %d\n",response.StructureSize);
  RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
@@ -532,8 +595,6 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:2 send_session_notify_message
         if (notify_requests[i].notify_cancelled || (phandle->message_buffer && (phandle->formatted_content_size||phandle->format_buffer_full)))
         {
            r = send_notify_message(pCtx, notify_requests[i].notify_cancelled, &notify_requests[i].args ,phandle);
-           RTP_FREE(phandle->message_buffer);
-           phandle->message_buffer = 0;
            notify_requests[i].notify_cancelled = 0;
 //         call_rtplatform_notify_cancel(i);
 #ifdef USE_DEEP_DIAGS
@@ -541,7 +602,11 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:2 send_session_notify_message
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_session_notify_messages freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
     }
 #endif
+#if (USE_NON_ASYNC_REPLY==0)
+// If we are not queueing between notify alerts so release it
+           call_rtplatform_notify_cancel(i);
            free_notify_request(i);
+#endif
         }
       }
       }
@@ -573,8 +638,6 @@ static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtpla
       return -1;
     }
   }
-
-
   // Windows returns status 0x0000010c and zero data when size is larger than allocated, which is always 32 on Win10 ?
   if (phandle->format_buffer_full||notify_cancelled)
     nbssize = (dword) sizeof(RTSMB2_ASYNC_CHANGE_NOTIFY_R) - RTSMB_NBSS_HEADER_SIZE;
@@ -598,7 +661,7 @@ static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtpla
   if (notify_cancelled)
     p->header.Status_ChannelSequenceReserved = SMB2_STATUS_CANCELLED;
   else if (phandle->format_buffer_full)
-    p->header.Status_ChannelSequenceReserved = 0x0000010c; /*  ?? (4 bytes): */
+    p->header.Status_ChannelSequenceReserved = SMB2_STATUS_NOTIFY_ENUM_DIR; /*  ?? (4 bytes): */
   else
     p->header.Status_ChannelSequenceReserved = 0; /*  (4 bytes): */
 

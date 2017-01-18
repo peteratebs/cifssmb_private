@@ -210,6 +210,7 @@ enum CodePageType
 #define SMB_NT_STATUS_ACCOUNT_DISABLED       0xC0000072
 #define SMB_NT_STATUS_CANNOT_DELETE          0xC0000121
 #define SMB_NT_STATUS_INVALID_DEVICE_REQUEST 0xC0000010
+#define SMB_NT_STATUS_PENDING                0x00000103
 //--------------
 // Error Class
 #define SMB_EC_SUCCESS 0

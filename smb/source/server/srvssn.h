@@ -119,11 +119,11 @@ typedef struct tree_s
     BBOOL inUse;
     byte access;
 
-    byte type;      /* type of tree */
+    byte type;        /* type of tree */
 
-    word external;  /* public tid */
-    word internal;  /* private tid */
-
+    word external;    /* public tid */
+    word internal;    /* private tid */
+    byte VolumeId[16];/* persistent file id of the share root */
     /* nulls can be interspersed in this array   */
     PFID *fids;
 

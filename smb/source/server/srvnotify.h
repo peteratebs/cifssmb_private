@@ -38,7 +38,9 @@ typedef struct rtplatform_notify_request_args_s {
 
 
 typedef struct rtplatform_notify_control_object_s {
-  int    rtplatform_notify_request;     // Handle returned from the OS for the request
+  int    rtplatform_notify_request;            // Handle returned from the OS for the request
+  int    notify_reply_data_present;            // True when a content is pending that can be replied synchronously.
+  int    client_notify_request_is_pending;     // True when a request that can be replied to is pending.
   size_t  next_location_offset;
   size_t  format_buffer_size;
   int     format_buffer_full;           // Set to 1 if we exceed the allowed buffer size. Copying Microsoft, if true we still respond but with no content.
