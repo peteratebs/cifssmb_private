@@ -35,6 +35,7 @@ EXTERN_C BBOOL SMBFIO_Stat (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name, PSMBF
 EXTERN_C BBOOL SMBFIO_Chmode (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name, byte attributes);
 EXTERN_C BBOOL SMBFIO_GetFree (PSMB_SESSIONCTX pCtx, word tid, PFDWORD blocks, PFDWORD bfree, PFDWORD sectors, PFWORD bytes);
 EXTERN_C BBOOL SMBFIO_SetTime (PSMB_SESSIONCTX pCtx, word tid, int fd, const TIME * atime, const TIME * wtime, const TIME * ctime, const TIME * htime);
+EXTERN_C BBOOL SMBFIO_GetVolumeIdInternal(word tid, PFBYTE volume);
 
 
 

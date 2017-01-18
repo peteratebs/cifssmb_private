@@ -427,11 +427,24 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
             pStream->WriteBufferParms[0].pBuffer = p;
             // Memset so uninitialized fields are zeros
             tc_memset(p, 0, 64);
-    //      ObjectId (16 bytes)
-             tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
+    //        ObjectId (16 bytes)
+#define USE_TREE_VOLUMEID 1
+// This should be the correct methodology but testing did not trigger it from explorer.
+#if (USE_TREE_VOLUMEID)
+           PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
+           if (pTree)
+           {
+    //      BirthVolumeId (16 bytes)  // 0
+             tc_memcpy(&p[0], pTree->VolumeId, 16);
+    //      BirthObjectId (16 bytes) - let's just say it's the same
+             tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+           }
+#else
+            tc_memcpy(&p[0], stat.unique_fileid, sizeof(stat.unique_fileid));
     //      BirthVolumeId (16 bytes)  // 0
     //      BirthObjectId (16 bytes)
-              tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+             tc_memcpy(&p[32], stat.unique_fileid, sizeof(stat.unique_fileid));
+#endif
     //      DomainId (16 bytes)       // 0
           }
        }

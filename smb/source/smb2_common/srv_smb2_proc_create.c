@@ -35,10 +35,11 @@ static void SendPendingCreate(smb2_stream  *pStream, PNET_SESSIONCTX pNetctxt, R
 static void FinishPendingCreate(smb2_stream  *pStream);
 
 const unsigned char pMxAc_info_response[] =
-{0x00,0x00,0x00,0x00,
- 0x10,0x00,0x04,0x00,
- 0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0x27,0x00,0x01,0x00};
+{
+ 0x00,0x00,0x00,0x00, 0x10,0x00,0x04,0x00,
+ 0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,
+ 0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,
+ 0x00,0x00,0x00,0x00,0x27,0x00,0x01,0x00};
 
 //0xff,0x01,0x1f, 0x00,}; // pMxAc Access mask
 
@@ -55,15 +56,13 @@ const unsigned char pQfid_info_response[] = {
 
 // Note leading 4 bytes are 0x20 00 00 00 , which is "next"
 const unsigned char pMxAc_and_pQfid_info_response[] = {
- 0x20,0x00,0x00,0x00,
- 0x10, 0x00,0x04,0x00,
- 0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
- 0xff,0x01,0x1f, 0x00,0x00,  // 0x27,0x00,0x01,0x00};
-
- 0x00,0x00,0x00,0x10,0x00,0x04,0x00,
+ 0x20,0x00,0x00,0x00,0x10,0x00,0x04,0x00,
+ 0x00,0x00,0x18,0x00,0x08,0x00,0x00,0x00,
+ 0x4d,0x78,0x41,0x63,0x00,0x00,0x00,0x00,
+ 0x00,0x00,0x00,0x00, 0xff,0x01,0x1f,0x00, //
+ 0x00,0x00,0x00,0x00,0x10,0x00,0x04,0x00,
  0x00,0x00,0x18,0x00,0x20,0x00,0x00,0x00,
  0x51,0x46,0x69,0x64,0x00,0x00,0x00,0x00,
-
  0x9e,0x3b,0x06,0x00,0x00,0x00,0x00,0x00,
  0x00,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,
  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -501,8 +500,26 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       pStream->WriteBufferParms[0].byte_count = sizeof(pMxAc_and_pQfid_info_response);
       // Copy the inode number into the FileId field
       byte * p = (byte *)pStream->WriteBufferParms[0].pBuffer;
+//   Note: p+24 is the volume, p+40 is the uuid
+#define USE_TREE_VOLUMEID 1 // Tested and verified now, these are the correct values but they do not change notify behavior
+#if (USE_TREE_VOLUMEID)
+       PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
+       if (pTree)
+       {
+         tc_memset(p+sizeof(pMxAc_info_response)+24, 0, 32);
+         tc_memcpy(p+sizeof(pMxAc_info_response)+24, stat.unique_fileid, sizeof(stat.unique_fileid));
+         tc_memcpy(p+sizeof(pMxAc_info_response)+32,  pTree->VolumeId, 8);
+
+         // Test adding this in, it was missing
+//         tc_memcpy(p+sizeof(pMxAc_info_response)+24,  pTree->VolumeId, 16);
+//         tc_memcpy(p+sizeof(pMxAc_info_response)+40, stat.unique_fileid, sizeof(stat.unique_fileid));
+       }
+       else
+        srvsmboo_panic("Create no tree structure found");
+#else
+      // This acidentally works because fileid is in the right place.
       tc_memcpy(p+sizeof(pMxAc_info_response)+24, stat.unique_fileid, sizeof(stat.unique_fileid));
-//      tc_memcpy(p+sizeof(pMxAc_info_response)+64, stat.unique_fileid, sizeof(stat.unique_fileid));
+#endif
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;
     }
@@ -530,9 +547,22 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
         tc_memcpy(presponse ,pQfid_info_response, sizeof(pQfid_info_response));
         pStream->WriteBufferParms[0].byte_count += sizeof(pQfid_info_response);
         byte * p = (byte *)presponse;
-//        tc_memcpy(p+64, stat.unique_fileid, sizeof(stat.unique_fileid));
-        tc_memcpy(p+24, stat.unique_fileid, sizeof(stat.unique_fileid));
-        presponse +=sizeof(pQfid_info_response);
+#if (USE_TREE_VOLUMEID)
+       PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
+       if (pTree)
+       {
+         tc_memset(p+24, 0, 32);
+         tc_memcpy(p+24, stat.unique_fileid, sizeof(stat.unique_fileid));
+         tc_memcpy(p+32,  pTree->VolumeId, 8);
+//         tc_memcpy(p+24,  pTree->VolumeId, 16);
+//         tc_memcpy(p+40, stat.unique_fileid, sizeof(stat.unique_fileid));
+       }
+       else
+        srvsmboo_panic("Create no tree structure found");
+#else
+       tc_memcpy(p+24, stat.unique_fileid, sizeof(stat.unique_fileid));
+#endif
+         presponse +=sizeof(pQfid_info_response);
       }
       response.CreateContextsOffset = (pStream->OutHdr.StructureSize+response.StructureSize-1);
       response.CreateContextsLength = pStream->WriteBufferParms[0].byte_count;

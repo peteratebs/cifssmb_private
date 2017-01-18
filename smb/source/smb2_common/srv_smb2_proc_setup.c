@@ -144,6 +144,23 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         }
     }
     finish=reject;
+#define USE_HALF_DONE_RECONNECT 0
+#if (USE_HALF_DONE_RECONNECT)
+    // This reconnects but looks only at the session ID. Check of UID is missing.
+#warning This reconnects but it looks only at the session ID. Need to implement check for matching UID.
+    if (!finish && command.PreviousSessionId)
+    {
+        struct s_Smb2SrvModel_Session  *pCurrSession;   // For a server. points to the session
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_SessionSetup restoring a from session %d\n",(int)command.PreviousSessionId);
+        pCurrSession = Smb2SrvModel_Global_Get_SessionById(command.PreviousSessionId);
+        if (pCurrSession == pStreamSession)
+        {
+          RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_SessionSetup binding session:  pStreamSession == %X pStreamSession == %d\n",(int)pStreamSession, (int) pStreamSession->SessionId);
+          RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+          goto release_and_return_TRUE;
+        }
+    }
+#endif
     if (!finish && pStream->InHdr.SessionId==0)
     {
         /* Section 3.3.5.5.1 .. pg 262 */
