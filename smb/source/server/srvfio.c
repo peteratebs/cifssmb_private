@@ -1334,6 +1334,36 @@ BBOOL SMBFIO_GetFreeInternal (word tid, PFDWORD blocks, PFDWORD bfree, PFDWORD s
 	return rv;
 }
 
+// Get Volume Id share is alr
+BBOOL SMBFIO_GetVolumeIdInternal(word tid, PFBYTE volume)
+{
+    PSR_RESOURCE pResource;
+    pResource = SR_ResourceById(tid);
+
+    switch (pResource->stype)
+    {
+    case ST_IPC:
+        tc_memset(volume,0,16);
+        return TRUE;
+        break;
+    case ST_DISKTREE:
+        break;
+    default:
+        return FALSE;
+    }
+    SMBFSTAT stat;
+    if (SMBFIO_StatInternal (tid, "", &stat))
+//    if (SMBFIO_StatInternal (tid, pResource->u.disktree.path, &stat))
+    {
+      tc_memcpy(volume, stat.unique_fileid, 8);
+      tc_memcpy(volume+SMB_UNIQUE_FILEID_SIZE, stat.unique_fileid, 8);
+      return TRUE;
+    }
+byte novolume[SMB_UNIQUE_FILEID_SIZE] = {0xd,0xe,0xa,0xd,0xb,0xe,0xe,0xf};
+   tc_memcpy(volume, novolume, SMB_UNIQUE_FILEID_SIZE);
+   tc_memcpy(volume+SMB_UNIQUE_FILEID_SIZE, novolume, SMB_UNIQUE_FILEID_SIZE);
+   return TRUE;
+}
 //BBOOL SMBFIO_ChsizeInternal (word tid, int fd, long size);
 
 #endif /* INCLUDE_RTSMB_SERVER */
