@@ -465,8 +465,15 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
      * Read remaining bytes from wire (there should be a header there already).
      */
 
+    // Put a patch in to allow processing packets larger than the advertized buffer size for smb1. CFG_RTSMB_SMALL_BUFFER_SIZE is 64K + 512 which should be enough room for the overflows they have of 16 bytes .
+    dword bufsize;
+    if (pSctx->isSMB2)
+      bufsize = pSctx->readBufferSize - pSctx->current_body_size;
+    else
+       bufsize = CFG_RTSMB_SMALL_BUFFER_SIZE - pSctx->current_body_size;
+
     if ((length = rtsmb_net_read (pSctx->sock, (PFBYTE) PADD (pInBuf, pSctx->current_body_size),
-        pSctx->readBufferSize - pSctx->current_body_size, pSctx->in_packet_size - pSctx->current_body_size)) < 0)
+        bufsize, pSctx->in_packet_size - pSctx->current_body_size)) < 0)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMBBody:  Error on read.\n");
         return SEND_NO_REPLY;

@@ -169,7 +169,7 @@ static void free_notify_request(int i) {
 }
 
 // Return the index of a request structure with tid:fileid
-static void display_notify_requests(char *prompt) {
+static void display_notify_requests(const char *prompt) {
 int checked = 0;
 int i;
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: inuse: %d   XXXX %s XXXX \n",  notify_requests_in_use, prompt);

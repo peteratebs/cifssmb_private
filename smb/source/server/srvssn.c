@@ -4777,14 +4777,8 @@ const char *CommandName;
 static void DebugOutputTrans2Command(int command)
 {
 #ifdef RTSMB_DEBUG
-/*char *Commandname;                                                                   */
-/*  Commandname = trans2Commandname(command);                                          */
-/*  if (!Commandname)                                                                  */
-/*      Commandname = "UNKOWN TRANS2 COMMAND";                                         */
-    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Processing trans 2 command: "); */
-    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,Commandname);                    */
-    /*RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"\n");                           */
-#endif
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Processing trans 2 command: %s\n",trans2Commandname(command));
+#endif /* RTSMB_DEBUG */
 }
 static const char *trans2Commandname(int command)
 {

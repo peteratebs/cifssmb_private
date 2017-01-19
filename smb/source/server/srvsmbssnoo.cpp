@@ -534,7 +534,7 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
                 if (starting_state == IDLE)
                 {
                     pThread->blocking_session = current_session_index;
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle set blocking:%d \n", rtp_get_system_msec());
+                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:%lu  rtsmb_srv_netssn_session_cycle set blocking:%d \n", rtp_get_system_msec(),pThread->blocking_session);
                 }
                 else if ((*session)->netsessiont_smbCtx.session_state == IDLE)
                 {
