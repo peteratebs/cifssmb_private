@@ -37,6 +37,7 @@
 #include "smbnet.h"
 #include "srvnotify.h"
 #include "srvsmbssn.h"   // YIELD_BASE_PORTNUMBER
+#include "srvfio.h"
 
 // #define USE_DEEP_DIAGS
 
@@ -183,6 +184,7 @@ int i;
   }
 }
 
+#if (USE_NON_ASYNC_REPLY!=0)
 // Return the index of a request structure with tid:inode portion of fileid
 static int find_notify_request_by_inode(uint16_t tid, uint8_t *file_id) {
 int checked = 0;
@@ -202,7 +204,7 @@ int i;
   }
   return -1;
 }
-
+#endif
 // Return the index of a request structure with tid:fileid
 static int find_notify_request(uint16_t tid, uint8_t *file_id) {
 int checked = 0;
@@ -632,7 +634,10 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:2 send_session_notify_message
     pCtx->netsessiont_smbCtx.queued_notify_sends = 0;
   }
   // Not reporting send errors yet to shut session down, could be useful
-  return 0;
+  if (r)
+    return 0;
+  else
+    return 0;
 }
 
 // Append a notify alert to the rtplatform_notify_control_object that resides in the session content block

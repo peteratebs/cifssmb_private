@@ -34,7 +34,7 @@
 #include "smbutil.h"
 #include "smbnbds.h"
 #include "srvipcfile.h"
-
+#include "srvsmbssn.h"
 
 /******************************************************************************
 

@@ -162,13 +162,12 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           // free the oplock, if this fid owns it
           oplock_c_close(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),pfid);
 
-          if ((smb2flags&SMB2FIDSIG)==SMB2FIDSIG && (smb2flags&SMB2DELONCLOSE))
+          if ((smb2flags&SMB2DELONCLOSE)==SMB2DELONCLOSE)
           {
-            BBOOL ok=FALSE;
             if (fidflags != FID_FLAG_DIRECTORY)
-              ok=SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
+              SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
             else
-              ok=SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
+              SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
           }
         }
     }

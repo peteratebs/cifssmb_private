@@ -19,6 +19,7 @@
  *****************************************************************************/
 #include "rtpdobj.h"
 #include "rtpdebug.h"
+#include "rtpchar.h"
 
 #include <errno.h>
 #include <glob.h>
@@ -66,7 +67,7 @@ static void bracify(char *bracified_name,char lower_c)
   bracified_name[0]='{';
   bracified_name[1]=lower_c;
   bracified_name[2]=',';
-  bracified_name[3]= (char) toupper((char)lower_c);
+  bracified_name[3]= (char) rtp_toupper((char)lower_c);
   bracified_name[4]='}';
   bracified_name[5]=0;
 }
@@ -123,7 +124,7 @@ int hung_up = 512;
          }
          else if (slash[i]>='A'&&slash[i]<='Z')
          {
-           bracify(&bracified_name[l],(char)tolower((int)slash[i]));
+           bracify(&bracified_name[l],(char)rtp_tolower((int)slash[i]));
            l += 5;
          }
          else

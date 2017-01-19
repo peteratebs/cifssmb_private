@@ -23,6 +23,8 @@
 #include "smbutil.h"
 #include "smbnb.h"
 #include "smbspnego.h"
+extern int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+
 
 /* --------------------------------------------------- /
  * Fills SMB Data Section with no information, usually
@@ -61,7 +63,7 @@ int srv_cmd_fill_header (PFVOID origin, PFVOID buf, rtsmb_size size,
   s = buf;
 
   RTSMB_PACK_BYTE (0xFF);
-  RTSMB_PACK_ITEM ("SMB", 3);
+  RTSMB_PACK_ITEM ((PFVOID)"SMB", 3);
   RTSMB_PACK_BYTE (pHeader->command);
   RTSMB_PACK_DWORD (pHeader->status);
   RTSMB_PACK_BYTE (pHeader->flags);

@@ -28,6 +28,7 @@
 #define DISPLAY_USERS 0
 
 RTSMB_STATIC short getUserIdFromName (PFRTCHAR name);
+extern PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge, PFBYTE ntlm_response_blob, size_t ntlm_response_blob_length, PFRTCHAR name, PFRTCHAR domainname,PFCHAR output);
 
 #if (DISPLAY_USERS)
 void smbs_display_users(void)
@@ -168,7 +169,7 @@ word Auth_AuthenticateUser_ntlm2 (PSMB_SESSIONCTX pCtx,PFBYTE clientNonce, PFBYT
     user = getuserSructureFromName(name, &uid);
     if (user)
     {
-        cli_util_encrypt_password_ntlm2 (clientNonce,pCtx->encryptionKey, user->password, output24);
+        cli_util_encrypt_password_ntlm2 (clientNonce,pCtx->encryptionKey, user->password, (PFCHAR)output24);
         if (tc_memcmp(ntlm2_response, output24, 24) == 0)
         {
           (*authId) = (word)uid;
@@ -203,7 +204,7 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
     user = getuserSructureFromName(name, &uid);
     if (user)
     {
-        cli_util_encrypt_password_ntlmv2 (user->password, pCtx->encryptionKey, ntlm_response_blob, ntlm_response_blob_length, name, domainname,output);
+        cli_util_encrypt_password_ntlmv2 (user->password, pCtx->encryptionKey, ntlm_response_blob, ntlm_response_blob_length, name, domainname,(PFCHAR) output);
         if (tc_memcmp(ntlm_response_blob, output, 16) == 0)
         {
           (*authId) = (word)uid;
@@ -222,12 +223,11 @@ word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYT
     BYTE output24[24];
     PUSERDATA user;
 
-
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
     if (user)
     {
-        cli_util_encrypt_password_lmv2 (user->password, pCtx->encryptionKey, clientNonce, name, domainname,output24);
+        cli_util_encrypt_password_lmv2((PFCHAR)user->password, (PFBYTE)pCtx->encryptionKey, (PFBYTE)clientNonce, (PFRTCHAR) name, (PFRTCHAR)domainname,(PFCHAR)output24);
         if (tc_memcmp(lm_response, output24, 24) == 0)
         {
           (*authId) = (word)uid;
@@ -394,7 +394,16 @@ BBOOL Auth_DoPasswordsMatch (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domai
             ret_val = TRUE;
         }
         else if (name && domainname && uni_password &&
-                 (tc_memcmp(cli_util_encrypt_password_lmv2 (plaintext, pCtx->encryptionKey, (PFCHAR)passbuf, (PFRTCHAR)&uni_password[32], name, (PFCHAR) domainname), ansi_password, 24)==0))
+                 (tc_memcmp(
+                  cli_util_encrypt_password_lmv2 (
+                     (PFCHAR )plaintext,
+                     (PFBYTE) pCtx->encryptionKey,
+                     (PFBYTE)&uni_password[32],
+                     (PFRTCHAR) name,
+                     (PFRTCHAR) domainname,
+                     (PFCHAR)passbuf),
+                     (PFCHAR)ansi_password, 24)==0)
+                 )
         {
             ret_val = TRUE;
         }
@@ -549,7 +558,7 @@ BBOOL Auth_RegisterUser (PFRTCHAR name, PFCHAR password)
     {
         rtsmb_char rtsmb_guest [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
 
-        rtsmb_util_ascii_to_rtsmb (SMB_GUESTNAME, rtsmb_guest, CFG_RTSMB_USER_CODEPAGE);
+        rtsmb_util_ascii_to_rtsmb ((PFCHAR)SMB_GUESTNAME, rtsmb_guest, CFG_RTSMB_USER_CODEPAGE);
 
         if (!rtsmb_casecmp (name, rtsmb_guest, CFG_RTSMB_USER_CODEPAGE))
         {
@@ -622,7 +631,7 @@ BBOOL Auth_DeleteUser (PFRTCHAR name)
     BBOOL rv = TRUE;
     rtsmb_char rtsmb_guest [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
 
-    rtsmb_util_ascii_to_rtsmb (SMB_GUESTNAME, rtsmb_guest, CFG_RTSMB_USER_CODEPAGE);
+    rtsmb_util_ascii_to_rtsmb ((PFCHAR)SMB_GUESTNAME, rtsmb_guest, CFG_RTSMB_USER_CODEPAGE);
 
     CLAIM_AUTH ();
     uid = getUserIdFromName (name);

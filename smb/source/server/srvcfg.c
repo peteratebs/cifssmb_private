@@ -23,6 +23,7 @@
 #include "rtpsignl.h"
 #include "smbdebug.h"
 #include "rtpmem.h"
+#include "srvutil.h"
 
 #ifndef ALLOC_FROM_HEAP
 #define ALLOC_FROM_HEAP  0
@@ -277,8 +278,7 @@ static void * safemalloc(rtsmb_size bytes)
 
    if (bytes && !Result)
    {
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMB Server: out of heap space\n");
-      exit(1);
+     srvsmboo_panic("SMB Server: out of heap space");
    }
    tc_memset(Result, 0, bytes);
    return Result;

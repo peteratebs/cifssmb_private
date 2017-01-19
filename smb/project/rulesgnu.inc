@@ -58,7 +58,7 @@ ifeq ($(compiler),GNUCOMPILER)
 # bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
 $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c
 	@echo COMPILING for CPP $<
-	@g++ -x c++ $(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 $(OBJDIR)/srvsmbssnoo.o: $(lib_to_rtsmb_server_path)/srvsmbssnoo.cpp
 	@echo COMPILING for CPP $<
@@ -76,7 +76,7 @@ $(OBJDIR)/srvoplocks.o: $(lib_to_rtsmb_server_path)/srvoplocks.cpp
 
 $(OBJDIR)/%.$(obj): %.c
 	@echo COMPILING $<
-	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+	@gcc	$(cflags) -Wno-pointer-sign $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
 #$(OBJDIR)/%.$(obj): %.cpp
 #	@echo cpp COMPILING $<

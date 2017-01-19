@@ -343,7 +343,7 @@ int  rtsmb_srv_cli_server_enum (dword type, PFCHAR domain,
 
 	/* write request -- nbss header, smb header, transaction, request */
 
-	rtsmb_util_ascii_to_rtsmb ("\\PIPE\\LANMAN", trans_name, CFG_RTSMB_USER_CODEPAGE);
+	rtsmb_util_ascii_to_rtsmb ((char *)"\\PIPE\\LANMAN", trans_name, CFG_RTSMB_USER_CODEPAGE);
 	if (domain)
 	{
 		rtsmb_util_ascii_to_rtsmb (domain, domain_in_rtsmb, CFG_RTSMB_USER_CODEPAGE);
@@ -397,13 +397,13 @@ int  rtsmb_srv_cli_server_enum (dword type, PFCHAR domain,
 	RTSMB_PACK_WORD (104); /* opcode */
 	if (domain)
 	{
-		RTSMB_PACK_ITEM ("WrLehDz", 8);	/* parameter descriptor */
+		RTSMB_PACK_ITEM ((PFVOID)"WrLehDz", 8);	/* parameter descriptor */
 	}
 	else
 	{
-		RTSMB_PACK_ITEM ("WrLehDO", 8);	/* parameter descriptor */
+		RTSMB_PACK_ITEM ((PFVOID)"WrLehDO", 8);	/* parameter descriptor */
 	}
-	RTSMB_PACK_ITEM ("B16BBDz", 8); /* return descriptor */
+	RTSMB_PACK_ITEM ((PFVOID)"B16BBDz", 8); /* return descriptor */
 	RTSMB_PACK_WORD (1); /* information level */
 	RTSMB_PACK_WORD ((word) (SMB_BUFFER_SIZE - 100)); /* receive size */
 	RTSMB_PACK_DWORD (type);
@@ -620,7 +620,7 @@ RTSMB_STATIC int  _rtsmb_srv_cli_handle_negotiate (void)
 	share_name[0] = '\\';
 	share_name[1] = '\\';
 	rtsmb_util_ascii_to_rtsmb (rtsmb_srv_cli_server_name, share_name + 2, CFG_RTSMB_USER_CODEPAGE);
-	rtsmb_util_ascii_to_rtsmb ("\\IPC$", share_name + rtsmb_len (share_name), CFG_RTSMB_USER_CODEPAGE);
+	rtsmb_util_ascii_to_rtsmb ((char *) "\\IPC$", share_name + rtsmb_len (share_name), CFG_RTSMB_USER_CODEPAGE);
 
 	nbss_header.type = RTSMB_NBSS_COM_MESSAGE;
 	/* size: smb header (32), session setup (24), most of treecon (16), plus share string */

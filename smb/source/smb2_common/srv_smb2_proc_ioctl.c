@@ -189,7 +189,7 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
 
          if (l==-2 ) // l == -2 means, read 4 bytes and you'll get the status code to return
          {
-            l = SMBFIO_Read (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileid, &error_status, 4);
+            l = SMBFIO_Read (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileid, (PFBYTE)&error_status, 4);
             response.OutputCount = (unsigned long) 0;
          }
          else

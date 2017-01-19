@@ -48,6 +48,7 @@ rtsmb_size i;
    return source_size*2;
 }
 
+#if (0)
 // This is never called. Needs more work to support packet encrytion.
 static byte *RTSmb2_Encryption_Get_Decrypted_Buffer(byte *origin, int buffer_size,RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
 {
@@ -66,17 +67,16 @@ byte *Source = origin;
 void  RTSmb2_Encryption_Release_Decrypted_Buffer(byte *origin)
 {
 }
-
+static void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
+{
+    RTP_FREE(buffer);
+}
+#endif
 
 static byte *RTSmb2_Encryption_Get_Encrypt_Buffer(byte *origin, rtsmb_size  buffer_size)
 {
     return (byte *)rtp_malloc(buffer_size*2);
 }
-static void RTSmb2_Encryption_Release_Encrypt_Buffer(byte *buffer)
-{
-    RTP_FREE(buffer);
-}
-
 
 /* Start encryption. Called on a stream from the top level dispatch if the session is set up and known to be encrypted.
    Wraps the stream in a buffer with an SMB2 transform header prepended. The message finalize process will encrypt the outgoing messge. */

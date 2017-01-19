@@ -55,7 +55,6 @@ static int RtsmbWireVarDecodeNegotiateCommandCb (smb2_stream *pStream, PFVOID or
 static int RtsmbWireVarDecodeSessionSetupCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
 static int RtsmbWireVarDecodeTreeConnectCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
 static int RtsmbWireVarCreateCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
-static int RtsmbWireVarDecodeReadCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
 static int RtsmbWireVarDecodeWriteCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
 static int RtsmbWireVarDecodeLockCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
 static int RtsmbWireVarDecodeIoctlCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem);
@@ -338,11 +337,6 @@ int rv;
       }
     }
     return rv;
-}
-static int RtsmbWireVarDecodeReadCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem)
-{
-PRTSMB2_READ_C pCommand = (PRTSMB2_READ_C) pItem;
-    return RtsmbWireVarDecode (pStream, origin, buf, size, pCommand->ReadChannelInfoOffset, pCommand->ReadChannelInfoLength, pCommand->StructureSize);
 }
 
 static int RtsmbWireVarDecodeWriteCommandCb (smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, PFVOID pItem)

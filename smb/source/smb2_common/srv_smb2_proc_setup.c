@@ -58,6 +58,8 @@ extern word NewUID(const PUSER u, int Max);
 static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream);
 static byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size);
 static void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer);
+extern int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+
 /*
 Proccess SESSION_SETUP requests.
 
@@ -579,10 +581,10 @@ static byte spnego_blob_buffer[512];
                       see [MS-NLMP] section 3.1.5.1. The server SHOULD choose an authentication mechanism that provides unique and
                       randomly generated session keys in order to secure the integrity of the signing key, encryption key, and decryption key,
                       which are derived using the session key. */
-                if (pStreamSession->SessionKey == 0)
-                {
-                    RTSmb2_Encryption_SetSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey);
-                }
+//                if (pStreamSession->SessionKey == 0)
+//                {
+//                    RTSmb2_Encryption_SetSessionKey(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext,pStreamSession->SessionKey);
+//                }
 #ifdef SUPPORT_SMB3
                 /*  7. If Connection.Dialect belongs to the SMB 3.x dialect family,
                        the server MUST generate Session.SigningKey as specified in section 3.1.4.2 by providing the following inputs:
@@ -756,11 +758,11 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream)
     if (pCtx->accessMode == AUTH_USER_MODE)
     {
         int i;
-        word access, authId;
+        word authId;
         PUSER user = (PUSER)0;
 
        authId = 0;
-       access = AUTH_USER_MODE;
+//       word access access = AUTH_USER_MODE;
        {
            /* if this is a guest loging, reuse old guests   */
            if ((user == (PUSER)0) && (authId == 0))

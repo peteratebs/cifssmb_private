@@ -1,3 +1,9 @@
+#if (0)
+//
+// Not used. but creates warnings.
+//
+//
+//
 /*
   srvinteractive.c - Provides an interactive console for the server when HARDWIRE_SERVER_SETTINGS is false
 
@@ -622,3 +628,5 @@ int in_pollforcommands(void)
 
 
 #endif // (HARDWIRE_SERVER_SETTINGS==0)
+
+#endif

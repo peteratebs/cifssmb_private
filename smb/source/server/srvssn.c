@@ -44,6 +44,7 @@
 
 #include "rtptime.h"
 #include "srvsmbssn.h"
+#include "srvsrvsvc.h"
 
 #define DOPUSH 1
 
@@ -74,6 +75,8 @@ static const char *trans2Commandname(int command);
 const char * DebugSMB1CommandName(int command);
 static void DebugOutputTrans2Command(int command);
 extern void SMBS_PopContextBuffers (PSMB_SESSIONCTX pCtx);
+extern BBOOL ST2_GetDfsReferal (PSMB_SESSIONCTX pCtx,PRTSMB_HEADER pInHdr, PRTSMB_TRANSACTION pTransaction, PFVOID pInBuf,	PRTSMB_HEADER pOutHdr, PRTSMB_TRANSACTION_R pTransactionR, rtsmb_size size_left);
+
 
 /*============================================================================   */
 /*    IMPLEMENTATION PRIVATE DEFINITIONS / ENUMERATIONS / SIMPLE TYPEDEFS        */
@@ -2594,7 +2597,7 @@ BBOOL ProcTransaction2 (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBu
 #if 1 // def RTP_DEBUG
         {
             char* tmpbuf;
-            tmpbuf = trans2Commandname(command.setup[0]);
+            tmpbuf = (char *) trans2Commandname(command.setup[0]);
             if (tmpbuf)
             {
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: ProcTransaction2: sub command (%s) unhandled\n", tmpbuf);

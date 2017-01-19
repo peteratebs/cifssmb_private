@@ -36,8 +36,8 @@
 name = share0
 comment = native fs
 # path = /media
-path = /media/sf_0a_share_with_virtual_box/mountpoint
-# path = /home/peter/smbtest
+# path = /media/sf_0a_share_with_virtual_box/mountpoint
+path = /home/peter
 flags = create
 permission = rw
 # password = smb
@@ -164,8 +164,12 @@ guest = yes
 guestgroups = trusted
 # Set enable_oplocks to no or yes. If no oplocks are ignored and breaks are not sent
 enable_oplocks = no
+
+# Set enable_mnotify to no or yes. If no notifies are ignored and alerts are not sent
+enable_notify = yes
+
 # Maximum protocl, 2100, 2002 or 1000
-# max_protocol = 2100
-max_protocol = 1000
+max_protocol = 2100
+# max_protocol = 1000
 
 [end]

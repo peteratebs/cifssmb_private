@@ -15,10 +15,10 @@ cflags+= -Wno-conversion -Wextra
 # don't complain when we use #warning
 #cflags+= -Wno-cpp
 cflags+= -Wno-format
-cflags+= -Wpointer-sign
-cflags+= -Wwrite-strings
+cflags+= -Wno-write-strings
 
 cflags+= -funsigned-char
+
 
 ## SET SMB_PATH
 SMB_PATH = ../..

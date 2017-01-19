@@ -134,7 +134,7 @@ BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
  oplock_c_break_acknowledge_return_e r;
  dword status_toreturn = 0;
 
-  r = oplock_c_break_acknowledge(SMBU_SmbSessionToNetSession(pStream->pSmbCtx), command.FileId, unique_userid, command.OplockLevel,&status_toreturn);
+  r = oplock_c_break_acknowledge(SMBU_SmbSessionToNetSession(pStream->pSmbCtx), command.FileId, unique_userid, command.OplockLevel,(uint32_t *)&status_toreturn);
   if (r == oplock_c_break_acknowledge_error)
   {  // Send corect status with response
      RtsmbWriteSrvStatus(pStream, status_toreturn);

@@ -117,7 +117,7 @@ PFVOID rtsmb_read_ascii_string (PFVOID buf, PFSIZE buf_size,
     //unicode
     if (string)
     {
-        rtsmb_util_ascii_to_rtsmb (temp_string, string, CFG_RTSMB_USER_CODEPAGE);
+        rtsmb_util_ascii_to_rtsmb((PFCHAR)temp_string, (PFRTCHAR) string, CFG_RTSMB_USER_CODEPAGE);
     }
 
     return buf;

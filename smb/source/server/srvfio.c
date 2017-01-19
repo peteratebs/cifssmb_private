@@ -1352,7 +1352,7 @@ BBOOL SMBFIO_GetVolumeIdInternal(word tid, PFBYTE volume)
         return FALSE;
     }
     SMBFSTAT stat;
-    if (SMBFIO_StatInternal (tid, "", &stat))
+    if (SMBFIO_StatInternal (tid, (PFRTCHAR)"\0\0", &stat))
 //    if (SMBFIO_StatInternal (tid, pResource->u.disktree.path, &stat))
     {
       tc_memcpy(volume, stat.unique_fileid, 8);

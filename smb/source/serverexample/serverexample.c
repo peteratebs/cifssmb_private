@@ -39,9 +39,12 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "rtpscnv.h"
 #include "rtpthrd.h"
 #include "remotediags.h"
+#include "smbspnego.h"
+
+extern void spnego_free_extended_security(void);
 
 volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
-volatile quit_sig_pressed = 0;
+static volatile int quit_sig_pressed = 0;
 volatile int keyboard_break_pressed_count;
 
 extern void rtsmb_thread_iwatch (void *p);
@@ -121,8 +124,9 @@ int smbserver_runtimeadduser(void);
 int smbserver_runtimeaddshare(void);
 int smbserver_runtimeaddprinter(void);
 #endif
+#if (HARDWIRE_USE_CONFIG_FILE==0)
 static void rtsmb_srv_non_file_config(void);
-
+#endif
 
 
 void rtsmb_main (void)

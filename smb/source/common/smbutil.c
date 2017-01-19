@@ -895,7 +895,7 @@ PFCHAR rtsmb_util_make_netbios_name (PFCHAR _dest, PFCHAR _name, byte type)
     PFBYTE dest = (PFBYTE)_dest;
     PFBYTE name = (PFBYTE)_name;
 
-	numchars = MIN ((rtsmb_size) tc_strlen (name), RTSMB_NB_NAME_SIZE - 1);
+	numchars = MIN ((rtsmb_size) tc_strlen (_name), RTSMB_NB_NAME_SIZE - 1);
 
 	for(i = 0; i < numchars; i++)
 		dest[i] = name[i];
@@ -904,11 +904,11 @@ PFCHAR rtsmb_util_make_netbios_name (PFCHAR _dest, PFCHAR _name, byte type)
 
 	dest[RTSMB_NB_NAME_SIZE] = '\0';
 
-	rtsmb_util_latin_string_toupper (dest);
+	rtsmb_util_latin_string_toupper ((PFCHAR)dest);
 
 	dest[RTSMB_NB_NAME_SIZE - 1] = type;
 
-	return dest;
+	return (PFCHAR)dest;
 }
 
 PFCHAR rtsmb_util_unmake_netbios_name (PFCHAR _dest, PFBYTE type, PFCHAR _name)
@@ -924,7 +924,7 @@ PFCHAR rtsmb_util_unmake_netbios_name (PFCHAR _dest, PFBYTE type, PFCHAR _name)
 	tc_strncpy (_dest, _name, (unsigned) i + 1);
 	dest[i + 1] = '\0';
 
-	return dest;
+	return (PFCHAR)dest;
 }
 
 
@@ -1271,7 +1271,7 @@ PFBYTE cli_util_encrypt_password_ntlm2 (
 // .. Each of these keys is used to DES-encrypt the NTLM2 session hash (resulting in three 8-byte ciphertext values).
 // .. These three ciphertext values are concatenated to form a 24-byte value. This is the NTLM2 session response, which is placed in the NTLM response field of the Type 3 message.
 
-    encrypt24 (p21, NTLMv2_Session_Hash, output);
+    encrypt24 (p21, (PFBYTE) NTLMv2_Session_Hash,  (PFBYTE) output);
 
 	return (PFBYTE )output;
 }
@@ -1422,7 +1422,8 @@ BYTE user_domain[512];
    // Comes from  pStream->psmb2Session->pSmbCtx->encryptionKey, the encrypted key send by the client.
   if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("Security blob: ", security_blob, blob_size, DUMPBIN);}
 
-  cli_util_encrypt_signing_key_ntlmv2 (encrypted_key, security_blob, blob_size, kr, encsignkey);
+
+  cli_util_encrypt_signing_key_ntlmv2 ((PFBYTE)encrypted_key, (PFBYTE)security_blob, (size_t) blob_size, (BYTE *) kr, (PFCHAR)encsignkey);
 
   if (prtsmb_srv_ctx->display_login_info) {rtsmb_dump_bytes("NTLMv2 key_ntlmv2 encsignkey: ", encsignkey, 16, DUMPBIN);}
 

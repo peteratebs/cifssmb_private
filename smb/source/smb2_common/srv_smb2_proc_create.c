@@ -14,7 +14,7 @@
 
 #include "smbdefs.h"
 #include "srvcfg.h"
-
+#include "smbnet.h"
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 #include <stdio.h>
@@ -129,6 +129,7 @@ typedef RTSMB2_CREATE_DECODED_CREATE_CONTEXTS RTSMB_FAR *PRTSMB2_CREATE_DECODED_
 
 #define RTSMB2_CREATE_CONTEXT_WIRE_SIZE (sizeof(RTSMB2_CREATE_CONTEXT_WIRE)-1) // -1 because buffer is optional
 
+static int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length);
 
 // We encode the 16 bit external fid # that we use to access our fid table in the 16 byte FID that is shared with the client.
 // that intern in the 16 byte file handle that is encoded in the FID field
@@ -314,8 +315,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
     // Decode CreateContexts into decoded_create_context structure
     if (command.CreateContextsOffset)
     {
-       int decode_r;
-       decode_r = decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
+       decode_create_context_request_values(&decoded_create_context, (PFVOID) create_content, command.CreateContextsLength);
     }
     if (command.NameLength==0)
     { // opening the root of the share
@@ -334,7 +334,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
     {
         if (!replay)
         {
-          if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+          if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR) file_name, &stat))
           {
             pStream->doSessionYield=TRUE;
             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  yield while openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));
@@ -347,7 +347,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
     {
       if (replay)  {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: Proc_smb2_Create:  replay openings %s\n",rtsmb_ascii_of ((PFRTCHAR)file_name,0));}
 
-      if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+      if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR) file_name, &stat))
       {
         ddword unique_userid = smb2_stream_to_unique_userid(pStream);
        // Pass the socket down to the oplock test in case we need to yield and queue a break request
@@ -390,12 +390,12 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
             if (ON (flags, RTP_FILE_O_CREAT))
             {
                 ASSERT_SMB2_PERMISSION (pStream, SECURITY_READWRITE);
-                SMBFIO_Mkdir (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name);
+                SMBFIO_Mkdir (pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR)file_name);
                 TURN_OFF (flags, RTP_FILE_O_EXCL);
                 CreateAction = 2; // File created
             }
         }
-        if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+        if (SMBFIO_Stat (pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR)file_name, &stat))
         {
           if (!(stat.f_attributes & RTP_FILE_ATTRIB_ISDIR) && ON (command.CreateOptions, 0x1))
           { // Don't succeed if they are requesting a directory but the object is not one
@@ -421,7 +421,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       if (pTree->type == ST_DISKTREE)
       {
         // Stat the file
-        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR) file_name, &stat))
         {
           RtsmbWriteSrvStatus(pStream, SMB2_STATUS_OBJECT_NAME_NOT_FOUND);
           return TRUE;
@@ -429,7 +429,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       }
       else // IPC
       { // Call stat, it should work but if it doesn't just zero
-        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, file_name, &stat))
+        if (!SMBFIO_Stat(pStream->pSmbCtx, pStream->pSmbCtx->tid, (PFRTCHAR) file_name, &stat))
         {
           tc_memset(&stat, 0, sizeof(stat));
         }
@@ -623,7 +623,7 @@ static void dump_decoded_create_context_request_values(PRTSMB2_CREATE_CONTEXT_IN
 // int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length);
 
 
-int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length)
+static int decode_create_context_request_values(PRTSMB2_CREATE_DECODED_CREATE_CONTEXTS pdecoded_create_context, PFVOID pcreate_context_buffer, int create_context_buffer_length)
 {
 PRTSMB2_CREATE_CONTEXT_INTERNAL p_current_value=&pdecoded_create_context->context_values[0];
 PRTSMB2_CREATE_CONTEXT_WIRE p_current_context_onwire = (PRTSMB2_CREATE_CONTEXT_WIRE)pcreate_context_buffer;

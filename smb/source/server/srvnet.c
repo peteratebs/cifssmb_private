@@ -50,6 +50,7 @@
 RTSMB_STATIC int numPDCQueries = 0;
 RTSMB_STATIC unsigned long next_pdc_find;
 #endif
+extern void rtsmb_net_set_ip (PFBYTE host_ip, PFBYTE mask_ip);
 
 byte net_lastRemoteHost_ip[4];
 int net_lastRemoteHost_port;

@@ -14,7 +14,6 @@
 // If this feature is enabled the makefile should be edited to exclude the /servernb and /commonnb directories
 
 #include "smbdefs.h"
-
 #if (HARDWIRE_EXCLUDE_NBNS==1)
 
 #include "rtpchar.h"  /* _YI_ 9/24/2004 */
@@ -40,6 +39,7 @@
 #include "rtptime.h"
 #include "rtpsignl.h"
 #include "rtpscnv.h"
+#include "smbbrcfg.h"
 
 
 //============================================================================
@@ -130,11 +130,11 @@ RTSMB_STATIC BBOOL doAnnouncements;
 //============================================================================
 
 RTSMB_STATIC word rtsmb_srv_nbns_get_next_transfer_id(void);
-RTSMB_STATIC void rtsmb_srv_nbns_run_name_table (void);
+// RTSMB_STATIC void rtsmb_srv_nbns_run_name_table (void);
 
-RTSMB_STATIC void rtsmb_srv_nbns_send_name_register_request(word tranID, PFCHAR name, BBOOL group);
-RTSMB_STATIC void rtsmb_srv_nbns_send_name_query(word tranID, PFCHAR name);
-RTSMB_STATIC void rtsmb_srv_nbns_send_name_overwrite(word transID, PFCHAR name, BBOOL group);
+// RTSMB_STATIC void rtsmb_srv_nbns_send_name_register_request(word tranID, PFCHAR name, BBOOL group);
+// RTSMB_STATIC void rtsmb_srv_nbns_send_name_query(word tranID, PFCHAR name);
+// RTSMB_STATIC void rtsmb_srv_nbns_send_name_overwrite(word transID, PFCHAR name, BBOOL group);
 
 void rtsmb_srv_browse_cycle (void){}
 void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx){}
@@ -286,7 +286,7 @@ void rtsmb_srv_nbns_init (PFCHAR net_name, PFCHAR group_name)
 	}
 	else
 	{
-		rtsmb_util_make_netbios_name (ns_netName, CFG_RTSMB_DEFAULT_NET_NAME, '\0');
+		rtsmb_util_make_netbios_name (ns_netName, (PFCHAR) CFG_RTSMB_DEFAULT_NET_NAME, '\0');
 		tc_strcpy(ns_netNameAbrv, CFG_RTSMB_DEFAULT_NET_NAME);
 	}
 	rtsmb_util_latin_string_toupper (ns_netNameAbrv);
@@ -298,13 +298,13 @@ void rtsmb_srv_nbns_init (PFCHAR net_name, PFCHAR group_name)
 	}
 	else
 	{
-		rtsmb_util_make_netbios_name (ns_groupName, CFG_RTSMB_DEFAULT_GROUP_NAME, '\0');
+		rtsmb_util_make_netbios_name (ns_groupName, (PFCHAR)CFG_RTSMB_DEFAULT_GROUP_NAME, '\0');
 		tc_strcpy(ns_groupNameAbrv, CFG_RTSMB_DEFAULT_GROUP_NAME);
 	}
 	rtsmb_util_latin_string_toupper (ns_groupNameAbrv);
 
-	rtsmb_util_make_netbios_name (ns_globalName, RTSMB_NB_DEFAULT_NAME, '\0');
-	tc_strcpy(ns_globalNameAbrv, RTSMB_NB_DEFAULT_NAME);
+	rtsmb_util_make_netbios_name (ns_globalName, (PFCHAR)RTSMB_NB_DEFAULT_NAME, '\0');
+	tc_strcpy(ns_globalNameAbrv, (PFCHAR)RTSMB_NB_DEFAULT_NAME);
 	rtsmb_util_latin_string_toupper (ns_globalNameAbrv);
 
 	rtsmb_srv_nbns_add_name(ns_netName, FALSE, RTSMB_NB_NAME_TYPE_WORKSTATION, TRUE);

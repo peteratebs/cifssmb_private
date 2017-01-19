@@ -30,6 +30,7 @@
 #include "smbspnego.h"
 #include "srvnbns.h"
 #include "rtpmem.h"
+#include "rtprand.h"
 #include <string.h>
 
 // OIDs
@@ -171,11 +172,11 @@ typedef struct target_config_ascii_str_s
 
 target_config_ascii_str_t target_config_ascii =
 {
-  HARDWIRED_TARGET_NAME     ,
-  HARDWIRED_NBDOMAIN_NAME   ,
-  HARDWIRED_NBCOMPUTER_NAME ,
-  HARDWIRED_DNSDOMAIN_NAME  ,
-  HARDWIRED_DNSCOMPUTER_NAME,
+  (char *)HARDWIRED_TARGET_NAME     ,
+  (char *)HARDWIRED_NBDOMAIN_NAME   ,
+  (char *)HARDWIRED_NBCOMPUTER_NAME ,
+  (char *)HARDWIRED_DNSDOMAIN_NAME  ,
+  (char *)HARDWIRED_DNSCOMPUTER_NAME,
 };
 
 target_config_unicode_str_t target_config_unicode;
@@ -730,21 +731,6 @@ static int decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, voi
 }
 
 
-// Calculate the width of an asn1 width variable
-static int decode_token_stream_get_length_fieldwidth(dword l)
-{
-int width=1;
-  if (l > 128)
-  {
-    dword _l=l;
-    while (_l)
-    {
-      width+=1;
-      _l>>=8;
-    }
-  }
-  return width;
-}
 
 //  decode_token_stream_encode_length(spnego_output_stream_t *pstream, dword l)
 //  if in pass1, (pstream->resolving_widths) adds the width required for the width field.
@@ -805,6 +791,7 @@ int extra_width=0;
 //   return SPNEGO_OBJCOUNT_TOO_DEEP if too many objects.
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width if all is well
+#ifdef NOTUSED
 static int decode_token_stream_encode_oid(spnego_output_stream_t *pstream, oid_t oid)
 {
 int lwidth=0;
@@ -849,6 +836,23 @@ const byte *p=0;
   return lwidth;
 }
 
+// Calculate the width of an asn1 width variable
+static int decode_token_stream_get_length_fieldwidth(dword l)
+{
+int width=1;
+  if (l > 128)
+  {
+    dword _l=l;
+    while (_l)
+    {
+      width+=1;
+      _l>>=8;
+    }
+  }
+  return width;
+}
+
+#endif
 //  After pass 1 completes, Resolve foreward references to unknown length values for containers.
 static void decode_token_stream_encode_fixup_lengths(spnego_output_stream_t *pstream)
 {
@@ -1322,9 +1326,8 @@ static oid_t oid_string_to_oid_t(byte *pbuffer)
 #define MAX_LENGTHFIELD_WIDTH 32
 static unsigned char *asn1_encode_length(unsigned char *pbuffer,unsigned long l)
 {
-unsigned char c;
-
-  c = *pbuffer;
+//unsigned char c;
+//  c = *pbuffer;
   if (l < 0x80)
   { // We have a length so see how many characters to follow
     *pbuffer++ = (unsigned char) l;

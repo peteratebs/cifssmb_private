@@ -98,7 +98,7 @@ int rtsmb_nbds_fill_smb_header (PFVOID origin, PFVOID buf, rtsmb_size size,
     s = buf;
 
     RTSMB_PACK_BYTE (0xFF);
-    RTSMB_PACK_ITEM ("SMB", 3);
+    RTSMB_PACK_ITEM ((PFVOID)"SMB", 3);
     RTSMB_PACK_BYTE (pHeader->command);
     RTSMB_PACK_DWORD (pHeader->status);
     RTSMB_PACK_BYTE (pHeader->flags);
@@ -372,4 +372,3 @@ int rtsmb_nbds_fill_whole_backup_list (dword token)
 
     return (int) PDIFF (de, prtsmb_browse_ctx->buffer);
 }
-

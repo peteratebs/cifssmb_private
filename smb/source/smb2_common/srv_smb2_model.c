@@ -51,6 +51,7 @@
 #include "rtptime.h"
 
 extern void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
+extern void rtsmb_util_get_new_Guid(byte *pGuid);
 
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionById(ddword SessionId);
 pSmb2SrvModel_Session Smb2SrvModel_Global_Get_SessionByConnectionAndId(pSmb2SrvModel_Connection Connection,ddword SessionId);

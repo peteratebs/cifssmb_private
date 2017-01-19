@@ -15,7 +15,8 @@
 #include "smbdefs.h"
 #include "rtpmem.h"
 #include "srvfio.h"
-
+#include "smbutil.h"
+#include "rtpwcs.h"
 
 // Filesystem                1K-blocks      Used Available Use% Mounted on
 // 0a_share_with_virtual_box 249068540 112020068 137048472  45% /media/sf_0a_share_with_virtual_box
@@ -360,7 +361,8 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        break;
        case SMB2_FS_INFO_FSIZE: // 03
        {
-         dword blocks, bfree, sectors, bytes;
+         word bytes;
+         dword blocks, bfree, sectors;
          MSFSCC_FILE_FS_SIZE_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_SIZE_INFO));
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_SIZE_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
@@ -383,12 +385,14 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        break;
        case SMB2_FS_INFO_SIZE_7: // 07
        {
-         dword blocks, bfree, sectors, bytes;
+         word bytes;
+         dword blocks, bfree, sectors;
          MSFSCC_FILE_FS_FULL_SIZE_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO));
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_FULL_SIZE_INFO);
          pStream->WriteBufferParms[0].pBuffer = pInfo;
          PTREE pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
-         if (!pTree || pTree->type != ST_DISKTREE || SMBFIO_GetFree (pStream->pSmbCtx, pStream->pSmbCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
+         if (!pTree || pTree->type != ST_DISKTREE ||
+         SMBFIO_GetFree (pStream->pSmbCtx, pStream->pSmbCtx->tid, &blocks, &bfree, &sectors, &bytes) == FALSE)
          {
            pInfo->TotalAllocationUnits      =  0;
            pInfo->CallerAvailableAllocationUnits  =  0;
@@ -451,7 +455,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
        break;
        case SMB2_FS_INFO_VOLUME: // 45
        {
-         int volume_label_bytes = 2+ (2*rtsmb_len(FAKE_VOLUME_LABEL));
+         int volume_label_bytes = 2+ (2*rtsmb_len((const word *)FAKE_VOLUME_LABEL));
          MSFSCC_FILE_FS_VOLUME_INFO *pInfo = rtp_malloc(sizeof(MSFSCC_FILE_FS_VOLUME_INFO)+volume_label_bytes);
          pStream->WriteBufferParms[0].byte_count = sizeof(MSFSCC_FILE_FS_VOLUME_INFO)+volume_label_bytes;
          pStream->WriteBufferParms[0].pBuffer = pInfo;
@@ -512,15 +516,12 @@ int fillSMB_FIND_FILE_BOTH_DIRECTORY_INFO (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER p
     pinfo->high_end_of_file = stat->fsize_hi;
     pinfo->low_allocation_size = stat->fsize;
     pinfo->high_allocation_size = stat->fsize_hi;
-
     pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
-
     pinfo->filename_size = 0;
     // pinfo->filename = (PFRTCHAR) stat->filename;
     SMBU_DOSifyName (pinfo->filename, dosname, '\0');
     pinfo->short_name_size = (byte)rtsmb_len ((PFRTCHAR) stat->short_filename);
     rtsmb_cpy (pinfo->short_name, (PFRTCHAR) stat->short_filename);
-
     pinfo->file_index = 0;
     pinfo->ea_size = 0;
 }

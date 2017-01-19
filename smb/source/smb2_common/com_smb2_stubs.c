@@ -63,13 +63,14 @@ BBOOL RTSmb2_Encryption_ValidateNameWithSecurityContext(dword SessionGlobalId,TY
 BBOOL RTSmb2_Encryption_SetNameFromSecurityContext(dword SessionGlobalId,TYPELESS SecurityContext,byte *UserName) {  return TRUE;}
 BBOOL RTSmb2_Encryption_InquireContextAnon(dword SessionGlobalId,TYPELESS SecurityContext){  return TRUE;}
 BBOOL RTSmb2_Encryption_InquireContextGuest(dword SessionGlobalId,TYPELESS SecurityContext){  return TRUE;}
-void  RTSmb2_Encryption_SetSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey){SessionKey=(byte*)"SESSIONKEY";};
-void  RTSmb2_Encryption_Get_Session_SigningKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *pSigningKey, byte *pSessionKey){pSigningKey=(byte*)"SIGNINGKEY";};
-void  RTSmb2_Encryption_Get_Session_ApplicationKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *ApplicationKey,byte *SessionKey){ApplicationKey=(byte*)"APP_KEY";}
-void  RTSmb2_Encryption_Get_Session_ChannelKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *ChannelKey,byte *pKey){ChannelKey=(byte*)"CHN_KEY";}
-void  RTSmb2_Encryption_Get_Session_EncryptionKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *EncryptionKey, byte *SessionKey) {EncryptionKey=(byte*)"DEC_KEY";}
-void  RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext, byte *DecryptionKey, byte *SessionKey){DecryptionKey=(byte*)"ENC_KEY";}
-void  RTSmb2_Encryption_SignMessage(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey, byte *Signature) {Signature=(byte*)"SIGNATURE";}
+
+// void  RTSmb2_Encryption_SetSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey){ SessionKey=(byte*)"SESSIONKEY";};
+//void  RTSmb2_Encryption_Get_Session_SigningKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *pSigningKey, byte *pSessionKey){pSigningKey=(byte*)"SIGNINGKEY";};
+//void  RTSmb2_Encryption_Get_Session_ApplicationKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *ApplicationKey,byte *SessionKey){ApplicationKey=(byte*)"APP_KEY";}
+//void  RTSmb2_Encryption_Get_Session_ChannelKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *ChannelKey,byte *pKey){ChannelKey=(byte*)"CHN_KEY";}
+//void  RTSmb2_Encryption_Get_Session_EncryptionKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext,byte *EncryptionKey, byte *SessionKey) {EncryptionKey=(byte*)"DEC_KEY";}
+//void  RTSmb2_Encryption_Get_Session_DecryptionKeyFromSessionKey(dword SessionGlobalId,TYPELESS SecurityContext, byte *DecryptionKey, byte *SessionKey){DecryptionKey=(byte*)"ENC_KEY";}
+//void  RTSmb2_Encryption_SignMessage(dword SessionGlobalId,TYPELESS SecurityContext,byte *SessionKey, byte *Signature) {Signature=(byte*)"SIGNATURE";}
 
 
 

@@ -16,6 +16,8 @@
 #include "smbdefs.h"
 #include "errno.h"
 #include "string.h"
+#include "srvutil.h"
+#include "rtptime.h"
 
 
 extern RTP_SOCKET diag_socket;
@@ -53,7 +55,7 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
     int result;
     RTP_FD_SET readList;
     RTP_FD_SET errorList;
-    int tempList[256];
+    RTP_SOCKET tempList[256];
 
     for(n=0; n<listSize; n++)
     {

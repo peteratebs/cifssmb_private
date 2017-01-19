@@ -17,6 +17,7 @@
 #ifndef __RTPTOTC_H__
 #define __RTPTOTC_H__
 
+
 #define tc_hatoi(A)            rtp_hatoi(A)
 #define tc_itoa(A,B,C)         rtp_itoa(A,B,C)
 #define tc_ltoa(A,B,C)         rtp_ltoa(A,B,C)

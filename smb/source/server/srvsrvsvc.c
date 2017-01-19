@@ -147,10 +147,7 @@ typedef struct s_DCE_ENUM_REPLY_HEADER
 	byte  cancel_count;
 	byte  pad;
 
-	/* stub data here, 8-octet aligned
-
-    /* optional authentication verifier */
-    /* following fields present iff auth_length != 0 */
+    /* stub data here, 8-octet aligned following fields present iff auth_length != 0 */
     // auth_verifier_co_t auth
 }  DCE_ENUM_REPLY_HEADER,DCE_LSARP_POLICY2_REPLY;
 PACK_PRAGMA_POP
@@ -396,6 +393,7 @@ static int encode_dce_string(dword *pout, dword Referentid, void *pin, word payl
    return r;
 }
 
+#ifdef NOTUSED
 
 static int encode_dce_string_stupid(dword *pout, dword Referentid, void *pin, word payload_size)
 {
@@ -421,6 +419,7 @@ static int encode_dce_string_pointer(dword *pout, dword Referentid, void *pin, w
   r = 8 + encode_dce_string_stupid(pout, Referentid+4, pin, payload_size);
    return r;
 }
+#endif
 
 static PFWCS SRVSVC_get_stream_authority_name(void *pSmb2Stream)
 {

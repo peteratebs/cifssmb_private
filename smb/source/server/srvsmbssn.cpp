@@ -413,7 +413,6 @@ SMB2PROCBODYACTION bodyR;
 static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSctx)
 {
     PFBYTE pInBuf;
-    PFVOID pOutBuf;
     int header_size;
     int length;
     BBOOL doSend = FALSE;
@@ -422,7 +421,6 @@ static SMB2PROCBODYACTION SMBS_ReadNbssPacketToSessionCtxt (PSMB_SESSIONCTX pSct
      * Set up incoming and outgoing packet header.
      */
     pInBuf = (PFBYTE) SMB_INBUF (pSctx);
-    pOutBuf = SMB_OUTBUF (pSctx);
 #if (INCLUDE_RTSMB_DC)
     if (pInBuf[4] == SMB_COM_NEGOTIATE &&
         pSctx->accessMode == AUTH_USER_MODE && pSctx->session_state == IDLE)

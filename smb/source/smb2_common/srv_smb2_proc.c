@@ -52,7 +52,7 @@
 #include "wchar.h"
 #include "remotediags.h"
 #include "srvnotify.h"
-
+#include "srvsmbssn.h"
 
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
 void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
@@ -182,7 +182,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     }
     // Not using else if because test conditiojn falls through
     if (SESSIONCTXSTATICS.stackcontext_state==ST_FALSE)
-      ; // We're going to shut down so no need to sync the stream and smb context
+    {  ; /* We're going to shut down so no need to sync the stream and smb context */}
     if (SESSIONCTXSTATICS.stackcontext_state==ST_TRUE)
     {
       // we will reply now so restore pSctx->outBodySize. pSctx->doSocketClose and pSctx->doSessionClose from stream
@@ -882,7 +882,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 	RTSMB2_TREE_CONNECT_R response;
 	rtsmb_char share_name [RTSMB_NB_NAME_SIZE + RTSMB_MAX_SHARENAME_SIZE + 4]; /* 3 for '\\'s and 1 for null */
 	dword error_status = 0;
-	pSmb2SrvModel_Session pSmb2Session;
+//	pSmb2SrvModel_Session pSmb2Session;
     tc_memset(share_name,0, sizeof(share_name));
     tc_memset(&response,0, sizeof(response));
     tc_memset(&command,0, sizeof(command));
@@ -896,8 +896,7 @@ static BBOOL Proc_smb2_TreeConnect(smb2_stream  *pStream)
 		RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
         return TRUE;
     }
-
-    pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
+//    pSmb2Session = Smb2SrvModel_Global_Get_SessionById(pStream->InHdr.SessionId);
 
     /* Tie into the V1 share mechanism for now */
     {

@@ -82,12 +82,12 @@ RTSMB2_SET_INFO_R response;
         b[pRenameInfo->FileNameLength+1] =0;
         for(i=0; i < 2; i++)
         { // Loop twice, in case we fail but ReplaceIfExists is rue
-          if (SMBFIO_Rename(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid), pRenameInfo->Buffer))
+          if (SMBFIO_Rename(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid), (PFRTCHAR)pRenameInfo->Buffer))
             break;
           if (pRenameInfo->ReplaceIfExists)
           {
              pRenameInfo->ReplaceIfExists=0;
-             if (SMBFIO_Delete(pStream->pSmbCtx, pStream->pSmbCtx->tid,pRenameInfo->Buffer))
+             if (SMBFIO_Delete(pStream->pSmbCtx, pStream->pSmbCtx->tid,(PFRTCHAR) pRenameInfo->Buffer))
                 continue;
           }
           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);

@@ -66,7 +66,7 @@ static BBOOL ipcrpc_wstat(unsigned short RTSMB_FAR * name, PSMBFSTAT vstat);
 static BBOOL ipcrpc_wchmode(unsigned short RTSMB_FAR * name, unsigned char attributes);
 static BBOOL ipcrpc_wget_free(unsigned short RTSMB_FAR * name, unsigned long *total, unsigned long *free, unsigned long *sectors_per_unit, unsigned short *bytes_per_sector);
 
-static void ipcrpc_translate_dstat (PSMBDSTAT dstat);
+// static void ipcrpc_translate_dstat (PSMBDSTAT dstat);
 static void ipcrpc_translate_fstat (PSMBFSTAT fstat);
 
 static SMBFILEAPI _rtsmb_filesys_ipcrpc;
@@ -291,14 +291,14 @@ static long ipcrpc_write(int fd,  unsigned char RTSMB_FAR * buf, long count)
 
 static int ipcrpc_close(int fd)
 {
-    int rv = -1;
+//    int rv = -1;
     {
       StreamtoSrvSrvc *pStreamtoSrvSrvc = FdToSrvSrvcStream(fd);
       if (pStreamtoSrvSrvc)
       {
         FreeSrvSrvcStream(pStreamtoSrvSrvc); // If we didn't recv, clear the pending recv.
         pStreamtoSrvSrvc->in_use=FALSE;
-        rv = 0;
+//        rv = 0;
       }
     }
 	// always return safely for ipc file closes
@@ -469,6 +469,7 @@ static BBOOL ipcrpc_set_time(int fd, TIME atime, TIME wtime, TIME ctime, TIME ht
     FS_NOT_SUPPORTED("ipcrpc_set_time")
 }
 
+#ifdef NOTISED
 static void ipcrpc_translate_dstat (PSMBDSTAT dstat)
 {
     RTP_DATE adate = {0,0,0,0,0,0,0,0,0};
@@ -498,7 +499,7 @@ static void ipcrpc_translate_dstat (PSMBDSTAT dstat)
     dstat->rtp_dirobj = 0;
 
 }
-
+#endif
 static void ipcrpc_translate_fstat (PSMBFSTAT fstat)
 {
     RTP_DATE adate = {0,0,0,0,0,0,0,0,0};

@@ -9,24 +9,8 @@
 #include "remotediags.h"
 #include "srvsmbssn.h"
 #include "srvoplocks.h"
-
 #include "rtpnet.h"
 #include "rtpnet.h"
-
-
-
-static const char *oplock_to_name(uint8_t level)
-{
- switch (level)
- {
- case SMB2_OPLOCK_LEVEL_NONE      : return "SMB2_OPLOCK_LEVEL_NONE";
- case SMB2_OPLOCK_LEVEL_II        :  return "SMB2_OPLOCK_LEVEL_II";
- case SMB2_OPLOCK_LEVEL_EXCLUSIVE : return "SMB2_OPLOCK_LEVEL_EXCLUSIVE";
- case SMB2_OPLOCK_LEVEL_BATCH     :  return "SMB2_OPLOCK_LEVEL_BATCH";
- case SMB2_OPLOCK_LEVEL_LEASE     :  return "SMB2_OPLOCK_LEVEL_LEASE";
- default: return "UNKOWN LOCK";
- }
-}
 
 const char * format_uid(uint8_t *fileid){ static char buffer[80];tc_sprintf(buffer,"%x,%x,%x,%x,%x,%x,%x,%x",  fileid[0],  fileid[1],  fileid[2],  fileid[3],  fileid[4],  fileid[5],  fileid[6],  fileid[7]);  return (const char *) buffer;}
 

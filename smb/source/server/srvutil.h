@@ -76,6 +76,8 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external);
 PFRTCHAR SMBU_GetFileNameFromFid (PSMB_SESSIONCTX pCtx, word external);
 int SMBU_GetInternalFidFromName (PSMB_SESSIONCTX pCtx, PFRTCHAR name);
 PFID SMBU_GetInternalFidPtr (PSMB_SESSIONCTX pCtx,  word external);
+word RTSmb2_get_externalFid(byte *smb2_file_handle);
+void srvsmboo_panic(const char *panic_string);
 int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid);
 
 typedef int(*enumFidFnType)(PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX pCtx, void *pargs);

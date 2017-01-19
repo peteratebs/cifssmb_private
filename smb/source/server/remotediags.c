@@ -10,6 +10,7 @@
 #include "srvcfg.h"
 #include "srvutil.h"
 #include "rtpmem.h"
+#include <unistd.h>
 
 oplock_diagnotics_t oplock_diagnotics;
 
@@ -19,7 +20,7 @@ RTSMB_STATIC void rtsmb_srv_diag_main (void);
 
 
 
-static char *syslogname = "RTSMBS";
+static char *syslogname = (char *) "RTSMBS";
 static unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
 static void SendDiagMessage(void);
 
@@ -187,6 +188,7 @@ struct DiagFormatSessionsCB_t args = {
     return args.buffer;
 }
 EXTERN_C char *SMBU_DiagFormatNetStats(char *buffer);
+EXTERN_C char *SMBU_DiagFormatOplocks(char *buffer);
 
 static int SMBU_DiagFormatFidList(char *buffer)
 {
@@ -322,6 +324,7 @@ EXTERN_C int srvobject_process_diag_request(void)
 
 static int   queuedmessagelength=0;
 static char  queuedmessageBuffer[1024*64];
+#if (0)
 static void QueueDiagMessage(char *str)
 {
 int l;
@@ -332,15 +335,16 @@ int l;
     queuedmessagelength += l;
   }
 }
+#endif
 static void SendDiagMessage(void)
 {
  if (queuedmessagelength>0)
  {
-   srvobject_write_diag_socket(queuedmessageBuffer, queuedmessagelength+1);
+   srvobject_write_diag_socket((byte *)queuedmessageBuffer, queuedmessagelength+1);
    queuedmessagelength = 0;
  }
  else
-   srvobject_write_diag_socket("NOPE:", 6);
+   srvobject_write_diag_socket((byte *)"NOPE:", 6);
 }
 static int DiagMessageFilter(char *str)
 {
@@ -350,7 +354,7 @@ static int DiagMessageFilter(char *str)
 //    if (queuedmessagelength!=0)
 //       str += 5; // skip DIAG:
     l = tc_strlen(str);
-    if ((l+queuedmessagelength) < sizeof(queuedmessageBuffer))
+    if ((l+queuedmessagelength) < (int)sizeof(queuedmessageBuffer))
     {
       tc_strcpy(&queuedmessageBuffer[queuedmessagelength], str);
       queuedmessagelength += l;

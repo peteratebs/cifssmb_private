@@ -132,7 +132,7 @@ long bytesRead;
      toRead = (dword) MIN (toRead,(pStream->write_buffer_remaining-512));
 
     // note: command.Flags &0x01 == unbuffered;
-    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
+    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Read !! seek failed\n");
        goto unsuccessful;
@@ -158,7 +158,7 @@ unsuccessful:
 
     pStream->WriteBufferParms[0].byte_count = bytesRead;
     RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
-free_and_out:
+
     RTP_FREE(pStream->WriteBufferParms[0].pBuffer);
     return TRUE;
 }
@@ -186,7 +186,7 @@ long bytesWritten;
       goto free_and_out;
     }
 
-    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == -1LL)
+    if (SMBFIO_Seeku64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fileioargs.fid, command.Offset) == 0xffffffffffffffff)
     {
        RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
        pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_UNSUCCESSFUL;
