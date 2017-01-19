@@ -391,7 +391,7 @@ int SMBU_SessionToIndex(PSMB_SESSIONCTX pSmbCtx)
    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
      if (&prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx == pSmbCtx)
        return i;
-   return &prtsmb_srv_ctx->sessions[0];
+// This was a bug introduce 1/2016 but probably never hit. return &prtsmb_srv_ctx->sessions[0];
   return 0;
 }
 #endif
@@ -694,7 +694,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 	PTREE tree;
 	PUSER user;
 	word i, j, k;
-    PFID pFid = 0;
+//    PFID pFid;
 
 #if (0 && HARDWIRED_INCLUDE_DCE)
     {
@@ -711,7 +711,7 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		if (pCtx->fids[k].internal_fid != -1 &&
 			pCtx->fids[k].external == external)
 		{
-            pFid = &pCtx->fids[k];
+//            pFid = &pCtx->fids[k];
 			break;
 		}
 	}
@@ -770,7 +770,8 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 
 		if (j < prtsmb_srv_ctx->max_fids_per_tree)	// if we found it...
 		{
-            close_pfid_notify_requests(pCtx, tree->fids[j]);
+            // Fixed a bug here was passing the wrong pointer type
+            close_pfid_notify_requests(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);
             oplock_c_close(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);          // Release from oplocks if fid owns an oplock
 			tree->fids[j] = (PFID)0;
 		}
@@ -1655,6 +1656,15 @@ int SMBU_PrintFile (PSMB_SESSIONCTX pCtx, int fid)
 	return rv;
 }
 
+void srvsmboo_panic(const char *panic_string)
+{
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Looping Panic abort called :%s\n",panic_string);
+   for (;;) { }
+   rtp_printf("\nPanic abort called: \n");
+   rtp_printf("panic: %s \r",panic_string);
+   int iZero  = 0;      // trap to the debugger
+   int iCrash = 13 / iZero;      // trap to the debugger
+}
 
 
 

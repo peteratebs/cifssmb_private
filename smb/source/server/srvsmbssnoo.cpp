@@ -59,7 +59,7 @@
 
 
 EXTERN_C void rtsmb_srv_nbss_send_session_response (RTP_SOCKET sock, BBOOL positive);
-EXTERN_C void srvsmboo_panic(char *panic_string);
+// EXTERN_C void srvsmboo_panic(char *panic_string);
 EXTERN_C void Smb2SrvModel_New_Session(struct smb_sessionCtx_s *pSmbCtx);
 EXTERN_C void Smb2SrvModel_Free_Session(pSmb2SrvModel_Session pSession);
 EXTERN_C void rtsmb_srv_browse_finish_server_enum (PSMB_SESSIONCTX pCtx);
@@ -164,16 +164,6 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
 void srvsmboo_netssn_shutdown(void)
 {
  // #warning implement
-}
-EXTERN_C void srvsmboo_panic(char *panic_string)
-{
-#warning Need panic strategy
-
-   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Looping Panic abort called :%s\n",panic_string);
-   for (;;) { }
-   rtp_printf("\nPanic abort called: \n");
-   rtp_printf("panic: %s \r",panic_string);
-   int iCrash = 13 / 0;      // trap to the debugger
 }
 
 
@@ -421,7 +411,7 @@ void SMBS_srv_netssn_cycle (long timeout)          // Top level API call to cycl
     readList[MASTER_SOCKET_INDEX] = master_socket;
     readListSize = 2;
 
-    for (int i = 0; i < prtsmb_srv_ctx->mainThread->numSessions && readListSize < 256; i++)
+    for (int i = 0; i < (int)prtsmb_srv_ctx->mainThread->numSessions && readListSize < 256; i++)
     {
        // Don't queue yielded sockets
       if (!prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_smbCtx.sessionoplock_control._yieldSession)
@@ -580,7 +570,9 @@ BBOOL doCB=FALSE;
        rtp_printf("Replay from SIGNAL\n");
        doCB=TRUE;
     }
-    else if (rtp_get_system_msec() > (*session)->netsessiont_smbCtx.sessionoplock_control._yieldTimeout);
+//  major bug fix for oplock here, they were timing out every time
+//  else if (rtp_get_system_msec() > (*session)->netsessiont_smbCtx.sessionoplock_control._yieldTimeout);
+    else if (rtp_get_system_msec() > (*session)->netsessiont_smbCtx.sessionoplock_control._yieldTimeout)
     { // Clear it so it doesn't fire right away
       OPLOCK_DIAG_YIELD_SESSION_SEND_TIMEOUT
        (*session)->netsessiont_smbCtx.sessionoplock_control._yieldSession = FALSE;
@@ -603,7 +595,7 @@ BBOOL doCB=FALSE;
 RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int ready) // Called when a packet is present for the socket or when 1 second expires with no traffic
 {
     BBOOL isDead = FALSE;
-    BBOOL rv = TRUE;
+//    BBOOL rv = TRUE;
     PSMB_SESSIONCTX pSCtx = &(*session)->netsessiont_smbCtx;
     PNET_SESSIONCTX pNetCtxt = *session;
     RTP_SOCKET sock = pNetCtxt->netsessiont_sock;
@@ -659,7 +651,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
             }
             // run down any notify alerts dor this session
             if (send_session_notify_messages(*session)<0)
-                ; // isDead = TRUE;
+            {  /* isDead = TRUE */; }
             // run down any oplock timers
             oplock_c_break_check_waiting_break_requests();
         }
@@ -690,7 +682,6 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
       { // Closes the session and returns to notInUse state, the socket is closed later
         SMBS_srv_netssn_connection_close_session(*session);
       }
-      rv = FALSE;
       // Set to not connected so we allow reception of SMB2 negotiate packets.
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Session closed\n");
         // SMBS_CloseSession( pSCtx );                  --- Already done by SMBS_srv_netssn_connection_close_session
@@ -750,7 +741,7 @@ static void freeSession (PNET_SESSIONCTX p)  // Called from rtsmb_srv_netssn_ses
 // Remove the session from the list of sessions polloing for input.
 static void srvsmboo_close_session(RTP_SOCKET sock)
 {
-  for (int i = 0; i < prtsmb_srv_ctx->mainThread->numSessions; i++)
+  for (int i = 0; i < (int)prtsmb_srv_ctx->mainThread->numSessions; i++)
   {
     if (sock == prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_smbCtx.sock)
     {
@@ -1136,7 +1127,7 @@ EXTERN_C char *SMBU_DiagFormatNetStats(char *buffer)
 
 
   buffer += tc_sprintf(buffer, (char *)"  Sessions:\n");
-  for (int i = 0; i < prtsmb_srv_ctx->mainThread->numSessions; i++)
+  for (int i = 0; i < (int)prtsmb_srv_ctx->mainThread->numSessions; i++)
   {
     if (!prtsmb_srv_ctx->mainThread->sessionList[i])
     {
