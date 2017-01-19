@@ -569,15 +569,14 @@ int srv_cmd_fill_tree_connect_options_and_x_lanman (PFVOID origin, PFVOID buf, r
 
   /* will succeed, since we already passed this segment */
   rtsmb_pack_add_word_unsafe (pbytecount, (word) PDIFF (e, bs), FALSE);
-
   if (pTreeR->next_command != SMB_COM_NONE)
   {
     /* fill in offset */
     rtsmb_pack_add_word_unsafe (poffset, (word) PDIFF (e, origin), FALSE);
   }
-#warning srv_cmd_fill_tree_connect_options_and_x_lanman hacking flags
-  pHeader->flags=0x88;
-  pHeader->flags2=0xc801;
+  pHeader->flags=SMB_FLG_CASELESSPATH|SMB_FLG_RESPONSE; // 88
+  pHeader->flags2=SMB_FLG2_UNICODESTR|SMB_FLG2_32BITERROR|SMB_FLG2_EXTENDED_SECURITY|SMB_FLG2_LONGNAME; // 0xc801;
+
   return PDIFF (e, s);
 }
 #endif

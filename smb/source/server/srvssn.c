@@ -888,7 +888,6 @@ dword OpenOrCreate (PSMB_SESSIONCTX pCtx, PTREE pTree, PFRTCHAR filename, word f
               return 0;
           }
       }
-#warning HEREHERE - check for colon
       else if (OFF (flags, RTP_FILE_O_CREAT)) /* not found and we aren't creating, so... */
       {
           return SMBU_MakeError (pCtx, SMB_EC_ERRDOS, SMB_ERRDOS_BADFILE);
@@ -2374,7 +2373,7 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
     pInBuf = PADD (pInBuf, size);
 
 
-#warning "HEREHERE  - missing this Function: NT QUERY SECURITY DESC (6)"
+    // We are missing this Function: NT QUERY SECURITY DESC (6) but doesn't seem to harm
 
     /* now write a dummy response so we know where the buffer will be and sub
         functions can write to the correct place.  We will do this again later */
@@ -2393,7 +2392,6 @@ BBOOL ProcTransaction (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pInHdr, PFVOID pInBuf
         (rtsmb_size)(SMB_BUFFER_SIZE - size), pOutHdr, &response);
     if (size == -1) return FALSE;
     buf = PADD (buf, size);
-#warning Notify is not implemented
     rval = TRUE;
     if (command.setup[0] == TRANS_TRANSACT_NOTIFY)
     {

@@ -784,7 +784,7 @@ void *start;
      }
      else if (pdce_header->packet_type == DCE_PACKET_REQUEST && pdce_header->opnum == DCE_PACKET_GETSHARE_INFO)
      {
-#warning  D C E _PACKET_GETSHARE_INFO is not implemented
+        // This is does not reply not a problem Windows and mac both seem fine without it.
         dword len;
         void *start;
         DCE_ENUM_REPLY_HEADER *p;

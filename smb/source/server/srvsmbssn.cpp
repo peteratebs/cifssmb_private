@@ -11,8 +11,6 @@
 /* Module description:                                                    */
 /* Handles most of the actual processing of packets for the RTSMB server. */
 
-#warning duplicate define
-#define CFG_RTSMB_MAX_SESSIONS              8
 
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 

@@ -10,8 +10,6 @@
 /*                                                                        */
 /* Module description:                                                    */
 
-#warning duplicate define
-#define CFG_RTSMB_MAX_SESSIONS              8
 
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
@@ -163,7 +161,6 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
 
 void srvsmboo_netssn_shutdown(void)
 {
- // #warning implement
 }
 
 

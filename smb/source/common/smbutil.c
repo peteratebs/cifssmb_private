@@ -1,5 +1,3 @@
-#warning  cli_util_client_encrypt_password_ntlmv2 is a stack hog
-
 //
 // SMBUTIL.C -
 //

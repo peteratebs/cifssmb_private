@@ -46,7 +46,6 @@
 // API for rtsmb send a notify queue request or cancelation to the OS.
 static int rtplatform_notify_request(smb2_stream  *pStream, rtplatform_notify_request_args *prequest);
 
-#warning duplicate define
 #define MAX_PENDING_NOTIFIES 256
 typedef struct notify_request_s {
 
@@ -60,7 +59,6 @@ typedef struct notify_request_s {
  RTSMB2_CHANGE_NOTIFY_C command;
 } notify_request_t;
 
-#define MAX_PENDING_NOTIFIES 256
 notify_request_t notify_requests[MAX_PENDING_NOTIFIES];
 int notify_requests_in_use;
 

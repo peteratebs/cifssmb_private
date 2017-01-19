@@ -18,9 +18,6 @@ const char * format_uid(uint8_t *fileid){ static char buffer[80];tc_sprintf(buff
 
 static int   oplocks_in_use;
 
-#warning duplicate define
-#define CFG_RTSMB_MAX_SESSIONS              8
-
 // Queue of unsolicited oplock breaks to send. Cleared before each packet is processessed and dequeued and sent after completion.
 static int   oplocks_break_sends_queued;
 

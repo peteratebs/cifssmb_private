@@ -469,7 +469,6 @@ struct mapUniquIdToFidObjectCB_t {
 // Scans all in use fid objects
 static int mapUniquIdToFidObjectCB(PFIDOBJECT pfidObject, void *pargs)
 {
-#warning hash this to speed up
     if (tc_memcmp(pfidObject->unique_fileid, ((struct mapUniquIdToFidObjectCB_t*)pargs)->unique_fileid, SMB_UNIQUE_FILEID_SIZE ) == 0)
     {
       ((struct mapUniquIdToFidObjectCB_t*)pargs)->pfidObject=pfidObject;
@@ -513,7 +512,10 @@ static void SMBU_FidobjectSetFileid(PFID pfid, byte *unique_fileid, PFRTCHAR nam
 PFIDOBJECT pfidObject;
 
     pfidObject = mapUniqueIdToFidObject(unique_fileid, name);
-#warning assert
+   if (!pfidObject)
+   {
+     srvsmboo_panic("mapUniqueIdToFidObject failed");
+   }
    if (pfidObject)
      pfid->_pfidobject = pfidObject;
 }
@@ -540,7 +542,6 @@ static int SMBU_Fid2SessionCB (PFID fid, PNET_SESSIONCTX pnCtx, PSMB_SESSIONCTX 
 PNET_SESSIONCTX SMBU_SmbSessionToNetSession(PSMB_SESSIONCTX pSmbCtx)
 {
   int i, j;
-#warning inefficient - need to fix
    i=0;
    for (i = 0; i < prtsmb_srv_ctx->max_sessions; i++)
      if (&prtsmb_srv_ctx->sessions[i].netsessiont_smbCtx == pSmbCtx)
@@ -656,7 +657,6 @@ int SMBU_SetInternalFid (PSMB_SESSIONCTX pCtx, int internal_fid, PFRTCHAR name, 
 	tree->fids[j] = &pCtx->fids[k];
 	// setup the fid values in master list
 	pCtx->fids[k].internal_fid = internal_fid;
-#warning FID allocatin scheme need fix for oplocks
 	pCtx->fids[k].external = k;
 	pCtx->fids[k].pid = pCtx->pid;
 	pCtx->fids[k].tid = pCtx->tid;

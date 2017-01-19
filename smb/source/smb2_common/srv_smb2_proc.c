@@ -393,7 +393,7 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
        }
        if (pOutHeader->CreditRequest_CreditResponse == 0)
        {
-#warning RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: Force credit response to 1:\n");
+#warning Force charge credit charge 1
          pOutHeader->CreditRequest_CreditResponse = 1;
        }
 
