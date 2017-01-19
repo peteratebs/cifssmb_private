@@ -20,7 +20,7 @@ typedef struct s_RTSMB2_FILEIOARGS_C
   PTREE pTree;
   int fid;
   word fidflags;
-  byte externalFidRaw[16];
+//  byte externalFidRaw[16];
   word externalFid;
 } RTSMB2_FILEIOARGS;
 

@@ -121,7 +121,8 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
         goto free_bail;
     }
 
-    fileid = (int) RTSmb2_get_externalFid(command.FileId);
+    byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+    fileid = (int) RTSmb2_get_externalFid(pFileId);
 
     if (isAnInvalidFSCTLRequest(command.CtlCode))
       error_status = SMB2_STATUS_INVALID_DEVICE_REQUEST;  // Return this to continue mounting

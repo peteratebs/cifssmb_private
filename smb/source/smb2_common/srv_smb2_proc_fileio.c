@@ -61,15 +61,13 @@ BBOOL Process_smb2_fileio_prolog(RTSMB2_FILEIOARGS *pargs, smb2_stream  *pStream
     }
 
     pargs->pTree = SMBU_GetTree (pStream->pSmbCtx, pStream->pSmbCtx->tid);
-    tc_memcpy(pargs->externalFidRaw,pcommand_structure_Fileid, 16);
-    pargs->externalFid = RTSmb2_get_externalFid(pargs->externalFidRaw);
-
-#warning Investigate this
+    byte * pFileId = RTSmb2_mapWildFileId(pStream, pcommand_structure_Fileid);
+    pargs->externalFid = RTSmb2_get_externalFid(pFileId);
     if (pargs->externalFid == 0xffff)
-    {
-      printf("Close, exfd == 0xffff why ?\n");
-      pargs->fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
-      pargs->fid = -1;
+    { // #warning Investigate this. Thisis probably from before the purpose of RTSmb2_mapWildFileId() was discovered
+        srvsmboo_panic("Close, exfd == 0xffff why ???");
+//      pargs->fidflags = FID_FLAG_DIRECTORY; // Fake this so it doesn't close
+//      pargs->fid = -1;
     }
     else
     {
