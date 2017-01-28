@@ -146,10 +146,15 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         }
     }
     finish=reject;
-#define USE_HALF_DONE_RECONNECT 0
-#if (USE_HALF_DONE_RECONNECT)
-    // This reconnects but looks only at the session ID. Check of UID is missing.
-#warning This reconnects but it looks only at the session ID. Need to implement check for matching UID.
+#define USE_HALF_DONE_SMB3_RECONNECT 0
+#if (USE_HALF_DONE_SMB3_RECONNECT)
+// This reconnects but looks only at the session ID. Check of UID is missing.
+// Page 268   SMB3 only, this is incomplete more or less just a reminder for now.
+// If Connection.Dialect belongs to the SMB 3.x dialect
+// If a session is found with Session.SessionId equal to PreviousSessionId,
+// the server MUST determine if the old session and the newly established session
+// are created by the same user by comparing the user identifiers obtained from the Session.
+// SecurityContext on the new and old session
     if (!finish && command.PreviousSessionId)
     {
         struct s_Smb2SrvModel_Session  *pCurrSession;   // For a server. points to the session

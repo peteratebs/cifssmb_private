@@ -771,7 +771,9 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
 		if (j < prtsmb_srv_ctx->max_fids_per_tree)	// if we found it...
 		{
             // Fixed a bug here was passing the wrong pointer type
-            close_pfid_notify_requests(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);
+            // Fixed another bug, only delete the underlying notify objects if the reference count is 1, soon to be zero
+            if (pCtx->fids[k]._pfidobject->reference_count == 1)
+              close_pfid_notify_requests(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);
             oplock_c_close(SMBU_SmbSessionToNetSession(pCtx), tree->fids[j]);          // Release from oplocks if fid owns an oplock
 			tree->fids[j] = (PFID)0;
 		}
@@ -790,7 +792,6 @@ void SMBU_ClearInternalFid (PSMB_SESSIONCTX pCtx, word external)
     tc_memset(&pCtx->fids[k], 0, sizeof(FID_T));
     pCtx->fids[k].internal_fid = -1;
 }
-
 
 // assumes valid uid/tid
 // if tid == -1, return a free tree

@@ -157,7 +157,8 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           PFID pfid = SMBU_GetInternalFidPtr (pStream->pSmbCtx, externalFid);
 
           // free a queue notify request this if fid owns one
-          close_fileid_notify_requests(pStream, SMBU_Fidobject(pfid)->unique_fileid);
+//          close_fileid_notify_requests(pStream, SMBU_Fidobject(pfid)->unique_fileid);
+          close_fileid_notify_requests(pStream, command.FileId);
 
           // free the oplock, if this fid owns it
           oplock_c_close(SMBU_SmbSessionToNetSession(pStream->pSmbCtx),pfid);

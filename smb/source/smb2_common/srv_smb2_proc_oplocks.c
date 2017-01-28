@@ -82,6 +82,8 @@
 #include "srvoplocks.h"
 #include "smbnet.h"
 
+// #define USE_DEEP_DIAGS 1
+
 extern BBOOL cancel_notify_request(smb2_stream  *pStream);
 
 // Still experimental for now
@@ -102,10 +104,12 @@ BBOOL Proc_smb2_Cancel(smb2_stream  *pStream)
  {
     // Queue matching pending notify replies to reply with canceled status to their original command
     // Oplock cancel needs to be supported similarly.
-    if (cancel_notify_request(pStream))
-    {
-      return TRUE;
-    }
+    cancel_notify_request(pStream);
+    // Process cancel, there is nothing to reponse, was a bug ?
+//    if (cancel_notify_request(pStream))
+//    {
+//      return TRUE;
+//    }
     // Cancel oplocks here probably
 
 //    pStream->InHdr.MessageId; // ddword
@@ -123,7 +127,6 @@ BBOOL Proc_smb2_OplockBreak(smb2_stream  *pStream)
  OPLOCK_DIAG_RECV_BREAK
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  recved...\n");
  if (!pStream->Success)
  {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  RtsmbStreamDecodeCommand failed...\n");
@@ -168,9 +171,9 @@ struct s_RTSMB2_HPLUS_OPLOCK_BREAK_C p;
 dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
 
    OPLOCK_DIAG_SEND_BREAK;
-
+#ifdef USE_DEEP_DIAGS
    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SendOplockBreak: top.\n");
-
+#endif
   tc_memset (&p, 0,sizeof(p));
 
   p.nbss_header_type = 0;
@@ -196,7 +199,7 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   p.command.Reserved = 0;
   p.command.Reserved2 = 0;
   tc_memcpy (p.command.FileId, unique_fileid ,SMB_UNIQUE_FILEID_SIZE);
-
+#ifdef USE_DEEP_DIAGS
   if (rtsmb_net_write (sock, &p,sizeof(p)) < 0)
   {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: SendOplockBreak to socket: %d rtsmb_net_write failed\n",sock);
@@ -205,6 +208,7 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
   {
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "YIELD: SendOplockBreak rtsmb_net_write succeeded \n");
   }
+#endif
  /* Read into command to pull it from the input queue */
  // RtsmbStreamEncodeAlert(psession, (PFVOID ) &command);
  return;
@@ -221,10 +225,14 @@ RTSMB2_FILEIOARGS fileioargs;
  tc_memset(&command,0, sizeof(command));
 
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
+#ifdef USE_DEEP_DIAGS
  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_OplockBreak:  recved...\n");
+#endif
  if (!pStream->Success)
  {
+#ifdef USE_DEEP_DIAGS
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  RtsmbStreamDecodeCommand failed...\n");
+#endif
      RtsmbWriteSrvStatus (pStream, SMB2_STATUS_INVALID_PARAMETER);
      return TRUE;
  }
@@ -239,7 +247,9 @@ RTSMB2_FILEIOARGS fileioargs;
     rtp_printf(" Offset: %ld Length: %ld\n", (dword) pLock->Offset, (dword)pLock->Length);
   }
 #endif
+#ifdef USE_DEEP_DIAGS
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_Lock:  fake success...\n");
+#endif
   response.StructureSize = 4;
   /* Success - see above if the client asked for stats */
   RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);

@@ -55,9 +55,6 @@ typedef struct rtplatform_notify_control_object_s {
 
 // API for the OS to queue up and send notifies
 void send_notify_request_from_alert(int wd, char *name, uint32_t mapped_masked);
-int find_notify_request_from_alert(int wd);
-
-
 
 #define SMB2_WATCH_TREE  0x0001
 // Completion filters values

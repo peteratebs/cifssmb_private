@@ -18,12 +18,15 @@
 
 // #include "tlpi_hdr.h"
 
+// #define USE_DEEP_DIAGS
+
 oplock_diagnotics_t oplock_diagnotics;
 
 extern volatile int go; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 
 static void displayInotifyEvent(struct inotify_event *i)
 {
+#ifdef USE_DEEP_DIAGS
     printf("    wd =%2d; ", i->wd);
     if (i->cookie > 0)
         printf("cookie =%4d; ", i->cookie);
@@ -49,6 +52,7 @@ static void displayInotifyEvent(struct inotify_event *i)
 
     if (i->len > 0)
         printf("        name = %s\n", i->name);
+#endif
 }
 
 // For each wd
@@ -68,9 +72,9 @@ static int inotifyFd;
 static int SendInotifyEventToRtsmb(struct inotify_event *event)
 {
 uint32_t mapped_masked = 0;
-    printf("    wd =%2d; ", event->wd);
-    //if (find_notify_request_from_alert(event->wd))
-    //  ;
+#ifdef USE_DEEP_DIAGS
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:SendInotifyEventToRtsmb top: wd:%d mask:%lu\n", event->wd, event->mask);
+#endif
     if (event->mask & IN_ATTRIB)
        mapped_masked |=  FILE_ACTION_MODIFIED           ;        // The file was modified. This may be a change to the data or attributes of the file.
     if (event->mask & IN_CLOSE_WRITE)
@@ -108,10 +112,15 @@ uint32_t mapped_masked = 0;
 
     if (mapped_masked)
     {
+#ifdef USE_DEEP_DIAGS
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:SendInotifyEventToRtsmb mask: %lu\n", mapped_masked);
+#endif
        send_notify_request_from_alert(event->wd,event->name, mapped_masked);
        return 1;
     }
+#ifdef USE_DEEP_DIAGS
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:SendInotifyEventToRtsmb skip: mask: %lu\n", event->mask);
+#endif
      // if (find_notify_request_from_alert(event->wd,event->name, mapped_masked))
     return 0;
 }
@@ -136,7 +145,9 @@ ssize_t numRead;
         if (numRead == -1)
             srvsmboo_panic("read");
 
-        printf("Read %ld bytes from inotify fd\n", (long) numRead);
+#ifdef USE_DEEP_DIAGS
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Read %ld bytes from inotify fd\n", (long) numRead);
+#endif
         /* Process all of the events in buffer returned by read() */
 //        for (p = buf; p < buf + numRead; ) {
 //            event = (struct inotify_event *) p;
@@ -160,15 +171,17 @@ void rtsmb_thread_iwatch (void *p)
 }
 
   /* For each command-line argument, add a watch for all events */
-
 #define IN_ALL_MY_EVENTS	(IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | \
 			 IN_MOVED_FROM | \
-			 IN_MOVED_TO | IN_DELETE | IN_CREATE | IN_DELETE_SELF)
+			 IN_MOVED_TO | IN_DELETE | IN_CREATE | IN_DELETE_SELF | IN_ONLYDIR | IN_ONESHOT)
 
-void linux_inotify_add_watch(const char *pathname, uint32_t mask)
+int linux_inotify_add_watch(const char *pathname, uint32_t mask)
 {
 uint32_t linux_mask;
-  if (mask)
+int wd = -1;
+#ifdef USE_DEEP_DIAGS
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:linux_inotify_add_watch path:%s mask:%lu\n", pathname, mask);
+#endif
   {
     linux_mask =
 //    IN_ONESHOT|
@@ -188,19 +201,21 @@ uint32_t linux_mask;
  //   IN_UNMOUNT|
 
     linux_mask = IN_ALL_MY_EVENTS;
-    int wd = inotify_add_watch(inotifyFd, pathname, linux_mask);
+    wd = inotify_add_watch(inotifyFd, pathname, linux_mask);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:linux_inotify_add_watch wd:%d mask:%lu\n", wd, linux_mask);
+
     if (wd == -1)
       srvsmboo_panic("inotify_add_watch");
   }
-  else
-  {
-    ;//      int inotify_rm_watch(int fd, int wd);
-  }
+  return wd;
 }
 
 
 void linux_inotify_cancel_watch(int wd)
 {
+#ifdef USE_DEEP_DIAGS
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:linux_inotify_cancel_watch %d\n", wd);
+#endif
   inotify_rm_watch(inotifyFd, wd);
 
 }

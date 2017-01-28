@@ -794,7 +794,8 @@ void SMBS_Setsession_state(PSMB_SESSIONCTX pSctxt, SMBS_SESSION_STATE new_sessio
    pSctxt->session_state = new_session_state;
 }
 
-#define SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME 0  // Set to 1 to split out async rplies from compund sends like Samba does. Tested and does not change behavior of notifies on windows.
+// Set to 1 to split out async rplies from compund sends like Samba does. Tested and does not change behavior of notifies on windows.
+#define SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME 1
 #if (SEND_ASYNCH_MESSAGE_IN_SEPARATE_FRAME)
 // Return the length of the next segment. Split segmments an async message is in a compound message and not first.
 static dword SMBS_GetMessageSegmentSize(byte *writeBuffer, dword size, int *more_coming)

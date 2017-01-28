@@ -54,9 +54,10 @@ typedef struct notify_request_s {
  uint64_t AsyncId;                                   // We have to remember the async id of our reply for when we send an unsoliceted notices
  int     notify_cancelled;                           // Set to 1 if we were canceled.
  rtplatform_notify_control_object notify_control;    // For queueing and sending outgoing notify alerts
- int  rtplatform_notify_request;
+ int  rtplatform_wd;
  rtplatform_notify_request_args args;
  RTSMB2_CHANGE_NOTIFY_C command;
+ uint32_t WhenRequested;                             // Notifes must be responded to on a first in first out basis.
 } notify_request_t;
 
 notify_request_t notify_requests[MAX_PENDING_NOTIFIES];
@@ -152,7 +153,7 @@ static int allocate_notify_request(void) {
   {  if (!notify_requests[i].in_use) { notify_requests[i].in_use=TRUE;notify_requests_in_use+=1;return i;}}
   return -1;
 }
-// Return the index of a usable request struture else -i
+// Free a notify request structure
 static void free_notify_request(int i) {
   if (notify_requests[i].in_use)
   {
@@ -171,20 +172,49 @@ static void free_notify_request(int i) {
 static void display_notify_requests(const char *prompt) {
 int checked = 0;
 int i;
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: inuse: %d   XXXX %s XXXX \n",  notify_requests_in_use, prompt);
+#ifdef USE_DEEP_DIAGS
+  if (notify_requests_in_use)
+  {
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: inuse: %d   XXXX %s XXXX \n",  notify_requests_in_use, prompt);
+  }
+#endif
   for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
   {
     if (notify_requests[i].in_use)
     {
       checked += 1;
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: index :%d  Async: %lu mssgmid: %lu wd:%d\n",  i,  (dword)notify_requests[i].AsyncId, (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_notify_request);
+#ifdef USE_DEEP_DIAGS
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: index :%d  Async: %lu mssgmid: %lu wd:%d\n",  i,  (dword)notify_requests[i].AsyncId, (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_wd);
+#endif
     }
   }
 }
 
-#if (USE_NON_ASYNC_REPLY!=0)
 // Return the index of a request structure with tid:inode portion of fileid
 static int find_notify_request_by_inode(uint16_t tid, uint8_t *file_id) {
+int checked = 0;
+int i;
+#ifdef USE_DEEP_DIAGS
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Search  by inode inuse: %d \n",  notify_requests_in_use);
+#endif
+  for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
+  {
+    if (notify_requests[i].in_use)
+    {
+      checked += 1;
+      if (notify_requests[i].args.tid == tid && tc_memcmp(notify_requests[i].command.FileId,file_id, 4)==0)
+      {
+#ifdef USE_DEEP_DIAGS
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Found by inode index :%d \n",  i);
+#endif
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+// Return the index of a request structure with tid:inode portion of fileid and >0 wd handle
+static int find_notify_watcher_by_inode(uint16_t tid, uint8_t *file_id) {
 int checked = 0;
 int i;
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Search  by inode inuse: %d \n",  notify_requests_in_use);
@@ -193,18 +223,22 @@ int i;
     if (notify_requests[i].in_use)
     {
       checked += 1;
-      if (notify_requests[i].args.tid == tid && tc_memcmp(notify_requests[i].command.FileId,file_id, 4)==0)
+      if (notify_requests[i].rtplatform_wd >= 0 &&
+          notify_requests[i].args.tid == tid && tc_memcmp(notify_requests[i].command.FileId,file_id, 4)==0)
       {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Found by inode index :%d \n",  i);
+#ifdef USE_DEEP_DIAGS
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: find_notify_watcher_by_inode found by inode index :%d \n",  i);
+#endif
         return i;
       }
     }
   }
   return -1;
 }
-#endif
-// Return the index of a request structure with tid:fileid
-static int find_notify_request(uint16_t tid, uint8_t *file_id) {
+
+
+// Return the index of a request structure with tid:fileid all 16 bytes
+static int find_notify_request_byfileid(uint16_t tid, uint8_t *file_id) {
 int checked = 0;
 int i;
   for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
@@ -228,11 +262,14 @@ static int _rtplatform_notify_request(smb2_stream  *pStream, rtplatform_notify_r
 {
 PFRTCHAR FileName = SMBU_UniqueIdToFileName(prequest->file_id);
 int wd = -1;
+#ifdef USE_DEEP_DIAGS
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: add_watch : mask:%X \n", mask);
   if (!(mask && FileName))
   {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: add_watch nothing to do: mask:%X FileName :%X\n", mask, FileName);
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Null filename is share root, bug to fix\n");
   }
+#endif
   if (mask && FileName)
   {
     rtsmb_char utemp[512];
@@ -257,10 +294,13 @@ int wd = _rtplatform_notify_request(pStream, prequest, mask);
 
 void linux_inotify_cancel_watch(int w);
 
-static void call_rtplatform_notify_cancel(int notify_index)
+static void call_rtplatform_notify_cancel(int notify_index, char *whence)
 {
 uint32_t mask = 0;
-   linux_inotify_cancel_watch(notify_requests[notify_index].rtplatform_notify_request);
+#ifdef USE_DEEP_DIAGS
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: call_rtplatform_notify_cancel [%s] cncels:%d\n",  whence,  notify_requests[notify_index].rtplatform_wd);
+#endif
+   linux_inotify_cancel_watch(notify_requests[notify_index].rtplatform_wd);
   //  _rtplatform_notify_request(pStream, prequest, mask);
 }
 
@@ -270,6 +310,7 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
   BBOOL closed = FALSE;
   int checked=0;
   int i;
+
 
   if (!prtsmb_srv_ctx->enable_notify) return FALSE;  // If notify disabled just ignore it we shouldn't respond anyway
 
@@ -284,14 +325,14 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
       checked += 1;
       int matched = 0;
 #ifdef USE_DEEP_DIAGS
-      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: outside :%d checked:%d inuse:%d Async: %lu mssgmid: %lu wd:%d asyncheader:%lu\n",  i,checked , notify_requests_in_use , (dword)notify_requests[i].AsyncId, (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_notify_request,(dword)((RTSMB2_ASYNC_HEADER *) &pStream->InHdr)->AsyncId);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: outside :%d checked:%d inuse:%d Async: %lu mssgmid: %lu wd:%d asyncheader:%lu\n",  i,checked , notify_requests_in_use , (dword)notify_requests[i].AsyncId, (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_wd,(dword)((RTSMB2_ASYNC_HEADER *) &pStream->InHdr)->AsyncId);
 #endif
       if (pStream->InHdr.Flags & 2)
       {
         mid = ((RTSMB2_ASYNC_HEADER *) &pStream->InHdr)->AsyncId;
         matched = (notify_requests[i].AsyncId == mid);
 #ifdef USE_DEEP_DIAGS
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: async cancel_notify_request for :%d mssgmid: %lu savedMesagemid: %lu wd:%d\n",  i,  mid,  (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_notify_request);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: async cancel_notify_request for :%d mssgmid: %lu savedMesagemid: %lu wd:%d\n",  i,  mid,  (dword)notify_requests[i].MessageId, notify_requests[i].rtplatform_wd);
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: async cancel_notify_request for :%d mssgmid: %lu savedAsyncmid: %lu \n",  i,  mid,  (dword)notify_requests[i].AsyncId);
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: async cancel_notify_request for :%d mssgmid: %lu savedArgAsyncmid: %lu \n",  i,  mid,  (dword)notify_requests[i].args.AsyncId);
 #endif
@@ -308,17 +349,19 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
       if (matched) { // pStream->InHdr.MessageId)  {
         notify_requests[i].notify_cancelled = 1;
         pCtx->netsessiont_smbCtx.queued_notify_sends += 1;
+#ifdef USE_DEEP_DIAGS
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: cancel_notify_request succeeded for :%d new:queued_notify_sends: %d\n", i, pCtx->netsessiont_smbCtx.queued_notify_sends);
-        closed = TRUE;
+#endif
+       closed = TRUE;
         break;
       }
     }
   }
+#ifdef USE_DEEP_DIAGS
   if (closed)
   {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: cancel_notify_request: notify_requests_in_use: %d \n", notify_requests_in_use);
   }
-#ifdef USE_DEEP_DIAGS
   display_notify_requests("cancel_notify_request bottom");
 #endif
   return closed;
@@ -330,21 +373,28 @@ BBOOL cancel_notify_request(smb2_stream  *pStream)
 void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid)
 {
   if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
-
+  int wd = -1;
   int closed = 0;
-  int notify_index = find_notify_request(pCtx->netsessiont_smbCtx.tid, SMBU_Fidobject(pfid)->unique_fileid);
-  if (notify_index >= 0)
+  // Close all requests for this inode but kill the OS request only once
+  int notify_index;
+  do
   {
-    call_rtplatform_notify_cancel(notify_index);
+    notify_index = find_notify_request_by_inode(pCtx->netsessiont_smbCtx.tid, SMBU_Fidobject(pfid)->unique_fileid);
+    if (notify_index >= 0)
     {
-    int i = notify_index;
+      if (closed==0) // We're closing all of them so cancel the shared wd on the first loop
+        call_rtplatform_notify_cancel(notify_index,"close_pfid_notify_requests");
 #ifdef USE_DEEP_DIAGS
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: close_pfid_notify_requests freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
+       {
+        int i = notify_index;
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: close_pfid_notify_requests freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
+        }
 #endif
+        free_notify_request(notify_index);
+       closed += 1;
     }
-    free_notify_request(notify_index);
-    closed += 1;
-  }
+  } while(notify_index >= 0);
+
 #ifdef USE_DEEP_DIAGS
   if (closed)
   {
@@ -353,6 +403,32 @@ void close_pfid_notify_requests(PNET_SESSIONCTX pCtx, PFID pfid)
 #endif
 }
 
+
+// Clear all duplicate wds
+static void close_session_notify_clear_duplicate_wds(int wd)
+{
+  int checked = 0;  int i;
+  for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++) {
+    if (notify_requests[i].in_use)  {
+      checked += 1;
+      if (notify_requests[i].rtplatform_wd == wd)
+        notify_requests[i].rtplatform_wd = -1;
+    }
+  }
+}
+// count matching wds
+static int  notify_count_duplicate_wds(int wd)
+{
+  int matches = 0;  int checked = 0;  int i;
+  for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++) {
+    if (notify_requests[i].in_use)  {
+      checked += 1;
+      if (notify_requests[i].rtplatform_wd == wd)
+       matches += 1;
+    }
+  }
+  return matches;
+}
 // Called when a session is closing, release all notify requests
 void close_session_notify_requests(PNET_SESSIONCTX pCtx)
 {
@@ -367,33 +443,44 @@ void close_session_notify_requests(PNET_SESSIONCTX pCtx)
   for (i=0; i < MAX_PENDING_NOTIFIES && checked < _notify_requests_in_use;i++) {
     if (notify_requests[i].in_use)  {
       checked += 1;
-      if (notify_requests[i].args.tid == pCtx->netsessiont_smbCtx.tid)  {
-        call_rtplatform_notify_cancel(i);
+      if (notify_requests[i].args.tid == pCtx->netsessiont_smbCtx.tid) {
+        if (notify_requests[i].rtplatform_wd>=0)  {
+          // Kill the watch and then clear duplicates
+          call_rtplatform_notify_cancel(i,"close_session_notify_requests");
+          close_session_notify_clear_duplicate_wds(notify_requests[i].rtplatform_wd);
+        }
+
 #ifdef USE_DEEP_DIAGS
     {
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: close_session_notify_requests freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
     }
 #endif
-
         free_notify_request(i);
         closed += 1;
       }
     }
   }
+#ifdef USE_DEEP_DIAGS
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: close_session_notify_requests: inuse:%d \n", notify_requests_in_use);
+#endif
 }
 
-// Called when file is closing, or canceled
+// Called when file is closing, or canceled the fileid is the 16 byte fileId of the file create instance
 void close_fileid_notify_requests(smb2_stream  *pStream, uint8_t *fileid)
 {
   if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
 
   int closed = 0;
   PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
-  int notify_index = find_notify_request(pStream->pSmbCtx->tid, fileid);
+  int notify_index = find_notify_request_byfileid(pStream->pSmbCtx->tid, fileid);
+
+
   if (notify_index >= 0)
-  {
-    call_rtplatform_notify_cancel(notify_index);
+  { // Cancel the watch if we are the last one on this directory
+    if (notify_requests[notify_index].rtplatform_wd>=0 && notify_count_duplicate_wds(notify_requests[notify_index].rtplatform_wd)==1)
+    {
+      call_rtplatform_notify_cancel(notify_index,"close_fileid_notify_requests");
+    }
 #ifdef USE_DEEP_DIAGS
     {
     int i = notify_index;
@@ -411,10 +498,6 @@ void close_fileid_notify_requests(smb2_stream  *pStream, uint8_t *fileid)
 #endif
 }
 
-extern ddword CurrentAsyncId;
-
-
-
 BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
 {
  rtplatform_notify_request_args args;
@@ -423,8 +506,8 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  int notify_index_found;
  int notify_index;
  uint16_t CurrentStatus = 0;        // 0 means, send a reply synchronously SMB_NT_STATUS_PENDING means send async
+ ddword IncomingMessagId;
  PNET_SESSIONCTX pCtx = SMBU_SmbSessionToNetSession(pStream->pSmbCtx);
-
 
  /* Read into command to pull it from the input queue */
  RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
@@ -441,30 +524,8 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
  // Map if neccessary
  byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
-#if (USE_NON_ASYNC_REPLY==0)
- // Force allocate of a new request every time and send and async reply
- notify_index_found = notify_index = -1;
-#else
- notify_index_found = notify_index = find_notify_request(pStream->pSmbCtx->tid, pFileId);
- if (notify_index_found < 0)
-   notify_index_found = notify_index = find_notify_request_by_inode(pStream->pSmbCtx->tid, pFileId);
-#endif
- if (notify_index_found >= 0)
- {
-  if (notify_requests[notify_index].notify_control.notify_reply_data_present)
-  {  // Need to send reply synchronousy
-    notify_requests[notify_index].notify_control.notify_reply_data_present = 0;
-    notify_requests[notify_index].notify_control.client_notify_request_is_pending = 0;
-    CurrentStatus = 0;
-  }
-  else
-  {  // Need to reply asynchronously
-    notify_requests[notify_index].notify_control.notify_reply_data_present = 0;
-    notify_requests[notify_index].notify_control.client_notify_request_is_pending = 1;
-    CurrentStatus = SMB_NT_STATUS_PENDING;
-  }
-  }
-  else
+  // Force allocate of a new request every time and send and async reply
+  notify_index_found = notify_index = -1;
   {   // No event already queued
     CurrentStatus = SMB_NT_STATUS_PENDING;
     notify_index = allocate_notify_request();
@@ -473,41 +534,54 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
     notify_requests[notify_index].args.notify_index       = notify_index;
     notify_requests[notify_index].args.smb_protocol       = 2;
     notify_requests[notify_index].args.tid                = pStream->pSmbCtx->tid;                          //
+    notify_requests[notify_index].WhenRequested           = rtp_get_system_msec();
     tc_memcpy(notify_requests[notify_index].args.file_id, pFileId, 16);
-    notify_requests[notify_index].args.SessionId         = pStream->InHdr.SessionId; // Save the SessionId for send;;
+    notify_requests[notify_index].args.SessionId          = pStream->InHdr.SessionId; // Save the SessionId for send;;
+    notify_requests[notify_index].rtplatform_wd           = -1;                       // It is allocated but is not attached to a wd
   }
   // Fall through for existing and new watches
   notify_requests[notify_index].args.max_notify_message_size = command.OutputBufferLength;           // Maximum payload size to embed in notify messages
   notify_requests[notify_index].args.completion_filter = command.CompletionFilter;                                               // 0 means clear or others below.
   notify_requests[notify_index].args.Flags             = command.Flags;
   notify_requests[notify_index].args.MessageId         = pStream->InHdr.MessageId; // Save the messageID for send;
-  notify_requests[notify_index].args.AsyncId           = CurrentAsyncId;           // Diagnostic , we are stomping it for some reason.
+  IncomingMessagId                                      = pStream->InHdr.MessageId; // Save the messageID for send;
+  notify_requests[notify_index].args.AsyncId           = IncomingMessagId;           // Diagnostic , we are stomping it for some reason.
   notify_requests[notify_index].MessageId = pStream->InHdr.MessageId; // Save the messageID in case we're asked need to cancel
   tc_memcpy(&notify_requests[notify_index].command, &command, sizeof(command));
 
   if (notify_index_found < 0)
-  { // Fire up a new watcher request if we need to
-    int wd = rtplatform_notify_request(pStream, &notify_requests[notify_index].args);
+  { // Fire up a new watcher request if we need to, first check if any watchers are registered for this inode
+    int index = find_notify_watcher_by_inode(pStream->pSmbCtx->tid, pFileId);
+    int wd=-1;
+    if (index >= 0)
+      wd = notify_requests[index].rtplatform_wd;
+    if (wd < 0)
+      wd = rtplatform_notify_request(pStream, &notify_requests[notify_index].args);
     if (wd < 0)
     {
+#ifdef USE_DEEP_DIAGS
       { int i = notify_index; RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:  rtplatform_notify_request failed:  freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId); }
+#endif
       display_notify_requests("Proc_smb2_ChangeNotify exit");
       free_notify_request(notify_index);
       return FALSE;
     }
-    notify_requests[notify_index].rtplatform_notify_request = wd;
+    notify_requests[notify_index].rtplatform_wd = wd;
+#ifdef USE_DEEP_DIAGS
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:  set [%d]wd to: %d\n",  notify_index, notify_requests[notify_index].rtplatform_wd );
+#endif
   }
 #ifdef USE_DEEP_DIAGS
  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify:XXX alloc notify. index: %d messageID:%lu location :%X  \n", notify_index,(dword) notify_requests[notify_index].args.MessageId, &notify_requests[notify_index]);
 #endif
 #ifdef USE_DEEP_DIAGS
- RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG:XXX Proc_smb2_ChangeNotify: set(%d) async id to: %lu\n",notify_index,CurrentAsyncId);
+ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG:XXX Proc_smb2_ChangeNotify: set(%d) async id to: %lu\n",notify_index,IncomingMessagId);
 #endif
  notify_requests[notify_index].AsyncId = 0; // Remember the async id for when we send an unsolicted notice
  pStream->OutHdr.Status_ChannelSequenceReserved =  CurrentStatus;  // Status pending or success
  if (CurrentStatus == SMB_NT_STATUS_PENDING)
  {
-   notify_requests[notify_index].AsyncId = CurrentAsyncId; // Remember the async id for when we send an unsolicted notice
+   notify_requests[notify_index].AsyncId = IncomingMessagId; // Remember the async id for when we send an unsolicted notice
    // Set the status to pending
    response.StructureSize = 9;
    response.OutputBufferOffset = 0;
@@ -516,9 +590,8 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
    // RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Proc_smb2_ChangeNotify: Size before async: %d\n",response.StructureSize);
    // Modify header to async
    RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
-   pAsyncOut->AsyncId = CurrentAsyncId;
+   pAsyncOut->AsyncId = IncomingMessagId;
    pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
-   CurrentAsyncId += 1;
  }
  else
  {
@@ -537,26 +610,38 @@ BBOOL Proc_smb2_ChangeNotify(smb2_stream  *pStream)
  return TRUE;
 }
 
-// Return the index of a request waiting for an alert on wd
-int find_notify_request_from_alert(int wd) {
+#if (0)
+// This code is not used but has logic to find the oldest alert pending for a WD withing a session.
+// This is incorrect because it doesn't send to all sessions.
+// We may or may not need this, so far sending messages to all queued notify requests is working.
+//
+//
+// Return the index of the oldest request waiting for an alert on wd
+static int find_notify_request_from_alert(int wd) {
  if (!prtsmb_srv_ctx->enable_notify) return -1;  // If notify disabled return
  int checked = 0;
  int i;
+ int request_found = -1;
+ uint32_t WhenRequested=0;
+
   for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
   {
     if (notify_requests[i].in_use)
     {
       checked += 1;
-      if (notify_requests[i].rtplatform_notify_request == wd)
+      if (notify_requests[i].rtplatform_wd == wd)
       {
-        return i;
+        if (request_found < 0 || WhenRequested > notify_requests[i].WhenRequested)
+        {
+          request_found = i;
+          WhenRequested  = notify_requests[i].WhenRequested;
+        }
       }
     }
   }
-  return -1;
+  return request_found;
 }
-
-void send_notify_request_from_alert(int wd,char *name, uint32_t mapped_alert)
+void send_notify_request_from_alert_works_for_one(int wd,char *name, uint32_t mapped_alert)
 {
  if (!prtsmb_srv_ctx->enable_notify) return;  // If notify disabled return
  int notify_index = find_notify_request_from_alert(wd);
@@ -578,6 +663,65 @@ void send_notify_request_from_alert(int wd,char *name, uint32_t mapped_alert)
    notify_message_append( &notify_requests[notify_index].notify_control,notify_index,mapped_alert, utf_string_size, utf_16_string);
  }
 }
+#endif
+
+
+// Return the index of the next request waiting for an alert on wd
+int find_next_notify_request_from_alert(int wd, int start_index) {
+ if (!prtsmb_srv_ctx->enable_notify) return -1;  // If notify disabled return
+ int checked = 0;
+ int i;
+ int request_found = -1;
+ uint32_t WhenRequested=0;
+
+  for (i=0; i < MAX_PENDING_NOTIFIES && checked < notify_requests_in_use;i++)
+  {
+    if (notify_requests[i].in_use)
+    {
+      checked += 1;
+      if (notify_requests[i].rtplatform_wd == wd)
+      {
+        if (start_index < i)
+        {
+          request_found = i;
+          break;
+        }
+      }
+    }
+  }
+  return request_found;
+}
+
+
+void send_notify_request_from_alert(int wd,char *name, uint32_t mapped_alert)
+{
+  int prev_index,notify_index;
+  prev_index = -1;
+  do
+  {
+    notify_index = find_next_notify_request_from_alert(wd,prev_index);
+    if (notify_index >= 0)
+    {
+      prev_index = notify_index;
+      size_t utf_string_size=0;
+      uint16_t utf_16_string[512];
+      utf_string_size = tc_strlen(name) * 2;
+      rtsmb_util_ascii_to_unicode (name, utf_16_string, CFG_RTSMB_USER_CODEPAGE);
+      #ifdef USE_DEEP_DIAGS
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_notify_request_from_alert: name:%s size:%d \n",name, utf_string_size);
+      #endif
+      prtsmb_srv_ctx->sessions[notify_requests[notify_index].args.session_index].netsessiont_smbCtx.queued_notify_sends += 1;
+      #ifdef USE_DEEP_DIAGS
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_notify_request_from_alert:XXX add notify index: %d messageID:%lu location :%X  \n", notify_index,(dword) notify_requests[notify_index].args.MessageId, &notify_requests[notify_index]);
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_notify_request_from_alert:XXX session_queued: %d \n", prtsmb_srv_ctx->sessions[notify_requests[notify_index].args.session_index].netsessiont_smbCtx.queued_notify_sends);
+      #endif
+      // Find the session and then call; notify_message_append()
+      notify_message_append( &notify_requests[notify_index].notify_control,notify_index,mapped_alert, utf_string_size, utf_16_string);
+    }
+  } while (notify_index >= 0);
+}
+
+
 
 static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtplatform_notify_request_args *pArgs, rtplatform_notify_control_object *phandle);
 
@@ -604,38 +748,32 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:send_session_notify_messages 
       if (notify_requests[i].in_use)
       {
         checked += 1;
-#ifdef USE_DEEP_DIAGS
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:2 send_session_notify_messages cancelled: %lu\n", notify_requests[i].notify_cancelled);
-#endif
-      if (notify_requests[i].args.session_index == session_index)
-      {
-        rtplatform_notify_control_object *phandle = &notify_requests[i].notify_control;
-        if (notify_requests[i].notify_cancelled || (phandle->message_buffer && (phandle->formatted_content_size||phandle->format_buffer_full)))
+        #ifdef USE_DEEP_DIAGS
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: T:2 send_session_notify_messages cancelled: %lu\n", notify_requests[i].notify_cancelled);
+        #endif
+        if (notify_requests[i].args.session_index == session_index)
         {
-           r = send_notify_message(pCtx, notify_requests[i].notify_cancelled, &notify_requests[i].args ,phandle);
-           notify_requests[i].notify_cancelled = 0;
-//         call_rtplatform_notify_cancel(i);
-#ifdef USE_DEEP_DIAGS
-    {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_session_notify_messages freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
-    }
-#endif
-#if (USE_NON_ASYNC_REPLY==0)
-// If we are not queueing between notify alerts so release it
-           call_rtplatform_notify_cancel(i);
-           free_notify_request(i);
-#endif
+          rtplatform_notify_control_object *phandle = &notify_requests[i].notify_control;
+          if (notify_requests[i].notify_cancelled || (phandle->message_buffer && (phandle->formatted_content_size||phandle->format_buffer_full)))
+          {
+             r = send_notify_message(pCtx, notify_requests[i].notify_cancelled, &notify_requests[i].args ,phandle);
+             notify_requests[i].notify_cancelled = 0;
+          #ifdef USE_DEEP_DIAGS
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_session_notify_messages freeing #:%d Asyncmssgmid: %lu syncmid: %lu \n",  i,  (dword)notify_requests[i].AsyncId,(dword)notify_requests[i].MessageId);
+          #endif
+           // If we are not queueing between notify alerts so release it
+            if (notify_requests[i].rtplatform_wd>=0 && notify_count_duplicate_wds(notify_requests[i].rtplatform_wd)==1)
+              call_rtplatform_notify_cancel(i,"send_notify_message");
+            free_notify_request(i);
+          }
         }
-      }
       }
     }
     pCtx->netsessiont_smbCtx.queued_notify_sends = 0;
   }
   // Not reporting send errors yet to shut session down, could be useful
-  if (r)
-    return 0;
-  else
-    return 0;
+  r=0;
+  return r;
 }
 
 // Append a notify alert to the rtplatform_notify_control_object that resides in the session content block
@@ -693,9 +831,7 @@ static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtpla
   p->header.NextCommand = 0;
   p->header.MessageId   = pArgs->MessageId;
 //  phandle->MessageId; //  notify_requests[notify_index].MessageId
-  p->header.AsyncId     = CurrentAsyncId;
-  CurrentAsyncId += 1;
-
+  p->header.AsyncId     = p->header.MessageId;
   p->header.SessionId   = pArgs->SessionId; // From  pStream->psmb2Session->SessionId;
 //  header.Signature[16] = {0};
 
@@ -710,11 +846,14 @@ static int send_notify_message(PNET_SESSIONCTX pCtx, int notify_cancelled, rtpla
   }
   else
     p->response.OutputBufferLength=phandle->formatted_content_size;
-
+#ifdef USE_DEEP_DIAGS
   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_notify_message: address:%X size:%d \n", phandle->message_buffer,messagesize);
+#endif
   if (rtsmb_net_write (pCtx->netsessiont_smbCtx.sock,(PFVOID) p,messagesize) < 0)
   {
+#ifdef USE_DEEP_DIAGS
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: send_notify_message to socket: %d rtsmb_net_write failed\n",pCtx->netsessiont_smbCtx.sock);
+#endif
      return -1;
   }
   else
