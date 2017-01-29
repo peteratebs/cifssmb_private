@@ -162,7 +162,6 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
 	PTREE pTree;
     RTSMB2_CREATE_DECODED_CREATE_CONTEXTS decoded_create_context;
     dword smb2flags = 0;
-    byte GrantedOplockLevel = 0;
     BBOOL reentering = FALSE;
     BBOOL signalled  = FALSE;
     BBOOL timedout  = FALSE;
@@ -457,7 +456,11 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
       wants_extra_pQfid_info = TRUE;
 
     response.StructureSize = 89;
-    response.OplockLevel = command.RequestedOplockLevel; // or = 0;
+    if (prtsmb_srv_ctx->enable_oplocks)
+      response.OplockLevel = command.RequestedOplockLevel; // or = 0;
+    else
+      response.OplockLevel = 0;
+
     response.Flags = 0; // SMB3 only
     response.CreateAction = CreateAction;
 
@@ -773,14 +776,12 @@ struct PACK_ATTRIBUTE s_RTSMB2_HPLUS_CREATE_R
 };
 PACK_PRAGMA_POP
 
-ddword CurrentAsyncId = 0x1000;
 
 static void FinishPendingCreate(smb2_stream  *pStream)
 {
 RTSMB2_ASYNC_HEADER *pAsyncOut =  (RTSMB2_ASYNC_HEADER *) &pStream->OutHdr;
-  pAsyncOut->AsyncId = CurrentAsyncId;
+  pAsyncOut->AsyncId = pStream->InHdr.MessageId;    // Reply with the original message ID;
   pAsyncOut->Flags = 3;                             // ASYNC|RESPONSE
-  CurrentAsyncId += 1;
 }
 
 static void SendPendingCreate(smb2_stream  *pStream, PNET_SESSIONCTX pNetctxt, RTSMB2_CREATE_C *pCreateCommand)
@@ -807,7 +808,7 @@ dword mysize = (dword) sizeof(p) - RTSMB_NBSS_HEADER_SIZE;
 //    ddword AsyncId;
 //    ddword SessionId;
   p.header.MessageId   = pStream->InHdr.MessageId;
-  p.header.AsyncId    =  CurrentAsyncId;
+  p.header.AsyncId    =  pStream->InHdr.MessageId; //CurrentAsyncId;
   p.header.SessionId   = pStream->InHdr.SessionId;
 //  header.Signature[16] = {0};
 
