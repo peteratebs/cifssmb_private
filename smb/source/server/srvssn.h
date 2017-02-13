@@ -140,6 +140,7 @@ typedef struct search_s
     rtsmb_char name[SMBF_FILENAMESIZE + 1]; // SMB2 may restart the search with the original pattern
     byte    FileId[16];                     // There's no sid instead use file id
     ddword pid64; /* pid this belongs to. */
+    dword  File_index;   // Sequential index number to be return in the next directory scan.
 #else
     ddword pid; /* pid this belongs to. */
 #endif

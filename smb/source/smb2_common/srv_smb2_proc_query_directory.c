@@ -47,15 +47,13 @@
 #define SMB2_REOPEN                     0x10
 
 
-static int glFile_index;   // Temporary patch for debugging, needs to be built into the GFIRST/GNEXT code
 
-
-static int SMB2_FILLFileDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
-static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
-static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
-static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer,  rtsmb_size bytes_remaining, SMBDSTAT *pstat);
-static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
-static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat);
+static int SMB2_FILLFileDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
+static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
+static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
+static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer,  rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
+static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
+static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index);
 
 const byte FileIdWildcard[16] = {0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff};
 
@@ -245,7 +243,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       if ((command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN)) )
       {   // Make sure to start over if we found an open directory on a rescan
           SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
-          glFile_index = 0;
+          user->searches[sid].File_index = 0;
           user->searches[sid].inUse=FALSE;
           searchFound=FALSE;
       }
@@ -267,8 +265,9 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
     				sid = i;
     		SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
-            glFile_index = 0;
+            user->searches[sid].File_index = 0;
     	}
+        user->searches[sid].File_index = 0;
 	}
 
 //	stat = &user->searches[sid].stat;
@@ -343,12 +342,12 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     if (searchFound==FALSE)
     {
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
-       glFile_index = 0;
+       user->searches[sid].File_index = 0;
     }
     else
     {
 	   isFound = SMBFIO_GNext (pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
-       glFile_index += 1;
+       user->searches[sid].File_index += 1;
     }
 
     if (!isFound)
@@ -360,22 +359,22 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         switch (command.FileInformationClass) {
         // FileInformationClass
            case FileDirectoryInformation        : // 0x01
-           bytes_consumed = SMB2_FILLFileDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
            case FileFullDirectoryInformation    : // 0x02
-           bytes_consumed = SMB2_FILLFileFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
            case FileIdFullDirectoryInformation  : // 0x26
-           bytes_consumed = SMB2_FILLFileIdFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileIdFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
            case FileBothDirectoryInformation    : // 0x03
-           bytes_consumed = SMB2_FILLFileBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
            case FileIdBothDirectoryInformation  : // 0x25
-           bytes_consumed = SMB2_FILLFileIdBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileIdBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
            case FileNamesInformation            : // 0x0C
-           bytes_consumed = SMB2_FILLFileNamesInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat);
+           bytes_consumed = SMB2_FILLFileNamesInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
            break;
         }
         if (byte_pointer)
@@ -403,7 +402,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
             {
                dword *prev_byte_pointer = byte_pointer;
                *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
-               glFile_index += 1;
+               user->searches[sid].File_index += 1;
                byte_pointer = PADD(byte_pointer, bytes_consumed);
                rtsmb_size SkipCount = ( ((bytes_consumed+7)/8) *8 ) - bytes_consumed;
                if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
@@ -464,7 +463,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 } // Proc_smb2_QueryDirectory
 
 
-static int SMB2_FILLFileDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+static int SMB2_FILLFileDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword file_index)
 {
     return 0;
 }
@@ -495,7 +494,7 @@ typedef struct
 
 } RTSMB2_FILE_FULL_DIRECTORY_INFO;
 PACK_PRAGMA_POP
-static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat)
+static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat, dword File_index)
 {
 	RTSMB2_FILE_FULL_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_FULL_DIRECTORY_INFO *) byte_pointer;
 	rtsmb_size filename_size = (rtsmb_size) rtsmb_len((const unsigned short *)stat->filename) * sizeof (rtsmb_char);
@@ -517,7 +516,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	pinfo->high_allocation_size = stat->fsize_hi;
 	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 	pinfo->filename_size = filename_size;
-	pinfo->file_index = glFile_index;
+	pinfo->file_index = File_index;
 	pinfo->ea_size = 0;
     return (int) sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO);
 }
@@ -532,7 +531,7 @@ typedef struct
 } RTSMB2_FILE_SHORT_DIRECTORY_INFO;
 PACK_PRAGMA_POP
 
-static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat)
+static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat, dword File_index)
 {
     RTSMB2_FILE_FULL_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_FULL_DIRECTORY_INFO *) byte_pointer;
     int base_size;
@@ -542,7 +541,7 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
        return 0;
 
     tc_memset(pinfo, 0, sizeof(*pinfo));
-    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat);
+    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat, File_index);
     if (base_size ==0)
         return 0;
     byte_pointer = PADD(byte_pointer,base_size);
@@ -552,7 +551,7 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
 
     return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + pinfo->filename_size);
 }
-static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat,dword File_index)
 {
     return 0;
 }
@@ -589,7 +588,7 @@ typedef struct
 } RTSMB2_FILE_BOTH_DIRECTORY_INFO;
 PACK_PRAGMA_POP
 
-static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat, dword File_index)
 {
     RTSMB2_FILE_BOTH_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_BOTH_DIRECTORY_INFO *) byte_pointer;
     int base_size;
@@ -599,7 +598,7 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size 
     if (sizeof(RTSMB2_FILE_BOTH_DIRECTORY_INFO)+filename_size > (rtsmb_size) bytes_remaining)
        return 0;
     tc_memset(pinfo, 0, sizeof(*pinfo));
-    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat);
+    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat, File_index);
     if (base_size ==0)
        return 0;
 	pinfo->Reserved            =  0;
@@ -618,7 +617,7 @@ static int SMB2_FILLFileBothDirectoryInformation(void *byte_pointer, rtsmb_size 
 }
 
 
-static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat,dword File_index)
 {
     FILE_ID_BOTH_DIR_INFORMATION *pinfo = (FILE_ID_BOTH_DIR_INFORMATION *) byte_pointer;
     int base_size;
@@ -627,7 +626,7 @@ static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_siz
     if (sizeof(FILE_ID_BOTH_DIR_INFORMATION)+filename_size > (rtsmb_size) bytes_remaining)
        return 0;
     tc_memset(pinfo, 0, sizeof(*pinfo));
-    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat);
+    base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, pstat, File_index);
     if (base_size ==0)
        return 0;
 	tc_memcpy(pinfo->ShortName, pstat->short_filename, sizeof(pinfo->ShortName));
@@ -640,7 +639,7 @@ static int SMB2_FILLFileIdBothDirectoryInformation(void *byte_pointer, rtsmb_siz
     tc_memcpy(&pinfo->FileId, pstat->unique_fileid, sizeof(pinfo->FileId));
     return (int) (sizeof(FILE_ID_BOTH_DIR_INFORMATION)-1 + filename_size);
 }
-static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat)
+static int SMB2_FILLFileNamesInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat,dword File_index)
 {
     return 0;
 }

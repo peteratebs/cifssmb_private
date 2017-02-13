@@ -482,6 +482,7 @@ void rtplatform_gdone(PSMBDSTAT dirobj)
     if (dirobj->rtp_dirobj != (void*)0)
     {
         rtp_file_gdone(dirobj->rtp_dirobj);
+        dirobj->rtp_dirobj=0;
     }
 }
 
