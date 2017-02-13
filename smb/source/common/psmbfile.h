@@ -5,7 +5,8 @@
 
 /* DO NOT CHANGE ANY CONSTANTS */
 
-#define SMBF_FILENAMESIZE  180
+// #define SMBF_FILENAMESIZE  180
+#define SMBF_FILENAMESIZE  255
 
 /************************************************************************
  * File System API abstraction layer constants                          *

@@ -202,7 +202,7 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Auth_AuthenticateUser_ntlmv2 is a stack hog\n");
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
-    if (user)
+    if (user && user->password)
     {
         cli_util_encrypt_password_ntlmv2 (user->password, pCtx->encryptionKey, ntlm_response_blob, ntlm_response_blob_length, name, domainname,(PFCHAR) output);
         if (tc_memcmp(ntlm_response_blob, output, 16) == 0)
@@ -225,7 +225,7 @@ word Auth_AuthenticateUser_lmv2 (PSMB_SESSIONCTX pCtx, PFBYTE clientNonce, PFBYT
 
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
-    if (user)
+    if (user && user->password)
     {
         cli_util_encrypt_password_lmv2((PFCHAR)user->password, (PFBYTE)pCtx->encryptionKey, (PFBYTE)clientNonce, (PFRTCHAR) name, (PFRTCHAR)domainname,(PFCHAR)output24);
         if (tc_memcmp(lm_response, output24, 24) == 0)
@@ -262,7 +262,6 @@ word Auth_AuthenticateUser (PSMB_SESSIONCTX pCtx, PFRTCHAR name, PFRTCHAR domain
     if (uid >= 0)
     {
         user = &prtsmb_srv_ctx->userList.users[uid];
-
         if (Auth_DoPasswordsMatch (pCtx, name, domainname, user->password,
                                 (PFBYTE) ansi_password, (PFBYTE) uni_password))
         {

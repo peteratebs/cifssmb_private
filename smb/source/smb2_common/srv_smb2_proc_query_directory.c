@@ -323,9 +323,14 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       else
         rtsmb_ncpy(user->searches[sid].name, (const unsigned short *)file_name, field_size );
     }
-    // Prepare to accumulate as much as the space we have left in the output.
-    bytes_remaining = pStream->write_buffer_remaining-(pStream->OutHdr.StructureSize + 8);
-
+#define MAX_RESPONSE_SIZE 768
+    bytes_remaining = pStream->OutBodySize > command.OutputBufferLength?0:command.OutputBufferLength-pStream->OutBodySize;
+    if (bytes_remaining <  MAX_RESPONSE_SIZE)
+    { // This is not right it shouldn't get here, see dimilar code below
+      pStream->compound_output_index =0; // this forces a send
+      pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
+      return TRUE;
+    }
     byte_pointer = rtp_malloc(bytes_remaining);
     pStream->WriteBufferParms[0].pBuffer    = byte_pointer;
     pStream->WriteBufferParms[0].byte_count = 0;
@@ -386,6 +391,12 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
             {
                 break;
             }
+            if (bytes_remaining <  MAX_RESPONSE_SIZE)
+            { // Out of space in the buffer respond and ask him to reply.
+              pStream->compound_output_index =0; // this forces a send
+              pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
+              break;
+            }
             // If not a single entry look for more matches
             isFound = SMBFIO_GNext(pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
             if (isFound)
@@ -420,7 +431,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
       if (response.OutputBufferLength)
         response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-      if (isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
+      if (pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS || isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
       { // We did get content but we also reached the end. clear the compound output flag so we send now. The client should ask again and we'll send , no more
         pStream->compound_output_index = 0;
       }
@@ -491,7 +502,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 
     if (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + filename_size > (rtsmb_size) bytes_remaining)
        return 0;
-
+    tc_memset(pinfo, 0, sizeof(*pinfo));
 	pinfo->low_last_access_time = stat->fatime64.low_time;
 	pinfo->high_last_access_time = stat->fatime64.high_time;
 	pinfo->low_creation_time = stat->fctime64.low_time;
@@ -531,7 +542,6 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
        return 0;
 
     tc_memset(pinfo, 0, sizeof(*pinfo));
-
     base_size=SMB2_FILLFileBaseDirectoryInformation(byte_pointer, bytes_remaining, stat);
     if (base_size ==0)
         return 0;

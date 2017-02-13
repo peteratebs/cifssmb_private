@@ -63,7 +63,6 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 extern int RtsmbWriteSrvStatus(smb2_stream *pStream, dword statusCode);
 extern pSmb2SrvModel_Global pSmb2SrvGlobal;
 
-#define SESSIONCTXSTATICS pSctx->SMB2_FrameState
 
 static void Smb1SrvCtxtToStream(smb2_stream * pStream, PSMB_SESSIONCTX pSctx);
 static void Smb1SrvCtxtFromStream(PSMB_SESSIONCTX pSctx,smb2_stream * pStream);
@@ -118,15 +117,15 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     {
       // Initialize the handling of a compound packet containing one or more SMB2 commands
       // This is the beginning of a compound packet containing one or more SMB2 commands
-      SESSIONCTXSTATICS.pInBufStart =
-      SESSIONCTXSTATICS.pOutBufStart = 0;
-      SESSIONCTXSTATICS.sign_packet = FALSE;
+      pSctx->SMB2_FrameState.pInBufStart =
+      pSctx->SMB2_FrameState.pOutBufStart = 0;
+      pSctx->SMB2_FrameState.sign_packet = FALSE;
     }
     // Whether replaying or not we do this
-    SESSIONCTXSTATICS.pPreviousNextOutCommand = 0;
-    SESSIONCTXSTATICS.isCompoundReply = FALSE;
-    SESSIONCTXSTATICS.NextCommandOffset = 0;
-    SESSIONCTXSTATICS.stackcontext_state = ST_INPROCESS;
+    pSctx->SMB2_FrameState.pPreviousNextOutCommand = 0;
+    pSctx->SMB2_FrameState.isCompoundReply = FALSE;
+    pSctx->SMB2_FrameState.NextCommandOffset = 0;
+    pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
 
     // If not replaying, clear the stream structure and set buffer pointers from the smbv1 style SMB_SESSIONCTX structure
     if (!replay)
@@ -135,14 +134,14 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     if (cmd_read_header_raw_smb2( pStream->read_origin, pStream->read_origin,  pStream->InBodySize, &(pStream->InHdr)) == -1)
     {
        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProccessCompoundFrame: Badly formed header");
-       SESSIONCTXSTATICS.stackcontext_state = ST_FALSE;
+       pSctx->SMB2_FrameState.stackcontext_state = ST_FALSE;
     }
     /**  Do a quick check here that the first command we receive is a negotiate.*/
     if (!pStream->psmb2Session)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "SMBS_ProccessCompoundFrame:  No Session structures available !!!!!.\n");
         RtsmbWriteSrvStatus(pStream,SMB2_STATUS_NETWORK_SESSION_EXPIRED);
-        SESSIONCTXSTATICS.stackcontext_state = ST_TRUE;
+        pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
     }
     else if (pStream->psmb2Session->Connection->NegotiateDialect == 0 && pStream->InHdr.Command != SMB2_NEGOTIATE)
     {
@@ -154,7 +153,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
        {
           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProccessCompoundFrame:  Bad first packet -- was not a NEGOTIATE.\n");
           RtsmbWriteSrvStatus(pStream,SMB2_STATUS_INVALID_PARAMETER);
-          SESSIONCTXSTATICS.stackcontext_state = ST_TRUE;
+          pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
        }
 	}
 
@@ -166,29 +165,29 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
     //  fall through to  ST_INPROCESS or  ST_TRUE/ST_FALSE is set
 
-    //if (SESSIONCTXSTATICS.stackcontext_state==ST_FALSE) ;
-    //else if (SESSIONCTXSTATICS.stackcontext_state==ST_TRUE) ;
+    //if (pSctx->SMB2_FrameState.stackcontext_state==ST_FALSE) ;
+    //else if (pSctx->SMB2_FrameState.stackcontext_state==ST_TRUE) ;
 
-    while (SESSIONCTXSTATICS.stackcontext_state==ST_INPROCESS)
+    while (pSctx->SMB2_FrameState.stackcontext_state==ST_INPROCESS)
     {
        SMBS_ProccessFrame(pSctx,doFirstPacket,replay);
        doFirstPacket = FALSE;
     }
 
-    if (SESSIONCTXSTATICS.stackcontext_state==ST_YIELD)
+    if (pSctx->SMB2_FrameState.stackcontext_state==ST_YIELD)
     { // We will return with the ctxt structure unmodified and the stream frozen at the start of this frame
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "SMBS_ProccessCompoundFrame: YIELDED:: r=:%d", r);
       // Test here by replaying
     }
     // Not using else if because test conditiojn falls through
-    if (SESSIONCTXSTATICS.stackcontext_state==ST_FALSE)
+    if (pSctx->SMB2_FrameState.stackcontext_state==ST_FALSE)
     {  ; /* We're going to shut down so no need to sync the stream and smb context */}
-    if (SESSIONCTXSTATICS.stackcontext_state==ST_TRUE)
+    if (pSctx->SMB2_FrameState.stackcontext_state==ST_TRUE)
     {
       // we will reply now so restore pSctx->outBodySize. pSctx->doSocketClose and pSctx->doSessionClose from stream
       Smb1SrvCtxtFromStream(pSctx, &pSctx->SMB2_FrameState.smb2stream);
     }
-    return SESSIONCTXSTATICS.stackcontext_state;
+    return pSctx->SMB2_FrameState.stackcontext_state;
 }
 
 
@@ -263,17 +262,17 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
       StreamCopy.doFirstPacket = doFirstPacket;
     }
     // Save the context for continuing or starting processing of a new SMB2 frame or subframe
-    SESSIONCTXSTATICS.sign_packet = FALSE;
-    SESSIONCTXSTATICS.NextCommandOffset = 0;
-    SESSIONCTXSTATICS.pInBufStart = pStream->pInBuf;
-    SESSIONCTXSTATICS.pOutBufStart = pStream->pOutBuf;
+    pSctx->SMB2_FrameState.sign_packet = FALSE;
+    pSctx->SMB2_FrameState.NextCommandOffset = 0;
+    pSctx->SMB2_FrameState.pInBufStart = pStream->pInBuf;
+    pSctx->SMB2_FrameState.pOutBufStart = pStream->pOutBuf;
 
     // If we are beginning a new command Read the header into smb2stream.inHdr
     if (pStream->compound_output_index == 0)
     {
         if (cmd_read_header_smb2(pStream) != 64)
         { // Failed reading the header quite sure why returning TRUE here, if there's anything to send, from previous calls, then send
-          SESSIONCTXSTATICS.stackcontext_state = ST_TRUE;
+          pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
           return;
         }
     }
@@ -283,19 +282,21 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     //       smb2stream.OutHdr.Flags &= ~SMB2_FLAGS_SIGNED; // XXX - disable signing in header here
     pStream->OutHdr.NextCommand = 0;
     // Check if it's a compound field
-     SESSIONCTXSTATICS.isCompoundReply = FALSE;     // Process this packet and then drop out of the do loop.
+     pSctx->SMB2_FrameState.isCompoundReply = FALSE;     // Process this packet and then drop out of the do loop.
      if (doFirstPacket)
      {  // Running from the top, see if the command requires muultiple replies.
-        SESSIONCTXSTATICS.NextCommandOffset = 0;
+        pSctx->SMB2_FrameState.isCompoundReply = FALSE;    // This was missing, is it needed ?
+        pSctx->SMB2_FrameState.NextCommandOffset = 0;
      }
      else if (pStream->compound_output_index!=0)
      {  // We are continuing output of a command
-       SESSIONCTXSTATICS.isCompoundReply = TRUE;
-       SESSIONCTXSTATICS.NextCommandOffset = 0;
+       pSctx->SMB2_FrameState.isCompoundReply = TRUE;
+       pSctx->SMB2_FrameState.NextCommandOffset = 0;
      }
      else
      { //
-        SESSIONCTXSTATICS.NextCommandOffset = pStream->InHdr.NextCommand;
+        pSctx->SMB2_FrameState.isCompoundReply = FALSE;    // This was missing, is it needed ?
+        pSctx->SMB2_FrameState.NextCommandOffset = pStream->InHdr.NextCommand;
      }
 
     //=====================================
@@ -305,16 +306,22 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
     BBOOL SendCommandResponse = SMBS_ProccessPacket (pStream,replay);
 
+    // Is this enough to force it to send
+    if (!pStream->compound_output_index && pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS)
+    {  // Is this enough to force it to send
+       pSctx->SMB2_FrameState.isCompoundReply = FALSE;
+    }
+
     // If the command process requested a yield.
     // rewind the stream to where we strted this frame return with (pSctx) == ST_YIELD; to start the yield
     if (pStream->doSessionYield && pStream->InHdr.Command == SMB2_CREATE)
     {
        *pStream = StreamCopy;
        pStream->doSessionYield = TRUE;
-       SESSIONCTXSTATICS.stackcontext_state = ST_YIELD;
+       pSctx->SMB2_FrameState.stackcontext_state = ST_YIELD;
        return;
     }
-    dword *pPreviousNextOutCommand = SESSIONCTXSTATICS.pPreviousNextOutCommand;
+    dword *pPreviousNextOutCommand = pSctx->SMB2_FrameState.pPreviousNextOutCommand;
     // Must be a compound input to a command that does not respond, we'll null it out so the frame isn't bad
     if (!SendCommandResponse && pPreviousNextOutCommand)
     {
@@ -322,7 +329,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     }
     // See if there are more input commands to process if the packet doesn't require compound_output_index
     if (!pStream->compound_output_index)
-      SESSIONCTXSTATICS.NextCommandOffset = pStream->InHdr.NextCommand;
+      pSctx->SMB2_FrameState.NextCommandOffset = pStream->InHdr.NextCommand;
 
     // Set out process id to input process id \n");
     //  calculate pOutHeader->CreditRequest_CreditResponse values
@@ -330,15 +337,15 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     // Advance the buffer pointers to 8 byte boundaries if this is a compound request or response
     // Sign the packet
     SMBS_ProcSMB2_BodyPhaseTwo (pSctx,pStream);
-    if (SESSIONCTXSTATICS.isCompoundReply)
-      SESSIONCTXSTATICS.stackcontext_state = ST_INPROCESS;
+    if (pSctx->SMB2_FrameState.isCompoundReply)
+      pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
     else
-      SESSIONCTXSTATICS.stackcontext_state = ST_TRUE;
+      pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
 }
 
 static void SMBS_ProcSMB2_BodyPhaseTwo (PSMB_SESSIONCTX pSctx,smb2_stream *pStream)
 {
-PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
+PFVOID  pOutBufStart = pSctx->SMB2_FrameState.pOutBufStart;
        PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
        // Set out process id to input process id if the packet is not asynchronous
        if ((pOutHeader->Flags & SMB2_FLAGS_ASYNC_COMMAND)==0)
@@ -347,10 +354,10 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
 
 
        // Remember the next command adddress in the buffer in case we have to fix it up
-       SESSIONCTXSTATICS.pPreviousNextOutCommand     =  &pOutHeader->NextCommand;// Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
+       pSctx->SMB2_FrameState.pPreviousNextOutCommand     =  &pOutHeader->NextCommand;// Remember it. If we have a compound input to a command that does not respond, then we'll null it out so the frame isn't bad.
 
        //  Calculate pOutHeader->CreditRequest_CreditResponse values if this is the only or final packet in a compound response
-       if (SESSIONCTXSTATICS.NextCommandOffset == 0)
+       if (pSctx->SMB2_FrameState.NextCommandOffset == 0)
        {
           // Negotiate requires 1 Credit
           // Otherwise give 1 credit if the client request > 0
@@ -363,7 +370,7 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
             pOutHeader->CreditRequest_CreditResponse = pStream->InHdr.CreditRequest_CreditResponse;
        }
        // Advance the buffer pointers to 8 byte boundaries if this is a compound request or response
-       if (pStream->compound_output_index!=0 || SESSIONCTXSTATICS.NextCommandOffset != 0)
+       if (pStream->compound_output_index!=0 || pSctx->SMB2_FrameState.NextCommandOffset != 0)
        {
           unsigned int SkipCount = 0;
           // First advance the input request
@@ -371,24 +378,24 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
             SkipCount = 0;
           else
           {
-            unsigned int consumed = (unsigned int) PDIFF (pStream->pInBuf, SESSIONCTXSTATICS.pInBufStart);
-            if (SESSIONCTXSTATICS.NextCommandOffset > consumed)
-              SkipCount = SESSIONCTXSTATICS.NextCommandOffset - consumed;
+            unsigned int consumed = (unsigned int) PDIFF (pStream->pInBuf, pSctx->SMB2_FrameState.pInBufStart);
+            if (pSctx->SMB2_FrameState.NextCommandOffset > consumed)
+              SkipCount = pSctx->SMB2_FrameState.NextCommandOffset - consumed;
           }
           if (SkipCount > pStream->read_buffer_remaining)
           {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"SMBS_ProcSMB2_Body: Bad Compound request:\n");
-              SESSIONCTXSTATICS.isCompoundReply = FALSE;
+              pSctx->SMB2_FrameState.isCompoundReply = FALSE;
           }
           else
           {
              pOutHeader->CreditRequest_CreditResponse = 0;
              pStream->pInBuf+=SkipCount;
              pStream->read_buffer_remaining-=SkipCount;
-             SESSIONCTXSTATICS.isCompoundReply = TRUE;
+             pSctx->SMB2_FrameState.isCompoundReply = TRUE;
              // Now see if we have to pad the output to get to an 8 byte boundary
              if (!SMBS_Frame_Compound_Output(pStream, pOutBufStart))
-               SESSIONCTXSTATICS.isCompoundReply = FALSE;
+               pSctx->SMB2_FrameState.isCompoundReply = FALSE;
           }
        }
        if (pOutHeader->CreditRequest_CreditResponse == 0)
@@ -410,20 +417,20 @@ PFVOID  pOutBufStart = SESSIONCTXSTATICS.pOutBufStart;
         tc_memset(pOutHdr->Signature, 0, 16);
 
 #if (HARDWIRED_DISABLE_SIGNING)
-       SESSIONCTXSTATICS.sign_packet = FALSE;
+       pSctx->SMB2_FrameState.sign_packet = FALSE;
 #else
        // Always sign if signing is required.
        if (pStream->psmb2Session->SigningRequired)
-         SESSIONCTXSTATICS.sign_packet = TRUE;
+         pSctx->SMB2_FrameState.sign_packet = TRUE;
        // Sign outgoing if incoming was signed basically
        if (pStream->InHdr.Flags&SMB2_FLAGS_SIGNED && pStream->psmb2Session && pStream->psmb2Session->Connection->Dialect != SMB2_DIALECT_2002)
-         SESSIONCTXSTATICS.sign_packet = TRUE;
+         pSctx->SMB2_FrameState.sign_packet = TRUE;
        if (pStream->InHdr.Command == SMB2_SESSION_SETUP && pStream->OutHdr.Status_ChannelSequenceReserved != SMB2_STATUS_MORE_PROCESSING_REQUIRED)
        {
-         SESSIONCTXSTATICS.sign_packet = TRUE;
+         pSctx->SMB2_FrameState.sign_packet = TRUE;
        }
 #endif
-       if (SESSIONCTXSTATICS.sign_packet)
+       if (pSctx->SMB2_FrameState.sign_packet)
        { // sign if dialact == 2100 and session id != 0
             if (pStream->psmb2Session->SessionId != 0)
             {
