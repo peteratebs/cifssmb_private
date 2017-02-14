@@ -80,13 +80,25 @@ int rtp_file_gfirst_smb(void ** dirobj, char * name)
 FSOBJ* linDirObj;
 int result;
 int hung_up = 512;
-
+char escaped_name[SMB_MAX_NAME_SIZE*2];
     *dirobj = (void*) 0;
 
     // Try a little precaution, make sure the string is <=512 bytes and null termintate.
     if (strnlen(name, SMB_MAX_NAME_SIZE) == SMB_MAX_NAME_SIZE)
       return -1;
-
+    int i,j;
+    j=0;
+    escaped_name[0]= 0;
+    for (i = 0; i < SMB_MAX_NAME_SIZE; i++)
+    {
+        if (name[i] == 0)
+          break;
+        if (name[i] == '[')
+           escaped_name[j++]= '\\';
+        escaped_name[j++]= name[i];
+        escaped_name[j]= 0;
+    }
+    name = escaped_name;
     linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
     memset(linDirObj, 0, sizeof(FSOBJ));
 
