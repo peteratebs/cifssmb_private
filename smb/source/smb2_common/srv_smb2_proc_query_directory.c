@@ -90,6 +90,7 @@ typedef struct s_FILE_DIRECTORY_INFORMATION
     FILE_DIRECTORY_INFORMATION_BASE directory_information_base;
 	byte  FileName[1];
 } PACK_ATTRIBUTE FILE_DIRECTORY_INFORMATION;
+
 PACK_PRAGMA_POP
 
 PACK_PRAGMA_ONE
@@ -260,6 +261,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     	{
     		word i;
     		sid = 0;
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: recycling a search because none free\n");
     		// find oldest search, kill it.
     		for (i = 1; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
@@ -323,7 +325,8 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         rtsmb_ncpy(user->searches[sid].name, (const unsigned short *)file_name, field_size );
     }
 #define MAX_RESPONSE_SIZE 768
-    bytes_remaining = pStream->OutBodySize > command.OutputBufferLength?0:command.OutputBufferLength-pStream->OutBodySize;
+    dword OutputBufferLength = command.OutputBufferLength;
+    bytes_remaining = pStream->OutBodySize > OutputBufferLength?0:OutputBufferLength-pStream->OutBodySize;
     if (bytes_remaining <  MAX_RESPONSE_SIZE)
     { // This is not right it shouldn't get here, see dimilar code below
       pStream->compound_output_index =0; // this forces a send
@@ -354,27 +357,28 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
       isEof=TRUE;
     while (isFound)
     {
+        SMBDSTAT *pstat = &user->searches[sid].stat;
         numFound += 1;
         rtsmb_size bytes_consumed = 0;
         switch (command.FileInformationClass) {
         // FileInformationClass
            case FileDirectoryInformation        : // 0x01
-           bytes_consumed = SMB2_FILLFileDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileDirectoryInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
            case FileFullDirectoryInformation    : // 0x02
-           bytes_consumed = SMB2_FILLFileFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileFullDirectoryInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
            case FileIdFullDirectoryInformation  : // 0x26
-           bytes_consumed = SMB2_FILLFileIdFullDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileIdFullDirectoryInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
            case FileBothDirectoryInformation    : // 0x03
-           bytes_consumed = SMB2_FILLFileBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileBothDirectoryInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
            case FileIdBothDirectoryInformation  : // 0x25
-           bytes_consumed = SMB2_FILLFileIdBothDirectoryInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileIdBothDirectoryInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
            case FileNamesInformation            : // 0x0C
-           bytes_consumed = SMB2_FILLFileNamesInformation(byte_pointer, bytes_remaining, &user->searches[sid].stat,user->searches[sid].File_index);
+           bytes_consumed = SMB2_FILLFileNamesInformation(byte_pointer, bytes_remaining, pstat,user->searches[sid].File_index);
            break;
         }
         if (byte_pointer)
@@ -427,7 +431,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     if (numFound)
     {
       response.StructureSize = 9; // 9
-      response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
+      response.OutputBufferLength = pStream->WriteBufferParms[0].byte_count;
       if (response.OutputBufferLength)
         response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
       if (pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS || isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
@@ -452,6 +456,8 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     { // Send back an error status if this is the first reply in the reply chain
       // - Pack a header and response packet set status in header to STATUS_NO_MORE_FILES (0x80000006)
       // - Send NO_SUCH_FILE if this is was the initial query
+      SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
+      user->searches[sid].inUse = FALSE;
       dword rstatus = SMB2_STATUS_NO_MORE_FILES;
       if (searchFound==FALSE)
        rstatus= SMB2_STATUS_NO_SUCH_FILE;
@@ -516,7 +522,7 @@ static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size 
 	pinfo->high_allocation_size = stat->fsize_hi;
 	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
 	pinfo->filename_size = filename_size;
-	pinfo->file_index = File_index;
+    pinfo->file_index = File_index;
 	pinfo->ea_size = 0;
     return (int) sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO);
 }
