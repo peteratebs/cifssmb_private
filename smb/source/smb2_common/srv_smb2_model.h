@@ -148,6 +148,14 @@ typedef struct s_Smb2SrvModel_Global {
 
 
 
+typedef struct s_Smb2_oosequence
+{
+    ddword startingMessageId;/* SMB2 */
+    dword  buffered_frame_size;
+    void   *buffered_frame;
+} Smb2_oosequence;
+
+
 /* 3.3.1.7 Per Transport Connection ......................................................................... 225 */
 typedef struct s_Smb2SrvModel_Connection
 {

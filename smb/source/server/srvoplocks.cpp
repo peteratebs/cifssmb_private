@@ -120,9 +120,9 @@ oplock_t *pOplock = find_oplock_structure(unique_fileid);
 
 void oplock_c_create(struct net_sessionctxt *current_session, PFID pfid,unique_userid_t unique_userid, uint8_t requested_lock_level)
 {
-  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: oplock_c_create \n");
   if (!prtsmb_srv_ctx->enable_oplocks)
     return;
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: oplock_c_create \n");
 PFIDOBJECT pFidObject = SMBU_Fidobject(pfid);
 oplock_t *pOplock = find_oplock_structure(pFidObject->unique_fileid);
 bool send_breaks = FALSE;

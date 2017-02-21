@@ -491,7 +491,7 @@ BBOOL rtplatform_stat(char RTSMB_FAR * name, PSMBFSTAT vstat)
 {
 void * rtp_dirobj;
 
-    if (rtp_file_gfirst(&rtp_dirobj, name) < 0)
+    if (rtp_file_gfirst_smb(&rtp_dirobj, name) < 0)
     {
         rtp_dirobj = (void *)0;
         return FALSE;

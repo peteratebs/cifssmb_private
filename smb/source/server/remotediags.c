@@ -11,6 +11,7 @@
 #include "srvutil.h"
 #include "rtpmem.h"
 #include <unistd.h>
+#include <time.h>
 
 oplock_diagnotics_t oplock_diagnotics;
 
@@ -348,6 +349,7 @@ static void SendDiagMessage(void)
 }
 static int DiagMessageFilter(char *str)
 {
+
   if (tc_memcmp(str, "DIAG:",5) == 0)
   {
    int l;
@@ -359,7 +361,19 @@ static int DiagMessageFilter(char *str)
       tc_strcpy(&queuedmessageBuffer[queuedmessagelength], str);
       queuedmessagelength += l;
     }
-    printf("%s", str);
+    {
+      char timebuff[255];
+      time_t now;
+       struct tm *tm;
+
+       now = time(0);
+       if ((tm = gmtime (&now))) {
+        tc_sprintf (timebuff,"%04d-%02d-%02d %02d:%02d:%02d : SMB",
+        tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
+        tm->tm_hour, tm->tm_min, tm->tm_sec);
+       }
+       printf("%s: %s", timebuff, str);
+    }
     return 1;
   }
   else

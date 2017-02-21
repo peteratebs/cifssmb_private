@@ -53,6 +53,11 @@
 #define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE                (32768*16)      // 512 K for now
 
 
+// #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*2)       // Advertize this as maximum transaction size
+// #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*4)       // Advertize this as maximum transaction size
+// #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*8)       // Advertize this as maximum transaction size
+// #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*10)       // Advertize this as maximum transaction size
+// #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*12)       // Advertize this as maximum transaction size
 #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*2)       // Advertize this as maximum transaction size
 #define HARDWIRED_SMB1_MAX_TRANSACTION_SIZE                0xffff     //   HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE Advertize this as maximum transaction size
 #define HARDWIRE_USE_CONFIG_FILE                           1  // 1 to read user and share info from "smb_config.txt" in the launch directory.
@@ -65,6 +70,8 @@
                                                               // If this feature is enabled the makefile should be edited to exclude the /servernb and /commonnb directories
 #endif
 
+
+#define HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION             64
 // Passed with the extended security client challenge. Target configuration strings.
 // These are used and passed with the extended security client challenge. Target configuration strings, should be put into the config file.
 #define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"

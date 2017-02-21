@@ -27,6 +27,7 @@
 #include "rtpwcs.h"
 #include "smbdebug.h"
 #include "rtpscnv.h"
+#include "rtpmem.h"
 
 
 #include "srvtran2.h"
@@ -157,6 +158,30 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
        }
 	}
 
+    if (pStream->InHdr.MessageId != pSctx->expectedMessageId &&  pStream->InHdr.Command != SMB2_CANCEL)
+//      &&  pStream->InHdr.Command != SMB2_NEGOTIATE &&
+//        pStream->InHdr.Command != SMB2_ECHO)
+#if (HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION > 0)
+    { int i;
+      for (i = 0; i < HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION; i++)
+      {
+        if (!pSctx->Smb2ooMessages[i].buffered_frame_size)
+        {
+          pSctx->Smb2ooMessages[i].buffered_frame_size = pSctx->in_packet_size;
+          pSctx->Smb2ooMessages[i].startingMessageId   = pStream->InHdr.MessageId;/* SMB2 */
+          pSctx->Smb2ooMessages[i].buffered_frame = rtp_malloc(pSctx->in_packet_size);
+          tc_memcpy(
+            pSctx->Smb2ooMessages[i].buffered_frame,
+            pStream->read_origin,
+            pSctx->in_packet_size);
+          pSctx->num_Smb2ooMessages += 1;
+          pSctx->SMB2_FrameState.stackcontext_state = ST_FALSE;
+          return pSctx->SMB2_FrameState.stackcontext_state;
+        }
+      }
+    }
+#endif
+
     // Fill in by create so we can replace 0xffffff with the last created FD.
     // Cleared before processing a packet (compound request)
     tc_memset(pStream->LastFileId,0, sizeof( pStream->LastFileId));
@@ -275,6 +300,19 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
           pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
           return;
         }
+        if (pStream->InHdr.Command != SMB2_CANCEL)
+        {
+          pSctx->expectedMessageId   = pStream->InHdr.MessageId + 1;
+          if (pStream->InHdr.CreditCharge)
+            pSctx->expectedMessageId +=  (pStream->InHdr.CreditCharge-1);
+        }
+#if (0)
+        if (pSctx->expectedMessageId != pStream->InHdr.MessageId)
+        {
+          pSctx->SMB2_FrameState.stackcontext_state = ST_FALSE;
+          return;
+        }
+#endif
     }
     pStream->pSmbCtx->tid = (word)pStream->InHdr.TreeId;
     // Set up outgoing header.

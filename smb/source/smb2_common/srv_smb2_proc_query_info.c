@@ -482,7 +482,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
       return TRUE;
     }
     response.StructureSize = 9; // 9
-    response.OutputBufferLength = (word) pStream->WriteBufferParms[0].byte_count;
+    response.OutputBufferLength = pStream->WriteBufferParms[0].byte_count;
     if (response.OutputBufferLength)
     {
       word w  = (word) dwordalign((pStream->OutHdr.StructureSize + response.StructureSize-1), 8);

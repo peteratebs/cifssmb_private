@@ -118,11 +118,43 @@ static BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx)    // Called 
         }
         else
         {
-          if (!SMBS_ProcSMBPacket (pSCtx, header.size, FALSE, FALSE))   //rtsmb_srv_nbss_process_packet stubs ?
+          BBOOL execute_oo = FALSE;
+          do
           {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
-            isDead = TRUE;
-          }
+            execute_oo = FALSE;
+            if (!SMBS_ProcSMBPacket (pSCtx, header.size, FALSE, FALSE))   //rtsmb_srv_nbss_process_packet stubs ?
+            {
+              RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"DIAG: rtsmb_srv_nbss_process_packet returned SMBS_ProcSMBPacket failure\n");
+              isDead = TRUE;
+            }
+            else
+            {
+#if (HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION > 0)
+              // Check if there are any out of order messages that our sequence number may have cught up with
+              if (pSCtx->num_Smb2ooMessages)
+              {  int i,checked;
+                 checked = 0;
+                 for (i = 0; i < HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION; i++)
+                 {
+                   if(pSCtx->expectedMessageId==pSCtx->Smb2ooMessages[i].startingMessageId&&pSCtx->Smb2ooMessages[i].buffered_frame_size!=0)
+                   {
+                     PFVOID to;
+                     to = PADD(pSCtx->readBuffer,RTSMB_NBSS_HEADER_SIZE);
+                     tc_memcpy(to,pSCtx->Smb2ooMessages[i].buffered_frame, pSCtx->Smb2ooMessages[i].buffered_frame_size);
+                     header.size = pSCtx->Smb2ooMessages[i].buffered_frame_size;
+                     pSCtx->Smb2ooMessages[i].buffered_frame_size=0;
+                     pSCtx->num_Smb2ooMessages -= 1;
+                     RTP_FREE(pSCtx->Smb2ooMessages[i].buffered_frame);
+                     execute_oo = TRUE;
+                     break;
+                   }
+                   if (++checked >= pSCtx->num_Smb2ooMessages)
+                     break;
+                 }
+              }
+#endif
+            }
+          } while (execute_oo);
         }
         break;
       case RTSMB_NBSS_COM_REQUEST:  /* Session Request */
@@ -159,7 +191,8 @@ BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nb
     pSctx->doSocketClose = FALSE;
     pSctx->doSessionClose = FALSE;
 
-    if (packetSize > CFG_RTSMB_SMALL_BUFFER_SIZE)
+//    pSctx->readBufferSize
+    if (packetSize > pSctx->readBufferSize) // CFG_RTSMB_SMALL_BUFFER_SIZE)
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
         return TRUE; /* eat the packet */

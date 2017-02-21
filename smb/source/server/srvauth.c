@@ -202,7 +202,8 @@ word Auth_AuthenticateUser_ntlmv2 (PSMB_SESSIONCTX pCtx, PFBYTE ntlm_response_bl
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Auth_AuthenticateUser_ntlmv2 is a stack hog\n");
     CLAIM_AUTH ();
     user = getuserSructureFromName(name, &uid);
-    if (user && user->password)
+    // This is the wild west so chak all args that we use.
+    if (user && user->password && name && ntlm_response_blob && domainname && pCtx && pCtx->encryptionKey)
     {
         cli_util_encrypt_password_ntlmv2 (user->password, pCtx->encryptionKey, ntlm_response_blob, ntlm_response_blob_length, name, domainname,(PFCHAR) output);
         if (tc_memcmp(ntlm_response_blob, output, 16) == 0)

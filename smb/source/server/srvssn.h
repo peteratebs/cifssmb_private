@@ -302,6 +302,11 @@ typedef struct smb_sessionCtx_s
 #ifdef SUPPORT_SMB2
     Smb2SrvModel_Session         Smb2SessionInstance;
     Smb2SrvModel_Connection      Smb2ConnectionInstance;
+    ddword expectedMessageId;/* SMB2 */
+#if (HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION > 0)
+    int                          num_Smb2ooMessages;
+    Smb2_oosequence              Smb2ooMessages[HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION];
+#endif
     SMB2_BODYCONTEXT_T           SMB2_FrameState;
 #endif
 
@@ -318,8 +323,7 @@ typedef struct smb_sessionCtx_s
 
     byte accessMode;        /* access mode of server when session is set up */
 
-    word sessionId;         /* this keeps value across session closes/opens */
-
+    word sessionId;          /* this keeps value across session closes/opens */
     /**
      * Set some flags to let processing functions know what's going on without
      * having to pass a lot of info on around on the stack.
