@@ -253,9 +253,10 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
         pSCtx->writeBufferSize         = prtsmb_srv_ctx->out_buffer_size;
         pSCtx->tmpSize                 = prtsmb_srv_ctx->temp_buffer_size;
         pSCtx->expectedMessageId       = 0;
+#if (HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION > 0)
         pSCtx->num_Smb2ooMessages      = 0;
         tc_memset(pSCtx->Smb2ooMessages,0,sizeof(pSCtx->Smb2ooMessages));
-
+#endif
         /**
          * Add new session to our list.
          */

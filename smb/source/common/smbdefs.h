@@ -71,7 +71,10 @@
 #endif
 
 
-#define HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION             64
+// Experimental, set this > 0 to support buffering out of order packet sequences.
+// Should be mostly working but uses malloc and shutdown code needs to free it.
+#define HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION             0
+// #define HARDWIRED_SMB2_MAX_CREDITS_PER_SESSION             64
 // Passed with the extended security client challenge. Target configuration strings.
 // These are used and passed with the extended security client challenge. Target configuration strings, should be put into the config file.
 #define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"
