@@ -29,6 +29,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <dirent.h>
 
 /*****************************************************************************/
 /* Macros
@@ -38,13 +39,29 @@
 /* Types
  *****************************************************************************/
 
+#define GNSTYLE_GLOB  1
+#define GNSTYLE_WILD  2
+#define GNSTYLE_MATCH 3
+
+
+#define SMB_MAX_NAME_SIZE 255
 typedef struct NativeFileSystemObj
 {
-    int currentPath;
+#define GNSTYLE_GLOB  1
+#define GNSTYLE_WILD  2
+#define GNSTYLE_MATCH 3
+    int   gnstyle;
+    DIR   *dirreadObj;                        // handle from opendir() if not gnstyle != GNSTYLE_GLOB
+    char  dirmatchBase[SMB_MAX_NAME_SIZE];    // Base when we stat using the full path the whole
+    int dirmatchBaseEnd;                      // Offset into dirmatchBase we copy to before stat
+    char  dirmatchPattern[SMB_MAX_NAME_SIZE]; // pattern if gnstyle == GNSTYLE_MATCH
+    char  dirmatchCurrent[SMB_MAX_NAME_SIZE]; // pattern if gnstyle == GNSTYLE_MATCH
+    int currentPath;        // scheme if gnstyle == GNSTYLE_GLOB
     int glob_data_valid;
 	glob_t globdata;
     struct stat statdata;
 } FSOBJ;
+
 
 /*****************************************************************************/
 /* Function Prototypes
@@ -72,15 +89,68 @@ static void bracify(char *bracified_name,char lower_c)
   bracified_name[5]=0;
 }
 
-#define SMB_MAX_NAME_SIZE 512
+
+
+static int doReadirAndStat(FSOBJ *linDirObj)
+{
+struct dirent *direntp;
+char *matched_filename = 0;
+
+    do
+    {
+      direntp = readdir(linDirObj->dirreadObj);
+      if (!direntp)
+        return -1;
+      if (linDirObj->gnstyle == GNSTYLE_WILD)
+      {
+        matched_filename = direntp->d_name;
+      }
+      else
+      {
+        if (strncasecmp(direntp->d_name,linDirObj->dirmatchPattern,SMB_MAX_NAME_SIZE) == 0)
+        {
+          matched_filename = direntp->d_name;
+        }
+      }
+    } while (!matched_filename);
+    if (!matched_filename)
+    {
+        return -1;
+    }
+    if (strlen(matched_filename) + linDirObj->dirmatchBaseEnd >= SMB_MAX_NAME_SIZE)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: stat path too long base: %s\nfilename: %s\n",linDirObj->dirmatchBase,matched_filename);
+        return -1;
+    }
+    // Put the filename after the last slash in base and stat
+//    strncpy(linDirObj->dirmatchCurrent,matched_filename,SMB_MAX_NAME_SIZE);
+    strcpy(linDirObj->dirmatchCurrent,matched_filename);
+    strcpy(linDirObj->dirmatchBase+linDirObj->dirmatchBaseEnd,matched_filename);
+//    strncpy(linDirObj->dirmatchBase+linDirObj->dirmatchBaseEnd,matched_filename,SMB_MAX_NAME_SIZE);
+    if (stat (linDirObj->dirmatchBase, &linDirObj->statdata) == -1)
+    {
+       return (-1);
+    }
+    return (0);
+}
+
+static void doFreeDirReadobj(FSOBJ *linDirObj)
+{
+  if ((linDirObj->gnstyle == GNSTYLE_WILD || linDirObj->gnstyle == GNSTYLE_MATCH) && linDirObj->dirreadObj)
+    closedir(linDirObj->dirreadObj);
+  free (linDirObj);
+}
+
 // Special case insensitive gfiirst command for smb server.
 // If there is a wildcard after the final slash, then all non wildcard characters in that final section are globbed case insensitive.
 int rtp_file_gfirst_smb(void ** dirobj, char * name)
 {
-FSOBJ* linDirObj;
+FSOBJ *linDirObj;
 int result;
 int hung_up = 512;
 char escaped_name[SMB_MAX_NAME_SIZE*2];
+int gnstyle;
+
     *dirobj = (void*) 0;
 
     // Try a little precaution, make sure the string is <=512 bytes and null termintate.
@@ -88,19 +158,43 @@ char escaped_name[SMB_MAX_NAME_SIZE*2];
       return -1;
     int i,j;
     j=0;
+
+    // Use GLOB with embedded *'s or ?'s otherwise use readdir with either a true match or match all
+    if (0)
+      gnstyle = GNSTYLE_GLOB;
+    else if (strstr(name, "?"))
+      gnstyle = GNSTYLE_GLOB;
+    else
+    {
+      char *p=strstr(name, "*");
+      if (p && *(p+1) == 0)   gnstyle = GNSTYLE_WILD;
+      else if (p)
+        gnstyle = GNSTYLE_GLOB;
+      else
+        gnstyle = GNSTYLE_MATCH;
+    }
+
     escaped_name[0]= 0;
     for (i = 0; i < SMB_MAX_NAME_SIZE; i++)
     {
         if (name[i] == 0)
           break;
-        if (name[i] == '[')
+        if (name[i] == '\\')
+           escaped_name[j++]= '/';
+        else
+        {
+         if (gnstyle == GNSTYLE_GLOB && (name[i] == '[' || name[i] == ']'))
            escaped_name[j++]= '\\';
-        escaped_name[j++]= name[i];
+          escaped_name[j++]= name[i];
+        }
         escaped_name[j]= 0;
     }
     name = escaped_name;
+
     linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
     memset(linDirObj, 0, sizeof(FSOBJ));
+    linDirObj->gnstyle = gnstyle;
+
 
     char *slash = 0;
     char *nextslash=strstr(name, "/");
@@ -111,6 +205,44 @@ char escaped_name[SMB_MAX_NAME_SIZE*2];
       hung_up--;
     }
     if (hung_up==0) return -1;
+
+    if (linDirObj->gnstyle != GNSTYLE_GLOB)
+    {
+      if (!slash)
+      {
+       return (-1);
+      }
+      char *string_after_slash;
+      string_after_slash = slash + 1;
+      if (slash > name && *(slash-1)=='/')
+        slash-=1;
+      memcpy(linDirObj->dirmatchBase,name,(slash-name));
+      linDirObj->dirmatchBase[(slash-name)]=0;
+      linDirObj->dirreadObj = opendir(linDirObj->dirmatchBase);
+      if (!linDirObj->dirreadObj)
+      {
+       return (-1);
+      }
+      linDirObj->dirmatchBase[(slash-name)]='/';
+      linDirObj->dirmatchBase[(slash-name)+1]=0;
+      linDirObj->dirmatchBaseEnd = (slash-name)+1;
+
+      if (linDirObj->gnstyle == GNSTYLE_MATCH)
+        strcpy(linDirObj->dirmatchPattern,string_after_slash);
+      int r = doReadirAndStat(linDirObj);
+      if (r < 0)
+      {
+         doFreeDirReadobj(linDirObj);
+         return -1;
+      }
+      else
+      {
+        linDirObj->glob_data_valid = 1;
+        *dirobj = (void*) linDirObj;
+        return 0;
+      }
+    }
+    // Fall through for glob style
     if (!slash)   // If no / check if the base contains a wildcard
        slash = name;
     if (slash && (strstr(slash, "*") || strstr(slash, "?")))
@@ -177,55 +309,6 @@ char escaped_name[SMB_MAX_NAME_SIZE*2];
 #endif
         return (-1);
     }
-
-    linDirObj->glob_data_valid = 1;
-    *dirobj = (void*) linDirObj;
-    return (0);
-}
-
-
-int rtp_file_gfirst (void ** dirobj, char * name)
-{
-FSOBJ* linDirObj;
-int result;
-char *stat_name=0;
-    linDirObj = (FSOBJ*) malloc(sizeof(FSOBJ));
-    memset(linDirObj, 0, sizeof(FSOBJ));
-
-    result = glob((const char *) name, 0, NULL, &(linDirObj->globdata));
-    if (result == GLOB_NOMATCH)
-    {
-      stat_name = name;
-    }
-    else if (result != 0)
-    {
-        free (linDirObj);
-#ifdef RTP_DEBUG
-        RTP_DEBUG_OUTPUT_STR("rtp_file_gfirst: error returned ");
-        RTP_DEBUG_OUTPUT_INT(result);
-        RTP_DEBUG_OUTPUT_STR(".\n");
-#endif
-         *dirobj = (void*) 0;
-         return (-1);
-    }
-    else
-    {
-       linDirObj->currentPath = 0;
-       stat_name = linDirObj->globdata.gl_pathv[linDirObj->currentPath];
-    }
-    if (stat(stat_name, &linDirObj->statdata) == -1)
-    {
-        globfree(&linDirObj->globdata);
-        free (linDirObj);
-#ifdef RTP_DEBUG
-        RTP_DEBUG_OUTPUT_STR("rtp_file_gfirst: error returned ");
-        RTP_DEBUG_OUTPUT_INT(errno);
-        RTP_DEBUG_OUTPUT_STR(".\n");
-#endif
-        *dirobj = (void*) 0;
-        return (-1);
-    }
-
     linDirObj->glob_data_valid = 1;
     *dirobj = (void*) linDirObj;
     return (0);
@@ -240,6 +323,16 @@ int rtp_file_gnext (void * dirobj)
 {
     if (!dirobj)
       return -1;
+FSOBJ *linDirObj = (FSOBJ *) dirobj;
+    if (((FSOBJ *)dirobj)->gnstyle != GNSTYLE_GLOB)
+    {
+      int r = doReadirAndStat((FSOBJ *)dirobj);
+      return r;
+    }
+    // else GLOB
+
+do
+{
     ((FSOBJ *)dirobj)->currentPath++;
     if (((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
     {
@@ -252,16 +345,19 @@ int rtp_file_gnext (void * dirobj)
     if (stat (((FSOBJ *)dirobj)->globdata.gl_pathv[((FSOBJ *)dirobj)->currentPath], &((FSOBJ *)dirobj)->statdata) == -1)
     {
 #ifdef RTP_DEBUG
-        RTP_DEBUG_OUTPUT_STR("rtp_file_gnext: error returned ");
+        RTP_DEBUG_OUTPUT_STR("Ignoring rtp_file_gnext: error returned ");
         RTP_DEBUG_OUTPUT_INT(errno);
         RTP_DEBUG_OUTPUT_STR(".\n");
 #endif
         return (-1);
     }
-
+    else
+    {
+       break;
+    }
+} while (1);
     return (0);
 }
-
 
 
 /*----------------------------------------------------------------------*
@@ -269,7 +365,7 @@ int rtp_file_gnext (void * dirobj)
  *----------------------------------------------------------------------*/
 void rtp_file_gdone (void * dirobj)
 {
-    if (dirobj)
+    if (((FSOBJ *)dirobj)->gnstyle == GNSTYLE_GLOB)
     {
        if (((FSOBJ *)dirobj)->glob_data_valid)
        {
@@ -278,6 +374,8 @@ void rtp_file_gdone (void * dirobj)
        }
 	   free(dirobj);
     }
+    else
+       doFreeDirReadobj((FSOBJ *)dirobj);
 }
 
 
@@ -285,7 +383,10 @@ void rtp_file_gdone (void * dirobj)
 void rtp_file_get_unique_id(void * dirobj, unsigned char *unique_fileid)
 {
     memset (unique_fileid,0,8);
-    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    if (!dirobj ||
+       ( ((FSOBJ *)dirobj)->gnstyle == GNSTYLE_GLOB &&
+         ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc )
+       )
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_get_unique_id: error invalid dirobj.\n");
@@ -304,7 +405,10 @@ void rtp_file_get_unique_id(void * dirobj, unsigned char *unique_fileid)
  *----------------------------------------------------------------------*/
 int rtp_file_get_size64 (void * dirobj, unsigned long * size_hi,unsigned long * size)
 {
-    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    if (!dirobj ||
+       ( ((FSOBJ *)dirobj)->gnstyle == GNSTYLE_GLOB &&
+         ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc )
+       )
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_get_size: error invalid dirobj.\n");
@@ -344,7 +448,10 @@ int rtp_file_get_attrib (void * dirobj, unsigned char * attributes)
 {
     int readable, writable;
 
-    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    if (!dirobj ||
+       ( ((FSOBJ *)dirobj)->gnstyle == GNSTYLE_GLOB &&
+         ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc )
+       )
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_get_size: error invalid dirobj.\n");
@@ -377,8 +484,17 @@ int rtp_file_get_name (void * dirobj, char * name, int size)
 {
 unsigned int sizelimit;
 const char *end;
+    if (!dirobj)
+      return (-1);
 
-    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    if ( ((FSOBJ *)dirobj)->gnstyle != GNSTYLE_GLOB)
+    {
+      strcpy(name, ((FSOBJ *)dirobj)->dirmatchCurrent);
+//      strncpy(name, ((FSOBJ *)dirobj)->dirmatchCurrent,size);
+      return (0);
+    }
+
+    if (((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc )
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_get_name: error invalid dirobj.\n");
@@ -415,7 +531,10 @@ const char *end;
  *----------------------------------------------------------------------*/
 int rtp_file_get_time (void * dirobj, RTP_DATE * adate, RTP_DATE * wdate, RTP_DATE * cdate, RTP_DATE * hdate)
 {
-    if (!dirobj || ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc)
+    if (!dirobj ||
+       ( ((FSOBJ *)dirobj)->gnstyle == GNSTYLE_GLOB &&
+         ((FSOBJ *)dirobj)->currentPath >= (int)((FSOBJ *)dirobj)->globdata.gl_pathc )
+       )
     {
 #ifdef RTP_DEBUG
         RTP_DEBUG_OUTPUT_STR("rtp_file_get_name: error invalid dirobj.\n");
