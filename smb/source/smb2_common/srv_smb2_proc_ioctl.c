@@ -166,13 +166,15 @@ BBOOL Proc_smb2_Ioctl(smb2_stream  *pStream)
       VALIDATE_NEGOTIATE_INFO_R *answer = (VALIDATE_NEGOTIATE_INFO_R *) pStream->WriteBufferParms[0].pBuffer;
       answer->Capabilities = Smb2_util_get_global_caps(pStream->psmb2Session->Connection, 0);
       tc_memcpy(answer->guid,pSmb2SrvGlobal->ServerGuid,16);
+      answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;
       answer->SecurityMode =  SMB2_NEGOTIATE_SIGNING_ENABLED;
       if (pSmb2SrvGlobal->RequireMessageSigning)
          answer->SecurityMode |=  SMB2_NEGOTIATE_SIGNING_REQUIRED;
+      if (answer->Dialect == SMB2_DIALECT_2002)
+        answer->SecurityMode =  0;
 #if (HARDWIRED_DISABLE_SIGNING)
       answer->SecurityMode =  0;
 #endif
-      answer->Dialect      =  pStream->psmb2Session->Connection->Dialect;
       response.OutputCount = sizeof(VALIDATE_NEGOTIATE_INFO_R);
     }
     else if (command.CtlCode == FSCTL_PIPE_TRANSCEIVE) //    0x0011c017

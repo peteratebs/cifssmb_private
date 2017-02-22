@@ -648,8 +648,8 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: current: %lu prev: %lu delta: %lu \n", rtp_get_system_msec(), (*session)->netsessiont_lastActivity, (*session)->netsessiont_lastActivity-rtp_get_system_msec() );
                 // (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
                 (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
-                socket_timeout_shutdowns+=1;
-                isDead = TRUE;
+//                socket_timeout_shutdowns+=1;
+//                isDead = TRUE;
             }
             // run down any notify alerts dor this session
             if (send_session_notify_messages(*session)<0)
