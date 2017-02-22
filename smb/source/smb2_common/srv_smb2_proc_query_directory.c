@@ -325,14 +325,30 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
         rtsmb_ncpy(user->searches[sid].name, (const unsigned short *)file_name, field_size );
     }
 #define MAX_RESPONSE_SIZE 768
-    dword OutputBufferLength = command.OutputBufferLength;
-    bytes_remaining = pStream->OutBodySize > OutputBufferLength?0:OutputBufferLength-pStream->OutBodySize;
+#define MAX_RESPONSE_SIZE 768
+#if (0)
+//    bytes_remaining = pStream->OutBodySize > command.OutputBufferLength?0:command.OutputBufferLength-pStream->OutBodySize;
+//    bytes_remaining = pStream->OutBodySize > command.OutputBufferLength?0:command.OutputBufferLength-pStream->OutBodySize;
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_remaining);
     if (bytes_remaining <  MAX_RESPONSE_SIZE)
-    { // This is not right it shouldn't get here, see dimilar code below
+    { // This is not right it shouldn't get here, see similar code below
       pStream->compound_output_index =0; // this forces a send
       pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
       return TRUE;
     }
+#else
+    bytes_remaining = pStream->write_buffer_remaining-pStream->OutBodySize;
+    if (bytes_remaining > (pStream->OutHdr.StructureSize + 8))
+     bytes_remaining -= (pStream->OutHdr.StructureSize + 8);
+    else
+    {
+      bytes_remaining = 0;
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Proc_smb2_QueryDirectory:  Compound search reply too large\n");
+      RtsmbWriteSrvStatus(pStream,SMB2_STATUS_BUFFER_OVERFLOW);
+      return TRUE;
+    }
+//    bytes_remaining = pStream->write_buffer_remaining-(pStream->OutHdr.StructureSize + 8);
+#endif
     byte_pointer = rtp_malloc(bytes_remaining);
     pStream->WriteBufferParms[0].pBuffer    = byte_pointer;
     pStream->WriteBufferParms[0].byte_count = 0;

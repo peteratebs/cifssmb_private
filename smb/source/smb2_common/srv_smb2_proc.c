@@ -99,6 +99,7 @@ static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufSta
 //      #define ST_FALSE       2
 //      #define ST_TRUE        3
 //      #define ST_YIELD       4
+//      #define ST_OUTFRAMEREADY 5
 //    int      stackcontext_state;
 //  } SMB2_BODYCONTEXT_T;
 //
@@ -196,7 +197,14 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     while (pSctx->SMB2_FrameState.stackcontext_state==ST_INPROCESS)
     {
        SMBS_ProccessFrame(pSctx,doFirstPacket,replay);
-       doFirstPacket = FALSE;
+       if (pSctx->SMB2_FrameState.stackcontext_state==ST_OUTFRAMEREADY)
+       {  // Check for another frame
+         pStream->compound_output_index = 0;
+         pSctx->SMB2_FrameState.stackcontext_state=ST_INPROCESS;
+//         break;
+       }
+       else
+         doFirstPacket = FALSE;
     }
 
     if (pSctx->SMB2_FrameState.stackcontext_state==ST_YIELD)
@@ -333,7 +341,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
      }
      else
      { //
-        pSctx->SMB2_FrameState.isCompoundReply = FALSE;    // This was missing, is it needed ?
+// Wrong    pSctx->SMB2_FrameState.isCompoundReply = FALSE;    // This was missing, is it needed ?
         pSctx->SMB2_FrameState.NextCommandOffset = pStream->InHdr.NextCommand;
      }
 
@@ -374,9 +382,19 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     // Remember the next command adddress in the buffer in case we have to fix it up
     // Advance the buffer pointers to 8 byte boundaries if this is a compound request or response
     // Sign the packet
+    // Remember the command on the stack in case we need to fix up
+    PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pSctx->SMB2_FrameState.pOutBufStart;
+    byte CurrentCommand = pOutHeader->Command;
     SMBS_ProcSMB2_BodyPhaseTwo (pSctx,pStream);
     if (pSctx->SMB2_FrameState.isCompoundReply)
-      pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
+    {
+       // Fix up the case where SMB2_QUERY_DIRECTORY has no more data but Phase2 set isCompoundReply
+       // This will break out of sending but stay in the recieve loop if needed.
+      if (CurrentCommand == SMB2_QUERY_DIRECTORY && pStream->compound_output_index==0)
+          pSctx->SMB2_FrameState.stackcontext_state = ST_OUTFRAMEREADY;
+      else
+          pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
+    }
     else
       pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
 }
