@@ -206,7 +206,6 @@ typedef struct ProcSMB2_BodyContext_s {
 #define ST_FALSE       2
 #define ST_TRUE        3
 #define ST_YIELD       4
-#define ST_OUTFRAMEREADY 5
   int      stackcontext_state;
 } SMB2_BODYCONTEXT_T;
 
@@ -237,7 +236,7 @@ typedef struct smb_sessionCtx_s
     /**
      * Pointers to the buffers we are currently using for reading or writing.
      */
-    PFBYTE readBuffer;
+    PFBYTE readBuffer;           // Base of read buffer in ctx. doesn't change
     PFBYTE writeBuffer;
 
     /**
@@ -276,7 +275,11 @@ typedef struct smb_sessionCtx_s
     /**
      * Used to record how big the current incoming packet is.
      */
-    dword in_packet_size;
+    dword in_packet_size;      // Messy, means different things in SMB1
+
+    // Variables used exclusively to track how much data should be at the socket
+    dword nbss_packet_size;    // Amount of the NBSS packet pulled from the socket
+    dword nbss_packet_pulled;  // Amount of the NBSS packet pulled from the socket
 
     /**
      * Used to record when we will stop trying to complete the current packet.

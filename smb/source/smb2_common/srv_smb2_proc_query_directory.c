@@ -210,6 +210,21 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     // Save the start output position for doing 8 byte oundaries
     PFVOID   pOutBufStart = pStream->pOutBuf;
 
+
+    if (pStream->doForceLengthMissmatch)
+    {
+      response.StructureSize = 9; // 9
+      response.OutputBufferLength = 0;
+      response.OutputBufferOffset = 0;
+      pStream->OutHdr.Status_ChannelSequenceReserved = SMB2_STATUS_INFO_LENGTH_MISMATCH;
+      pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
+      pStream->doForceLengthMissmatch = FALSE;
+      pStream->doForceFlush = TRUE;
+      RtsmbStreamEncodeResponse(pStream, (PFVOID ) &response);
+      pStream->compound_output_index=0;                        // Force a send
+      return TRUE;
+    }
+
     /* Read into command, TreeId will be present in the input header */
     command.StructureSize = 33;
     RtsmbStreamDecodeCommand(pStream, (PFVOID) &command);
@@ -337,7 +352,11 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
       return TRUE;
     }
 #else
+
+
     bytes_remaining = pStream->write_buffer_remaining-pStream->OutBodySize;
+    if (bytes_remaining > command.OutputBufferLength)
+      bytes_remaining = command.OutputBufferLength;
     if (bytes_remaining > (pStream->OutHdr.StructureSize + 8))
      bytes_remaining -= (pStream->OutHdr.StructureSize + 8);
     else
@@ -412,7 +431,8 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
             }
             if (bytes_remaining <  MAX_RESPONSE_SIZE)
             { // Out of space in the buffer respond and ask him to reply.
-              pStream->compound_output_index =0; // this forces a send
+//              *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
+              pStream->doForceLengthMissmatch = TRUE;  // Backdoor to flush the output buffer and continue processing the input buffer
               pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
               break;
             }
@@ -451,7 +471,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
       if (response.OutputBufferLength)
         response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
       if (pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS || isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
-      { // We did get content but we also reached the end. clear the compound output flag so we send now. The client should ask again and we'll send , no more
+      { // We did get content but we also reached the end. clear the compound output flag so we close off the output message and retirieve more commands or send.
         pStream->compound_output_index = 0;
       }
       else

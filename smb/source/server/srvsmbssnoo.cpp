@@ -370,7 +370,9 @@ static void _srv_netssn_pdc_cycle(void);
 static void SMBS_claimSession (PNET_SESSIONCTX pCtx);
 static void SMBS_releaseSession (PNET_SESSIONCTX pCtx);
 RTSMB_STATIC void rtsmb_srv_netssn_thread_condense_sessions (PNET_THREAD pThread);
-BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL pull_nbss, BBOOL replay);
+BBOOL SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL replay);
+BBOOL SMBS_ProcNBSSANDMBPacket (PSMB_SESSIONCTX pSctx);
+
 BBOOL rtsmb_srv_nbss_process_packet (PSMB_SESSIONCTX pSCtx);    // Called from rtsmb_srv_netssn_session_cycle
 
 
@@ -620,7 +622,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Warning: rtsmb_srv_netssn_session_cycle ignoring 0-length packet: %d \n", pcktsize);
         } else
         {
-           SMBS_ProcSMBPacket (pSCtx, pcktsize, FALSE /* dont pull*/, FALSE /* replay*/);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
+           SMBS_ProcSMBPacket (pSCtx, pcktsize, FALSE /* replay*/);/* rtsmb_srv_netssn_session_cycle finish reading what we started. */
         }
         break;
     }
@@ -628,7 +630,7 @@ RTSMB_STATIC void rtsmb_srv_netssn_session_cycle (PNET_SESSIONCTX *session, int 
         if (ready)
         {
             (*session)->netsessiont_lastActivity = rtp_get_system_msec ();
-            if (SMBS_ProcSMBPacket (pSCtx, 0, TRUE, FALSE)== FALSE) /* pull a new nbss packet and process it */
+            if (SMBS_ProcNBSSANDMBPacket(pSCtx)== FALSE) /* pull a new nbss packet and process it */
             {
               RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"DIAG: rtsmb_srv_netssn_session_cycle: SMBS_ProcSMBPacket failed on %ld \n",sock);
               socket_requested_shutdowns += 1;

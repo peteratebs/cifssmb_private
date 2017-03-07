@@ -99,7 +99,6 @@ static BBOOL SMBS_Frame_Compound_Output(smb2_stream * pStream, PFVOID pOutBufSta
 //      #define ST_FALSE       2
 //      #define ST_TRUE        3
 //      #define ST_YIELD       4
-//      #define ST_OUTFRAMEREADY 5
 //    int      stackcontext_state;
 //  } SMB2_BODYCONTEXT_T;
 //
@@ -112,7 +111,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
     // If we are replaying test if from the beginning
     if (replay)
-      doFirstPacket = pStream->doFirstPacket;
+        doFirstPacket = pStream->doFirstPacket;
     else
       doFirstPacket = TRUE; // Always true if not replaying
     if (doFirstPacket)
@@ -197,14 +196,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     while (pSctx->SMB2_FrameState.stackcontext_state==ST_INPROCESS)
     {
        SMBS_ProccessFrame(pSctx,doFirstPacket,replay);
-       if (pSctx->SMB2_FrameState.stackcontext_state==ST_OUTFRAMEREADY)
-       {  // Check for another frame
-         pStream->compound_output_index = 0;
-         pSctx->SMB2_FrameState.stackcontext_state=ST_INPROCESS;
-//         break;
-       }
-       else
-         doFirstPacket = FALSE;
+       doFirstPacket = FALSE;
     }
 
     if (pSctx->SMB2_FrameState.stackcontext_state==ST_YIELD)
@@ -352,12 +344,6 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
 
     BBOOL SendCommandResponse = SMBS_ProccessPacket (pStream,replay);
 
-    // Is this enough to force it to send
-    if (!pStream->compound_output_index && pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS)
-    {  // Is this enough to force it to send
-       pSctx->SMB2_FrameState.isCompoundReply = FALSE;
-    }
-
     // If the command process requested a yield.
     // rewind the stream to where we strted this frame return with (pSctx) == ST_YIELD; to start the yield
     if (pStream->doSessionYield && pStream->InHdr.Command == SMB2_CREATE)
@@ -367,6 +353,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
        pSctx->SMB2_FrameState.stackcontext_state = ST_YIELD;
        return;
     }
+
     dword *pPreviousNextOutCommand = pSctx->SMB2_FrameState.pPreviousNextOutCommand;
     // Must be a compound input to a command that does not respond, we'll null it out so the frame isn't bad
     if (!SendCommandResponse && pPreviousNextOutCommand)
@@ -388,12 +375,7 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     SMBS_ProcSMB2_BodyPhaseTwo (pSctx,pStream);
     if (pSctx->SMB2_FrameState.isCompoundReply)
     {
-       // Fix up the case where SMB2_QUERY_DIRECTORY has no more data but Phase2 set isCompoundReply
-       // This will break out of sending but stay in the recieve loop if needed.
-      if (CurrentCommand == SMB2_QUERY_DIRECTORY && pStream->compound_output_index==0)
-          pSctx->SMB2_FrameState.stackcontext_state = ST_OUTFRAMEREADY;
-      else
-          pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
+       pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
     }
     else
       pSctx->SMB2_FrameState.stackcontext_state = ST_TRUE;
@@ -532,7 +514,14 @@ unsigned int SkipCount;
       PRTSMB2_HEADER pOutHeader  = (PRTSMB2_HEADER) pOutBufStart;
       // Now insert the offset to the next command into the prior header
       // This is only used for input ????
-      pOutHeader->NextCommand = (dword)PDIFF (pStream->pOutBuf, pOutBufStart)+SkipCount;
+      if (pStream->doForceFlush)      // Force flush. sending a INFO_LENGTH_MISSMATCH, send with CHAINED flag set but set next command to zero
+      {
+        pOutHeader->NextCommand = 0;
+        pStream->doForceFlush = FALSE;
+      }
+      else
+        pOutHeader->NextCommand = (dword)PDIFF (pStream->pOutBuf, pOutBufStart)+SkipCount;
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: Next:%X  DIFF:%X skip:%d\n",  pOutHeader->NextCommand,PDIFF (pStream->pOutBuf, pOutBufStart),SkipCount);
       if (SkipCount)
       {
         tc_memset(pStream->pOutBuf,0,SkipCount);

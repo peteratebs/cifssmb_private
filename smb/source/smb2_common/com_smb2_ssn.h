@@ -56,6 +56,9 @@ typedef struct smb2_stream_s {
     BBOOL    doSessionClose;                        // Indicates that the processing layer is requesting a session close.
     BBOOL    doSessionYield;                        // Indicates that the session should yield until signalled or a timeout.
     BBOOL    doFirstPacket;                         // Indicates that a command being replayed is the first packet in the frame.
+    BBOOL    doForceLengthMissmatch;                // Indicates that the command should continue but respond with a missmatch
+    BBOOL    doForceFlush;                          // Indicates that the output buffer should be flushed and continue processing the input buffer
+
     RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
 	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
 	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
