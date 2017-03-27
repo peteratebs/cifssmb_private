@@ -470,7 +470,9 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
       response.OutputBufferLength = pStream->WriteBufferParms[0].byte_count;
       if (response.OutputBufferLength)
         response.OutputBufferOffset = (word) (pStream->OutHdr.StructureSize + response.StructureSize-1);
-      if (pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS || isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
+      if (pStream->OutHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS)
+        pStream->compound_output_index += 1;;
+      if (isEof==TRUE || (command.Flags & SMB2_RETURN_SINGLE_ENTRY) )
       { // We did get content but we also reached the end. clear the compound output flag so we close off the output message and retirieve more commands or send.
         pStream->compound_output_index = 0;
       }
@@ -536,6 +538,36 @@ typedef struct
 
 } RTSMB2_FILE_FULL_DIRECTORY_INFO;
 PACK_PRAGMA_POP
+
+// See MS-FSCC - 2.4.14 FileFullDirectoryInformation
+PACK_PRAGMA_ONE
+typedef struct
+{
+	dword next_entry_offset;
+	dword file_index;
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword low_end_of_file;
+	dword high_end_of_file;
+	dword low_allocation_size;
+	dword high_allocation_size;
+
+	dword  extended_file_attributes;
+	dword  filename_size;
+	dword  ea_size;
+	dword  reserved;
+   	ddword FileId;
+//	PFRTCHAR filename;
+
+} RTSMB2_FILEID_FULL_DIRECTORY_INFO;
+PACK_PRAGMA_POP
+
 static int SMB2_FILLFileBaseDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat, dword File_index)
 {
 	RTSMB2_FILE_FULL_DIRECTORY_INFO *pinfo = (RTSMB2_FILE_FULL_DIRECTORY_INFO *) byte_pointer;
@@ -593,9 +625,45 @@ static int SMB2_FILLFileFullDirectoryInformation(void *byte_pointer, rtsmb_size 
 
     return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + pinfo->filename_size);
 }
-static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *pstat,dword File_index)
+static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_size bytes_remaining, SMBDSTAT *stat,dword File_index)
 {
-    return 0;
+	RTSMB2_FILEID_FULL_DIRECTORY_INFO *pinfo = (RTSMB2_FILEID_FULL_DIRECTORY_INFO *) byte_pointer;
+	rtsmb_size filename_size = (rtsmb_size) rtsmb_len((const unsigned short *)stat->filename) * sizeof (rtsmb_char);
+
+    if (sizeof(RTSMB2_FILEID_FULL_DIRECTORY_INFO) + filename_size > (rtsmb_size) bytes_remaining)
+       return 0;
+    tc_memset(pinfo, 0, sizeof(*pinfo));
+	pinfo->low_last_access_time = stat->fatime64.low_time;
+	pinfo->high_last_access_time = stat->fatime64.high_time;
+	pinfo->low_creation_time = stat->fctime64.low_time;
+	pinfo->high_creation_time = stat->fctime64.high_time;
+	pinfo->low_last_write_time = stat->fwtime64.low_time;
+	pinfo->high_last_write_time = stat->fwtime64.high_time;
+	pinfo->low_change_time = stat->fhtime64.low_time;
+	pinfo->high_change_time = stat->fhtime64.high_time;
+	pinfo->low_end_of_file = stat->fsize;
+	pinfo->high_end_of_file = stat->fsize_hi;
+	pinfo->low_allocation_size = stat->fsize;
+	pinfo->high_allocation_size = stat->fsize_hi;
+	pinfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat->fattributes);
+	pinfo->filename_size = filename_size;
+    pinfo->file_index = File_index;
+	pinfo->ea_size = 0;
+	pinfo->reserved = 0;
+    tc_memcpy(&pinfo->FileId, stat->unique_fileid, sizeof(pinfo->FileId));
+    byte *pfilename = (byte *) &pinfo->FileId;
+    pfilename += sizeof(pinfo->FileId);
+    tc_memcpy(pfilename, stat->filename, filename_size);
+
+{
+char tempbuff[512];
+rtsmb_util_rtsmb_to_ascii ((PFRTCHAR)pfilename, tempbuff, CFG_RTSMB_USER_CODEPAGE);
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: FILENAME: %s \n",  tempbuff);
+}
+
+//    tc_memcpy(&pinfo->FileId, pstat->unique_fileid, sizeof(pinfo->FileId));
+//    return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) +
+    return (int) (sizeof(RTSMB2_FILEID_FULL_DIRECTORY_INFO)-1 + filename_size);
 }
 
 

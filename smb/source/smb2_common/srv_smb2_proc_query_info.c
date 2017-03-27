@@ -137,16 +137,66 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
 #define SMB2_FS_OBJECT_ID_INFO   0x08
 #define SMB2_FILE_INFO_ALL       0x12
 #define SMB2_FILE_INFO_FULL      0x2  // not sure if right.
+#define SMB2_FILE_INFO_BASIC       0x04
 #define SMB2_FILE_INFO_STANDARD      0x5
+#define SMB2_FILE_INFO_INTERNAL    0x06
 #define SMB2_FILE_NETWORK_OPEN_INFO  0x22
 
     pStream->WriteBufferParms[0].byte_count = 0;
     if (command.InfoType == SMB2_0_INFO_FILE)
     {
       not_implemented=FALSE;
+      // Need to be declared outsideof the swicth
+      MSFSCC_FILE_INTERNAL_INFORMATION   *pInternalInfo;
+
       switch (command.FileInfoClass) {
-       case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
-       {
+
+      case SMB2_FILE_INFO_BASIC:       //  0x04
+      case SMB2_FILE_INFO_INTERNAL:       //  0x06
+      {
+        SMBFSTAT stat;
+        PFRTCHAR filepath;
+//        word externalFid = *((word *) &command.FileId[0]);
+         // Compound requests send 0xffff ffff ffff ffff to mean the last file if returned by create
+         // Map if neccessary
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
+
+        filepath = RTSmb2_get_path_and_stat_from_fid(pStream, externalFid, &stat);
+        if(!filepath)
+        {
+          RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
+          return TRUE;
+        }
+        // Pick off Internal fileid (inode) from stat structure
+        if (command.FileInfoClass == SMB2_FILE_INFO_INTERNAL)
+        {
+          MSFSCC_FILE_INTERNAL_INFORMATION *pInternalInfo = rtp_malloc(sizeof(*pInternalInfo));
+          pStream->WriteBufferParms[0].byte_count = sizeof(*pInternalInfo);
+          pStream->WriteBufferParms[0].pBuffer = pInternalInfo;
+          tc_memcpy(&pInternalInfo->IndexNumber, stat.unique_fileid, sizeof(pInternalInfo->IndexNumber));
+        }
+        else
+        {
+          MSFSCC_FILE_BASIC_FILE_INFORMATION *pInfo;
+          pInfo = rtp_malloc(sizeof(*pInfo));
+          pStream->WriteBufferParms[0].byte_count = sizeof(*pInfo);
+          pStream->WriteBufferParms[0].pBuffer = pInfo;
+          pInfo->low_last_access_time = stat.f_atime64.low_time;
+          pInfo->high_last_access_time = stat.f_atime64.high_time;
+          pInfo->low_creation_time = stat.f_ctime64.low_time;
+          pInfo->high_creation_time = stat.f_ctime64.high_time;
+          pInfo->low_last_write_time = stat.f_wtime64.low_time;
+          pInfo->high_last_write_time = stat.f_wtime64.high_time;
+          pInfo->low_change_time = stat.f_htime64.low_time;
+          pInfo->high_change_time = stat.f_htime64.high_time;
+          pInfo->extended_file_attributes = rtsmb_util_rtsmb_to_smb_attributes (stat.f_attributes);
+          pInfo->reserved = 0;
+        }
+        break;
+      }
+      case SMB2_FILE_NETWORK_OPEN_INFO: //     0x22  .
+      {
          MSFSCC_FILE_NETWORK_OPEN_INFORMATION *pInfo;
          SMBFSTAT stat;
          PFRTCHAR filepath;
@@ -205,6 +255,7 @@ BBOOL Proc_smb2_QueryInfo(smb2_stream  *pStream)
            RtsmbWriteSrvStatus(pStream,SMB2_STATUS_UNSUCCESSFUL);
            return TRUE;
          }
+
          filename = SMBU_GetFilename (filepath);
          file_name_len_bytes = (rtsmb_len (filename)+1)*sizeof(rtsmb_char);
 

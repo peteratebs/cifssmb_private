@@ -225,7 +225,7 @@ BBOOL has_lm_field=FALSE;
     word Access=AUTH_NOACCESS;
 
     // Think of what security to use
-    if (decoded_targ_token->lm_response->value_at_offset && tc_memcmp(decoded_targ_token->lm_response->value_at_offset,zeros24,8)!=0)
+    if (decoded_targ_token->lm_response && decoded_targ_token->lm_response->value_at_offset && tc_memcmp(decoded_targ_token->lm_response->value_at_offset,zeros24,8)!=0)
        has_lm_field=TRUE;
 
     // Make sure we have an nulled domain name buffer if none was passed.

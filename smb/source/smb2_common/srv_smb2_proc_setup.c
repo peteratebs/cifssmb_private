@@ -59,6 +59,10 @@ static BBOOL Smb1SrvUidForStream (smb2_stream  *pStream);
 static byte *RTSmb2_Encryption_Get_Spnego_InBuffer(rtsmb_size *buffer_size);
 static void RTSmb2_Encryption_Release_Spnego_InBuffer(byte *buffer);
 extern int spnego_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+extern int ntlmssp_encode_ntlm2_type3_response_packet(unsigned char *outbuffer, size_t buffer_length);
+extern int ntlmssp_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+dword buffer_is_ntlmssp_str(byte * buffer);
+int process_ntlmssp_request(decoded_NegTokenTarg_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 
 /*
 Proccess SESSION_SETUP requests.
@@ -82,6 +86,8 @@ void calculate_ntlmv2_signing_key(
   BYTE *session_key,
   int session_key_size,
   BYTE *signing_key_result);
+
+
 
 BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
 {
@@ -329,16 +335,23 @@ BBOOL Proc_smb2_SessionSetup (smb2_stream  *pStream)
         int Spnego_isLast_token = 1;
         decoded_NegTokenInit_t decoded_init_token;
         decoded_NegTokenTarg_t decoded_targ_token;
-        int isNegTokenInitNOT;
-int spnego_blob_size;
-static byte spnego_blob_buffer[512];
+        int isNegTokenInitNOT = 1;
+        int spnego_blob_size;
+        static byte spnego_blob_buffer[512];
+        dword ntlmssp_type = buffer_is_ntlmssp_str(pStream->ReadBufferParms[0].pBuffer);
+        BBOOL ntlmssp_completed = FALSE;
 
         finish=FALSE; /* We may have set finished up above, so clear it now */
         /* Pg 262 - 3.3.5.5.3 Handling GSS-API Authentication */
         /* The server SHOULD use the configured authentication protocol to obtain the next GSS output token for the authentication exchange.<226> */
-        isNegTokenInitNOT = spnego_decode_NegTokenInit_packet(&decoded_init_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
-        spnego_decoded_NegTokenInit_destructor(&decoded_init_token);
 
+        if (ntlmssp_type == 0x1)
+            isNegTokenInitNOT = process_ntlmssp_request(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
+        else
+        {
+            isNegTokenInitNOT = spnego_decode_NegTokenInit_packet(&decoded_init_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
+            spnego_decoded_NegTokenInit_destructor(&decoded_init_token);
+        }
         if (isNegTokenInitNOT == 0)
         { // We got neg token init packet, send a challenge
 #if (HARDWIRED_DEBUG_ENCRYPTION_KEY==1)
@@ -353,10 +366,21 @@ static byte spnego_blob_buffer[512];
              tc_memcpy (&(pStream->pSmbCtx->encryptionKey[i * 2]), &randnum, 2);
             }
 #endif
-            spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->pSmbCtx->encryptionKey);
-            pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
-            pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
-            Spnego_isLast_token = 0;
+            if (ntlmssp_type == 0x1)
+            {
+                spnego_blob_size =  ntlmssp_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),
+                  decoded_targ_token.domain_name?decoded_targ_token.domain_name->value_at_offset:0,
+                  decoded_targ_token.user_name?decoded_targ_token.user_name->value_at_offset:0,
+                  decoded_targ_token.host_name?decoded_targ_token.host_name->value_at_offset:0,
+                  pStream->pSmbCtx->encryptionKey);
+             }
+             else
+             {
+                spnego_blob_size=spnego_encode_ntlm2_type2_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer),pStream->pSmbCtx->encryptionKey);
+             }
+             pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
+             pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
+             Spnego_isLast_token = 0;
         }
         else
         { // Check log- in credentials
@@ -366,8 +390,12 @@ static byte spnego_blob_buffer[512];
           int  password_size = 0;
           BYTE *password;
           PFRTCHAR username=0;
+          int NegTokenTargDecodeResult;
+          if (ntlmssp_type == 0x3)
+            NegTokenTargDecodeResult = ntlmssp_decode_type2_response_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
+          else
+            NegTokenTargDecodeResult =  spnego_decode_NegTokenTarg_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
 
-          int NegTokenTargDecodeResult =  spnego_decode_NegTokenTarg_packet(&decoded_targ_token, pStream->ReadBufferParms[0].pBuffer,pStream->ReadBufferParms[0].byte_count);
           if (NegTokenTargDecodeResult == 0)
           {
             extended_access = spnego_AuthenticateUser (pStream->pSmbCtx, &decoded_targ_token, &extended_authId);
@@ -396,6 +424,7 @@ static byte spnego_blob_buffer[512];
           if (extended_access==AUTH_NOACCESS)
           {
             // Force the buffer to zero this will close the session and shut down the socket
+            // Okay for both spnego and NTLMSSP
             spnego_decoded_NegTokenTarg_destructor(&decoded_targ_token);
             rtp_printf("!!!! spnego Auth failed, No access !!!! \n");
             pStream->WriteBufferParms[0].pBuffer = 0;
@@ -403,9 +432,19 @@ static byte spnego_blob_buffer[512];
           }
           else
           {
-            spnego_blob_size=spnego_encode_ntlm2_type3_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer));
-            pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
-            pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
+            // If spnego encode
+            if (ntlmssp_type == 0)
+            {
+              spnego_blob_size=spnego_encode_ntlm2_type3_response_packet(spnego_blob_buffer, sizeof(spnego_blob_buffer));
+              pStream->WriteBufferParms[0].byte_count = spnego_blob_size;
+              pStream->WriteBufferParms[0].pBuffer = spnego_blob_buffer;
+            }
+            else
+            {
+              pStream->WriteBufferParms[0].byte_count = 0;
+              pStream->WriteBufferParms[0].pBuffer = 0;
+              ntlmssp_completed = TRUE;
+            }
             Spnego_isLast_token = 1;
             // Calculate the session signing key
             if (decoded_targ_token.ntlm_response && decoded_targ_token.ntlm_response->size>16)
@@ -431,7 +470,7 @@ static byte spnego_blob_buffer[512];
           }
         }
 //        pStream->WriteBufferParms[0].pBuffer = RTSmb2_Encryption_Get_Spnego_Next_token(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext, &pStream->WriteBufferParms[0].byte_count, &Spnego_isLast_token, &status, pStream->ReadBufferParms[0].pBuffer, command.SecurityBufferLength);
-        if (!pStream->WriteBufferParms[0].pBuffer)
+        if (!pStream->WriteBufferParms[0].pBuffer && !ntlmssp_completed)  // ntlmsssp_type 3 gives no response
         {
            /* If the authentication protocol indicates an error, the server MUST fail the session setup request with the error received by placing the 32-bit NTSTATUS code received into the
               Status field of the SMB2 header. */
@@ -467,7 +506,11 @@ static byte spnego_blob_buffer[512];
                 response.SecurityBufferOffset = (word)(pStream->OutHdr.StructureSize + response.StructureSize-1);
                 response.SecurityBufferLength = (word)(pStream->WriteBufferParms[0].byte_count);
            }
-
+           else if (ntlmssp_completed)
+           {
+                response.SecurityBufferOffset = (word)(pStream->OutHdr.StructureSize + response.StructureSize-1);
+                response.SecurityBufferLength = (word)0;
+           }
             /* Session.SessionId MUST be placed in the SessionId field of the SMB2 header. */
             pStream->OutHdr.SessionId = pStreamSession->SessionId;
             /* Return the security tokens to the client and wait for another response packet */
@@ -557,8 +600,8 @@ static byte spnego_blob_buffer[512];
                 {
                     /* If the returned anon_state is TRUE, the server MUST set Session.IsAnonymous to TRUE and the server MAY set the
                        SMB2_SESSION_FLAG_IS_NULL flag in the SessionFlags field of the SMB2 SESSION_SETUP Response.*/
-                    pStreamSession->IsAnonymous = TRUE;
-                    response.SessionFlags |= SMB2_SESSION_FLAG_IS_NULL;
+//                    pStreamSession->IsAnonymous = TRUE;
+//                    response.SessionFlags |= SMB2_SESSION_FLAG_IS_NULL;
                 }
                 else if (RTSmb2_Encryption_InquireContextGuest(pStreamSession->SessionGlobalId,pStreamSession->SecurityContext))
                 {

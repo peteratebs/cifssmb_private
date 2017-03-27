@@ -747,7 +747,7 @@ static void srvsmboo_close_session(RTP_SOCKET sock)
 {
   for (int i = 0; i < (int)prtsmb_srv_ctx->mainThread->numSessions; i++)
   {
-    if (sock == prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_smbCtx.sock)
+    if (prtsmb_srv_ctx->mainThread->sessionList[i] && sock == prtsmb_srv_ctx->mainThread->sessionList[i]->netsessiont_smbCtx.sock)
     {
        freeSession (prtsmb_srv_ctx->mainThread->sessionList[i]);  // Called from rtsmb_srv_netssn_session_cycle when a dead socket is encountered
        prtsmb_srv_ctx->mainThread->sessionList[i] = (PNET_SESSIONCTX)0;

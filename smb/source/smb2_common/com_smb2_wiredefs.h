@@ -1194,6 +1194,29 @@ typedef struct s_MSFSCC_ALL_DIRECTORY_INFO
 PACK_PRAGMA_POP
 
 PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_FILE_INTERNAL_INFORMATION
+{
+  ddword IndexNumber;
+} MSFSCC_FILE_INTERNAL_INFORMATION;
+PACK_PRAGMA_POP
+
+PACK_PRAGMA_ONE
+typedef struct s_MSFSCC_FILE_BASIC_INFORMATION
+{
+	dword low_creation_time;
+	dword high_creation_time;
+	dword low_last_access_time;
+	dword high_last_access_time;
+	dword low_last_write_time;
+	dword high_last_write_time;
+	dword low_change_time;
+	dword high_change_time;
+	dword extended_file_attributes;
+	dword reserved;
+} MSFSCC_FILE_BASIC_FILE_INFORMATION;
+PACK_PRAGMA_POP
+
+PACK_PRAGMA_ONE
 typedef struct s_MSFSCC_FILE_NETWORK_OPEN_INFORMATION
 {
 	dword low_creation_time;
@@ -1212,6 +1235,8 @@ typedef struct s_MSFSCC_FILE_NETWORK_OPEN_INFORMATION
 	dword reserved;
 } MSFSCC_FILE_NETWORK_OPEN_INFORMATION;
 PACK_PRAGMA_POP
+
+
 
 
 

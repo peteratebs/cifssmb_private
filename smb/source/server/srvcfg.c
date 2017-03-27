@@ -109,7 +109,9 @@
  *          a dstat object to pass to gfirst.  Be careful when raising this.
  */
 #ifndef CFG_RTSMB_MAX_SEARCHES_PER_UID
-#define CFG_RTSMB_MAX_SEARCHES_PER_UID      2
+// #define CFG_RTSMB_MAX_SEARCHES_PER_UID      2
+#define CFG_RTSMB_MAX_SEARCHES_PER_UID      8
+// #define CFG_RTSMB_MAX_SEARCHES_PER_UID      16
 #endif
 
 /**
