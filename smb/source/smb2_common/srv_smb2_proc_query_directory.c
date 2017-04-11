@@ -173,6 +173,24 @@ static BBOOL find_smb2_sid_from_fid(int *psid, byte * pFileId, PUSER user, int f
 
 extern const byte zeros24[24];
 
+
+static BBOOL check_if_dot(SMBDSTAT *pstat)
+{
+ rtsmb_char *pc = pstat->filename;
+ if ( *pc == (rtsmb_char) '.' && *(pc+1) == (rtsmb_char)0 )
+   return TRUE;
+ return FALSE;
+}
+
+static BBOOL check_if_dot_dot(SMBDSTAT *pstat)
+{
+ rtsmb_char *pc = pstat->filename;
+ if ( *pc == (rtsmb_char) '.' && *(pc+1) == (rtsmb_char) '.' && *(pc+2) == (rtsmb_char)0 )
+   return TRUE;
+ return FALSE;
+}
+
+
 BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 {
 	RTSMB2_QUERY_DIRECTORY_C command;
@@ -258,6 +276,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     {
       if ((command.Flags&(SMB2_RESTART_SCANS|SMB2_REOPEN)) )
       {   // Make sure to start over if we found an open directory on a rescan
+//RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Gdone called on flags %X\n", command.Flags);
           SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
           user->searches[sid].File_index = 0;
           user->searches[sid].inUse=FALSE;
@@ -276,7 +295,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
     	{
     		word i;
     		sid = 0;
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: recycling a search because none free\n");
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Gdone called recycling a search because none free\n");
     		// find oldest search, kill it.
     		for (i = 1; i < prtsmb_srv_ctx->max_searches_per_uid; i++)
     			if (user->searches[sid].lastUse < user->searches[i].lastUse)
@@ -379,6 +398,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
 //     if (pStream->compound_output_index == 0 || (command.Flags & (SMB2_RESTART_SCANS|SMB2_REOPEN)))
     if (searchFound==FALSE)
     {
+//RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: SMBFIO_GFirst called\n");
        isFound = SMBFIO_GFirst( (PSMB_SESSIONCTX) pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat, user->searches[sid].name);
        user->searches[sid].File_index = 0;
     }
@@ -395,6 +415,13 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
         SMBDSTAT *pstat = &user->searches[sid].stat;
         numFound += 1;
         rtsmb_size bytes_consumed = 0;
+#if (0)
+{
+char fullName[512];
+rtsmb_util_rtsmb_to_ascii ( pstat->filename, fullName, CFG_RTSMB_USER_CODEPAGE);
+RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: f: %s GETDIR class:%d\n",fullName,command.FileInformationClass);
+}
+#endif
         switch (command.FileInformationClass) {
         // FileInformationClass
            case FileDirectoryInformation        : // 0x01
@@ -436,27 +463,65 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
               pStream->OutHdr.Flags |= SMB2_FLAGS_RELATED_OPERATIONS;
               break;
             }
-            // If not a single entry look for more matches
+#if (1)
+// This gives the following on linux
+// Server says.
+// 2017-04-03 12:26:28 : SMB: DIAG: stat failed filename: /media/sf_0a_share_with_virtual_box/mountpoint/testme/Bonnie.3263/0001044
+//2017-04-03 12:26:31 : SMB: DIAG: stat failed filename: /media/sf_0a_share_with_virtual_box/mountpoint/testme/Bonnie.3263/0001045N
+// Expected 2048 files but only got 1046
             isFound = SMBFIO_GNext(pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
-            if (isFound)
+//            if (isFound)
             {
-               dword *prev_byte_pointer = byte_pointer;
-               *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
-               user->searches[sid].File_index += 1;
-               byte_pointer = PADD(byte_pointer, bytes_consumed);
+               dword *prev_byte_pointer;
+               if (isFound)
+               {
+                 prev_byte_pointer = byte_pointer;
+                 *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
+               }
+               else
+                 prev_byte_pointer = 0;
                rtsmb_size SkipCount = ( ((bytes_consumed+7)/8) *8 ) - bytes_consumed;
+               byte_pointer = PADD(byte_pointer, bytes_consumed);
                if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
                {
                   tc_memset(byte_pointer,0,SkipCount);
                   bytes_consumed += SkipCount;
                   byte_pointer = PADD(byte_pointer, SkipCount);
-                  *((dword *) prev_byte_pointer) = bytes_consumed;           // Next offset pointer
+                  if (prev_byte_pointer)
+                    *((dword *) prev_byte_pointer) = bytes_consumed;           // Next offset pointer
                   pStream->WriteBufferParms[0].byte_count += SkipCount;
                   bytes_remaining -= SkipCount;
-
-
                }
             }
+// This broke OSX cause pnext on last file is populated
+//            isFound = SMBFIO_GNext(pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
+#else
+// This gives the following on linux
+// Expected 2048 files but only got 1050
+// Exit witout cleanup after error.
+
+            {
+               dword *prev_byte_pointer;
+                prev_byte_pointer = byte_pointer;
+                *((dword *) byte_pointer) = bytes_consumed;           // Next offset pointer
+               rtsmb_size SkipCount = ( ((bytes_consumed+7)/8) *8 ) - bytes_consumed;
+               byte_pointer = PADD(byte_pointer, bytes_consumed);
+               if (SkipCount && SkipCount < (rtsmb_size)pStream->write_buffer_remaining)
+               {
+                  tc_memset(byte_pointer,0,SkipCount);
+                  bytes_consumed += SkipCount;
+                  byte_pointer = PADD(byte_pointer, SkipCount);
+                  if (prev_byte_pointer)
+                    *((dword *) prev_byte_pointer) = bytes_consumed;           // Next offset pointer
+                  pStream->WriteBufferParms[0].byte_count += SkipCount;
+                  bytes_remaining -= SkipCount;
+               }
+            }
+// This broke OSX cause pnext on last file is populated
+            isFound = SMBFIO_GNext(pStream->pSmbCtx, pStream->pSmbCtx->tid, &user->searches[sid].stat);
+#endif
+            if (isFound)
+               user->searches[sid].File_index += 1;
             else
             {
              isEof=TRUE;
@@ -494,6 +559,7 @@ RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: top: remaining %d\n", bytes_rema
     { // Send back an error status if this is the first reply in the reply chain
       // - Pack a header and response packet set status in header to STATUS_NO_MORE_FILES (0x80000006)
       // - Send NO_SUCH_FILE if this is was the initial query
+//RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Gdone called on numfound==0\n");
       SMBFIO_GDone (pStream->pSmbCtx, user->searches[sid].tid, &user->searches[sid].stat);
       user->searches[sid].inUse = FALSE;
       dword rstatus = SMB2_STATUS_NO_MORE_FILES;
@@ -654,12 +720,6 @@ static int SMB2_FILLFileIdFullDirectoryInformation(void *byte_pointer, rtsmb_siz
     byte *pfilename = (byte *) &pinfo->FileId;
     pfilename += sizeof(pinfo->FileId);
     tc_memcpy(pfilename, stat->filename, filename_size);
-
-{
-char tempbuff[512];
-rtsmb_util_rtsmb_to_ascii ((PFRTCHAR)pfilename, tempbuff, CFG_RTSMB_USER_CODEPAGE);
-RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "DIAG: FILENAME: %s \n",  tempbuff);
-}
 
 //    tc_memcpy(&pinfo->FileId, pstat->unique_fileid, sizeof(pinfo->FileId));
 //    return (int) (sizeof(RTSMB2_FILE_FULL_DIRECTORY_INFO) + sizeof(pshortinfo->short_name) +
