@@ -52,7 +52,7 @@
 #include "com_smb2.h"
 #include "com_smb2_ssn.h"
 #include "srv_smb2_model.h"
-extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx);
+extern BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx, SMB_DIALECT_T dialect);
 #endif
 /*============================================================================   */
 /*    SERVER STATE DIAGNOSTICS (COMPILE TIME)                                    */
@@ -1909,7 +1909,7 @@ static BBOOL SMBS_ProcNegotiateProtocol (PSMB_SESSIONCTX pCtx, PRTSMB_HEADER pIn
 #ifdef SUPPORT_SMB2
     if (dialect >= SMB2_2002) /* PVO */
     {
-        return SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (pCtx);
+        return SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (pCtx, dialect);
     }
 #endif
     return ProcSMB1NegotiateProtocol(pCtx,dialect, dialectList[dialect].priority,bestEntry, pInHdr, pInBuf, pOutHdr, pOutBuf);

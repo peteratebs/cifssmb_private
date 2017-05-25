@@ -1184,7 +1184,7 @@ static void DebugOutputSMB2Command(int command)
 
 
 /* Called from SMBS_ProcNegotiateProtocol when a V1 protocol negotiate request is recieved with an SMB2002 protocol option */
-BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
+BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx,SMB_DIALECT_T dialect)
 {
     int header_size;
     int length;
@@ -1200,12 +1200,20 @@ BBOOL SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB (PSMB_SESSIONCTX pSctx)
     /* Initialize memory stream pointers and set pStream->psmb2Session from value saved in the session context structure  */
     Smb1SrvCtxtToStream(pStream, pSctx);
 
+    if (dialect == SMB2_2002)
+    {
+      pStream->psmb2Session->Connection->Dialect = SMB2_DIALECT_2002;
+      pStream->psmb2Session->Connection->NegotiateDialect = SMB2_DIALECT_2002;
+    }
+    else
+    {
+      pStream->psmb2Session->Connection->Dialect = SMB2_DIALECT_WILD;
+      pStream->psmb2Session->Connection->NegotiateDialect = SMB2_DIALECT_WILD;
+    }
     pStream->psmb2Session->Connection->ShouldSign = FALSE;
-// #define REPLY_DIALECT SMB2_DIALECT_WILD
+#define REPLY_DIALECT SMB2_DIALECT_WILD
 // Must Reply with 2002 dialect
-#define REPLY_DIALECT SMB2_DIALECT_2002
-    pStream->psmb2Session->Connection->Dialect = REPLY_DIALECT;
-    pStream->psmb2Session->Connection->NegotiateDialect = REPLY_DIALECT;
+// #define REPLY_DIALECT SMB2_DIALECT_2002
     pStream->psmb2Session->Connection->MaxTransactSize =
     pStream->psmb2Session->Connection->MaxWriteSize =
     pStream->psmb2Session->Connection->MaxReadSize = prtsmb_srv_ctx->max_smb2_transaction_size;
