@@ -195,7 +195,7 @@ BBOOL Proc_smb2_QueryDirectory(smb2_stream  *pStream)
 {
 	RTSMB2_QUERY_DIRECTORY_C command;
 	RTSMB2_QUERY_DIRECTORY_R response;
-    byte file_name[SMBF_FILENAMESIZE];
+    byte  file_name[SMBF_FILENAMESIZE*2];
     SMBFSTAT stat;
     dword r;
 	PUSER user;

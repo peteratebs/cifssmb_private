@@ -146,7 +146,7 @@ BBOOL Proc_smb2_Create(smb2_stream  *pStream, BBOOL replay)
 {
 	RTSMB2_CREATE_C command;
 	RTSMB2_CREATE_R response;
-    byte file_name[SMBF_FILENAMESIZE];
+    byte file_name[SMBF_FILENAMESIZE*2];
     byte create_content[MAX_CREATE_CONTEXT_LENGTH_TOTAL];
     int fid;
     dword r;
