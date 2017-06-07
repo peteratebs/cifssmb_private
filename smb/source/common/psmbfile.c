@@ -37,6 +37,7 @@ int  rtplatform_close(int fd);
 long rtplatform_lseek(int fd, long offset, int origin);
 long long rtplatform_llseek(int fd, long long offset, int origin);
 BBOOL rtplatform_truncate(int fd, long offset);
+BBOOL rtplatform_truncate64(int fd, unsigned long long offset);
 BBOOL rtplatform_flush(int fd);
 BBOOL rtplatform_pwd(char RTSMB_FAR * to, long size);
 BBOOL rtplatform_rename(char RTSMB_FAR * from, char RTSMB_FAR * to);
@@ -113,6 +114,7 @@ int rtsmb_fileport_init(void)
     prtsmb_filesys->fs_lseek        =   (RTSMB_FS_LSEEKFN)       rtplatform_lseek;
     prtsmb_filesys->fs_llseek       =   (RTSMB_FS_LLSEEKFN)      rtplatform_llseek;
     prtsmb_filesys->fs_truncate     =   (RTSMB_FS_TRUNCATEFN)    rtplatform_truncate;
+    prtsmb_filesys->fs_truncate64   =   (RTSMB_FS_TRUNCATE64FN)  rtplatform_truncate64;
     prtsmb_filesys->fs_flush        =   (RTSMB_FS_FLUSHFN)       rtplatform_flush;
     prtsmb_filesys->fs_close        =   (RTSMB_FS_CLOSEFN)       rtplatform_close;
     prtsmb_filesys->fs_rename       =   (RTSMB_FS_RENAMEFN)      rtplatform_rename;
@@ -238,6 +240,19 @@ long long rtplatform_llseek(int fd, long long offset, int origin)
     }
     return rv;
 
+}
+
+
+BBOOL rtplatform_truncate64(int fd, unsigned long long offset)
+{
+    int rv;
+
+    rv = rtp_file_truncate64 ((RTP_HANDLE) fd, offset);
+    if (rv < 0)
+    {
+        return (char) 0;
+    }
+    return (char) 1;
 }
 
 

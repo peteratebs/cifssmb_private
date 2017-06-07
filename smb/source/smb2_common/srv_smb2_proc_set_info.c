@@ -142,7 +142,7 @@ RTSMB2_SET_INFO_R response;
 
         if (fid >= 0)
         {
-           if (!SMBFIO_Truncate (pStream->pSmbCtx, pStream->pSmbCtx->tid, fid, (dword) *pInfo))
+           if (!SMBFIO_Truncate64 (pStream->pSmbCtx, pStream->pSmbCtx->tid, fid, *pInfo))
            {
              RtsmbWriteSrvStatus(pStream,SMB2_STATUS_ACCESS_DENIED);
              goto free_bail;

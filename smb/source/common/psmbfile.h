@@ -35,6 +35,7 @@ typedef long (RTSMB_FAR *RTSMB_FS_LSEEKFN)(int fd, long offset, int origin);
 typedef long long (RTSMB_FAR *RTSMB_FS_LLSEEKFN)(int fd, long long offset, int origin);
 typedef int  (RTSMB_FAR *RTSMB_FS_CLOSEFN)(int fd);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_TRUNCATEFN)(int fd, dword offset);
+typedef BBOOL (RTSMB_FAR *RTSMB_FS_TRUNCATE64FN)(int fd, ddword offset);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_FLUSHFN)(int fd);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_RENAMEFN)(char RTSMB_FAR * name, char RTSMB_FAR * newname);
 typedef BBOOL (RTSMB_FAR *RTSMB_FS_DELETEFN)(char RTSMB_FAR * name);
@@ -76,6 +77,7 @@ typedef struct smbfileapi
 	RTSMB_FS_LSEEKFN       fs_lseek;
 	RTSMB_FS_LLSEEKFN      fs_llseek;
 	RTSMB_FS_TRUNCATEFN    fs_truncate;
+	RTSMB_FS_TRUNCATE64FN  fs_truncate64;
 	RTSMB_FS_FLUSHFN       fs_flush;
 	RTSMB_FS_CLOSEFN       fs_close;
 	RTSMB_FS_RENAMEFN      fs_rename;

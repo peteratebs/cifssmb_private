@@ -379,6 +379,18 @@ BBOOL SMBFIO_Truncate (PSMB_SESSIONCTX pCtx, word tid, int fd, dword offset)
 	return SMBFIO_TruncateInternal ((word) tree->internal, fd, offset);
 }
 
+BBOOL SMBFIO_Truncate64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword offset)
+{
+	PTREE tree;
+	tree = SMBU_GetTree (pCtx, tid);
+
+	if (!tree)
+	{
+		return FALSE;
+	}
+	return SMBFIO_Truncate64Internal ((word) tree->internal, fd, offset);
+}
+
 BBOOL SMBFIO_Flush (PSMB_SESSIONCTX pCtx, word tid, int fd)
 {
 	PTREE tree;
@@ -803,6 +815,37 @@ BBOOL SMBFIO_TruncateInternal (word tid, int fd, dword offset)
 
 	return api->fs_truncate (fd, offset);
 }
+BBOOL SMBFIO_Truncate64Internal (word tid, int fd, ddword offset)
+{
+	PSR_RESOURCE pResource;
+	PSMBFILEAPI api;
+	BBOOL rv = TRUE;
+
+	CLAIM_SHARE ();
+	pResource = SR_ResourceById (tid);
+
+	switch (pResource->stype)
+	{
+	case ST_PRINTQ:
+		api = pResource->u.printer.api;
+		break;
+	case ST_IPC:
+		api = pResource->u.ipctree.api;
+		break;
+	case ST_DISKTREE:
+		api = pResource->u.disktree.api;
+		break;
+	default:
+		rv = FALSE;
+		break;
+	}
+	RELEASE_SHARE ();
+
+	if (!rv) return rv;
+
+	return api->fs_truncate64 (fd, offset);
+}
+
 
 BBOOL SMBFIO_FlushInternal (word tid, int fd)
 {

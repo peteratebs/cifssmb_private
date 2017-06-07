@@ -78,6 +78,7 @@ long rtp_file_write      (RTP_FILE fd, const unsigned char * buf, long count);
 long rtp_file_lseek      (RTP_FILE fd, long offset, int origin);
 long long rtp_file_llseek (RTP_HANDLE fd, long long offset, int origin);
 int  rtp_file_truncate   (RTP_FILE fd, long offset);
+int  rtp_file_truncate64   (RTP_FILE fd, unsigned long long offset);
 int  rtp_file_flush      (RTP_FILE fd);
 int  rtp_file_rename     (const char * name, char * newname);
 int  rtp_file_delete     (const char * name);

@@ -336,6 +336,32 @@ int rtp_file_truncate (RTP_HANDLE fd, long offset)
 
 
 /*----------------------------------------------------------------------*
+                             rtp_file_truncate
+ *----------------------------------------------------------------------*/
+int rtp_file_truncate64 (RTP_HANDLE fd, unsigned long long offset)
+{
+#ifdef RTP_DEBUG
+    /* ----------------------------------- */
+    /*  Clear the error state by setting   */
+    /*  to 0.                              */
+    /* ----------------------------------- */
+    errno = 0;
+#endif
+
+    if (ftruncate64((int) fd, (off64_t) offset) < 0)
+    {
+#ifdef RTP_DEBUG
+        RTP_DEBUG_OUTPUT_STR("rtp_file_truncate64: error returned ");
+        RTP_DEBUG_OUTPUT_INT(errno);
+        RTP_DEBUG_OUTPUT_STR(".\n");
+#endif
+        return (-1);
+    }
+    return (0);
+}
+
+
+/*----------------------------------------------------------------------*
                              rtp_file_flush
  *----------------------------------------------------------------------*/
 int rtp_file_flush (RTP_HANDLE fd)
