@@ -42,6 +42,16 @@
 #endif
 #include "rtpdebug.h"
 
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
+// #define  LINUXSTILLTOBEIMPLEMENTED 1
+
+#define LINUXTOBEIMPLEMENTED 1
+
+#define SOCKET_ERROR -1
+#define SOCKET int
+
 /************************************************************************
 * Defines
 ************************************************************************/
@@ -1249,7 +1259,7 @@ int rtp_net_closesocket (RTP_HANDLE sockHandle)
  *----------------------------------------------------------------------*/
 int rtp_net_shutdown (RTP_HANDLE sockHandle, int how)
 {
-#ifdef LINUXTOBEIMPLEMENTED
+#ifdef LINUXSTILLTOBEIMPLEMENTED
     int result;
 #ifdef RTP_DEBUG
     WSASetLastError (0);
@@ -1301,7 +1311,7 @@ int rtp_net_getntoread (RTP_HANDLE sockHandle, unsigned long * nToRead)
     //WSASetLastError (0);
 #endif
 
-    if (ioctlsocket((SOCKET) sockHandle, FIONREAD, (u_long *) &arg) == SOCKET_ERROR)
+    if (ioctl((SOCKET) sockHandle, FIONREAD, (u_long *) &arg) == SOCKET_ERROR)
     {
 #ifdef RTP_DEBUG
         //result = WSAGetLastError();
@@ -1344,7 +1354,8 @@ int rtp_net_setblocking (RTP_HANDLE sockHandle, unsigned int onBool)
  *----------------------------------------------------------------------*/
 int rtp_net_setnagle (RTP_HANDLE sockHandle, unsigned int onBool)
 {
-#ifdef LINUXTOBEIMPLEMENTED
+// #ifdef LINUXTOBEIMPLEMENTED
+#if(1)
     int option;
 
 #ifdef RTP_DEBUG
@@ -1379,7 +1390,7 @@ int rtp_net_setnagle (RTP_HANDLE sockHandle, unsigned int onBool)
  *----------------------------------------------------------------------*/
 int rtp_net_setlinger (RTP_HANDLE sockHandle, unsigned int onBool, long msecTimeout)
 {
-#ifdef LINUXTOBEIMPLEMENTED
+#ifdef LINUXSTILLTOBEIMPLEMENTED
     LINGER arg;
 #ifdef RTP_DEBUG
     int result;

@@ -238,6 +238,9 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
     {
         pCtx->netsessiont_sock = sock;
 
+
+        rtp_net_setnagle (sock, 0);
+
         pCtx->netsessiont_lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pCtx->netsessiont_smbCtx), pCtx->netsessiont_sock);
 //        SMBS_PointSmbBuffersAtNetThreadBuffers (&pNetCtx->netsessiont_smbCtx, pThread);

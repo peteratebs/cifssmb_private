@@ -166,7 +166,9 @@ BBOOL Proc_smb2_Close(smb2_stream  *pStream)
           if ((smb2flags&SMB2DELONCLOSE)==SMB2DELONCLOSE)
           {
             if (fidflags != FID_FLAG_DIRECTORY)
+            {
               SMBFIO_Delete (pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
+            }
             else
               SMBFIO_Rmdir(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid));
           }
