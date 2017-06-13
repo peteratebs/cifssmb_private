@@ -131,10 +131,13 @@
 #define SMB2_STATUS_OBJECTID_NOT_FOUND           0xC00002F0
 #define SMB2_STATUS_DUPLICATE_NAME               0xC00000BD
 
+#define SMB2_STATUS_DIRECTORY_NOT_EMPTY          0xC0000101 /* The specified directory is not empty */
+
 #define SMB2_STATUS_DISK_FULL                   0xC000007F
 #define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
 #define SMB2_STATUS_NO_SUCH_FILE                0xC000000F
 #define SMB2_STATUS_NOTIFY_ENUM_DIR             0x0000010C
+
 
 
 #define SMB2_STATUS_FILE_CLOSED                 0xC0000128

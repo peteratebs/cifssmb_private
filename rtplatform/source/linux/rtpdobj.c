@@ -1091,3 +1091,46 @@ time_t utclindate = *lindate;
 
     return (0);
 }
+
+int rtp_file_direntcount(char *name, int max_count)
+{
+char escaped_name[SMB_MAX_NAME_SIZE*2];
+int entry_count=0;
+DIR   *dirreadObj;                        // handle from opendir() if not gnstyle != GNSTYLE_GLOB
+struct dirent *direntp;
+
+    // Try a little precaution, make sure the string is <=512 bytes and null termintate.
+    if (strnlen(name, SMB_MAX_NAME_SIZE) == SMB_MAX_NAME_SIZE)
+      return -1;
+    int i,j;
+    j=0;
+
+    escaped_name[0]= 0;
+    for (i = 0; i < SMB_MAX_NAME_SIZE; i++)
+    {
+        if (name[i] == 0)
+          break;
+        if (name[i] == '\\')
+           escaped_name[j++]= '/';
+        else
+        {
+          escaped_name[j++]= name[i];
+        }
+        escaped_name[j]= 0;
+    }
+    name = escaped_name;
+
+    dirreadObj = opendir(name);
+    entry_count=0;
+    for(;;)
+    {
+      direntp = readdir(dirreadObj);
+      if (!direntp)
+        break;
+      entry_count += 1;
+      if (max_count && entry_count > max_count)
+        break;
+    }
+    closedir(dirreadObj);
+    return entry_count;
+}

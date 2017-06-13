@@ -23,6 +23,7 @@ EXTERN_C BBOOL SMBFIO_Truncate64 (PSMB_SESSIONCTX pCtx, word tid, int fd, ddword
 EXTERN_C BBOOL SMBFIO_Flush (PSMB_SESSIONCTX pCtx, word tid, int fd);
 EXTERN_C int SMBFIO_Close (PSMB_SESSIONCTX pCtx, word tid, int fd);
 EXTERN_C BBOOL SMBFIO_Rename (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR oldname, PFRTCHAR newname);
+EXTERN_C int SMBFIO_DirentCount (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR dirname,int max_count);
 EXTERN_C BBOOL SMBFIO_Delete (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name);
 EXTERN_C BBOOL SMBFIO_Mkdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name);
 EXTERN_C BBOOL SMBFIO_Rmdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name);

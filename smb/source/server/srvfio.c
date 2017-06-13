@@ -416,6 +416,7 @@ int SMBFIO_Close (PSMB_SESSIONCTX pCtx, word tid, int fd)
 	return SMBFIO_CloseInternal ((word) tree->internal, fd);
 }
 
+
 BBOOL SMBFIO_Rename (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR oldname, PFRTCHAR newname)
 {
 	PTREE tree;
@@ -472,6 +473,23 @@ BBOOL SMBFIO_Rmdir (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR name)
 	return SMBFIO_RmdirInternal ((word) tree->internal, name);
 }
 
+
+static int SMBFIO_DirentCountInternal (word tid, PFRTCHAR dirname, int max_count);
+
+int SMBFIO_DirentCount (PSMB_SESSIONCTX pCtx, word tid, PFRTCHAR dirname,int max_count)
+{
+	PTREE tree;
+	if (!dirname)
+      return -1;
+	tree = SMBU_GetTree (pCtx, tid);
+	if (!tree)
+	{
+		return -1;
+	}
+	return SMBFIO_DirentCountInternal ((word) tree->internal, dirname, max_count);
+
+
+}
 
 /**
  * TODO: add a parameter for search attributes, and skip those that aren't allowed.
@@ -1095,6 +1113,40 @@ BBOOL SMBFIO_RmdirInternal (word tid, PFRTCHAR name)
 		}
 
 	return rv;
+}
+
+static int SMBFIO_DirentCountInternal (word tid, PFRTCHAR dirname, int max_count)
+{
+	rtsmb_char fullName [SMBF_FILENAMESIZE + 1];
+	PSR_RESOURCE pResource;
+	PSMBFILEAPI api;
+	int rv = -1;
+
+	CLAIM_SHARE ();
+	pResource = SR_ResourceById (tid);
+
+	switch (pResource->stype)
+	{
+	case ST_PRINTQ:
+		rv = -1;
+		break;
+	case ST_IPC:
+		rv = -1;
+		break;
+	case ST_DISKTREE:
+		rv = 0;
+		api = pResource->u.disktree.api;
+		break;
+	default:
+		rv = -1;
+		break;
+	}
+	RELEASE_SHARE ();
+	if (rv==0 && !expandName (pResource, dirname, fullName, SMBF_FILENAMESIZE + 1)) rv = -1;
+	if (rv<0) return rv;
+	rtsmb_util_rtsmb_to_ascii (fullName, (PFCHAR) fullName, CFG_RTSMB_USER_CODEPAGE);
+	rv = api->fs_direntcount((PFCHAR)fullName, max_count);
+    return rv;
 }
 
 BBOOL SMBFIO_GFirstInternal (word tid, PSMBDSTAT dirobj, PFRTCHAR name)

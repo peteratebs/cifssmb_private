@@ -48,6 +48,7 @@ BBOOL rtplatform_rmdir(char RTSMB_FAR * to);
 BBOOL rtplatform_gfirst(PSMBDSTAT dirobj, char RTSMB_FAR * name);
 BBOOL rtplatform_gnext(PSMBDSTAT dirobj);
 void rtplatform_gdone(PSMBDSTAT dirobj);
+int  rtplatform_direntcount(char RTSMB_FAR * name,int max_count);
 BBOOL rtplatform_stat(char RTSMB_FAR * name, PSMBFSTAT vstat);
 BBOOL rtplatform_chmode(char RTSMB_FAR * name, unsigned char attributes);
 BBOOL rtplatform_get_free(char RTSMB_FAR * name, unsigned long *total, unsigned long *free, unsigned long *sectors_per_unit, unsigned short *bytes_per_sector);
@@ -126,6 +127,7 @@ int rtsmb_fileport_init(void)
     prtsmb_filesys->fs_gfirst       =   (RTSMB_FS_GFIRSTFN)      rtplatform_gfirst;
     prtsmb_filesys->fs_gnext        =   (RTSMB_FS_GNEXTFN)       rtplatform_gnext;
     prtsmb_filesys->fs_gdone        =   (RTSMB_FS_GDONEFN)       rtplatform_gdone;
+    prtsmb_filesys->fs_direntcount  =   (RTSMB_FS_DIRENTCOUNTFN) rtplatform_direntcount;
     prtsmb_filesys->fs_stat         =   (RTSMB_FS_STATFN)        rtplatform_stat;
     prtsmb_filesys->fs_chmode       =   (RTSMB_FS_CHMODEFN)      rtplatform_chmode;
     prtsmb_filesys->fs_get_free     =   (RTSMB_FS_GET_FREEFN)    rtplatform_get_free;
@@ -499,6 +501,12 @@ void rtplatform_gdone(PSMBDSTAT dirobj)
         rtp_file_gdone(dirobj->rtp_dirobj);
         dirobj->rtp_dirobj=0;
     }
+}
+
+int  rtplatform_direntcount(char RTSMB_FAR * name, int max_count)
+{
+  return rtp_file_direntcount(name,max_count);
+
 }
 
 

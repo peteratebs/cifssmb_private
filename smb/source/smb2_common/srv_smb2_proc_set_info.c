@@ -110,6 +110,12 @@ RTSMB2_SET_INFO_R response;
         {
           if (pInfo->DeletePending)
           {
+            // Check if we are a non-empty directory
+            if (fidflags == FID_FLAG_DIRECTORY && SMBFIO_DirentCount(pStream->pSmbCtx, pStream->pSmbCtx->tid, SMBU_GetFileNameFromFid(pStream->pSmbCtx, externalFid),2)!=2)
+            {
+               RtsmbWriteSrvStatus(pStream,SMB2_STATUS_DIRECTORY_NOT_EMPTY);
+               goto free_bail;
+            }
             smb2flags |= (SMB2FIDSIG|SMB2DELONCLOSE);
           }
           else
