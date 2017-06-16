@@ -177,6 +177,8 @@ static int _smbservermain (void)
        fprintf(stderr, "rtp_net_init failed\n");
        return -1;
 	}
+    rtsmb_fileport_init();
+    rtsmb_srv_read_net_config ("smb_config.txt");
 
 #if (HARDWIRED_EXTENDED_SECURITY)
     spnego_init_extended_security();
@@ -210,7 +212,7 @@ static int _smbservermain (void)
         // Override defaults interactiveky
         in_name(network_name, network_group);
 #endif
-		rtsmb_srv_init (ip, mask_ip, network_name , network_group);
+        rtsmb_srv_init (ip, mask_ip, network_name , network_group);
 	}
 
 

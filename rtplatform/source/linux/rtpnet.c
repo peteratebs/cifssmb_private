@@ -1349,6 +1349,17 @@ int rtp_net_setblocking (RTP_HANDLE sockHandle, unsigned int onBool)
 }
 
 
+int  rtp_net_set_so_rcv(RTP_HANDLE sockHandle, unsigned long so_rcvbuf)
+{
+  return setsockopt(sockHandle, SOL_SOCKET, SO_RCVBUF, &so_rcvbuf, sizeof(so_rcvbuf));
+}
+int  rtp_net_set_so_send(RTP_HANDLE sockHandle, unsigned long so_sendbuf)
+{
+
+  return setsockopt(sockHandle, SOL_SOCKET, SO_SNDBUF, &so_sendbuf, sizeof(so_sendbuf));
+}
+
+
 /*----------------------------------------------------------------------*
                             rtp_net_setnagle
  *----------------------------------------------------------------------*/

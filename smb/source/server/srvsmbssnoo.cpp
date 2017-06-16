@@ -239,7 +239,20 @@ static BBOOL rtsmb_srv_netssn_thread_new_session (PNET_THREAD pMaster, RTP_SOCKE
         pCtx->netsessiont_sock = sock;
 
 
-        rtp_net_setnagle (sock, 0);
+        if (prtsmb_srv_ctx->disable_nagle)
+          rtp_net_setnagle (sock, 0);
+        if (prtsmb_srv_ctx->so_rcvbuf!=0)
+        {
+         if (rtp_net_set_so_rcv(sock, (dword) prtsmb_srv_ctx->so_rcvbuf*1024) < 0)
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_net_set_so_rcv failed setting buffer to %d K\n",prtsmb_srv_ctx->so_rcvbuf);
+        }
+        if (prtsmb_srv_ctx->so_sendbuf!=0)
+        {
+          if (rtp_net_set_so_send(sock, (dword)prtsmb_srv_ctx->so_sendbuf*1024))
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtp_net_set_so_send failed setting buffer to %d K\n",prtsmb_srv_ctx->so_sendbuf);
+        }
+
+//        sockopt(fd, SOL_SOCKET, SO_RCVBUF/SO_SNDBUF, &size, sizeof(size))
 
         pCtx->netsessiont_lastActivity = rtp_get_system_msec ();
         SMBS_InitSessionCtx(&(pCtx->netsessiont_smbCtx), pCtx->netsessiont_sock);

@@ -36,8 +36,8 @@
 name = share0
 comment = native fs
 # path = /media
-# path = /media/sf_0a_share_with_virtual_box/mountpoint
-path = /home/peter
+path = /media/sf_0a_share_with_virtual_box/mountpoint
+# path = /home/peter
 flags = create
 permission = rw
 # password = smb
@@ -144,6 +144,29 @@ groups = trusted
 [end]
 
 
+# The dynamic section is processed early in the startup
+# Configure networking and buffer policies here
+
+[dynamic]
+disable_nagle = yes
+# Comment in to set tcp send/recv buffers to this many K
+# Comment out to use defaults
+so_rcvbuf =  512
+so_sendbuf = 512
+
+# Comment in to set maximum compound frame size in K
+max_nbss_frame_size = 512
+
+# Comment in to set maximum size for smb2 read and write commands in K
+max_transaction_size = 256
+# At 64 a 4gb file from osX is 7 minutes, to osx is 8 minutes
+# max_transaction_size = 64
+
+# HEREHERE add max searches per user
+
+
+[end]
+
 # The global section has four variables:  mode, guest, and guestgroups, enable_oplocks.
 # If mode is set to "user", user-mode authentication will occur.
 # If mode is set to "share", share-based authentication will occur.
@@ -162,6 +185,8 @@ groups = trusted
 mode = user
 guest = yes
 guestgroups = trusted
+
+
 # Set enable_oplocks to no or yes. If no oplocks are ignored and breaks are not sent
 enable_oplocks = no
 

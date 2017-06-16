@@ -50,7 +50,14 @@ typedef struct _RTSMB_SERVER_CONTEXT
 	int               server_table_size;
 	int               domain_table_size;
     BBOOL             enable_oplocks;
+
     BBOOL             enable_notify;
+    BBOOL             disable_nagle;
+
+	int               so_rcvbuf;
+	int               so_sendbuf;
+	int               max_nbss_frame_size;
+	int               max_transaction_size;
 
 	int               max_protocol;       // 1
 

@@ -14,6 +14,7 @@ extern "C" {
 #include "srvauth.h"
 
 int rtsmb_srv_read_config (PFCHAR filename);
+int rtsmb_srv_read_net_config (PFCHAR filename);
 int rtsmb_srv_share_add_tree (PFCHAR name, PFCHAR comment, PSMBFILEAPI api, PFCHAR path, byte flags, byte permissions, PFCHAR password);
 int rtsmb_srv_share_add_ipc (PFCHAR password);
 int rtsmb_srv_share_add_printer (PFCHAR name, PFCHAR comment, int n, PSMBFILEAPI api, PFCHAR path, byte flags, PFCHAR password, PFCHAR printerfile);
@@ -29,6 +30,7 @@ BBOOL rtsmb_srv_set_group_permissions (PFCHAR group, PFCHAR share, byte permissi
 
 #if (INCLUDE_RTSMB_UNICODE)
 int rtsmb_srv_read_config_uc (PFWCS filename);
+int rtsmb_srv_read_net_config_uc (PFWCS filename);
 int rtsmb_srv_share_add_tree_uc (PFWCS name, PFWCS comment, PSMBFILEAPI api, PFWCS path, byte flags, byte permissions, PFCHAR password);
 int rtsmb_srv_share_add_printer_uc (PFWCS name, PFWCS comment, int n, PSMBFILEAPI api, PFWCS path, byte flags, PFCHAR password, PFWCS printerfile);
 int rtsmb_srv_share_remove_uc (PFWCS name);

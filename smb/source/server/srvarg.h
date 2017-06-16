@@ -5,7 +5,7 @@
 
 #if (INCLUDE_RTSMB_SERVER)
 
-int RTSMB_ReadArgsFrom (PFRTCHAR filename);
+int RTSMB_ReadArgsFrom (PFRTCHAR filename, BBOOL doNetParms);
 
 #endif /* INCLUDE_RTSMB_SERVER */
 

@@ -50,7 +50,8 @@
 
 #define CFG_RTSMB_TEMP_BUFFER_SIZE  ((32768*2)+4)
 
-#define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE                (32768*16)      // 512 K for now
+#define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K              512       // 512 K for now
+#define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE                HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K*1024      // 512 K for now
 
 
 // #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*2)       // Advertize this as maximum transaction size
@@ -58,7 +59,8 @@
 // #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*8)       // Advertize this as maximum transaction size
 // #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*10)       // Advertize this as maximum transaction size
 // #define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*12)       // Advertize this as maximum transaction size
-#define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (32768*2)       // Advertize this as maximum transaction size
+#define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE_K              64       // Advertize this as maximum transaction size
+#define HARDWIRED_SMB2_MAX_TRANSACTION_SIZE                (HARDWIRED_SMB2_MAX_TRANSACTION_SIZE_K*1024)       // Advertize this as maximum transaction size
 #define HARDWIRED_SMB1_MAX_TRANSACTION_SIZE                0xffff     //   HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE Advertize this as maximum transaction size
 #define HARDWIRE_USE_CONFIG_FILE                           1  // 1 to read user and share info from "smb_config.txt" in the launch directory.
                                                               // These values are then used instead of HARDWIRED_USER_NAME, HARDWIRED_PASSWORD, HARDWIRED_SHARE_NAME, HARDWIRED_SHARE_PATH

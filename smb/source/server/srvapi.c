@@ -55,7 +55,7 @@
     0 on success or a negative value on failure
 
 ******************************************************************************/
-int rtsmb_srv_read_config (PFCHAR filename)
+static int _rtsmb_srv_read_config (PFCHAR filename, BBOOL readNetParms)
 {
 #if (INCLUDE_RTSMB_UNICODE)
     unsigned short filename_uc [SMBF_FILENAMESIZE + 1];
@@ -70,16 +70,29 @@ int rtsmb_srv_read_config (PFCHAR filename)
 #else
     PFCHAR filename_uc = filename;
 #endif
-
-    return RTSMB_ReadArgsFrom (filename_uc);
+    return RTSMB_ReadArgsFrom (filename_uc,readNetParms);
 }
 
 #if (INCLUDE_RTSMB_UNICODE)
 int rtsmb_srv_read_config_uc (PFWCS filename)
 {
-    return RTSMB_ReadArgsFrom (filename);
+    return RTSMB_ReadArgsFrom (filename,FALSE);
+}
+int rtsmb_srv_read_net_config_uc (PFWCS filename)
+{
+   return RTSMB_ReadArgsFrom (filename,TRUE);
 }
 #endif
+
+int rtsmb_srv_read_config (PFCHAR filename)
+{
+  return _rtsmb_srv_read_config (filename,FALSE);
+}
+
+int rtsmb_srv_read_net_config (PFCHAR filename)
+{
+  return _rtsmb_srv_read_config (filename,TRUE);
+}
 
 
 
@@ -818,7 +831,7 @@ void rtsmb_srv_init (PFBYTE ip, PFBYTE mask_ip, PFCHAR net_name, PFCHAR group_na
      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_srv_init:  Initializing all server modules.\n");
 
     rtsmb_server_config ();
-    rtsmb_fileport_init ();
+//    rtsmb_fileport_init ();
     rtsmb_ipcrpc_filesys_init();
     rtsmb_srv_nbns_init (net_name, group_name); /* srv_net uses this info */
     SMBS_srv_netssn_init ();

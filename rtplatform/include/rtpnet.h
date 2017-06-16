@@ -129,8 +129,7 @@ int      rtp_net_getntoread      (RTP_SOCKET sockHandle,
                                   unsigned long * nToRead);
 int      rtp_net_setblocking     (RTP_SOCKET sockHandle, unsigned int onBool);
 int      rtp_net_setnagle        (RTP_SOCKET sockHandle, unsigned int onBool);
-int      rtp_net_setlinger       (RTP_SOCKET sockHandle, unsigned int onBool,
-                                  long msecTimeout);
+int      rtp_net_setlinger       (RTP_SOCKET sockHandle, unsigned int onBool,long msecTimeout);
 int      rtp_net_setreusesock    (RTP_SOCKET sockHandle, unsigned int onBool);
 int      rtp_net_setreuseaddr    (RTP_SOCKET sockHandle, unsigned int onBool);
 int      rtp_net_settcpnocopy    (RTP_SOCKET sockHandle, unsigned int onBool);
@@ -139,6 +138,10 @@ int      rtp_net_setmembership   (RTP_SOCKET sockHandle, unsigned char * ipAddr,
                                   int type, unsigned int onBool);
 int      rtp_net_setmcastttl     (RTP_SOCKET sockHandle, int ttl);
 int      rtp_net_setbroadcast    (RTP_SOCKET sockHandle, unsigned int onBool);
+
+int  rtp_net_set_so_rcv(RTP_SOCKET sockHandle, unsigned long so_rcvbuf);
+int  rtp_net_set_so_send(RTP_SOCKET sockHandle, unsigned long so_sendbuf);
+
 
 /* utility functions */
 short    rtp_net_htons           (short i);

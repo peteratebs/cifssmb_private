@@ -34,6 +34,7 @@ typedef enum
 {
     ARG_NONE,
     ARG_GLOBAL,
+    ARG_DYNAMIC,
     ARG_USER,
     ARG_GROUP,
     ARG_SHARE,
@@ -48,6 +49,7 @@ RTSMB_STATIC ARG_SECTION_TYPE RTSMB_GetNextArgSectionType (int f)
 #define ARG_SECTION_TITLE_USER      (char*)"user"
 #define ARG_SECTION_TITLE_GROUP     (char*)"group"
 #define ARG_SECTION_TITLE_GLOBAL    (char*)"global"
+#define ARG_SECTION_TITLE_DYNAMIC   (char*)"dynamic"
 #define ARG_SECTION_TITLE_SHARE     (char*)"share"
 #define ARG_SECTION_TITLE_IPC       (char*)"ipc"
 #define ARG_SECTION_TITLE_PRINTER   (char*)"printer"
@@ -114,6 +116,7 @@ RTSMB_STATIC ARG_SECTION_TYPE RTSMB_GetNextArgSectionType (int f)
     if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_USER, CFG_RTSMB_USER_CODEPAGE))     return ARG_USER;
     else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_GROUP, CFG_RTSMB_USER_CODEPAGE))   return ARG_GROUP;
     else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_GLOBAL, CFG_RTSMB_USER_CODEPAGE))  return ARG_GLOBAL;
+    else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_DYNAMIC, CFG_RTSMB_USER_CODEPAGE))  return ARG_DYNAMIC;
     else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_SHARE, CFG_RTSMB_USER_CODEPAGE))   return ARG_SHARE;
     else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_IPC, CFG_RTSMB_USER_CODEPAGE)) return ARG_IPC;
     else if (!rtsmb_strcasecmp (title, ARG_SECTION_TITLE_PRINTER, CFG_RTSMB_USER_CODEPAGE)) return ARG_PRINTER;
@@ -320,7 +323,7 @@ RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char name [CFG_RTSMB_MAX_USERNAME_SIZE + 1];                    // name of user
     char passbuf [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
@@ -346,55 +349,60 @@ RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section)
     else
         password = (PFCHAR)0;
 
-    /* Now we register the user */
-    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Registering user %s\n", name);}
-    rtsmb_srv_register_user (name, password);
-
+    if (!doNetParmsPhase)
+    {
+      /* Now we register the user */
+      if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Registering user %s\n", name);}
+      rtsmb_srv_register_user (name, password);
+    }
     /* Now get the user's groups */
     RTSMB_GetStringValue (section, (char*)"groups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
 
-    index = 0;
-    gIndex = 0;
-    *g = '\0';
-
-    while (tc_isspace(groups[index]))  //skip white space in beginning
+    if (!doNetParmsPhase)
     {
-        index++;
-    }
-    while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
-    {
-        g[gIndex] = groups[index];
-        index++;
-        gIndex++;
-    }  //now we have the first token
+      index = 0;
+      gIndex = 0;
+      *g = '\0';
 
-    do
-    {
-         if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Adding user %s to group %s \n", name,g);}
+      while (tc_isspace(groups[index]))  //skip white space in beginning
+      {
+          index++;
+      }
+      while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
+      {
+          g[gIndex] = groups[index];
+          index++;
+          gIndex++;
+      }  //now we have the first token
 
-        rtsmb_srv_add_user_to_group (name, g);
+      do
+      {
+           if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseUserSection: Adding user %s to group %s \n", name,g);}
 
-        *g = '\0';
-        gIndex = 0;
+          rtsmb_srv_add_user_to_group (name, g);
 
-        while (tc_isspace(groups[index]))  //skip white space
-        {
-            index++;
-        }
+          *g = '\0';
+          gIndex = 0;
 
-        while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
-        {
+          while (tc_isspace(groups[index]))  //skip white space
+          {
+              index++;
+          }
+
+          while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
+          {
             g[gIndex] = groups[index];
-            index++;
-            gIndex++;
-        }  //now we have the next token
+              index++;
+              gIndex++;
+          }  //now we have the next token
+      }
+      while (*g);
     }
-    while (*g);
 
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char name [CFG_RTSMB_MAX_GROUPNAME_SIZE + 1];
     char shares [RTSMB_ARG_MAX_SECTION_SIZE];
@@ -407,76 +415,81 @@ RTSMB_STATIC BBOOL RTSMB_ParseGroupSection (PFCHAR section)
             CFG_RTSMB_MAX_GROUPNAME_SIZE + 1))
         return FALSE;
 
-    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group %s\n", name);}
-    rtsmb_srv_register_group (name);
+    if (!doNetParmsPhase)
+    {
+      if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Registering group %s\n", name);}
+      rtsmb_srv_register_group (name);
+    }
 
     RTSMB_GetStringValue (section, (char*)"shares", shares, RTSMB_ARG_MAX_SECTION_SIZE);
 
-    index = 0;
-    sIndex = 0;
-    s[0] = '\0';
-
-    while (tc_isspace(shares[index]))  //skip white space in beginning
+    if (!doNetParmsPhase)
     {
-        index++;
+      index = 0;
+      sIndex = 0;
+      s[0] = '\0';
+
+      while (tc_isspace(shares[index]))  //skip white space in beginning
+      {
+          index++;
+      }
+      while (!(tc_isspace(shares[index]) || shares[index] == '\0'))
+      {
+          s[sIndex] = shares[index];
+          index++;
+          sIndex++;
+      }  //now we have the first token
+
+      do
+      {
+          PFCHAR tmp = tc_strchr (s, ':');
+
+          if (tmp)
+          {
+              char rw_perm[4];
+              *tmp++ = 0; /* Null terminate sharename */
+              rw_perm[0] = *tmp++;
+              rw_perm[1] = *tmp;
+              rw_perm[2] = 0;
+
+              if (!rtsmb_strcasecmp (rw_perm, (char*)"ro", CFG_RTSMB_USER_CODEPAGE))
+                  permissions = SECURITY_READ;
+              else if (!rtsmb_strcasecmp (rw_perm, (char*)"wo", CFG_RTSMB_USER_CODEPAGE))
+                  permissions = SECURITY_WRITE;
+              else if (!rtsmb_strcasecmp (rw_perm, (char*)"rw", CFG_RTSMB_USER_CODEPAGE))
+                  permissions = SECURITY_READWRITE;
+              else
+                  permissions = SECURITY_NONE;
+          }
+          else
+          {
+              permissions = SECURITY_NONE;
+          }
+
+          if (prtsmb_srv_ctx->display_config_info)  {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Setting group %s permission's for share %s to %X\n",name,s,permissions);}
+          rtsmb_srv_set_group_permissions (name, s, (byte) (permissions & 0xFF));
+
+
+          while (tc_isspace(shares[index]))  //skip white space between shares
+          {
+              index++;
+          }
+          s[0] = '\0';
+          sIndex = 0;
+          while (!(tc_isspace(shares[index]) || shares[index] == '\0'))
+          {
+              s[sIndex] = shares[index];
+              index++;
+              sIndex++;
+          }  //now we have the next token
+
+      }
+      while (s[0]);
     }
-    while (!(tc_isspace(shares[index]) || shares[index] == '\0'))
-    {
-        s[sIndex] = shares[index];
-        index++;
-        sIndex++;
-    }  //now we have the first token
-
-    do
-    {
-        PFCHAR tmp = tc_strchr (s, ':');
-
-        if (tmp)
-        {
-            char rw_perm[4];
-            *tmp++ = 0; /* Null terminate sharename */
-            rw_perm[0] = *tmp++;
-            rw_perm[1] = *tmp;
-            rw_perm[2] = 0;
-
-            if (!rtsmb_strcasecmp (rw_perm, (char*)"ro", CFG_RTSMB_USER_CODEPAGE))
-                permissions = SECURITY_READ;
-            else if (!rtsmb_strcasecmp (rw_perm, (char*)"wo", CFG_RTSMB_USER_CODEPAGE))
-                permissions = SECURITY_WRITE;
-            else if (!rtsmb_strcasecmp (rw_perm, (char*)"rw", CFG_RTSMB_USER_CODEPAGE))
-                permissions = SECURITY_READWRITE;
-            else
-                permissions = SECURITY_NONE;
-        }
-        else
-        {
-            permissions = SECURITY_NONE;
-        }
-
-        if (prtsmb_srv_ctx->display_config_info)  {  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGroupSection: Setting group %s permission's for share %s to %X\n",name,s,permissions);}
-        rtsmb_srv_set_group_permissions (name, s, (byte) (permissions & 0xFF));
-
-
-        while (tc_isspace(shares[index]))  //skip white space between shares
-        {
-            index++;
-        }
-        s[0] = '\0';
-        sIndex = 0;
-        while (!(tc_isspace(shares[index]) || shares[index] == '\0'))
-        {
-            s[sIndex] = shares[index];
-            index++;
-            sIndex++;
-        }  //now we have the next token
-
-    }
-    while (s[0]);
-
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char name [RTSMB_MAX_SHARENAME_SIZE + 1];
     char comment [RTSMB_MAX_COMMENT_SIZE + 1];
@@ -529,15 +542,16 @@ RTSMB_STATIC BBOOL RTSMB_ParseShareSection (PFCHAR section)
         flags |= SHARE_FLAGS_CASE_SENSITIVE;
     if (tc_strstr (flags_str, (char*)"dos_names"))
         flags |= SHARE_FLAGS_8_3;
-
-    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share %s\n", name);}
-    rtsmb_srv_share_add_tree (name, comment, prtsmb_filesys, path, (byte) flags,
-        (byte) permissions, password);
-
+    if (!doNetParmsPhase)
+    {
+      if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseShareSection:  Adding share %s\n", name);}
+      rtsmb_srv_share_add_tree (name, comment, prtsmb_filesys, path, (byte) flags,
+          (byte) permissions, password);
+    }
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char name [RTSMB_MAX_SHARENAME_SIZE + 1];
     char comment [RTSMB_MAX_COMMENT_SIZE + 1];
@@ -585,15 +599,17 @@ RTSMB_STATIC BBOOL RTSMB_ParsePrinterSection (PFCHAR section)
     if (tc_strstr (flags_str, (char*)"dos_names"))
         flags |= SHARE_FLAGS_8_3;
 
-     if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer %s\n",name);}
-     rtsmb_srv_share_add_printer (name, comment,
-        number, prtsmb_filesys, path,
-        (byte) flags, password, drivername);
-
+    if (!doNetParmsPhase)
+    {
+       if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParsePrinterSection:  Adding printer %s\n",name);}
+       rtsmb_srv_share_add_printer (name, comment,
+          number, prtsmb_filesys, path,
+          (byte) flags, password, drivername);
+    }
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char passbuf [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
     PFCHAR password;
@@ -603,14 +619,41 @@ RTSMB_STATIC BBOOL RTSMB_ParseIPCSection (PFCHAR section)
         password = passbuf;
     else
         password = (PFCHAR)0;
-
-    if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom:  Adding IPC.\n");}
-    rtsmb_srv_share_add_ipc (password);
-
+    if (!doNetParmsPhase)
+    {
+      if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom:  Adding IPC.\n");}
+      rtsmb_srv_share_add_ipc (password);
+    }
     return TRUE;
 }
 
-RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
+RTSMB_STATIC BBOOL RTSMB_ParseDynamicSection (PFCHAR section, BBOOL doNetParmsPhase)
+{
+    char nagle_str[10];
+
+    if (RTSMB_GetStringValue (section, (char*)"disable_nagle", nagle_str, 10))
+    {
+      if (!rtsmb_strcasecmp (nagle_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
+        prtsmb_srv_ctx->disable_nagle       = TRUE;
+      else
+        prtsmb_srv_ctx->disable_nagle       = FALSE;
+    }
+
+    if (!RTSMB_GetIntegerValue (section, (char*)"so_rcvbuf", &prtsmb_srv_ctx->so_rcvbuf))   // In K
+      prtsmb_srv_ctx->so_rcvbuf = 0;
+
+    if (!RTSMB_GetIntegerValue (section, (char*)"so_sendbuf", &prtsmb_srv_ctx->so_sendbuf)) // In K
+      prtsmb_srv_ctx->so_sendbuf = 0;
+
+    if (!RTSMB_GetIntegerValue (section, (char*)"max_nbss_frame_size", &prtsmb_srv_ctx->max_nbss_frame_size)) // In K
+      prtsmb_srv_ctx->max_nbss_frame_size = HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K;
+
+    if (!RTSMB_GetIntegerValue (section, (char*)"max_transaction_size", &prtsmb_srv_ctx->max_transaction_size)) // In K
+      prtsmb_srv_ctx->max_transaction_size = HARDWIRED_SMB2_MAX_TRANSACTION_SIZE_K;
+    return TRUE;
+}
+
+RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
     char mode_str [10];
     char guest_str [10];
@@ -619,12 +662,15 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
     int index;
     int gIndex;
 
+    if (doNetParmsPhase)
+      return TRUE;
+
     if (RTSMB_GetStringValue (section, (char*)"enable_notify", notify_str, 10))
     {
-      if (!rtsmb_strcasecmp (notify_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
-        prtsmb_srv_ctx->enable_notify       = TRUE;
-      else
-        prtsmb_srv_ctx->enable_notify      = FALSE;
+        if (!rtsmb_strcasecmp (notify_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
+          prtsmb_srv_ctx->enable_notify       = TRUE;
+        else
+          prtsmb_srv_ctx->enable_notify      = FALSE;
     }
 
     if (RTSMB_GetStringValue (section, (char*)"enable_oplocks", oplocks_str, 10))
@@ -650,11 +696,13 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
 
     if (!rtsmb_strcasecmp (mode_str, (char*)"user", CFG_RTSMB_USER_CODEPAGE))
     {
-        rtsmb_srv_set_mode (AUTH_USER_MODE);
+        if (!doNetParmsPhase)
+          rtsmb_srv_set_mode (AUTH_USER_MODE);
     }
     else
     {
-        rtsmb_srv_set_mode (AUTH_SHARE_MODE);
+       if (!doNetParmsPhase)
+         rtsmb_srv_set_mode (AUTH_SHARE_MODE);
     }
 
     if (!rtsmb_strcasecmp (guest_str, (char*)"yes", CFG_RTSMB_USER_CODEPAGE))
@@ -662,42 +710,47 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
         char groups [RTSMB_ARG_MAX_SECTION_SIZE];
         char g [RTSMB_ARG_MAX_SECTION_SIZE];
 
-        if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");}
-        rtsmb_srv_register_user ((char *)SMB_GUESTNAME, (PFCHAR)0);
-
+        if (!doNetParmsPhase)
+        {
+          if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection:  Adding guest.\n");}
+          rtsmb_srv_register_user ((char *)SMB_GUESTNAME, (PFCHAR)0);
+        }
         /* Now get the guest's groups */
         RTSMB_GetStringValue (section, (char*)"guestgroups", groups, RTSMB_ARG_MAX_SECTION_SIZE);
 
-        index = 0;
-        gIndex = 0;
-        *g = '\0';
-
-        while (tc_isspace(groups[index]))  //skip white space in beginning
+        if (!doNetParmsPhase)
         {
-            index++;
+          index = 0;
+          gIndex = 0;
+          *g = '\0';
+
+          while (tc_isspace(groups[index]))  //skip white space in beginning
+          {
+              index++;
+          }
+          while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
+          {
+              g[gIndex] = groups[index];
+              index++;
+              gIndex++;
+          }  //now we have the first token
+
+          do
+          {
+              if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group %s \n",g);}
+              rtsmb_srv_add_user_to_group ((char *)SMB_GUESTNAME, g);
+
+              *g = '\0';
+              gIndex = 0;
+              while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
+              {
+                  g[gIndex] = groups[index];
+                  index++;
+                  gIndex++;
+              }  //now we have the next token
+          }
+          while (*g);
         }
-        while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
-        {
-            g[gIndex] = groups[index];
-            index++;
-            gIndex++;
-        }  //now we have the first token
-
-        do
-        {
-            if (prtsmb_srv_ctx->display_config_info)  { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ParseGlobalSection: Adding guest to group %s \n",g);}
-            rtsmb_srv_add_user_to_group ((char *)SMB_GUESTNAME, g);
-
-            *g = '\0';
-            gIndex = 0;
-            while (!(tc_isspace(groups[index]) || groups[index] == '\0'))
-            {
-                g[gIndex] = groups[index];
-                index++;
-                gIndex++;
-            }  //now we have the next token
-        }
-        while (*g);
     }
 
     return TRUE;
@@ -709,7 +762,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseGlobalSection (PFCHAR section)
  *                                                     /
  * Returns: TRUE if more to do, FALSE if not           /
  * -------------------------------------------------- */
-RTSMB_STATIC BBOOL RTSMB_ParseNextArgSection (int f)
+RTSMB_STATIC BBOOL RTSMB_ParseNextArgSection (int f, BBOOL doNetParms)
 {
     ARG_SECTION_TYPE type;
     char buf [RTSMB_ARG_MAX_SECTION_SIZE];
@@ -729,37 +782,41 @@ RTSMB_STATIC BBOOL RTSMB_ParseNextArgSection (int f)
     switch (type)
     {
     case ARG_USER:
-        if (!RTSMB_ParseUserSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParseUserSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
     case ARG_SHARE:
-        if (!RTSMB_ParseShareSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParseShareSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
     case ARG_IPC:
-        if (!RTSMB_ParseIPCSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParseIPCSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
     case ARG_GROUP:
-        if (!RTSMB_ParseGroupSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParseGroupSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
+    case ARG_DYNAMIC:
+        if (!RTSMB_ParseDynamicSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
+        break;
     case ARG_GLOBAL:
-        if (!RTSMB_ParseGlobalSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParseGlobalSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
     case ARG_PRINTER:
-        if (!RTSMB_ParsePrinterSection (string))
-            return RTSMB_ParseNextArgSection (f);
+        if (!RTSMB_ParsePrinterSection (string,doNetParms))
+            return RTSMB_ParseNextArgSection (f,doNetParms);
 
         break;
     default:
-        return RTSMB_ParseNextArgSection (f);
+        return RTSMB_ParseNextArgSection (f,doNetParms);
     }
 
     return TRUE;
@@ -771,7 +828,7 @@ RTSMB_STATIC BBOOL RTSMB_ParseNextArgSection (int f)
  *                                                     /
  * Returns: 0 on success, -1 on failure                /
  * -------------------------------------------------- */
-int RTSMB_ReadArgsFrom (PFRTCHAR filename)
+int RTSMB_ReadArgsFrom (PFRTCHAR filename, BBOOL doNetParms)
 {
     int f;
 
@@ -797,7 +854,7 @@ int RTSMB_ReadArgsFrom (PFRTCHAR filename)
         return -1;
     }
 
-    while (RTSMB_ParseNextArgSection (f))
+    while (RTSMB_ParseNextArgSection (f,doNetParms))
     {
       if (prtsmb_srv_ctx->display_config_info) { RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"RTSMB_ReadArgsFrom: section parsed from: %s \n",filename);}
     }

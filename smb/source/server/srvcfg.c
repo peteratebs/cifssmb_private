@@ -80,7 +80,7 @@
  * to have many simultaneously open files.
  */
 #ifndef CFG_RTSMB_MAX_FIDS_PER_SESSION
-#define CFG_RTSMB_MAX_FIDS_PER_SESSION      16
+#define CFG_RTSMB_MAX_FIDS_PER_SESSION      32 // 16
 #endif
 
 /**
@@ -353,9 +353,17 @@ int rtsmb_server_config(void)
    prtsmb_srv_ctx->max_shares            = CFG_RTSMB_MAX_SHARES;
    prtsmb_srv_ctx->max_groups            = CFG_RTSMB_MAX_GROUPS;
    prtsmb_srv_ctx->max_users             = CFG_RTSMB_MAX_USERS;
-   prtsmb_srv_ctx->max_smb2_transaction_size  = HARDWIRED_SMB2_MAX_TRANSACTION_SIZE;
+   // max_smb2_transaction_size determines MaxWriteSize MaxReadSize for smb2 in negotiate
+   // Same in SMBS_proc_RTSMB2_NEGOTIATE_R_from_SMB
+   if (prtsmb_srv_ctx->max_transaction_size)
+     prtsmb_srv_ctx->max_smb2_transaction_size  = prtsmb_srv_ctx->max_transaction_size*1024;
+   else
+     prtsmb_srv_ctx->max_smb2_transaction_size  = HARDWIRED_SMB2_MAX_TRANSACTION_SIZE;
    prtsmb_srv_ctx->max_smb1_transaction_size  = (HARDWIRED_SMB1_MAX_TRANSACTION_SIZE-RTSMB_NBSS_HEADER_SIZE);
-   prtsmb_srv_ctx->max_smb2_frame_size        =  HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
+   if (prtsmb_srv_ctx->max_nbss_frame_size)
+     prtsmb_srv_ctx->max_smb2_frame_size  =  prtsmb_srv_ctx->max_nbss_frame_size*1024; // HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
+   else
+     prtsmb_srv_ctx->max_smb2_frame_size  =  HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE;
 
    prtsmb_srv_ctx->small_buffer_size     = CFG_RTSMB_SMALL_BUFFER_SIZE_VETTED;
    prtsmb_srv_ctx->in_buffer_size        = CFG_RTSMB_IN_BUFFER_SIZE_VETTED  - RTSMB_NBSS_HEADER_SIZE;
