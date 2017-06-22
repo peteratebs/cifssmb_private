@@ -225,9 +225,9 @@ static BBOOL _SMBS_ProcSMBPacket (PSMB_SESSIONCTX pSctx, dword packetSize, BBOOL
     pSctx->doSessionClose = FALSE;
 
 //    pSctx->readBufferSize
-    if (packetSize > pSctx->readBufferSize) // CFG_RTSMB_SMALL_BUFFER_SIZE)
+    if (packetSize > (pSctx->readBufferSize - pSctx->current_body_size))
     {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, Tossing packet.\n ", packetSize, (int)pSctx->readBufferSize);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,(char *)"DIAG: SMBS_ProcSMBPacket:  Packet of size %d too big for buffer of size %d, bytes_used==%d, Toss packet.\n ", packetSize, (int)pSctx->readBufferSize, pSctx->current_body_size);
         return TRUE; /* eat the packet */
     }
 

@@ -243,7 +243,8 @@ static void Smb1SrvCtxtToStream(smb2_stream * pStream, PSMB_SESSIONCTX pSctx)
 
 	pStream->InBodySize             =  pSctx->current_body_size;    //  How much of the incoming packet has been consumed so far.
 	pStream->read_buffer_size       =  pSctx->readBufferSize;       /* read buffer_size is the buffer size minus NBSS header */
-	pStream->read_buffer_remaining  = (pStream->read_buffer_size - pStream->InBodySize);
+// pStream->read_buffer_remaining  = (pStream->read_buffer_size - pStream->InBodySize); This was wrong ?
+   pStream->read_buffer_remaining  =  pStream->InBodySize;         /* Poorly named variable, the number of bytes remaining in the smb2 packet to process*/
 
     pStream->write_origin = (PFVOID) SMB_OUTBUF (pSctx);           // #define SMB_OUTBUF(A)   (&A->writeBuffer[RTSMB_NBSS_HEADER_SIZE])
 

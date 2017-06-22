@@ -220,7 +220,6 @@ RTSMB_STATIC BBOOL RTSMB_GetStringValue (PFCHAR section, PFCHAR key, PFCHAR dest
         {
             if (*place == '=')
                 equals = place;
-
             place++;
         }
 
@@ -283,6 +282,7 @@ RTSMB_STATIC BBOOL RTSMB_GetStringValue (PFCHAR section, PFCHAR key, PFCHAR dest
     return TRUE;
 }
 
+
 RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
 {
     char keybuf [RTSMB_ARG_KEY_SIZE];
@@ -292,7 +292,7 @@ RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
     BBOOL done = FALSE;
 
     place = section;
-    while (1)
+    while (!done)
     {
         while (*place != '\n' && *place != '\0')
         {
@@ -311,7 +311,11 @@ RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
         section = place;
 
         if (matched < 2)
+        {
+            if (done)
+              return FALSE;
             continue;
+        }
 
         if (!rtsmb_strcasecmp (keybuf, key, CFG_RTSMB_USER_CODEPAGE))
             break;
@@ -322,6 +326,7 @@ RTSMB_STATIC BBOOL RTSMB_GetIntegerValue (PFCHAR section, PFCHAR key, int *i)
 
     return TRUE;
 }
+
 
 RTSMB_STATIC BBOOL RTSMB_ParseUserSection (PFCHAR section, BBOOL doNetParmsPhase)
 {
