@@ -101,10 +101,14 @@ PRTSMB_CLI_WIRE_BUFFER rtsmb_cli_wire_get_free_buffer (PRTSMB_CLI_WIRE_SESSION p
         if (pSession->buffers[i].state == UNUSED)
         {
             rtsmb_cli_wire_buffer_new (pSession, i);
+rtp_printf("Allocated wirebuf # %d: at %X\n", i, &pSession->buffers[i]);
             return &pSession->buffers[i];
         }
     }
-
+i = 0;
+rtsmb_cli_wire_buffer_new (pSession, 0);
+rtp_printf("experimental Allocate wirebuf failure force # %d: at %X\n", i, &pSession->buffers[i]);
+return &pSession->buffers[i];
     return 0;
 }
 
@@ -209,7 +213,7 @@ int linger_val = 0;
 
         if (rtp_net_closesocket((RTP_SOCKET) pSession->socket))
         {
-            RTSMB_DEBUG_OUTPUT_STR ("ERROR IN CLOSESOCKET\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ERROR IN CLOSESOCKET\n");
         }
     }
     return 0;
@@ -573,7 +577,7 @@ int rtsmb_cli_wire_connect (PRTSMB_CLI_WIRE_SESSION pSession)
     {
         if (rtp_net_closesocket (pSession->socket))
         {
-            RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n",RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "ERROR IN CLOSESOCKET\n");
         }
 
         return -1;
@@ -602,8 +606,8 @@ void rtsmb_debug_echo(PRTSMB_CLI_WIRE_SESSION pSession, byte *p, int nbytes)
     mybuff[57] ='Y';
     rtsmb_net_write (pSession->socket, mybuff, nbytes+4);
 }
-RTSMB_STATIC
-int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSession)
+
+RTSMB_STATIC int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSession)
 {
     int r;
     PFVOID pBuffer;
@@ -1265,8 +1269,11 @@ int rtsmb_cli_wire_smb_read_end (PRTSMB_CLI_WIRE_SESSION pSession, word mid)
 
     pBuffer = rtsmb_cli_wire_get_buffer (pSession, mid);
 
+    rtp_printf("Free wirebuf: %X\n", pBuffer);
+
     if (!pBuffer)
         return RTSMB_CLI_WIRE_BAD_MID;
+
 
     pBuffer->state = UNUSED;
 #ifdef STATE_DIAGNOSTICS

@@ -17,6 +17,8 @@
 #include "com_smb2.h"
 #endif
 
+#define HEREHERE
+
 #if (INCLUDE_RTSMB_CLIENT)
 #include "clissn.h"
 #include "cliwire.h"
@@ -52,14 +54,15 @@
 #define ENUM_SRV_ALL 0            /* have enum server do everything */
 #define TRY_NAME 1  /* new implementation on new_name */
 
-#define DEBUG_SID              1
-#define DEBUG_ENUM_SERVER      0
-#define DEBUG_SESSION_ON_WIRE  1
-#define DEBUG_LOGON            1
-#define DEBUG_LOGON_JOB_HELPER 1
-#define DEBUG_AUTH_JOB         1
-#define DEBUG_AUTH             1
-#define DEBUG_JOB              0
+#define DEBUG_SID              0 // 1
+#define DEBUG_ENUM_SERVER      0 // 0
+#define DEBUG_SESSION_ON_WIRE  0 // 1
+#define DEBUG_LOGON            0 // 1
+#define DEBUG_LOGON_JOB_HELPER 0 // 1
+#define DEBUG_AUTH_JOB         0 // 1
+#define DEBUG_AUTH             0 // 1
+#define DEBUG_JOB              1 // 0
+#define DEBUG_SEARCH           1 // 0
 
 
 
@@ -245,8 +248,8 @@ RTSMB_STATIC void rtsmb_cli_session_fid_close (PRTSMB_CLI_SESSION_FID pFid);
 
 RTSMB_STATIC PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_free_search (PRTSMB_CLI_SESSION pSession);
 RTSMB_STATIC void rtsmb_cli_session_search_new (PRTSMB_CLI_SESSION_SEARCH pSearch, int sid);
-RTSMB_STATIC void rtsmb_cli_session_search_close (PRTSMB_CLI_SESSION_SEARCH pSearch);
-RTSMB_STATIC PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_search (PRTSMB_CLI_SESSION pSession, int sid);
+void rtsmb_cli_session_search_close (PRTSMB_CLI_SESSION_SEARCH pSearch);
+PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_search (PRTSMB_CLI_SESSION pSession, int sid);
 
 RTSMB_STATIC PRTSMB_CLI_SESSION_SHARE_SEARCH rtsmb_cli_session_get_free_share_search (PRTSMB_CLI_SESSION pSession);
 RTSMB_STATIC void rtsmb_cli_session_share_search_new (PRTSMB_CLI_SESSION_SHARE_SEARCH pSearch, int sid);
@@ -293,7 +296,6 @@ extern int rtsmb2_cli_session_send_rmdir (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_send_find_first (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_send_find_first_error_handler (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_find_first (smb2_stream  *psmb2stream);
-extern int rtsmb2_cli_session_send_find_next (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_find_next (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_send_find_close (smb2_stream  *psmb2stream);
 extern int rtsmb2_cli_session_send_stat (smb2_stream  *psmb2stream);
@@ -526,6 +528,8 @@ void rtsmb_cli_session_update_timestamp (PRTSMB_CLI_SESSION pSession)
     pSession->timestamp = rtp_get_system_msec ();
 }
 
+#if (INCLUDE_RTSMB_CLIENT_NBNS)
+
 /* ********************************************************************     */
 /* GET IP FOR NAME */
 /* ********************************************************************     */
@@ -568,9 +572,6 @@ int rtsmb_cli_session_resolve_name (PFCHAR name, PFBYTE broadcast_ip, PFBYTE ip)
 #ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
-        /* Hard wiring SNGEGO blob   */
-        pSession->user.spnego_blob_size = sizeof("Hello from the blob");
-        pSession->user.spnego_blob = (PFBYTE)"Hello from the blob";
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
@@ -610,6 +611,7 @@ rtp_printf("with_name: IP is %d.%d.%d.%d\n",
 
 }
 
+#endif
 /* ********************************************************************     */
 /* RESOLVE WITH IP */
 /* ********************************************************************     */
@@ -693,9 +695,6 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
 #ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
-        /* Hard wiring SNGEGO blob   */
-        pSession->user.spnego_blob_size = sizeof("Hello from the blob");
-        pSession->user.spnego_blob = (PFBYTE)"Hello from the blob";
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
@@ -741,7 +740,7 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV2 server\n");
-        rtsmb_cli_smb2_session_release (pSession);  /* tbd - move this from below - sprspr */
+//        rtsmb_cli_smb2_session_release (pSession);  /* tbd - move this from below - sprspr */
     }
     else
 #endif
@@ -808,8 +807,8 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
 /* ********************************************************************     */
 /* RESOLVE WITH NAME */
 /* ********************************************************************     */
-RTSMB_STATIC
-int rtsmb_cli_session_send_name_query (PRTSMB_CLI_SESSION pSession)
+#if (INCLUDE_RTSMB_CLIENT_NBNS)
+RTSMB_STATIC  int rtsmb_cli_session_send_name_query (PRTSMB_CLI_SESSION pSession)
 {
     byte buffer [50];
     int r;
@@ -836,7 +835,7 @@ RTSMB_STATIC int rtsmb_cli_session_name_query (PRTSMB_CLI_SESSION pSession)
 
     if (rtp_net_setbroadcast(pSession->broadcast_socket, 1) < 0)
     {
-        RTSMB_DEBUG_OUTPUT_STR("Error occurred while trying to set broadcast on socket\n",RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while trying to set broadcast on socket\n");
     }
 
     pSession->broadcast_attempts = 0;
@@ -937,10 +936,6 @@ int rtsmb_cli_session_new_with_name (PFCHAR name, BBOOL blocking, PFBYTE broadca
 #ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
-        /* Hard wiring SNGEGO blob   */
-        pSession->user.spnego_blob_size = sizeof("Hello from the blob");
-        pSession->user.spnego_blob = (PFBYTE)"Hello from the blob";
-
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         if (rtsmb_cli_smb2_session_init (pSession) < 0)
         {
@@ -1008,6 +1003,8 @@ int rtsmb_cli_session_new_with_name (PFCHAR name, BBOOL blocking, PFBYTE broadca
 }
 #endif
 
+#endif
+
 /* ********************************************************************     */
 /* CLOSE, RESTART SESSION */
 /* ********************************************************************     */
@@ -1057,8 +1054,8 @@ int rtsmb_cli_session_set_blocking (int sid, BBOOL blocking)
     return RTSMB_CLI_SSN_RV_OK;
 }
 
-RTSMB_STATIC
-int rtsmb_cli_session_name_query_cycle (PRTSMB_CLI_SESSION pSession, long timeout)
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
+RTSMB_STATIC int rtsmb_cli_session_name_query_cycle (PRTSMB_CLI_SESSION pSession, long timeout)
 {
     RTP_SOCKET sock = pSession->broadcast_socket;
     byte temp_buffer [RTSMB_NB_MAX_DATAGRAM_SIZE];
@@ -1143,7 +1140,7 @@ int rtsmb_cli_session_name_query_cycle (PRTSMB_CLI_SESSION pSession, long timeou
         {
             if (rtp_net_closesocket(pSession->broadcast_socket))
             {
-                RTSMB_DEBUG_OUTPUT_STR("ERROR IN CLOSESOCKET\n",RTSMB_DEBUG_TYPE_ASCII);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "Error occurred while closing socket\n");
             }
 
             pSession->state = (pSession->state == CSSN_STATE_QUERYING) ?
@@ -1185,7 +1182,7 @@ RTSMB_GET_SESSION_STATE (CSSN_STATE_CONNECTING);
 
     return RTSMB_CLI_SSN_RV_OK;
 }
-
+#endif
 int rtsmb_cli_session_cycle (int sid, long timeout)
 {
     int r;
@@ -1196,14 +1193,14 @@ int rtsmb_cli_session_cycle (int sid, long timeout)
     ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
     rtsmb_cli_session_update_timestamp (pSession);
 
-
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
     if (pSession->state == CSSN_STATE_QUERYING ||
         pSession->state == CSSN_STATE_RECOVERY_QUERYING)
     {
         /* can't do normal stuff, we must wait for query response */
         return rtsmb_cli_session_name_query_cycle (pSession, timeout);
     }
-
+#endif
     if (pSession->state == CSSN_STATE_CONNECTING)
     {
         switch (rtsmb_cli_wire_connect_cycle(&pSession->wire))
@@ -2774,6 +2771,26 @@ int rtsmb_cli_session_rmdir_rt (int sid, PFCHAR share, PFRTCHAR filename)
     }
 }
 
+// SMB2 only return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY if we still have content buffered  or RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS if
+// we should tell the top layer to start another get dir info without setting the restart bit
+// Return RTSMB_CLI_SSN_RV_OK to force a gnext call
+// SMB1 always returns RTSMB_CLI_SSN_RV_OK to force a gnext call
+int rtsmb2_cli_session_find_buffered_rt (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat);
+
+int rtsmb_cli_session_find_buffered_rt (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
+{
+ PRTSMB_CLI_SESSION pSession;
+ pSession = rtsmb_cli_session_get_session (sid);
+ if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
+ {
+   return rtsmb2_cli_session_find_buffered_rt (sid, pdstat);
+ }
+ else
+ {
+   return RTSMB_CLI_SSN_RV_OK;
+ }
+}
+
 int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat)
 {
     PRTSMB_CLI_SESSION_SHARE pShare;
@@ -2791,30 +2808,43 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
     ASSURE (pShare, RTSMB_CLI_SSN_RV_BAD_SHARE);
     ASSURE (pShare->state == CSSN_SHARE_STATE_CONNECTED, RTSMB_CLI_SSN_RV_BAD_SHARE);
 
-    pJob = rtsmb_cli_session_get_free_job (pSession);
+    pJob = rtsmb_cli_session_get_free_job(pSession);
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
     pSearch = rtsmb_cli_session_get_free_search (pSession);
     if (!pSearch)
     {
+#if (DEBUG_JOB)
+       rtp_printf("rtsmb_cli_session_find_first_rt release job: session = %x, job index = %d\n", pSession, INDEX_OF (pSession->jobs, pJob));
+#endif
+
         rtsmb_cli_session_job_close (pJob);
         return RTSMB_CLI_SSN_RV_TOO_MANY_SEARCHES;
     }
 
     pSearch->share_struct = pShare;
-    pJob->data.findfirst.search_struct = pSearch;
-    pJob->data.findfirst.answering_dstat = pdstat;
-    rtsmb_cpy (pJob->data.findfirst.pattern, pattern);
+    pSearch->pBufferedResponse =  pSearch->pBufferedIterator = pSearch->pBufferedIteratorEnd = 0;
+
+    /* SMB2 holds onto the job while it runs through the steps
+       so remember the job number */
+    pSearch->job_number = INDEX_OF (pSession->jobs, pJob);
 
 #if (DEBUG_LOGON_JOB_HELPER)
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_find_first_rt:pJob == %X\n",(int)pJob);
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_find_first_rt:pJob->data.findfirst.search_struct == %X\n",(int)pJob->data.findfirst.search_struct);
 #endif
 
+    pSearch->raw_buffered_data = 0;  // smb2 has another layer of data buffering associated with the job that we need to be aware of
 #ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
-        HEREHERE;
+        pJob->data.findsmb2.search_struct = pSearch;
+        pJob->data.findsmb2.answering_dstat = pdstat;
+        pJob->data.findsmb2.search_struct->has_continue = FALSE;
+        rtsmb_cpy (pJob->data.findsmb2.pattern, pattern);
+        pSearch->pBufferedIterator =
+        pSearch->pBufferedIteratorEnd =
+        pSearch->pBufferedResponse = 0;
         pJob->send_handler_smb2     = rtsmb2_cli_session_send_find_first;
         pJob->error_handler_smb2    = rtsmb2_cli_session_send_find_first_error_handler;
         pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_find_first;
@@ -2822,6 +2852,9 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
     else
 #endif
     {
+        pJob->data.findfirst.search_struct = pSearch;
+        pJob->data.findfirst.answering_dstat = pdstat;
+        rtsmb_cpy (pJob->data.findfirst.pattern, pattern);
         pJob->send_handler = rtsmb_cli_session_send_find_first;
         pJob->error_handler = rtsmb_cli_session_send_find_first_error_handler;
         pJob->receive_handler = rtsmb_cli_session_receive_find_first;
@@ -2845,6 +2878,7 @@ int rtsmb_cli_session_find_next (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
 {
     PRTSMB_CLI_SESSION_SEARCH pSearch;
     PRTSMB_CLI_SESSION pSession;
+    PRTSMB_CLI_SESSION_JOB pJob=0;
 
     pSession = rtsmb_cli_session_get_session (sid);
     ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
@@ -2852,34 +2886,42 @@ int rtsmb_cli_session_find_next (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
     rtsmb_cli_session_update_timestamp (pSession);
 
     pSearch = rtsmb_cli_session_get_search (pSession, pdstat->sid);
+
     ASSURE (pSearch, RTSMB_CLI_SSN_RV_BAD_SEARCH);
+
 
     if (pSearch->index + 1 >= pSearch->num_stats)
     {
-        PRTSMB_CLI_SESSION_JOB pJob;
-
         if (pSearch->end_of_search)
         {
             return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
         }
 
-        /* we have to get more results, so we send a find next job */
-        pJob = rtsmb_cli_session_get_free_job (pSession);
-        ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
-
-        pJob->data.findnext.search_struct = pSearch;
-        pJob->data.findnext.answering_dstat = pdstat;
-
 #ifdef SUPPORT_SMB2
         if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
         {
-            HEREHERE;
-            pJob->send_handler_smb2     = rtsmb2_cli_session_send_find_next;
-            pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_find_next;
+            if (!pSearch->has_continue)
+            {
+              pSearch->end_of_search = TRUE;
+              return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
+            }
+            pJob = &pSession->jobs[pSearch->job_number];
+            if (!pJob)
+              return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
+            // reuses the handlers from the current job
+            //pJob->send_handler_smb2     = rtsmb2_cli_session_send_find_first;
+            //pJob->error_handler_smb2    = rtsmb2_cli_session_send_find_first_error_handler;
+            //pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_find_first;
         }
         else
 #endif
         {
+          /* we have to get more results, so we send a find next job */
+            PRTSMB_CLI_SESSION_JOB pJob;
+            pJob = rtsmb_cli_session_get_free_job (pSession);
+            ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
+            pJob->data.findnext.search_struct = pSearch;
+            pJob->data.findnext.answering_dstat = pdstat;
             pJob->send_handler = rtsmb_cli_session_send_find_next;
             pJob->receive_handler = rtsmb_cli_session_receive_find_next;
         }
@@ -2901,6 +2943,11 @@ int rtsmb_cli_session_find_next (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
     {
         /* we have the data right now, so let's fill stat object out */
         *pdstat = pSearch->dstats[++pSearch->index];
+{
+        char temp[200];
+        rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pdstat->filename, temp, 0);
+        rtp_printf("rtsmb_cli_session_find_next: index %d name: %s\n", pSearch->index-1, temp);
+}
         return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY;
     }
 }
@@ -3173,6 +3220,9 @@ int rtsmb_cli_session_share_find_first (int sid, PRTSMB_CLI_SESSION_SSTAT pstat)
     pSearch = rtsmb_cli_session_get_free_share_search (pSession);
     if (!pSearch)
     {
+#if (DEBUG_JOB)
+       rtp_printf("rtsmb_cli_session_share_find_first release job: session = %x, job index = %d\n", pSession, INDEX_OF (pSession->jobs, pJob));
+#endif
         rtsmb_cli_session_job_close (pJob);
         return RTSMB_CLI_SSN_RV_TOO_MANY_SEARCHES;
     }
@@ -3341,7 +3391,7 @@ int rtsmb_cli_session_server_enum_start (PRTSMB_CLI_SESSION_SRVSTAT pstat, PFBYT
     /* if no one else is around to set ips, we'll start off with ours here */
     if (!rtsmb_net_are_valid_ips ())
     {
-        rtsmb_netinfo_set_ip (ip, 0);
+        rtsmb_net_set_ip (ip, 0);
     }
 
     if (ip)
@@ -3608,6 +3658,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
                for this domain, and try to connect to that one */
 
             r = rtsmb_cli_session_cycle (pstat->ssnid, timeout);
+
             if (r == RTSMB_CLI_SSN_RV_DEAD || r == RTSMB_CLI_SSN_RV_BAD_SID)
             {
                 char backup_server [RTSMB_NB_NAME_SIZE + 1];
@@ -3618,6 +3669,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 #if (DEBUG_ENUM_SERVER)
                 rtp_printf("enum_cycle: call backup server yet again\n");
 #endif
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
                 if (rtsmb_nbds_get_backup_server (pstat->domain, backup_server, pstat->backup_server_index) == 0)
                 {
                     r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT); // HEREHERE
@@ -3638,6 +3690,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 #if (DEBUG_ENUM_SERVER)
                 rtp_printf("enum_cycle: no response do try next domain\n");
 #endif
+#endif // if(INCLUDE_RTSMB_CLIENT_NBNS)
                 /* none of the backup servers for this domain are responding,
                     so move to the next one. */
                 pstat->domain++;
@@ -3841,6 +3894,10 @@ int rtsmb_cli_session_examine_wire (PRTSMB_CLI_SESSION pSession, int wire_respon
 
 void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, int r)
 {
+#if (DEBUG_JOB)
+       rtp_printf("rtsmb_cli_session_job_cleanup release job: session = %x, job index = %d\n", pSession, INDEX_OF (pSession->jobs, pJob));
+#endif
+
     rtsmb_cli_session_job_close (pJob);
 
     if (pJob->callback)
@@ -3868,6 +3925,9 @@ int rtsmb_cli_session_process_smbs_on_wire (PRTSMB_CLI_SESSION pSession)
                 case NON_EXISTANT:  /* job is in wrong state */
 #if (DEBUG_SESSION_ON_WIRE)
                     rtp_printf("PVO NON_EXISTANT \n");
+#endif
+#if (DEBUG_JOB)
+       rtp_printf("rtsmb_cli_session_process_smbs_on_wire release job: session = %x, job index = %d\n", pSession, i);
 #endif
                     rtsmb_cli_session_job_close (&pSession->jobs[i]);   /* fix it */
                     break;
@@ -3904,6 +3964,9 @@ int rtsmb_cli_session_process_smbs_on_wire (PRTSMB_CLI_SESSION pSession)
                     }
                     else
                     {
+#if (DEBUG_JOB)
+       rtp_printf("rtsmb_cli_session_process_smbs_on_wire II release job: session = %x, job index = %d\n", pSession, i);
+#endif
                         rtsmb_cli_session_job_close (&pSession->jobs[i]);
 #if (DEBUG_SESSION_ON_WIRE)
                         rtp_printf("PVO callback == %X\n",(unsigned int)pSession->jobs[i].callback);
@@ -3942,9 +4005,7 @@ int rtsmb_cli_session_handle_bad_connection (PRTSMB_CLI_SESSION pSession)
         /* We are already recovering and we want to try again?  Just kill the session,
            this is going nowhere. */
 
-        RTSMB_DEBUG_OUTPUT_STR ("Killing bad connection to ", RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (pSession->server_name, RTSMB_DEBUG_TYPE_ASCII);
-        RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Killing bad connection to: %s\n", pSession->server_name);
 
         pSession->state = CSSN_STATE_DEAD;
 #ifdef STATE_DIAGNOSTICS
@@ -3953,9 +4014,7 @@ RTSMB_GET_SESSION_STATE (CSSN_STATE_DEAD);
         return RTSMB_CLI_SSN_RV_DEAD;
     }
 
-    RTSMB_DEBUG_OUTPUT_STR ("Restarting bad connection to ",  RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (pSession->server_name,  RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_STR (".\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Restarting bad connection to: %s\n", pSession->server_name);
 
     pSession->state = CSSN_STATE_RECOVERY_QUERYING;
 #ifdef STATE_DIAGNOSTICS
@@ -4009,11 +4068,7 @@ RTSMB_GET_SESSION_STATE (CSSN_SHARE_STATE_DIRTY);
 RTSMB_STATIC
 int rtsmb_cli_session_handle_job_timeout (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
-    RTSMB_DEBUG_OUTPUT_STR("Job timed out.  We have sent job ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT(pJob->send_count);
-    RTSMB_DEBUG_OUTPUT_STR(" times of ", RTSMB_DEBUG_TYPE_ASCII);
-    RTSMB_DEBUG_OUTPUT_INT(RTSMB_NB_UCAST_RETRY_COUNT);
-    RTSMB_DEBUG_OUTPUT_STR(".\n", RTSMB_DEBUG_TYPE_ASCII);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"Job timed out.  We have sent job %d times of %d.\n", pJob->send_count,RTSMB_NB_UCAST_RETRY_COUNT);
 
     if (pJob->send_count >= RTSMB_NB_UCAST_RETRY_COUNT)
     {
@@ -4121,38 +4176,59 @@ int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_S
     if (pJob->receive_handler_smb2)
     {
         smb2_stream *pStream;
+        PFVOID SMB2_message_origin = 0;
         pStream = rtsmb_cli_wire_smb2_stream_get (&pSession->wire, pJob->mid);
         if (pStream)
         {
-            rv = (*pJob->receive_handler_smb2) (pStream);
-
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_handle_job_smb2: *pJob->receive_handler_smb2 returned rv == %d\n",rv);
-            // HERERE - comparing ddword with word
-            if (pStream->InHdr.MessageId != pJob->mid)
-            {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n");
-                rv = RTSMB_CLI_SSN_RV_MALICE;
-            }
-            else if (pStream->InHdr.Status_ChannelSequenceReserved)
-            {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: error passed in header returned %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
-                /* an error occurred */
-                pJob->error = pStream->InHdr.Status_ChannelSequenceReserved;
-                rv = RTSMB_CLI_SSN_RV_INVALID_RV;
-                if (pJob->error_handler_smb2)
-                {
-                    /* We give the error handler a chance to override the
-                       error value and do cleanup. */
-                    rv = (*pJob->error_handler_smb2)(pStream);
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "*pJob->error_handler_smb2: return error == %X\n", rv);
-                }
-                /* if the error handler overrode it, we return new error */
-                if (rv == RTSMB_CLI_SSN_RV_INVALID_RV)
-                {
-                    rv = rtsmb_cli_session_translate_error32 (pStream->InHdr.Status_ChannelSequenceReserved);
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_translate_error32: return error == %X\n", rv);
-                }
-            }
+           BBOOL stay_in; // HEREHERE - Stay in if it is a compound packet
+           SMB2_message_origin = pStream->read_origin; // the header has been pulled already
+           do //             while stay_in == TRUE; // HEREHERE - Stay in if it is a compound packet
+           {
+             stay_in = FALSE; // Stay in if it is a compound packet
+             rv = (*pJob->receive_handler_smb2) (pStream);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_handle_job_smb2: *pJob->receive_handler_smb2 returned rv == %d\n",rv);
+             // HERERE - comparing ddword with word
+             if (pStream->InHdr.MessageId != pJob->mid)
+             {
+                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n");
+                 rv = RTSMB_CLI_SSN_RV_MALICE;
+             }
+             else if (pStream->InHdr.Status_ChannelSequenceReserved)
+             {
+                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: error passed in header returned %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
+                 /* an error occurred */
+                 pJob->error = pStream->InHdr.Status_ChannelSequenceReserved;
+                 rv = RTSMB_CLI_SSN_RV_INVALID_RV;
+                 if (pJob->error_handler_smb2)
+                 {
+                     /* We give the error handler a chance to override the
+                        error value and do cleanup. */
+                     rv = (*pJob->error_handler_smb2)(pStream);
+                     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "*pJob->error_handler_smb2: return error == %X\n", rv);
+                 }
+                 /* if the error handler overrode it, we return new error */
+                 if (rv == RTSMB_CLI_SSN_RV_INVALID_RV)
+                 {
+                     rv = rtsmb_cli_session_translate_error32 (pStream->InHdr.Status_ChannelSequenceReserved);
+                     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_translate_error32: return error == %X\n", rv);
+                 }
+             }
+             else if (pStream->read_buffer_remaining > sizeof(RTSMB2_HEADER))
+             {
+//                  HEREHERE - handle comound statments right, check
+                  if (pStream->InHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS && pStream->InHdr.NextCommand+sizeof(RTSMB2_HEADER) >= pStream->read_buffer_remaining)
+                  {
+                    dword NextCommand = pStream->InHdr.NextCommand;
+                    pStream->pInBuf    = PADD(SMB2_message_origin,NextCommand);
+                    // HEREHERE check enf
+                    SMB2_message_origin = pStream->pInBuf;
+                    pStream->InHdr     = *((RTSMB2_HEADER *) pStream->pInBuf);
+                    pStream->pInBuf    = PADD(pStream->pInBuf,sizeof(RTSMB2_HEADER));
+                    pStream->read_buffer_remaining -= (NextCommand+sizeof(RTSMB2_HEADER));
+                    stay_in = TRUE; // Check signature ? Stay in if it is a compound packet
+                  }
+             }
+           } while (stay_in);
         }
         else
         {
@@ -4278,7 +4354,6 @@ RTSMB_GET_SESSION_JOB_STATE (CSSN_JOB_STATE_UNUSED);
 #endif
 }
 
-
 PRTSMB_CLI_SESSION_JOB rtsmb_cli_session_get_free_job (PRTSMB_CLI_SESSION pSession)
 {
     int i;
@@ -4289,8 +4364,7 @@ PRTSMB_CLI_SESSION_JOB rtsmb_cli_session_get_free_job (PRTSMB_CLI_SESSION pSessi
         {
             rtsmb_cli_session_job_new (&pSession->jobs[i]);
 #if (DEBUG_JOB)
-            rtp_printf("rtsmb_cli_session_get_free_job: session = %x, job index = %d\n",
-                pSession, i);
+            rtp_printf("rtsmb_cli_session_get_free_job: session = %x, job index = %d\n", pSession, i);
 #endif
             return &pSession->jobs[i];
         }
@@ -4304,11 +4378,16 @@ void rtsmb_cli_session_search_new (PRTSMB_CLI_SESSION_SEARCH pSearch, int sid)
 {
     pSearch->sid = sid;
     pSearch->index = 0;
+#if (DEBUG_SEARCH)
+    rtp_printf("rtsmb_cli_session_search_new: address = %x\n",     pSearch);
+#endif
 }
 
-RTSMB_STATIC
 void rtsmb_cli_session_search_close (PRTSMB_CLI_SESSION_SEARCH pSearch)
 {
+#if (DEBUG_SEARCH)
+    rtp_printf("rtsmb_cli_session_search_close: address = %x\n",     pSearch);
+#endif
     pSearch->sid = -1;
 }
 
@@ -4331,7 +4410,6 @@ PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_free_search (PRTSMB_CLI_SESSION 
     return 0;
 }
 
-RTSMB_STATIC
 PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_search (PRTSMB_CLI_SESSION pSession, int sid)
 {
     int i;
@@ -4357,6 +4435,9 @@ void rtsmb_cli_session_share_search_new (PRTSMB_CLI_SESSION_SHARE_SEARCH pSearch
 RTSMB_STATIC
 void rtsmb_cli_session_share_search_close (PRTSMB_CLI_SESSION_SHARE_SEARCH pSearch)
 {
+#if (DEBUG_SEARCH)
+    rtp_printf("rtsmb_cli_session_share_search_close: address = %x\n",     pSearch);
+#endif
     pSearch->sid = -1;
 }
 
@@ -4538,7 +4619,11 @@ void rtsmb_cli_session_send_stalled_jobs (PRTSMB_CLI_SESSION pSession)
 
             r = rtsmb_cli_session_send_job (pSession, &pSession->jobs[i]);
 
-            if (r == RTSMB_CLI_SSN_RV_OK)
+            if (r == RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS)
+            {
+                pSession->jobs[i].state = CSSN_JOB_STATE_WAITING;
+            }
+            else if (r == RTSMB_CLI_SSN_RV_OK)
             {
                 pSession->jobs[i].state = CSSN_JOB_STATE_WAITING;
             }
@@ -4557,18 +4642,15 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
     {
     smb2_stream *pStream;
 
-        RTSMB_DEBUG_OUTPUT_STR ("Create a send stream\n",  RTSMB_DEBUG_TYPE_ASCII);
         pStream = rtsmb_cli_wire_smb2_stream_construct (pSession, pJob);
 
         if (pStream)
         {
             int r;
             pJob->mid = (word) pStream->pBuffer->mid;
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Call send handler\n");
             r = (*pJob->send_handler_smb2) (pStream);
             if (r == RTSMB_CLI_SSN_RV_OK)
             {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler success\n");
                 r = rtsmb_cli_wire_smb2_stream_flush(&pSession->wire, pStream);
                 if (r != 0)
                 {
@@ -5430,7 +5512,7 @@ RTSMB_GET_SESSION_STATE (CSSN_STATE_RECOVERY_FILE_OPENED);
         if (i == prtsmb_cli_ctx->max_fids_per_session)
         {
             /* THIS SHOULDN'T HAPPEN! */
-            RTSMB_DEBUG_OUTPUT_STR("I TRIED TO FIND FID TO REOPEN, BUT THERE AREN'T ANY.\n",RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "I TRIED TO FIND FID TO REOPEN, BUT THERE AREN'T ANY.\n");
             return RTSMB_CLI_SSN_RV_OK;
         }
     }
@@ -6232,9 +6314,9 @@ RTSMB_STATIC int rtsmb_cli_session_receive_session_extended_setup (PRTSMB_CLI_SE
     if (pHeader->flags2 & SMB_FLG2_EXTENDED_SECURITY)
     {
       rtp_printf("Yeah setup wih extended security \n");
-      pJob->data.session_setup.user_struct->spnego_blob_size = s.blob_size;
-      pJob->data.session_setup.user_struct->spnego_blob      = s.blob;
-      rtp_printf("Yeah blobsize ==  %d \n",pJob->data.session_setup.user_struct->spnego_blob);
+      pJob->data.session_setup.user_struct->spnego_blob_size_from_server = s.blob_size;
+      pJob->data.session_setup.user_struct->spnego_blob_from_server      = s.blob;
+      rtp_printf("Yeah blobsize ==  %d \n",pJob->data.session_setup.user_struct->spnego_blob_size_from_server);
       pJob->data.session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
     }
 #if 0
@@ -6638,6 +6720,8 @@ void rtsmb_cli_session_find_to_dstat (PRTSMB_FIND_FILE_INFO_STANDARD pinfo, PRTS
     pdstat->fhtime64.low_time = 0;
     pdstat->fhtime64.high_time = 0;
     pdstat->fsize = pinfo->file_size;
+    pdstat->fsizehi = 0;
+
 }
 
 RTSMB_STATIC
@@ -6796,6 +6880,7 @@ int rtsmb_cli_session_receive_stat (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESS
     pJob->data.stat.answering_stat->fhtime64.low_time = 0;
     pJob->data.stat.answering_stat->fhtime64.high_time = 0;
     pJob->data.stat.answering_stat->fsize = info.file_size;
+    pJob->data.stat.answering_stat->fsizehi = 0;
 
     return RTSMB_CLI_SSN_RV_OK;
 }

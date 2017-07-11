@@ -1,3 +1,5 @@
+#define HEREHERE
+
 //
 // CLI_SMB_WIRE.C -
 //
@@ -26,6 +28,7 @@
 //
 
 #include "smbdefs.h"
+#include "rtpmem.h"
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
@@ -86,7 +89,7 @@ int rv = -1;
             rv = RtsmbWireEncodeSmb2(pStream,  pItem, 36, RtsmbWireVarEncodeNegotiateCommandCb);
             break;
         case SMB2_SESSION_SETUP  :
-            rv = RtsmbWireEncodeSmb2(pStream,  pItem, 25, RtsmbWireVarEncodeSessionSetupCommandCb);
+            rv = RtsmbWireEncodeSmb2(pStream,  pItem, 25-1, RtsmbWireVarEncodeSessionSetupCommandCb);
             break;
         case SMB2_LOGOFF         :
             rv = RtsmbWireEncodeSmb2(pStream,  pItem, 4, 0);
@@ -373,7 +376,18 @@ PFVOID s=buf;
 static int RtsmbWireVarDecodeQueryDirectoryResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
 {
 PRTSMB2_QUERY_DIRECTORY_R pResponse = (PRTSMB2_QUERY_DIRECTORY_R )pItem;
-    return RtsmbWireVarDecode(pStream, origin, buf, size, pResponse->OutputBufferOffset, pResponse->OutputBufferLength, pResponse->StructureSize);
+    // Buffer it if we have room
+    if (size <= pStream->pSession->server_info.buffer_size)
+    {
+rtp_printf("RtsmbWireVarDecodeQueryDirectoryResponseCb calling malloc on %d bytes\n", size);
+      pStream->ReadBufferParms[0].pBuffer  = rtp_malloc(size);
+      if (pStream->ReadBufferParms[0].pBuffer)
+      {
+        pStream->ReadBufferParms[0].byte_count = size;
+        return RtsmbWireVarDecode(pStream, origin, buf, size, pResponse->OutputBufferOffset, pResponse->OutputBufferLength, pResponse->StructureSize);
+      }
+   }
+   return -1;
 }
 static int RtsmbWireVarDecodeChangeNotifyResponseCb(smb2_stream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
 {

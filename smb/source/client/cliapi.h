@@ -848,6 +848,9 @@ int  rtsmb_cli_session_rmdir (int sid, PFCHAR share, PFCHAR filename);
 ******************************************************************************/
 int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat);
 
+// Like find first / next but drain buffered entries for smb2
+int  rtsmb_cli_session_find_buffered (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat);
+
 
 /******************************************************************************
 

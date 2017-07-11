@@ -41,6 +41,7 @@
 #define INCLUDE_RTSMB_ENCRYPTION                1
 #endif
 
+
 /**
  * If on, RTSMB will use unicode internally for all strings.  Without this,
  * RTSMB will not be able to handle unicode strings over the wire nor can it
@@ -100,7 +101,15 @@
  * If on, RTSMB will include code for the client EZ API.
  */
 #ifndef INCLUDE_RTSMB_CLIENT_EZ
-#define INCLUDE_RTSMB_CLIENT_EZ                 1
+#define INCLUDE_RTSMB_CLIENT_EZ                 0
+#endif
+
+
+/**
+ * If on, RTSMB will include NBNS name lookups for the client sheel and API.
+ */
+#ifndef INCLUDE_RTSMB_CLIENT_NBNS
+#define INCLUDE_RTSMB_CLIENT_NBNS                 0
 #endif
 
 /**

@@ -47,6 +47,7 @@
 #define RTSMB_CLI_SSN_RV_FILE_NOT_FOUND       -51  /* an error occurred on server for a particular smb */
 #define RTSMB_CLI_SSN_RV_BAD_PERMISSIONS      -52  /* an error occurred on server for a particular smb */
 #define RTSMB_CLI_SSN_RV_IN_PROGRESS          -101 /* the requested operation is still in progress */
+#define RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS  -102 /* the SMB2 retrieve is still in progress, display current results */
 #define RTSMB_CLI_SSN_RV_INVALID_RV           -100 /* this is guaranteed to never be used as an rv value */
 
 typedef void  (RTSMB_FAR *RTSMB_JOB_CALLBACK)(int job, int r, PFVOID data);
@@ -90,6 +91,7 @@ typedef struct
     TIME           fhtime64; /* last change time */
 
     unsigned long  fsize;
+    unsigned long fsizehi;
 
 } RTSMB_CLI_SESSION_FSTAT;
 typedef RTSMB_CLI_SESSION_FSTAT RTSMB_FAR *PRTSMB_CLI_SESSION_FSTAT;
@@ -108,6 +110,7 @@ typedef struct
     TIME           fhtime64; /* last change time */
 
     unsigned long fsize;
+    unsigned long fsizehi;
 
     /* the rest of this structure is for internal use only */
     int sid;
@@ -293,8 +296,8 @@ typedef struct
     rtsmb_char name [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
     char password [CFG_RTSMB_MAX_PASSWORD_SIZE + 1];
     rtsmb_char domain_name [CFG_RTSMB_MAX_DOMAIN_NAME_SIZE + 1];
-    byte spnego_blob_size;
-    byte *spnego_blob;
+    int spnego_blob_size_from_server;
+    byte *spnego_blob_from_server;
 
 } RTSMB_CLI_SESSION_USER;
 typedef RTSMB_CLI_SESSION_USER RTSMB_FAR *PRTSMB_CLI_SESSION_USER;
@@ -332,15 +335,21 @@ typedef RTSMB_CLI_SESSION_SHARE RTSMB_FAR *PRTSMB_CLI_SESSION_SHARE;
 
 typedef struct
 {
-    int sid;                /* search ID */
-    word server_sid;        /* server's sid value */
-    byte    SMB2FileId[16]; /* FileId provided by SMB2 Create Request */
-    int num_stats;          /* number of dstats stored here */
-    int end_of_search;      /* are we done with this search? */
-    int index;              /* where we are along the array */
+    int sid;                  /* search ID */
+    word server_sid;          /* server's sid value */
+    byte    SMB2FileId[16];   /* FileId provided by SMB2 Create Request */
+    int raw_buffered_data;    /* If true the job structure still has data */
+    int num_stats;            /* number of dstats stored here */
+    int end_of_search;        /* are we done with this search? */
+    int index;                /* where we are along the array */
+    BBOOL has_continue;       /* SMB2 */
+    int job_number ;          /* SMB2 holds onto the job while it runs through the steps */
     PRTSMB_CLI_SESSION_DSTAT dstats;
 
     PRTSMB_CLI_SESSION_SHARE share_struct;  /* share that search is on */
+    void *pBufferedResponse;
+    void *pBufferedIterator;
+    void *pBufferedIteratorEnd;
 
 } RTSMB_CLI_SESSION_SEARCH;
 typedef RTSMB_CLI_SESSION_SEARCH RTSMB_FAR *PRTSMB_CLI_SESSION_SEARCH;
@@ -571,7 +580,16 @@ struct RTSMB_CLI_SESSION_JOB_T
             PRTSMB_CLI_SESSION_SEARCH search_struct;
             rtsmb_char pattern [SMBF_FILENAMESIZE + 1];
             PRTSMB_CLI_SESSION_DSTAT answering_dstat;
+            PRTSMB_CLI_SESSION_SEARCH *pSearch;
+        } findsmb2;
 
+
+        struct {
+
+            PRTSMB_CLI_SESSION_SEARCH search_struct;
+            rtsmb_char pattern [SMBF_FILENAMESIZE + 1];
+            PRTSMB_CLI_SESSION_DSTAT answering_dstat;
+            PRTSMB_CLI_SESSION_SEARCH *pSearch;
         } findfirst;
 
         struct {

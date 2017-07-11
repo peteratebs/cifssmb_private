@@ -1,4 +1,6 @@
-#define USE_HTTP_INTERFACE 0
+#ifdef __linux
+static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
+#endif
 
 
 // --------------------------------------------------------
@@ -18,11 +20,10 @@
 #include "smbdebug.h"
 #include "smbspnego.h"
 #include "rtpmem.h"
-#if (USE_HTTP_INTERFACE)
-#include "httpsrv.h"
-#include "htmlutils.h"
-#endif
 #include <stdarg.h>
+
+extern char *CommandProcessorGets(char *to, int max_count);
+extern void CommandProcessorPuts(char *buffer);
 
 // --------------------------------------------------------
 #define HISTORY_MODE 1 /* Set to one, to remember parts of Url zero to prompt for all elements of URL */
@@ -48,8 +49,9 @@ char shell_buffer[2048];
 int wait_on_job(int sid, int job);
 
 static int do_connect_share(int sid, char *sharename);
-static char *do_getserver_name(void);
-static RTSMB_CLI_SESSION_DIALECT do_get_session_dialect(void);
+static char *do_getserver_name(char *pnewservername);
+static RTSMB_CLI_SESSION_DIALECT do_get_session_dialect(char *pnewdialect);
+
 static int do_setserver_command(void);
 static char *do_getuser_name(void);
 static int do_setuser_command(void);
@@ -96,6 +98,7 @@ char *net_cmd         = "NET";
 char *logoff_cmd      = "LOGOFF";
 char *dump_cmd        = "SHOWSTATE";
 char *help_cmd        = "HELP";
+char *alt_help_cmd        = "?";
 
 static char *file_cmds[][2] = {
     {"FOPEN", "FOPEN filename {W|T|E}       ((W)rite,(T)runcate,(E)xclusive - select one or more.)"},
@@ -139,15 +142,11 @@ static int do_logoff_command(char *command);
 
 static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSION_DIALECT dialect);
 static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
-static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern,char *jSonBuffer);
+static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern);
 static int do_ls_command(char *command);
 
 static int do_loop_command();
 
-#if (USE_HTTP_INTERFACE)
-void HttpConsoleOutPut(char *output);
-int HttpConsoleRunning;
-#endif
 
 // --------------------------------------------------------
 void smb_cli_term_printf(int dbg_lvl, char *fmt, ...)
@@ -158,20 +157,15 @@ static char buffer[1024];
  va_start(argptr,fmt);
  rtp_vsprintf(buffer, fmt, argptr);
  va_end(argptr);
+ CommandProcessorPuts(buffer);
+ return;
  if (dbg_lvl==CLI_DEBUG)
     rtp_printf("??? %s",buffer);
  else if (dbg_lvl==CLI_ALERT)
     rtp_printf("!!!! %s",buffer);
  else
  {
-    rtp_printf("   %s",buffer);
-#if (USE_HTTP_INTERFACE)
- if (HttpConsoleRunning)
- {
-     rtp_strcat (buffer,"<br>");
-     HttpConsoleOutPut(buffer);
- }
-#endif
+    rtp_printf("rtprintf_>>>   %s",buffer);
  }
 }
 
@@ -182,17 +176,10 @@ static void smbcli_prompt(char *promptstr, char *buffer, int length)
     int i;
     smb_cli_term_printf(CLI_PROMPT,promptstr);
     //gets (buffer);
-#if (USE_HTTP_INTERFACE)
-    if (HttpConsoleRunning)
-    {
-        buffer[0]=0;
-        while (!buffer[0])
-            HttpGetConsoleInPut(buffer);
-    }
-    else
-#endif
 //        rtp_term_gets(buffer);
-        fgets(buffer, 80, stdin);
+//        fgets(buffer, 80, stdin);
+        CommandProcessorGets(buffer, 80);
+
      /* strip trailing newline */
         for (i = 0; i < (int)rtp_strlen(buffer); i++)
         {
@@ -250,32 +237,12 @@ static int do_help_command(void)
 // --------------------------------------------------------
 void smb_cli_term_get_command(char *command_buffer)
 {
-    smb_cli_term_printf(CLI_PROMPT,"Hi Pete\n");
-    smbcli_prompt("Type yeah command : ", command_buffer, COMMAND_BUFFER_SIZE);
+    smbcli_prompt("CMD>: ", command_buffer, COMMAND_BUFFER_SIZE);
 }
 
 
 
-#if (USE_HTTP_INTERFACE)
-static void spawn_web_server(void);
-#endif
 
-#if (USE_HTTP_INTERFACE)
-static int do_cli_web_command(NVPairList *pPairList,char *jSonBuffer, int outbufferLength);
-static int do_net_command_web(NVPairList *pPairList,char *jSonBuffer, int outbufferLength);
-#endif
-static int do_ls_command_web(char *command,char *jSonBuffer, int outbufferLength);
-static char *web_cmds[] = {
-    "LogOn"        ,
-    "LogOff"       ,
-    "Use"          ,
-    "EnumShares"   ,
-    "EnumServers"  ,
-    "ClientStats"  ,
-    "RefreshLocal" ,
-    "RefreshRemote",
-    0,
- };
 static int do_fhandle_open_command(char *command);
 static int do_fhandle_close_command(char *command);
 static int do_fhandle_aread_command(char *command);
@@ -285,62 +252,75 @@ static int do_fhandle_write_command(char *command);
 static int do_fhandle_seek_command(char *command);
 static int do_fhandle_stat_command(char *command);
 
-#if (USE_HTTP_INTERFACE)
-typedef int (do_web_function_t)(NVPairList *pPairList, char *outbuffer, int outbufferLength);
-static do_web_function_t *web_functions[] =
-{
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
- do_cli_web_command,
-};
-#endif
-
-#if (USE_HTTP_INTERFACE)
-int smb_cli_shell_proc_web(NVPairList *pPairList, char *outbuffer, int outbufferLength)
-{
-   int i;
-   int r=-1;
-   NVPair *pCommand,*pMedia;
-
-   rtp_strcpy(outbuffer, "Command Not Found");
-
-   pCommand = HTTP_GetNameValuePairAssociative (pPairList,"command");
-   pMedia = HTTP_GetNameValuePairAssociative (pPairList,"media");
-   // media (remote|local) and
-   if (!pCommand)
-   {
-       return -1;
-   }
-   {
-       for (i =0; web_cmds[i]; i++)
-       {
-           if (rtp_strnicmp(pCommand->value, web_cmds[i], rtp_strlen(web_cmds[i])) == 0)
-           {
-               r = web_functions[i](pPairList,outbuffer, outbufferLength);
-               break;
-           }
-       }
-   }
-   return r;
-}
-#endif
 
 
 static void smb_cli_shell_proc(char *command_buffer);
 
+#ifdef __linux
+
+#include <unistd.h>
+#include <time.h>
+
+static int DiagMessageFilter(char *str)
+{
+
+  if (tc_memcmp(str, "DIAG:",5) == 0)
+  {
+   int l;
+//    if (queuedmessagelength!=0)
+//       str += 5; // skip DIAG:
+    l = tc_strlen(str);
+    {
+      char timebuff[255];
+      time_t now;
+       struct tm *tm;
+
+       now = time(0);
+       if ((tm = gmtime (&now))) {
+        tc_sprintf (timebuff,"%04d-%02d-%02d %02d:%02d:%02d : SMB",
+        tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
+        tm->tm_hour, tm->tm_min, tm->tm_sec);
+       }
+      rtp_printf("%s: %s", timebuff, str);
+    }
+    return 1;
+  }
+  else
+  {
+    rtp_printf("%s:", str);
+    return 0;
+  }
+}
+static char *syslogname = (char *) "RTSMBS";
+static unsigned long level_mask = (SYSLOG_TRACE_LVL|SYSLOG_INFO_LVL|SYSLOG_ERROR_LVL);
+
+void rtsmb_srv_syslog_config(void)
+{
+  RTP_DEBUG_FILTER_SYSLOG(DiagMessageFilter);
+  RTP_DEBUG_OPEN_SYSLOG(syslogname, level_mask);
+}
+
+
+#endif
 // --------------------------------------------------------
 /* ENTRY POINT */
 // --------------------------------------------------------
 void smb_cli_shell(void)
 {
 char command_buffer[COMMAND_BUFFER_SIZE];
-
-    in_ipaddress(my_ip, my_mask);
+#ifdef __linux
+    if (select_linux_interface(my_ip, my_mask) < 0)
+    { // Resort to selecting he address by hand if linux retrieve address failed
+       fprintf(stderr, "select interface failed\n");
+       return -1;
+    }
+    rtsmb_srv_syslog_config();
+#else
+    { // Resort to selecting he address by hand if linux retrieve address failed
+	  /* Retrieve ip address and mask from console and initialize server */
+	  in_ipaddress(my_ip, my_mask);
+    }
+#endif
     smb_cli_term_printf(CLI_PROMPT,"Using IP address %d,%d,%d,%d\n", my_ip[0],my_ip[1],my_ip[2],my_ip[3]);
     smb_cli_term_printf(CLI_PROMPT,"Using IP mask    %d,%d,%d,%d\n", my_mask[0],my_mask[1],my_mask[2],my_mask[3]);
 
@@ -355,11 +335,6 @@ char command_buffer[COMMAND_BUFFER_SIZE];
         smb_cli_term_printf(CLI_PROMPT,"Using PORT numbers (137 and 138),SMB/SAMBA should not also be running on this device.\n");
         rtsmb_init_port_well_know();
     }
-#if (USE_HTTP_INTERFACE)
-    smb_cli_term_printf(CLI_PROMPT,"Calling web server module\n");
-    spawn_web_server();
-    HttpConsoleRunning=1;
-#endif
     while (!exit_shell)
     {
         smb_cli_term_get_command(command_buffer);
@@ -386,18 +361,21 @@ static void smb_cli_shell_proc(char *command_buffer)
    }
    if(Done)
        ;
-
+   else if (rtp_strcmp(command_buffer, alt_help_cmd) == 0)
+        do_help_command();
    else if (rtp_strcmp(command_buffer, help_cmd) == 0)
         do_help_command();
    else if (rtp_strcmp(command_buffer, quit_cmd) == 0)
         do_quit_command();
    else if (rtp_strcmp(command_buffer, enum_cmd) == 0)
     do_enum_command();
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
    else if (rtp_strcmp(command_buffer, lookup_cmd) == 0)
    {
     smbcli_prompt("Type name to look up : ", command_buffer, COMMAND_BUFFER_SIZE);
     do_lookup_command(command_buffer);
    }
+#endif
    else if (rtp_strcmp(command_buffer, shares_cmd) == 0)
    {
     do_enum_shares_command();
@@ -518,7 +496,8 @@ int ConnectionNo=0;
 BBOOL DoOpenConnection=FALSE;
 char dialectString[20];
 dialectString[0]=0;
-    strcpy(command, "USE d: \\\\192.168.1.7\\share0 /user:ebs /password:password /dialect:1");
+//    strcpy(command, "USE d: \\\\192.168.1.17\\share0 /user:notebs /password:notpassword /dialect:2");
+    strcpy(command, "USE d: \\\\192.168.1.17\\share0 /user:notebs /password:notpassword /dialect:2");
     smb_cli_term_printf(CLI_ALERT,"Inside with command == %s\n", command);
 //    command += STRCONSTLENGTH("NET ");
     smb_cli_term_printf(CLI_ALERT,"Inside 2 with command == %s STRCONSTLENGTH{\"USE\") == %d\n", command,(int)STRCONSTLENGTH("USE"));
@@ -588,6 +567,8 @@ dialectString[0]=0;
                     rtp_memcpy(server_name, command, len);
                     server_name[len]=0;
                     smb_cli_term_printf(CLI_ALERT,"Url:%s \n",server_name);
+                    do_getserver_name(server_name);
+
                     doHelp = 0;
                     command += len;
                     if (command == nextSlash)
@@ -646,6 +627,7 @@ dialectString[0]=0;
                             rtp_memcpy(dialectString, command, len);
                             dialectString[len]=0;
                             smb_cli_term_printf(CLI_ALERT,"Dialect:%s \n",dialectString);
+                            do_get_session_dialect(dialectString);
                             nextSpace=rtp_strstr(command," ");
                         }
                     }
@@ -759,7 +741,7 @@ void mark_rv (int job, int rv, void *data)
 
     *idata = rv;
     if (rv == -52)
-        rtp_printf("Bad Permissions, Marked = %d\n",*idata);
+        smb_cli_term_printf("Bad Permissions, Marked = %d\n",*idata);
 }
 
 int wait_on_job(int sid, int job)
@@ -769,7 +751,7 @@ int wait_on_job(int sid, int job)
 
     rtsmb_cli_session_set_job_callback(sid, job, mark_rv, &rv);
 
-    while(rv == RTSMB_CLI_SSN_RV_INVALID_RV)
+    while(rv == RTSMB_CLI_SSN_RV_INVALID_RV )
     {
         r = rtsmb_cli_session_cycle(sid, 10);
         if (r < 0)
@@ -841,6 +823,7 @@ static int do_enum_command(void)
   return 0;
 }
 
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
 // --------------------------------------------------------
 static int do_lookup_command(char *nbsname)
 {
@@ -908,7 +891,7 @@ static int do_lookup_command(char *nbsname)
     rtsmb_cli_shutdown();
     return 0;
 }
-
+#endif
 // --------------------------------------------------------
 static int do_enum_shares_command(void)
 {
@@ -990,152 +973,20 @@ static int do_logoff_command(char *command)
 }
 
 
-#if (0)
-
-/* Create a json representation of the data record we are encodng
-{
-    "HasA429Sample": 1
-    "A429Sample": [
-        {
-            "id": "1",
-            "word": "21233"
-        },
-    "HasDiscreteSample": 1
-    "DiscreteSample": [
-        {
-            "id": "1",
-            "open": "1"
-        },
-    ]
-    "HasAnalogSample": 1
-    "AnalogSample": [
-        {
-            "id": "1",
-            "value": "1"
-        },
-    ]
-    "has_GMTms": "1",
-    "GMTms": "xxxxxxxxx"
-
-{
-    "Status":  0
-    "FileCount":  0
-    "Results": [
-    "FileName":   "xxxxx",
-    "Attributes": "xxxxx",
-    "Size":       "xxxxx",
-     ]
-}
-
-*/
-
-// --------------------------------------------------------
-static int jsonEncodeSampleStreams(char *Jsonbuffer, A429SampleStream_t *pA429iStream, DiscreteSampleStream_t *pDiscreteiStream, AnalogSampleStream_t *pAnalogiStream,bool has_GMTms, uint64_t GMTms)
-{
-A429Sample_t    *pA429Sample;
-DiscreteSample_t  *pDiscreteSample;
-AnalogSample_t  *pAnalogSample;
-char *jsonUintFmtComma=     "    \"%s\": %u,\n";
-char *jsonUintFmt=     "    \"%s\": %u\n";
-char *jsonUint64Fmt=   "    \"%s\": %llu,\n";
-char *jsonArrayFmt=   "    \"%s\": [\n";
-char *jsonA429ItemFmt="    {\n        \"id\": %u,\n        \"word\": %u\n    }%s";
-char *jsonDiscreteItemFmt="  {\n        \"id\": %u,\n        \"open\": %d\n    }%s";
-char *jsonAnalogItemFmt="  {\n        \"id\": %u,\n        \"value\": %d\n    }%s";
-char *ArrayItemEnd=   ",\n";
-char *LastArrayItemEnd=   "\n";
-char *jsonArrayEnd=   "    ]\n";
-int haspA429,hasDiscrete,hasAnalog;
-char *pJsonbuffer = Jsonbuffer;
-    pA429iStream->ResetFn(pA429iStream);
-    haspA429 = (pA429iStream->GetNextFn(pA429iStream)!=0);
-    pDiscreteiStream->ResetFn(pDiscreteiStream);
-    hasDiscrete = (pDiscreteiStream->GetNextFn(pDiscreteiStream)!=0);
-    pAnalogiStream->ResetFn(pAnalogiStream);
-    hasAnalog = (pAnalogiStream->GetNextFn(pAnalogiStream)!=0);
-
-    pJsonbuffer += rtp_sprintf(pJsonbuffer, "{\n");
-
-    pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonUintFmtComma, "HasGMTms",  (int)has_GMTms);
-    if (has_GMTms)
-    {
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonUint64Fmt, "GMTms", GMTms);
-    }
-    pJsonbuffer += rtp_sprintf(pJsonbuffer,jsonUintFmtComma,  "HasA429Sample",  haspA429);
-    pA429iStream->ResetFn(pA429iStream);
-    if (haspA429)
-    {
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonArrayFmt,  "A429Sample");
-        pA429Sample = pA429iStream->GetNextFn(pA429iStream);
-        while (pA429Sample)
-        {
-            A429Sample_t *NextItem = pA429iStream->GetNextFn(pA429iStream);
-            pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonA429ItemFmt, pA429Sample->Port_id, pA429Sample->dataword, NextItem?ArrayItemEnd:LastArrayItemEnd);
-            pA429Sample=NextItem;
-        }
-        pJsonbuffer += rtp_sprintf(pJsonbuffer,"%s", jsonArrayEnd);
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, ",\n");
-    }
-
-    pJsonbuffer += rtp_sprintf(pJsonbuffer,jsonUintFmtComma,  "HasDiscreteSample",  hasDiscrete);
-    pDiscreteiStream->ResetFn(pDiscreteiStream);
-    if (hasDiscrete)
-    {
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonArrayFmt,  "DiscreteSample");
-        pDiscreteSample = pDiscreteiStream->GetNextFn(pDiscreteiStream);
-        while (pDiscreteSample)
-        {
-            DiscreteSample_t *NextItem = pDiscreteiStream->GetNextFn(pDiscreteiStream);
-            pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonDiscreteItemFmt, pDiscreteSample->Port_id, pDiscreteSample->open, NextItem?ArrayItemEnd:LastArrayItemEnd);
-            pDiscreteSample=NextItem;
-        }
-        pJsonbuffer += rtp_sprintf(pJsonbuffer,"%s", jsonArrayEnd);
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, ",\n");
-    }
-
-    pJsonbuffer += rtp_sprintf(pJsonbuffer, hasAnalog?jsonUintFmtComma:jsonUintFmt,  "HasAnalogSample",  hasAnalog);
-    pAnalogiStream->ResetFn(pAnalogiStream);
-    if (hasAnalog)
-    {
-        pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonArrayFmt,  "AnalogSample");
-        pAnalogSample = pAnalogiStream->GetNextFn(pAnalogiStream);
-        while (pAnalogSample)
-        {
-            AnalogSample_t *NextItem = pAnalogiStream->GetNextFn(pAnalogiStream);
-            pJsonbuffer += rtp_sprintf(pJsonbuffer, jsonAnalogItemFmt, pAnalogSample->Port_id, pAnalogSample->value, NextItem?ArrayItemEnd:LastArrayItemEnd);
-            pAnalogSample=NextItem;
-        }
-        pJsonbuffer += rtp_sprintf(pJsonbuffer,"%s", jsonArrayEnd);
-    }
-    pJsonbuffer += rtp_sprintf(pJsonbuffer, "}\n");
-    return (int) (pJsonbuffer - Jsonbuffer);
-}
-
-//======================================
-#endif
-static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern,char *jSonBuffer)
+static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern)
 {
     RTSMB_CLI_SESSION_DSTAT dstat1;
-    int JsonClose=0;
     smb_cli_term_printf(CLI_ALERT,"performing LS on %s\\%s \n", sharename, pattern);
     do
     {
         int r1 = rtsmb_cli_session_find_first(sid, sharename, pattern, &dstat1);
         if(r1 < 0)
         {
-            rtp_printf("\n Error getting files\n");
+            smb_cli_term_printf(CLI_ALERT,"\n Error getting files\n");
             return 1;
         }
         r1 = wait_on_job(sid, r1);
-
-        if (r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
-        {
-            JsonClose=1;
-            smb_cli_term_printf(CLI_PROMPT,"{ \"Status\":  %d, \"Results\": [ ", 0);
-            if (jSonBuffer)
-                jSonBuffer += rtp_sprintf(jSonBuffer,"{ \"Status\":  %d, \"Results\": [ ", 0);
-        }
-        while(r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
+        while(r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY || r1 == RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS)
         {
             char temp[200];
 
@@ -1147,41 +998,37 @@ static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *patter
                 char attrib_string[8];
                 byte fattributes = (byte)dstat1.fattributes;
 
-                smb_cli_term_printf(CLI_PROMPT,"Cheat on directory meaning for now \n");
-                if (fattributes & 0x02) // RTP_FILE_ATTRIB_ISDIR)
+                if (fattributes & RTP_FILE_ATTRIB_ISDIR) // RTP_FILE_ATTRIB_ISDIR)
                     attrib_string[0] = 'd';
                 else
-                    attrib_string[0] = '0';
+                    attrib_string[0] = '_';
                 attrib_string[1] = 'r';
-                attrib_string[2] = 'w';
+                if ((fattributes & RTP_FILE_ATTRIB_RDONLY)==0) // RTP_FILE_ATTRIB_ISDIR)
+                  attrib_string[2] = 'w';
+                else
+                  attrib_string[2] = '_';
                 attrib_string[3] = 0;
 
 
                 rtpDateStruct =  rtsmb_util_time_unix_to_rtp_date (unix_time);
-                smb_cli_term_printf(CLI_PROMPT,"%s %2d %4d  %8d %-40.40s\n", month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year, (int)dstat1.fsize, temp );
 
-    smb_cli_term_printf(CLI_PROMPT,"{\"FileName\":   \"%s\",    \"Date\": \"%s %2d %4d\", \"Attributes\": \"%s\",  \"Size\":       %d},",
-                                      temp,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year, attrib_string, (int)dstat1.fsize);
-
-                if (jSonBuffer)
-                    jSonBuffer += rtp_sprintf(jSonBuffer, "{\"FileName\":   \"%s\",    \"Date\": \"%s %2d %4d\", \"Attributes\": \"%s\",  \"Size\":       %d},",
-                                      temp,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year, attrib_string, (int)dstat1.fsize);
+                smb_cli_term_printf(CLI_PROMPT,"%s %s %2d %4d, %8d %s\n", attrib_string,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year,  (int)dstat1.fsize, temp);
             }
-            r1 = rtsmb_cli_session_find_next(sid, &dstat1);
-            if(r1 >= 0)
+            // Handle the fact that SMB2 find_first and find_next can buffer multiple entries.
+            r1 = rtsmb_cli_session_find_buffered(sid, &dstat1);
+            if (r1 != RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
             {
+              // RTSMB_CLI_SSN_RV_IN_PROGRESS
+              r1 = rtsmb_cli_session_find_next(sid, &dstat1);
+              if(r1 >= 0)
+              {
                 r1 = wait_on_job(sid, r1);
+              }
             }
         }
         r1 = rtsmb_cli_session_find_next(sid, &dstat1);
         rtsmb_cli_session_find_close(sid, &dstat1);
     } while(doLoop);
-    if (JsonClose)
-    {
-        smb_cli_term_printf(CLI_PROMPT,"%s", "] }");
-        if (jSonBuffer)
-            jSonBuffer += rtp_sprintf(jSonBuffer, "%s", "] }");
-    }
     return 0;
 }
 
@@ -1228,135 +1075,12 @@ static int do_prompt_ls_command(int doLoop)
     }
     smbcli_prompt("Pattern (* always works):  ", pattern, 256);
 
-    do_ls_command_worker(doLoop,sid,sharename,pattern,0);
+    do_ls_command_worker(doLoop,sid,sharename,pattern);
     rtsmb_cli_shutdown();
     return 0;
 }
 
-#if (USE_HTTP_INTERFACE)
-// process NET USE D: \\Sharename /user:xxxx /password:yyyy
-// process NET USE D: \\Sharename /user:xxxx /password:yyyy
-static int do_net_command_web(NVPairList *pPairList,char *outbuffer, int outbufferLength)
-{
-   NVPair *pCommand;
 
-   rtp_strcpy(outbuffer, "Command Not Found");
-
-   pCommand = HTTP_GetNameValuePairAssociative (pPairList,"command");
-
-    if (do_net_command(pCommand->value)<0)
-        return -1;
-    else
-        return 0;
-
-}
-static int do_cli_web_command(NVPairList *pPairList,char *jSonBuffer, int outbufferLength)
-{
-int ConnectionNo=0;
-NVPair *Command;
-
-    Command = HTTP_GetNameValuePairAssociative (pPairList,"command");
-    smb_cli_term_printf(CLI_ALERT,"do_cli_web_command command=%s\n",Command->value);
-
-    if (rtp_strcmp(Command->value, "LogOn") == 0)
-    {
-    NVPair *RemoteHost,*User,*Password;
-    int sid;
-    RTSMB_CLI_SESSION_DIALECT dialect = 1;  // 0==CSSN_DIALECT_PRE_NT, 1==CSSN_DIALECT_NT, 2==CSSN_DIALECT_SMB2_2002:
-
-        RemoteHost = HTTP_GetNameValuePairAssociative (pPairList,"RemoteHost");
-        User       = HTTP_GetNameValuePairAssociative (pPairList,"User");
-        Password   = HTTP_GetNameValuePairAssociative (pPairList,"Password");
-        if (do_connect_server_worker(&sid, RemoteHost->value, dialect)==1)
-        {
-            if (do_logon_server_worker(sid,  User->value, Password->value, "domain"))
-            {
-                rtp_sprintf(jSonBuffer, "{ SessionId: %d }" , sid);
-                return 0;
-            }
-            else
-                rtp_strcpy(jSonBuffer,"Log On Failed, Bad Username or password");
-
-        }
-        else
-        {
-            rtp_strcpy(jSonBuffer,"Connect Failed");
-        }
-        return -1;
-    }
-    if (rtp_strcmp(Command->value, "LogOff") == 0)
-    {
-    NVPair *SessionId,*Sharename;
-        SessionId  = HTTP_GetNameValuePairAssociative (pPairList,"SessionId");
-        Sharename  = HTTP_GetNameValuePairAssociative (pPairList,"Sharename");
-        if (do_connect_share(rtp_atoi(SessionId->value), Sharename->value)==1)
-        {
-            rtp_sprintf(jSonBuffer, "Success");
-            return 0;
-        }
-        else
-        {
-            return -1;
-
-        }
-    }
-    if (rtp_strcmp(Command->value, "Use") == 0)
-    {
-    NVPair *SessionId,*ShareName,*DriveName;
-        SessionId  = HTTP_GetNameValuePairAssociative (pPairList,"SessionId");
-        ShareName  = HTTP_GetNameValuePairAssociative (pPairList,"ShareName");
-        DriveName  = HTTP_GetNameValuePairAssociative (pPairList,"DriveName");
-
-        if (do_connect_share(rtp_atoi(SessionId->value), ShareName->value)==1)
-        {
-            rtp_sprintf(jSonBuffer, "Use:Succeeded");
-            return 0;
-        }
-        else
-        {
-            rtp_sprintf(jSonBuffer, "Use:Failed");
-            return -1;
-        }
-    }
-    if (rtp_strcmp(Command->value, "RefreshRemote") == 0)
-    {
-    NVPair *SessionId,*ShareName,*DriveName;
-        SessionId  = HTTP_GetNameValuePairAssociative (pPairList,"SessionId");
-        ShareName  = HTTP_GetNameValuePairAssociative (pPairList,"ShareName");
-        if (do_ls_command_worker(0,rtp_atoi(SessionId->value), ShareName->value,"*",jSonBuffer)==0)
-            return 0;
-        else
-            rtp_sprintf(jSonBuffer, "RefreshRemote:Failed");
-         return -1;
-
-    }
-/*
-        smb_cli_term_printf(CLI_ALERT,"Connecting to %s\n",Clishell.ClishellConnections[ConnectionNo].server_name);
-        if (do_connect_server_worker(&Clishell.ClishellConnections[ConnectionNo].sid, Clishell.ClishellConnections[ConnectionNo].server_name, Clishell.ClishellConnections[ConnectionNo].dialect)!=1)
-        {
-            smb_cli_term_printf(CLI_ALERT,"Failed Connecting to %s\n",Clishell.ClishellConnections[ConnectionNo].server_name);
-            return -1;
-        }
-        smb_cli_term_printf(CLI_ALERT,"Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
-        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "domain") < 0)
-        {
-            smb_cli_term_printf(CLI_ALERT,"Failed Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
-            return -1;
-        }
-*/
-    return 0;
-}
-#endif
-
-#if (USE_HTTP_INTERFACE)
-static int do_ls_command_web(char *command,char *jSonBuffer, int outbufferLength)
-{
-   int idNo = CmdToDrvId(command);
-   if (idNo < 0)
-       return 0;
-   return do_ls_command_worker(FALSE,Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid,Clishell.ClishellShares[idNo].shareString,"*",jSonBuffer);
-}
-#endif
 
 
 static int do_ls_command(char *command)
@@ -1374,7 +1098,11 @@ static int do_ls_command(char *command)
         idNo =CmdToDrvId(command);
         if (idNo < 0)
             return 0;
-        return do_ls_command_worker(FALSE,Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid,Clishell.ClishellShares[idNo].shareString,"*",0);
+        // if there's a pattern use it, otherwise use '*'
+        if (command[2])
+          return do_ls_command_worker(FALSE,Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid,Clishell.ClishellShares[idNo].shareString,&command[2]);
+        else
+          return do_ls_command_worker(FALSE,Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid,Clishell.ClishellShares[idNo].shareString,"*");
     }
 }
 
@@ -1603,7 +1331,7 @@ int idNo, fdno;
 //    Clishell.ClishellFiles[fdno].session_fid;
 //    Clishell.ClishellFiles[fdno].session_id;
 
-printf("OPening share==%s file==%s\n", Clishell.ClishellShares[idNo].shareString,filename_start);
+printf("FH OPening share==%s file==%s\n", Clishell.ClishellShares[idNo].shareString,filename_start);
 
     for (fdno=0; fdno< MAX_FILES; fdno++)
     {
@@ -1843,7 +1571,10 @@ static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSIO
     }
     else
     {
+        r = -1;
+#if (INCLUDE_RTSMB_CLIENT_NBNS)
         r = rtsmb_cli_session_new_with_name(server_name, FALSE, NULL, sid, dialect);
+#endif
     }
 
     if(r < 0)
@@ -1870,8 +1601,8 @@ static int do_connect_server(int *sid)
     RTSMB_CLI_SESSION_DIALECT dialect;
 
     //smbcli_prompt("Server: ", gl_server_name);
-    server_name = do_getserver_name();
-    dialect = do_get_session_dialect();
+    server_name = do_getserver_name(0);
+    dialect = do_get_session_dialect(0);
 
     smb_cli_term_printf(CLI_ALERT,"server = %s\n",server_name);
 
@@ -1911,9 +1642,9 @@ static int do_logon_server_worker(int sid,  char *user_name, char *password, cha
        decoded_NegTokenTarg_challenge_t decoded_targ_token;
        smb_cli_term_printf(CLI_PROMPT,"\n Got a challenge at shell layer\n");
 
-       rtsmb_dump_bytes("shell recved blob", prtsmb_cli_ctx->sessions[sid].user.spnego_blob, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size, DUMPBIN);
+       rtsmb_dump_bytes("shell recved blob", prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server, DUMPBIN);
        smb_cli_term_printf(CLI_PROMPT,"shell recved domain[0] ==  %x\n", prtsmb_cli_ctx->sessions[sid].user.domain_name[0]);
-       r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size);
+       r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
        if (r == 0)
        {
            r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
@@ -1921,7 +1652,7 @@ static int do_logon_server_worker(int sid,  char *user_name, char *password, cha
                decoded_targ_token.target_info->value_at_offset,
                decoded_targ_token.target_info->size);
        }
-       rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob);
+       rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server);
        spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
 
        if(r < 0)
@@ -1976,16 +1707,26 @@ static int do_connect_share(int sid, char *sharename)
 /* Tools for inputting server, share, user password.. these save a lot of typing */
 char gl_server_name[128]= {'1','9','2','.','1','6','8','.','1','.','6',0};
 static int  server_name_is_set=1;
-static char *do_getserver_name(void)
+static char *do_getserver_name(char *pnewservername)
 {
-    if (!server_name_is_set)
+    if (pnewservername)
+    {
+      tc_strcpy(gl_server_name, pnewservername);
+      server_name_is_set=1;
+    }
+    else if (!server_name_is_set)
         do_setserver_command();
     return(&gl_server_name[0]);
 }
-static RTSMB_CLI_SESSION_DIALECT do_get_session_dialect(void)
+static RTSMB_CLI_SESSION_DIALECT do_get_session_dialect(char *pnewdialect)
 {
 static int  dialog_is_set;
 static char gl_dialog_string[32];
+    if (pnewdialect)
+    {
+       tc_strcpy(gl_dialog_string, pnewdialect);
+       dialog_is_set=1;
+    }
     while (!dialog_is_set)
     {
         smbcli_prompt("Select dialect: 0==CSSN_DIALECT_PRE_NT, 1==CSSN_DIALECT_NT, 2==CSSN_DIALECT_SMB2_2002: ", gl_dialog_string, 32);
@@ -2135,7 +1876,6 @@ static int do_cli_info (void)
 //  PRTSMB_CLI_SESSION_JOB pJob;
 //  PRTSMB_CLI_SESSION pSession;
 
-rtp_printf("Hello prtsmb_cli_ctx->max_sessions == %d \n",(int)prtsmb_cli_ctx->max_sessions);
     for (session = 0; session < prtsmb_cli_ctx->max_sessions; session++)
     {
 
@@ -2222,24 +1962,64 @@ rtp_printf("Hello prtsmb_cli_ctx->max_sessions == %d \n",(int)prtsmb_cli_ctx->ma
 
 
 /*---------------------------------------------------------------------------*/
-#if (USE_HTTP_INTERFACE)
-void ServerEntryPoint (void *userData)
+
+
+
+#ifdef __linux
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h> /* for strncpy */
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+
+static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip)
 {
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Web server based interface is avaliable\n", 0);
-    http_advanced_server_demo();
+ int fd;
+ struct ifreq ifr;
+ unsigned char *p;
+ char *interface_name = "eth0";
+// char *interface_name = "enp0s3";
+
+
+ fd = socket(AF_INET, SOCK_DGRAM, 0);
+ if (fd < 0)
+ {
+   printf("select_linux_interface: Failed error opening a socket\n");
+   return -1;
+ }
+ /* I want to get an IPv4 IP address */
+ ifr.ifr_addr.sa_family = AF_INET;
+
+ /* I want IP address attached to "eth0" */
+ strncpy(ifr.ifr_name, interface_name, IFNAMSIZ-1);
+
+ int r = ioctl(fd, SIOCGIFADDR, &ifr);
+ if (r < 0)
+ {
+ioctl_error:
+   printf("select_linux_interface: Error performing ioctl() on a socket\n");
+   close(fd);
+   return -1;
+ }
+ p = (unsigned char *) &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+// printf("ip address: %s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
+ pip[0]=p[0]; pip[1]=p[1]; pip[2]=p[2]; pip[3]=p[3];
+
+ ioctl(fd, SIOCGIFNETMASK, &ifr);
+ if (r < 0)
+  goto ioctl_error;
+ p = (unsigned char *)&((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
+// printf("mask:%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
+ pmask_ip[0]=p[0]; pmask_ip[1]=p[1]; pmask_ip[2]=p[2]; pmask_ip[3]=p[3];
+
+ printf("select_linux_interface\n  Success:\n  Using device %s ip address: %s net mask: %s\n", interface_name,  inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr) ,inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
+ close(fd);
+ return 0;
 }
+
 #endif
 
-#if (USE_HTTP_INTERFACE)
-/* ENTRY POINT FOR HTTP DEMO */
-#include "rtpthrd.h"
-static void spawn_web_server(void)
-{
-RTP_THREAD threadHandle;
-
-    if (rtp_thread_spawn(&threadHandle, ServerEntryPoint, 0, 32768, 0, "Hello") < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "Failed to spawn web server for user interface\n", 0);
-    }
-}
-#endif

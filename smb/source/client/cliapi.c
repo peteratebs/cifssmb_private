@@ -1,5 +1,5 @@
 //
-// CLIAPI.C - 
+// CLIAPI.C -
 //
 // EBSnet - RTSMB
 //
@@ -35,8 +35,9 @@ int rtsmb_cli_init (PFBYTE ip, PFBYTE mask)
     if (rtsmb_client_config())
     {
         rtsmb_net_set_ip (ip, mask);
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
         rtsmb_nbds_init ();
-
+#endif
         return 0;
     }
 
@@ -55,8 +56,9 @@ void rtsmb_cli_shutdown (void)
     }
 
     RTSMB_RELEASE_MUTEX(prtsmb_cli_ctx->sessions_mutex);
-
+#if(INCLUDE_RTSMB_CLIENT_NBNS)
     rtsmb_nbds_shutdown ();
+#endif
 }
 
 
@@ -130,6 +132,14 @@ int  rtsmb_cli_session_rmdir (int sid, PFCHAR share, PFCHAR filename)
     rtsmb_util_ascii_to_rtsmb ((PFCHAR) filename_uc, filename_uc, CFG_RTSMB_USER_CODEPAGE);
 
     return rtsmb_cli_session_rmdir_rt (sid, share, filename_uc);
+}
+
+//   Handle how smb2 find firsts and nexts  buffr multiple entries
+//   return RTSMB_CLI_SSN_RV_OK;               if we didn't return anythng
+//   return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY if we populated pdstat;
+int  rtsmb_cli_session_find_buffered (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
+{
+  return rtsmb_cli_session_find_buffered_rt (sid, pdstat);
 }
 
 int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat)

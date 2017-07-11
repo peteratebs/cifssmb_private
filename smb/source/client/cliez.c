@@ -253,9 +253,7 @@ int rtsmb_cli_ez_parse_uri (PFRTCHAR uri_string_in, PRTSMB_URI uri_struct)
 
 		if (r < 0)
 		{
-			RTSMB_DEBUG_OUTPUT_STR("Don't recognize ",RTSMB_DEBUG_TYPE_ASCII);
-			/*RTSMB_DEBUG_OUTPUT_STR(uri_string,RTSMB_DEBUG_TYPE_UNICODE);*/
-			RTSMB_DEBUG_OUTPUT_STR("as a valid SMB URL\n",RTSMB_DEBUG_TYPE_ASCII);
+			RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,("Don't recognize uri_string as a valid SMB URL\n");
 			return (-1);	/* we still couldn't recognize it */
 		}
 	}

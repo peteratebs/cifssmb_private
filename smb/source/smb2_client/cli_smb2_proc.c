@@ -18,6 +18,8 @@
 
 #if (INCLUDE_RTSMB_CLIENT)
 #include "com_smb2.h"
+#include "rtpmem.h"
+
 
 
 #include "clissn.h"
@@ -45,9 +47,10 @@
 extern void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, int r);
 extern void rtsmb_cli_session_user_close (PRTSMB_CLI_SESSION_USER pUser);
 
+extern PRTSMB_CLI_SESSION_SEARCH rtsmb_cli_session_get_search (PRTSMB_CLI_SESSION pSession, int sid);
 
 static Rtsmb2ClientSession Rtsmb2ClientSessionArray[32];
-
+static void rtsmb2_cli_session_free_dir_query_buffer (smb2_stream  *pStream);
 
 extern PRTSMB_CLI_WIRE_BUFFER rtsmb_cli_wire_get_free_buffer (PRTSMB_CLI_WIRE_SESSION pSession);
 
@@ -171,7 +174,7 @@ smb2_stream  *rtsmb_cli_wire_smb2_stream_attach (PRTSMB_CLI_WIRE_SESSION pSessio
     if (pStream )
     {
         pStream->InHdr     = *pheader_smb2;
-        ((PFBYTE)pStream->pInBuf)    += header_length;
+        pStream->pInBuf    = PADD(pStream->pInBuf,header_length);
         pStream->read_buffer_remaining -= (rtsmb_size)header_length;
     }
    return pStream;
@@ -269,7 +272,7 @@ int rtsmb2_cli_session_send_negotiate (smb2_stream  *pStream)
     rtsmb2_cli_session_init_header (pStream, SMB2_NEGOTIATE, (ddword) pStream->pBuffer->mid, 0);
 
     command_pkt.StructureSize = 36;
-    command_pkt.DialectCount=1;
+    command_pkt.DialectCount=2;
     command_pkt.SecurityMode  = SMB2_NEGOTIATE_SIGNING_ENABLED;
     command_pkt.Reserved=0;
     command_pkt.Capabilities = 0; // SMB2_GLOBAL_CAP_DFS  et al
@@ -278,6 +281,7 @@ int rtsmb2_cli_session_send_negotiate (smb2_stream  *pStream)
     /* GUID is zero for SMB2002 */
     // tc_memset(command_pkt.ClientGuid, 0, 16);
     command_pkt.Dialects[0] = SMB2_DIALECT_2002;
+    command_pkt.Dialects[1] = SMB2_DIALECT_2100;
 
     /* Packs the SMB2 header and negotiate command into the stream buffer and sets send_status to OK or and ERROR */
     if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
@@ -299,7 +303,35 @@ byte securiy_buffer[255];
     if (RtsmbStreamDecodeResponse(pStream, &response_pkt) < 0)
         return RTSMB_CLI_SSN_RV_MALFORMED;
     pStream->pSession->server_info.dialect =  response_pkt.DialectRevision;
+/*
 
+Indented means accounted for
+
+    word SecurityMode;
+  word DialectRevision;
+    byte  ServerGuid[16];
+    dword Capabilities;
+  dword MaxTransactSize;
+  dword MaxReadSize;
+  dword MaxWriteSize;
+    ddword SystemTime;
+    ddword ServerStartTime;
+  word SecurityBufferOffset;
+  word SecurityBufferLength;
+  dword Reserved2;
+  byte  SecurityBuffer;
+*/
+
+   // Get the maximum buffer size we can ever want to allocate and store it in buffer_size
+   {
+    dword maxsize =  response_pkt.MaxReadSize;
+    if (response_pkt.MaxWriteSize >  maxsize)
+      maxsize = response_pkt.MaxWriteSize;
+    if (response_pkt.MaxTransactSize >  maxsize)
+      maxsize = response_pkt.MaxTransactSize;
+    pStream->pSession->server_info.buffer_size =  maxsize;
+    pStream->pSession->server_info.raw_size   =   maxsize;
+   }
 
 #if (0)
 
@@ -358,24 +390,52 @@ byte securiy_buffer[255];
     return recv_status;
 }
 
+
+// Captured init blob from windows
+static byte spnego_init_blob[] = {
+  0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,
+  0x4c,0x4d,0x53,0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0x39,0x38,0x00,0x00,0x00,0x0f};
+
+int spnego_encode_NegTokenInit_packet(smb2_stream  *pStream, int *spnego_blob_size_to_server, byte **spnego_blob_to_server)
+{
+    *spnego_blob_to_server = (PFBYTE)spnego_init_blob;
+    *spnego_blob_size_to_server = sizeof(spnego_init_blob);
+    return *spnego_blob_size_to_server;
+}
+#if (0)
+static int ntlmssp_encode_ntlm2_init_packet(smb2_stream  *pStream, int *spnego_blob_size_to_server, byte **spnego_blob_to_server)
+{
+  // NTLMSSP signature
+  // Should be NTLM Message Type: NTLMSSP_NEGOTIATE (0x00000001)
+  //    Flags: 0xa0080205
+    *spnego_blob_to_server = (PFBYTE)"Hello from the blob";
+    *spnego_blob_size_to_server = sizeof("Hello from the blob");
+    return *spnego_blob_size_to_server;
+}
+#endif
 int rtsmb2_cli_session_send_session_setup (smb2_stream  *pStream)
 {
     RTSMB2_SESSION_SETUP_C command_pkt;
     int send_status;
+    int spnego_blob_size_to_server;
+    byte *spnego_blob_to_server;
+        /* Hard wiring SNGEGO blob   */
     tc_memset(&command_pkt, 0, sizeof(command_pkt));
     rtsmb2_cli_session_init_header (pStream, SMB2_SESSION_SETUP, (ddword) pStream->pBuffer->mid,0);
-
 
     command_pkt.StructureSize = 25;
     command_pkt.Flags = 0;
     command_pkt.SecurityMode = SMB2_NEGOTIATE_SIGNING_ENABLED;
     command_pkt.Capabilities = 0;
     command_pkt.Channel = 0;
+
+//   ntlmssp_encode_ntlm2_init_packet(pStream, &spnego_blob_size_to_server, &spnego_blob_to_server);
+    spnego_encode_NegTokenInit_packet(pStream, &spnego_blob_size_to_server, &spnego_blob_to_server);
+
     command_pkt.SecurityBufferOffset = (word)(pStream->OutHdr.StructureSize+command_pkt.StructureSize-1);
-    command_pkt.SecurityBufferLength = (word)pStream->pSession->user.spnego_blob_size;
-//    Command.PreviousSessionId[]
-    pStream->WriteBufferParms[0].byte_count = pStream->pSession->user.spnego_blob_size;
-    pStream->WriteBufferParms[0].pBuffer = pStream->pSession->user.spnego_blob;
+    command_pkt.SecurityBufferLength = (word)spnego_blob_size_to_server;
+    pStream->WriteBufferParms[0].byte_count = spnego_blob_size_to_server;
+    pStream->WriteBufferParms[0].pBuffer = spnego_blob_to_server;
 
     /* Packs the SMB2 header and setup command/blob into the stream buffer and sets send_status to OK or and ERROR */
     if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
@@ -384,6 +444,24 @@ int rtsmb2_cli_session_send_session_setup (smb2_stream  *pStream)
        send_status=RTSMB_CLI_SSN_RV_OK;
     return send_status;
 }
+
+// Captured challenge response token blob from windows
+static byte spnego_chalenge_response_blob[] = {
+0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,0x03,0x00,0x00,0x00,0x18,0x00,0x18,0x00,0xa0,0x00,0x00,0x00,0x20,0x01,0x20,0x01,0xb8,0x00,0x00,0x00,0x1e,0x00,0x1e,0x00,0x58,0x00,0x00,0x00,0x0c,
+0x00,0x0c,0x00,0x76,0x00,0x00,0x00,0x1e,0x00,0x1e,0x00,0x82,0x00,0x00,0x00,0x10,0x00,0x10,0x00,0xd8,0x01,0x00,0x00,0x15,0x02,0x88,0xe2,0x0a,0x00,0x39,0x38,0x00,0x00,0x00,0x0f,0x09,0x56,
+0xe4,0x6d,0x66,0x1a,0x10,0xc0,0x96,0xef,0xa9,0x29,0x35,0xaa,0xbd,0x3e,0x4c,0x00,0x41,0x00,0x50,0x00,0x54,0x00,0x4f,0x00,0x50,0x00,0x2d,0x00,0x52,0x00,0x4f,0x00,0x51,0x00,0x50,0x00,0x4f,
+0x00,0x30,0x00,0x50,0x00,0x42,0x00,0x6e,0x00,0x6f,0x00,0x74,0x00,0x65,0x00,0x62,0x00,0x73,0x00,0x4c,0x00,0x41,0x00,0x50,0x00,0x54,0x00,0x4f,0x00,0x50,0x00,0x2d,0x00,0x52,0x00,0x4f,0x00,
+0x51,0x00,0x50,0x00,0x4f,0x00,0x30,0x00,0x50,0x00,0x42,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xc7,
+0xc7,0x8e,0xf2,0xac,0xd4,0x4b,0xa8,0x3c,0xe8,0x5f,0x1c,0x3a,0x6d,0xea,0x85,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x89,0x67,0x34,0x53,0x52,0xf7,0xd2,0x01,0x92,0xe8,0xaa,0x28,0x3c,0xc5,
+0x44,0x03,0x00,0x00,0x00,0x00,0x02,0x00,0x0e,0x00,0x44,0x00,0x4f,0x00,0x4d,0x00,0x41,0x00,0x49,0x00,0x4e,0x00,0x00,0x00,0x01,0x00,0x26,0x00,0x4e,0x00,0x45,0x00,0x54,0x00,0x42,0x00,0x49,
+0x00,0x4f,0x00,0x53,0x00,0x43,0x00,0x4f,0x00,0x4d,0x00,0x50,0x00,0x55,0x00,0x54,0x00,0x45,0x00,0x52,0x00,0x41,0x00,0x4d,0x00,0x45,0x00,0x00,0x00,0x04,0x00,0x1c,0x00,0x44,0x00,0x4e,0x00,
+0x53,0x00,0x44,0x00,0x4f,0x00,0x4d,0x00,0x41,0x00,0x49,0x00,0x4e,0x00,0x4e,0x00,0x41,0x00,0x4d,0x00,0x45,0x00,0x00,0x00,0x03,0x00,0x1e,0x00,0x44,0x00,0x4e,0x00,0x53,0x00,0x43,0x00,0x4f,
+0x00,0x4d,0x00,0x50,0x00,0x55,0x00,0x54,0x00,0x45,0x00,0x52,0x00,0x41,0x00,0x4d,0x00,0x45,0x00,0x00,0x00,0x08,0x00,0x30,0x00,0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,
+0x00,0x20,0x00,0x00,0xe6,0x1c,0x6c,0x9c,0x22,0xdd,0xfd,0xaa,0x13,0xa1,0x7e,0x97,0x7b,0x50,0xc2,0xcc,0xe6,0x42,0x9d,0x81,0xdc,0xd9,0x08,0x34,0xdf,0xbd,0xf2,0x2a,0xc8,0x60,0xef,0xfc,0x0a,
+0x00,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x09,0x00,0x22,0x00,0x63,0x00,0x69,0x00,0x66,0x00,0x73,0x00,0x2f,0x00,0x31,0x00,0x39,0x00,
+0x32,0x00,0x2e,0x00,0x31,0x00,0x36,0x00,0x38,0x00,0x2e,0x00,0x31,0x00,0x2e,0x00,0x31,0x00,0x37,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x4f,0x4c,0x7e,0x18,0x87,0x19,0x2b,0x2f,0x45,
+0xb9,0x1f,0x0e,0x62,0xba,0x0a,0x5d };
+
 
 int rtsmb2_cli_session_receive_session_setup (smb2_stream  *pStream)
 {
@@ -657,24 +735,13 @@ int rtsmb2_cli_session_send_delete (smb2_stream  *pStream) {return RTSMB_CLI_SSN
 int rtsmb2_cli_session_send_mkdir (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_send_rmdir (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 
-/* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
-#define SMB2_QUERY_FileDirectoryInformation 0x01        /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
-#define SMB2_QUERY_FileFullDirectoryInformation 0x02    /*  Full information about a file or directory. Full information is defined as all the basic information plus extended attribute size. */
-#define SMB2_QUERY_FileIdFullDirectoryInformation 0x26  /*  Full information plus volume file ID about a file or directory. A volume file ID is defined as a number assigned by the underlying object store that uniquely identifies a file within a volume. */
-#define SMB2_QUERY_FileBothDirectoryInformation 0x03    /*  Basic information plus extended attribute size and short name about a file or directory. */
-#define SMB2_QUERY_FileIdBothDirectoryInformation 0x25  /*  FileBothDirectoryInformation plus volume file ID about a file or directory. */
-#define SMB2_QUERY_FileNamesInformation 0x0C            /*  Detailed information on the names of files and directories in a directory. */
-/* RTSMB2_QUERY_DIRECTORY_C.Flags */
-#define SMB2_QUERY_SMB2_RESTART_SCANS          0x01     /*  The server MUST restart the enumeration from the beginning, but the search pattern is not changed. */
-#define SMB2_QUERY_SMB2_RETURN_SINGLE_ENTRY    0x02     /*  The server MUST only return the first entry of the search results. */
-#define SMB2_QUERY_SMB2_INDEX_SPECIFIED        0x04     /*  The server SHOULD<64> return entries beginning at the byte number specified by FileIndex. */
-#define SMB2_QUERY_SMB2_REOPEN                 0x10     /*  The server MUST restart the enumeration from the beginning, and the search pattern MUST be changed to the provided value. This often involves silently closing and reopening the directory on the server side. */
 
 int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
 {
     RTSMB2_QUERY_DIRECTORY_C command_pkt;
     int send_status;
     tc_memset(&command_pkt, 0, sizeof(command_pkt));
+
 
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Session == %X \n",(int)pStream->pSession);
 
@@ -693,9 +760,22 @@ int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
 
     command_pkt.StructureSize   = 33;
 
-	command_pkt.FileInformationClass    = SMB2_QUERY_FileNamesInformation;
-	command_pkt.Flags                   = SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+	command_pkt.FileInformationClass    = SMB2_QUERY_FileIdBothDirectoryInformation; // SMB2_QUERY_FileNamesInformation;
 	command_pkt.FileIndex               = 0;
+
+//  MISSING , defaulting to 0 foer now and working.
+//  command_pkt.FileId[16];
+
+    command_pkt.Flags                   = 0; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+    // restart scans unless it is a continue
+    if (pStream->pJob->data.findsmb2.search_struct->has_continue==FALSE)
+      command_pkt.Flags                   |= SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+
+//    command_pkt.Flags                   |= SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+
+    // continue will be set by the recieve if needed
+    pStream->pJob->data.findsmb2.search_struct->has_continue = FALSE;
+
     /* The File Id was filled in by a call to SMB2_Create_Request and then pmaced in the SMB2FileId filed */
 	tc_memcpy(command_pkt.FileId, pStream->pJob->data.findfirst.search_struct->SMB2FileId, 16);
     command_pkt.FileNameOffset          = (word) (pStream->OutHdr.StructureSize+command_pkt.StructureSize-1);
@@ -710,6 +790,8 @@ int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
     /* Tell the server that the maximum we can accept is what remains in our read buffer */
 	command_pkt.OutputBufferLength      = (word)pStream->read_buffer_remaining;
 
+
+
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Call encode \n");
 
     /* Packs the SMB2 header and tree connect command/blob into the stream buffer and sets send_status to OK or and ERROR */
@@ -722,11 +804,250 @@ int rtsmb2_cli_session_send_find_first (smb2_stream  *pStream)
 }
 
 int rtsmb2_cli_session_send_find_first_error_handler (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
-int rtsmb2_cli_session_receive_find_first (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 
-int rtsmb2_cli_session_send_find_next (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
-int rtsmb2_cli_session_receive_find_next (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
-int rtsmb2_cli_session_send_find_close (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
+// See SMB2_FILLFileIdBothDirectoryInformation and  rtsmb_cli_session_receive_find_first
+
+// Returned structures Borrowed from server code for now, need to fix
+PACK_PRAGMA_ONE
+typedef struct s_FILE_DIRECTORY_INFORMATION_BASE
+{
+	dword NextEntryOffset;
+	dword FileIndex;
+	FILETIME_T CreationTime;
+	FILETIME_T LastAccessTime;
+	FILETIME_T LastWriteTime;
+	FILETIME_T ChangeTime;
+	ddword EndofFile;
+	ddword AllocationSize;
+	dword FileAttributes;
+	dword FileNameLength;
+} PACK_ATTRIBUTE FILE_DIRECTORY_INFORMATION_BASE;
+PACK_PRAGMA_POP
+PACK_PRAGMA_ONE
+typedef struct s_FILE_ID_BOTH_DIR_INFORMATION
+{
+    FILE_DIRECTORY_INFORMATION_BASE directory_information_base;
+	dword EaSize;
+	byte  ShortNameLength;
+	byte  Reserved1;
+	byte  ShortName[24];
+	word  Reserved2;
+	ddword FileId;
+	byte  FileName[1];
+} PACK_ATTRIBUTE FILE_ID_BOTH_DIR_INFORMATION;
+PACK_PRAGMA_POP
+
+
+static int BufferedDirscanToDstat(PRTSMB_CLI_SESSION_SEARCH pSearch)
+{
+int nConverted = 0;
+     pSearch->index = 0;
+     pSearch->num_stats = 0;
+    // Convert entries to internal type if we got new
+if (!pSearch->pBufferedIterator)
+  rtp_printf("BufferedDirscanToDstat called with null iteratorat on pSearch == %X Iterator:%\n", pSearch,pSearch->pBufferedIterator);
+  if (pSearch->pBufferedResponse&&pSearch->pBufferedIterator&&pSearch->pBufferedIterator < pSearch->pBufferedIteratorEnd)
+  {
+    int i;
+    FILE_ID_BOTH_DIR_INFORMATION *BothDirInfoIterator;
+    BothDirInfoIterator = (FILE_ID_BOTH_DIR_INFORMATION *) pSearch->pBufferedIterator;
+
+    rtp_printf("BufferedDirscanToDstat called on pSearch == %X Iterator:%X\n", pSearch,pSearch->pBufferedIterator);
+
+    // use prtsmb_cli_ctx->max_files_per_search-1 because algorith is different from v1, 2 levels of buffering
+    //      for (i = 0; i < prtsmb_cli_ctx->max_files_per_search-1; i++)
+    for (i = 0; i < 1; i++)
+    {
+      rtsmb_char dot[2] = {'.', '\0'};
+      rtsmb_char dotdot[3] = {'.', '.', '\0'};
+      if (0 && (rtsmb_cmp (BothDirInfoIterator->FileName, dot) == 0 || rtsmb_cmp (BothDirInfoIterator->FileName, dotdot) == 0))
+      {   // Don't Ignore . and .. for now
+          i--;
+      }
+      else
+      {   // Consume these
+         #define FILETIMETOTIME(T) *((TIME *)&T)
+         tc_memcpy (pSearch->dstats[i].filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
+         // null terminate
+         * ((char *) (&pSearch->dstats[i].filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
+         * ((char *) (&pSearch->dstats[i].filename)+BothDirInfoIterator->directory_information_base.FileNameLength+1) = 0;
+         pSearch->dstats[i].unicode = 1;           //    char unicode;   /* will be zero if filename is ascii, non-zero if unicode */
+         pSearch->dstats[i].fattributes =
+           (unsigned short) BothDirInfoIterator->directory_information_base.FileAttributes;    //    unsigned short fattributes;
+         pSearch->dstats[i].fatime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastAccessTime);              //    TIME           fatime64; /* last access time */
+         pSearch->dstats[i].fatime64= *((TIME *)(&BothDirInfoIterator->directory_information_base.LastAccessTime));              //    TIME           fatime64; /* last access time */
+         pSearch->dstats[i].fwtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastWriteTime);              //    TIME           fwtime64; /* last write time */
+         pSearch->dstats[i].fctime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.CreationTime);              //    TIME           fctime64; /* last create time */
+         pSearch->dstats[i].fhtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.ChangeTime);              //    TIME           fhtime64; /* last change time */
+         pSearch->dstats[i].fsize =
+           (dword) BothDirInfoIterator->directory_information_base.EndofFile;                 //    unsigned long fsize;
+         pSearch->dstats[i].fsizehi;               //    unsigned long fsizehi;
+           (dword) (BothDirInfoIterator->directory_information_base.EndofFile>>32);                 //    unsigned long fsize;
+         pSearch->dstats[i].sid =  pSearch->sid;                   //    int sid;
+      }
+      nConverted += 1;
+      dword nextOffset  = BothDirInfoIterator->directory_information_base.NextEntryOffset;
+      if (nextOffset)
+        BothDirInfoIterator = (FILE_ID_BOTH_DIR_INFORMATION *)PADD(BothDirInfoIterator,nextOffset);
+      else
+         BothDirInfoIterator = (FILE_ID_BOTH_DIR_INFORMATION *) pSearch->pBufferedIteratorEnd;
+      pSearch->pBufferedIterator = BothDirInfoIterator;
+      if (pSearch->pBufferedIterator >= pSearch->pBufferedIteratorEnd)
+      {
+         break; // we are done
+      }
+    }
+  }
+  pSearch->num_stats = nConverted;
+  return nConverted;
+}
+
+// SMB2 only return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY if we still have content buffered
+// Return RTSMB_CLI_SSN_RV_OK to force a gnext call
+// SMB1 always returns RTSMB_CLI_SSN_RV_OK to force a gnext call
+int rtsmb2_cli_session_find_buffered_rt (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
+{
+ PRTSMB_CLI_SESSION pSession;
+ PRTSMB_CLI_SESSION_JOB pJob;
+ PRTSMB_CLI_SESSION_SEARCH pSearch;
+
+ pSession = rtsmb_cli_session_get_session (sid);
+ ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+ ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+
+  pSearch = rtsmb_cli_session_get_search (pSession, pdstat->sid);
+  ASSURE (pSearch, RTSMB_CLI_SSN_RV_BAD_SEARCH);
+
+  pJob = &pSession->jobs[pSearch->job_number];
+
+   // prefetching more than one into pSearch->dstats[pSearch->index] is not usednow so this should always run
+   // and pull one from the smb2 buffer layer if there are any lft.
+  if (pSearch->index >= pSearch->num_stats)
+  {
+rtp_printf("rtsmb2_cli_session_find_buffered_rt calling BufferedDirscanToDstat on pSearch == %X\n", pSearch);
+      BufferedDirscanToDstat(pSearch);
+  }
+  // Check if we have anything after calling BufferedDirscanToDstat(pSearch);
+  if (pSearch->index < pSearch->num_stats)
+  {
+     *pdstat = pSearch->dstats[pSearch->index];
+    {
+       char temp[200];
+       rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pdstat->filename, temp, 0);
+       rtp_printf("rtsmb_cli_session_find_buffered_rt: TOP:index %d name: %s\n", pSearch->index, temp);
+    }
+    pSearch->index += 1;
+    return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY; // RTSMB_CLI_SSN_RV_OK;
+  }
+  // See if we need to start another scan to get more data
+  if (pJob->data.findsmb2.search_struct->has_continue)
+  {
+      pJob->data.findsmb2.search_struct->has_continue = FALSE;
+      return RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS; // Tell the top layer to start another scan without setting the restart bit
+  }
+  else
+  {
+     return RTSMB_CLI_SSN_RV_OK;
+  }
+}
+
+
+int rtsmb2_cli_session_receive_find_first (smb2_stream  *pStream)
+{
+int recv_status = RTSMB_CLI_SSN_RV_OK;
+int rv;
+RTSMB2_QUERY_DIRECTORY_R response_pkt;
+FILE_ID_BOTH_DIR_INFORMATION *BothDirInfoIterator;
+PRTSMB_CLI_SESSION_JOB pJob = pStream->pJob;
+int i;
+
+  if (pStream->InHdr.Status_ChannelSequenceReserved == SMB2_STATUS_INFO_LENGTH_MISMATCH)
+  { // Means more to come if we send another find to this handle
+    pStream->pJob->data.findsmb2.search_struct->has_continue = TRUE;
+    // Clear the error so we don't abort the job
+    pStream->InHdr.Status_ChannelSequenceReserved = 0;
+    // This came in a compund frame after a busrt, we have data buffered
+rtp_printf("rtsmb2_cli_session_receive_find_first RTSMB_CLI_SSN_RV_SEARCH_DATA_READY\n");
+    return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY;
+//    return RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS;
+  }
+
+
+  // let the protocol handler allocate space needed for the buffer and tell us how much is there
+  pStream->ReadBufferParms[0].pBuffer  = 0;
+  pStream->ReadBufferParms[0].byte_count = 0;
+  pJob->data.findsmb2.search_struct->index = 0;
+  pJob->data.findsmb2.search_struct->num_stats = 0;
+
+  // Make sure any buffered search replied are released.
+  rtsmb2_cli_session_free_dir_query_buffer (pStream);
+
+  rtp_printf("rtsmb2_cli_session_receive_find_first pulling data \n");
+  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_find_first: called with error == %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
+
+  // Allow the decoder to allocate and copy to our buffer
+  pStream->ReadBufferParms[0].pBuffer = 0;
+  pStream->ReadBufferParms[0].byte_count=0;
+  if ((rv=RtsmbStreamDecodeResponse(pStream, &response_pkt)) < 0)
+  {   // The decode failed, but free memory if it allocated it before failing.
+      if (pStream->ReadBufferParms[0].pBuffer)
+        rtp_free(pStream->ReadBufferParms[0].pBuffer);
+      pStream->ReadBufferParms[0].pBuffer = 0;
+      RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_find_first: RtsmbStreamDecodeResponse failed with error == %X\n", rv);
+      return RTSMB_CLI_SSN_RV_MALFORMED;
+  }
+  pJob->data.findsmb2.search_struct->pBufferedIterator =
+  pJob->data.findsmb2.search_struct->pBufferedResponse = pStream->ReadBufferParms[0].pBuffer;
+  pJob->data.findsmb2.search_struct->pBufferedIteratorEnd = PADD(pJob->data.findsmb2.search_struct->pBufferedIterator,pStream->ReadBufferParms[0].byte_count);
+  // Populate dstas in search structure
+  pJob->data.findsmb2.search_struct->num_stats = 0;
+rtp_printf("rtsmb2_cli_session_receive_find_first calling BufferedDirscanToDstat on pSearch == %X\n", pJob->data.findsmb2.search_struct);
+  BufferedDirscanToDstat(pJob->data.findsmb2.search_struct);
+  // Check if we ran off the end or if we never got any
+  if (!pJob->data.findsmb2.search_struct->num_stats)
+  {
+    pJob->data.findsmb2.search_struct->end_of_search = 1;
+    return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
+  }
+  else
+  {   // Return one
+      *pJob->data.findsmb2.answering_dstat = pJob->data.findsmb2.search_struct->dstats[pJob->data.findsmb2.search_struct->index];
+{
+      char temp[200];
+      rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pJob->data.findsmb2.answering_dstat->filename, temp, 0);
+      rtp_printf("rtsmb2_cli_session_receive_find_first: index %d name: %s\n", pJob->data.findsmb2.search_struct->index, temp);
+}
+      pJob->data.findsmb2.search_struct->index+=1;
+      return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY; // RTSMB_CLI_SSN_RV_OK;
+  }
+}
+
+static void rtsmb2_cli_session_free_dir_query_buffer (smb2_stream  *pStream)
+{
+  if (pStream->pJob->data.findsmb2.search_struct->pBufferedResponse)
+  {
+    rtp_free(pStream->pJob->data.findsmb2.search_struct->pBufferedResponse);
+    pStream->pJob->data.findsmb2.search_struct->pBufferedResponse = 0;
+    pStream->pJob->data.findsmb2.search_struct->pBufferedIteratorEnd =
+    pStream->pJob->data.findsmb2.search_struct->pBufferedResponse = 0;
+
+  }
+}
+
+int rtsmb2_cli_session_send_find_close (smb2_stream  *pStream)
+{
+//   pStream->pSession;       // For a client. points to the controlling SMBV1 session structure.
+//   pStream->pJob;
+
+   /*Make sure we free any buffering we left */
+   rtsmb2_cli_session_free_dir_query_buffer (pStream);
+    /*  Release the buffer we used for this job */
+
+   /* we also want to close everything up here -- useless to wait for response */
+   rtsmb_cli_session_search_close (pStream->pJob->data.findsmb2.search_struct);
+   return RTSMB_CLI_SSN_RV_OK;
+}
+
 int rtsmb2_cli_session_send_stat (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_receive_stat (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_send_chmode (smb2_stream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}

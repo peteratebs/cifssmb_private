@@ -137,4 +137,77 @@ int wait_on_job(int sid, int job)
     }
     return rv;
 }
-
+
+void srvsmboo_panic(const char *panic_string)
+{
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Looping Panic abort called :%s\n",panic_string);
+   for (;;) { }
+   rtp_printf("\nPanic abort called: \n");
+   rtp_printf("panic: %s \r",panic_string);
+   int iZero  = 0;      // trap to the debugger
+   int iCrash = 13 / iZero;      // trap to the debugger
+}
+
+RTP_SOCKET diag_socket = -1;
+
+
+
+
+#ifdef __linux
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h> /* for strncpy */
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <arpa/inet.h>
+
+static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip)
+{
+ int fd;
+ struct ifreq ifr;
+ unsigned char *p;
+ char *interface_name = "eth0";
+// char *interface_name = "enp0s3";
+
+
+ fd = socket(AF_INET, SOCK_DGRAM, 0);
+ if (fd < 0)
+ {
+   printf("select_linux_interface: Failed error opening a socket\n");
+   return -1;
+ }
+ /* I want to get an IPv4 IP address */
+ ifr.ifr_addr.sa_family = AF_INET;
+
+ /* I want IP address attached to "eth0" */
+ strncpy(ifr.ifr_name, interface_name, IFNAMSIZ-1);
+
+ int r = ioctl(fd, SIOCGIFADDR, &ifr);
+ if (r < 0)
+ {
+ioctl_error:
+   printf("select_linux_interface: Error performing ioctl() on a socket\n");
+   close(fd);
+   return -1;
+ }
+ p = (unsigned char *) &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+// printf("ip address: %s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr));
+ pip[0]=p[0]; pip[1]=p[1]; pip[2]=p[2]; pip[3]=p[3];
+
+ ioctl(fd, SIOCGIFNETMASK, &ifr);
+ if (r < 0)
+  goto ioctl_error;
+ p = (unsigned char *)&((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr.s_addr;
+// printf("mask:%s\n", inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
+ pmask_ip[0]=p[0]; pmask_ip[1]=p[1]; pmask_ip[2]=p[2]; pmask_ip[3]=p[3];
+
+ printf("select_linux_interface\n  Success:\n  Using device %s ip address: %s net mask: %s\n", interface_name,  inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr) ,inet_ntoa(((struct sockaddr_in *)&ifr.ifr_netmask)->sin_addr));
+ close(fd);
+ return 0;
+}
+
+#endif
+

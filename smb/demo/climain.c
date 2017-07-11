@@ -138,3 +138,14 @@ int wait_on_job(int sid, int job)
     return rv;
 }
 #endif
+void srvsmboo_panic(const char *panic_string)
+{
+   RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: Looping Panic abort called :%s\n",panic_string);
+   for (;;) { }
+   rtp_printf("\nPanic abort called: \n");
+   rtp_printf("panic: %s \r",panic_string);
+   int iZero  = 0;      // trap to the debugger
+   int iCrash = 13 / iZero;      // trap to the debugger
+}
+
+RTP_SOCKET diag_socket = -1;
