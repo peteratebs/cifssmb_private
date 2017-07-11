@@ -34,8 +34,11 @@ void rtsmb_srv_syslog_config(void)
 }
 void rtsmb_srv_diag_config(void)
 {
+
+   gl_display_login_info  =
    prtsmb_srv_ctx->display_login_info    = FALSE;
    prtsmb_srv_ctx->display_config_info    = FALSE;
+   prtsmb_srv_ctx->display_login_info    = TRUE;
 }
 
 

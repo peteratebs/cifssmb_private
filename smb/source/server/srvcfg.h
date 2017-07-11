@@ -107,6 +107,8 @@ typedef struct _RTSMB_SERVER_CONTEXT
 }
 RTSMB_SERVER_CONTEXT;
 
+extern BBOOL                       gl_display_login_info;
+
 typedef RTSMB_SERVER_CONTEXT *PRTSMB_SERVER_CONTEXT;
 
 extern PRTSMB_SERVER_CONTEXT prtsmb_srv_ctx;

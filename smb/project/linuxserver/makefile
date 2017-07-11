@@ -6,6 +6,8 @@
 ### :make DEBUG=1              ------------------ For debugging purposes
 ########################################################################
 incpath = .
+# controls conditional requirements for client vs server builds
+buildtarget=server
 
 # cflags+= -D SUPPORT_SMB2 -Wno-sign-conversion -Wno-sign-compare -Wno-conversion -Wno-format
 cflags+= -D SUPPORT_SMB2

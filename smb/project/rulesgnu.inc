@@ -20,7 +20,10 @@ endif
 
 ifeq ($(pointersize),P32)
 ### COMPILER AND LINKER FLAGS ########################################
-ldflags += -m32 -L/usr/lib32 -lm -lc -lgcc -pthread -Wl,-Map=output.map
+
+# ldflags += -m32 -L/usr/lib/i386-linux-gnu -L/usr/lib32 -lm -lc -lgcc  -pthread -lboost_thread -lboost_system -Wl,-Map=output.map
+ldflags += -m32 -L/usr/lib/i386-linux-gnu -L/usr/lib32 -lm -lc -lgcc  -pthread -Wl,-Map=output.map
+
 # cflags  += -Wconversion -Wextra -Werror
 cflags  += -m32 -pthread -DBUILD_SMB_32BIT
 cflags  += -D_FILE_OFFSET_BITS=64
@@ -55,6 +58,15 @@ ifeq ($(compiler),GNUCOMPILER)
 	echo ARCHIVING $@
 	@ar ru $@ $^
 
+
+$(OBJDIR)/%.$(obj): %.cpp
+	@echo rule based COMPILING for CPP $<
+	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+
+$(OBJDIR)/%.o: $(lib_to_rtsmb_boostclient_path)/%.cpp
+	@echo COMPILING BOOST CLIENT for CPP $<
+	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+
 # bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
 $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c
 	@echo COMPILING for CPP $<
@@ -82,10 +94,17 @@ $(OBJDIR)/%.$(obj): %.c
 #	@echo cpp COMPILING $<
 #	@gcc	$(cflags) $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
+ifeq ($(buildtarget),server)
 %.$(exe):
 	@echo LINKING $@
-	@echo LINKING $@  $(ldflags) -o $(notdir $@) $^
-	@gcc $(ldflags) -o $(notdir $@) $^ -lstdc++
+	@echo LINKING $@  $(ldflags) -o $(notdir $@) $^ -lstdc++
+	gcc $(ldflags) -o $(notdir $@) $^ -lstdc++
+else
+%.$(exe):
+	@echo LINKING $@
+	@echo LINKING $@  $(ldflags) -o $(notdir $@) $^ -lstdc++ -lboost_thread -lboost_system
+	g++ $(ldflags) -o $(notdir $@) $^ -lstdc++ -lboost_thread -lboost_system
+endif
 
 endif #	GNUCOMPILER
 

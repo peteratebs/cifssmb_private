@@ -46,7 +46,6 @@ static void rtsmb_netport_select_n_diag(RTP_SOCKET *socketList, int listSize, in
     }
 }
 
-extern volatile int keyboard_break_pressed_count;
 int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long timeoutMsec)
 {
 
@@ -112,17 +111,8 @@ int rtsmb_netport_select_n_for_read (RTP_SOCKET *socketList, int listSize, long 
         if (rtp_fd_isset(&errorList, tempList[n]))
         {
            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "DIAG: rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
-           if (keyboard_break_pressed_count)
-           {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: ketboard break on : %d\n",c);
-             keyboard_break_pressed_count =0;
-             continue;
-           }
-           else
-           {
-             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
-             socketList[c++] = tempList[n];
-           }
+           RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_netport_select_n_for_read: socket error on : %d\n",c);
+           socketList[c++] = tempList[n];
         }
         if (rtp_fd_isset(&readList, tempList[n]))
         {

@@ -217,6 +217,7 @@
 
 
 #define SMB2_0_FileRenameInformation       0x0a
+#define SMB2_0_FileBasicInformation        0x04
 #define SMB2_0_FileSetDisposition          0x0d
 #define SMB2_0_FileEndofFile               0x14
 
@@ -894,6 +895,20 @@ typedef struct s_RTSMB2_IOCTL_R
 } PACK_ATTRIBUTE RTSMB2_IOCTL_R;
 PACK_PRAGMA_POP
 typedef RTSMB2_IOCTL_R RTSMB_FAR *PRTSMB2_IOCTL_R;
+
+/* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
+#define SMB2_QUERY_FileDirectoryInformation 0x01        /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
+#define SMB2_QUERY_FileFullDirectoryInformation 0x02    /*  Full information about a file or directory. Full information is defined as all the basic information plus extended attribute size. */
+#define SMB2_QUERY_FileIdFullDirectoryInformation 0x26  /*  Full information plus volume file ID about a file or directory. A volume file ID is defined as a number assigned by the underlying object store that uniquely identifies a file within a volume. */
+#define SMB2_QUERY_FileBothDirectoryInformation 0x03    /*  Basic information plus extended attribute size and short name about a file or directory. */
+#define SMB2_QUERY_FileIdBothDirectoryInformation 0x25  /*  FileBothDirectoryInformation plus volume file ID about a file or directory. */
+#define SMB2_QUERY_FileNamesInformation 0x0C            /*  Detailed information on the names of files and directories in a directory. */
+/* RTSMB2_QUERY_DIRECTORY_C.Flags */
+#define SMB2_QUERY_RESTART_SCANS          0x01     /*  The server MUST restart the enumeration from the beginning, but the search pattern is not changed. */
+#define SMB2_QUERY_RETURN_SINGLE_ENTRY    0x02     /*  The server MUST only return the first entry of the search results. */
+#define SMB2_QUERY_INDEX_SPECIFIED        0x04     /*  The server SHOULD<64> return entries beginning at the byte number specified by FileIndex. */
+#define SMB2_QUERY_REOPEN                 0x10     /*  The server MUST restart the enumeration from the beginning, and the search pattern MUST be changed to the provided value. This often involves silently closing and reopening the directory on the server side. */
+
 
 PACK_PRAGMA_ONE
 typedef struct s_RTSMB2_QUERY_DIRECTORY_C

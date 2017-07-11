@@ -45,7 +45,6 @@ extern void spnego_free_extended_security(void);
 
 volatile int go = 1; /* Variable loop on.. Note: Linux version needs sigkill support to clean up */
 static volatile int quit_sig_pressed = 0;
-volatile int keyboard_break_pressed_count;
 
 extern void rtsmb_thread_iwatch (void *p);
 
@@ -148,7 +147,6 @@ void sig_quit_handler(int signo)
   if (signo == SIGQUIT)
   {
     quit_sig_pressed = 1;
-    keyboard_break_pressed_count = 1;
   }
 }
 void sig_handler(int signo)

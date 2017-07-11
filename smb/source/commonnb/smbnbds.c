@@ -399,7 +399,7 @@ int rtsmb_nbds_get_backup_server (int domain_index, PFCHAR dest, int alt_index)
         /* and try to fill it */
         if (rtsmb_nbds_send_get_backup_list () < 0)
         {
-            RTSMB_DEBUG_OUTPUT_STR("rtsmb_nbds_get_backup_server: Error sending backup list request\n", RTSMB_DEBUG_TYPE_ASCII);
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_nbds_get_backup_server: Error sending backup list request\n");
         }
 
         /* set delay 'til the next time we try */
