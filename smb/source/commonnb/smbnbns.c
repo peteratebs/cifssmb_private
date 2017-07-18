@@ -87,7 +87,7 @@ int rtsmb_nbns_fill_question (PFVOID buf, rtsmb_size size,
 
     PACK_ITEM (buf, &size, decompressed_name, RTSMB_NB_DECOMPRESSED_NAME_BUFFER_SIZE, -1);
     PACK_WORD (buf, &size, pQuestion->type, TRUE, -1);
-    PACK_WORD (buf, &size, pQuestion->class, TRUE, -1);
+    PACK_WORD (buf, &size, pQuestion->nbns_class, TRUE, -1);
 
     e = buf;
 
@@ -108,7 +108,7 @@ int rtsmb_nbns_read_question (PFVOID buf, rtsmb_size size,
 
     READ_ITEM (buf, &size, decompressed_name, RTSMB_NB_DECOMPRESSED_NAME_BUFFER_SIZE, -1);
     READ_WORD (buf, &size, &pQuestion->type, TRUE, -1);
-    READ_WORD (buf, &size, &pQuestion->class, TRUE, -1);
+    READ_WORD (buf, &size, &pQuestion->nbns_class, TRUE, -1);
 
     e = buf;
 
@@ -142,7 +142,7 @@ int rtsmb_nbns_fill_resource (PFVOID buf, rtsmb_size size,
         PACK_ITEM (buf, &size, decompressed_name, RTSMB_NB_DECOMPRESSED_NAME_BUFFER_SIZE, -1);
     }
     PACK_WORD (buf, &size, pResource->type, TRUE, -1);
-    PACK_WORD (buf, &size, pResource->class, TRUE, -1);
+    PACK_WORD (buf, &size, pResource->nbns_class, TRUE, -1);
     PACK_DWORD (buf, &size, pResource->time_to_live, TRUE, -1);
     PACK_WORD (buf, &size, pResource->data_size, TRUE, -1);
     PACK_ITEM (buf, &size, pResource->data, pResource->data_size, -1);
@@ -186,7 +186,7 @@ int rtsmb_nbns_read_resource (PFVOID buf, rtsmb_size size,
         READ_ITEM (buf, &size, compressed_name, RTSMB_NB_DECOMPRESSED_NAME_BUFFER_SIZE, -1);
     }
     READ_WORD (buf, &size, &pResource->type, TRUE, -1);
-    READ_WORD (buf, &size, &pResource->class, TRUE, -1);
+    READ_WORD (buf, &size, &pResource->nbns_class, TRUE, -1);
     READ_DWORD (buf, &size, &pResource->time_to_live, TRUE, -1);
     READ_WORD (buf, &size, &data_size, TRUE, -1);
 
@@ -219,7 +219,7 @@ int rtsmb_nbns_fill_name_query (PFVOID buf, rtsmb_size size, word id, PFCHAR nam
 
     rtsmb_util_make_netbios_name (question.name, name, name_type);
     question.type = RTSMB_NBNS_TYPE_NB;
-    question.class = RTSMB_NBNS_CLASS_IN;
+    question.nbns_class = RTSMB_NBNS_CLASS_IN;
 
     r = rtsmb_nbns_fill_header (tmp, size, buf, &header);
     ASSURE (r >= 0, -1);
@@ -443,4 +443,4 @@ void rtsmb_nbns_close_query (PRTSMB_NBNS_NAME_QUERY query)
         query->status = RTSMB_NBNS_QUERY_STATUS_CLOSED;
     }
 }
-
+

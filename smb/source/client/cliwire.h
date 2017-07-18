@@ -12,8 +12,118 @@
 #include "smbnbns.h"
 #include "rtpnet.h"
 #include "smbconf.h"
+// =====================
+// These are either duplicated from server headers or they are derived from structures in the server that were previously required.
+/* Building up a client session definition here to aid in building the server. Move this later when it is complete */
+typedef struct Rtsmb2ClientSession_s
+{
+    BBOOL inUse;
+    ddword SessionId;
+} Rtsmb2ClientSession;
+
+/* Used to pass buffers along with command/response/headers to/from SMB2 encode/decode */
+typedef struct
+{
+    void *pBuffer;
+    rtsmb_size  byte_count;
+} RTSMB2_BUFFER_PARM;
+typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
+
+#include "com_smb2_wiredefs.h"
+
+extern const char *DebugSMB2CommandToString(int command);
+
+PACK_PRAGMA_ONE
+typedef struct smb2_iostream_s {
+     // Signing rules. Set by calling smb2_stream_set_signing_rule
+    byte     *SigningKey;                           // For writes, the key for signing, For reads the key for checking the signature
+#define SIGN_NONE         0                         // - Used for 3.x. Generates 16 byte hash over entire message including Header and padding.
+#define SIGN_AES_CMAC_128 1                         // - Used for 3.x. Generates 16 byte hash over entire message including Header and padding.
+#define SIGN_HMAC_SHA256  2                         // - Used for 2.002 and 2.100 generates 32 byte hash over entire message including Header and padding. Copy low 16 bytes into the keyfield
+    byte     SigningRule;
+    struct RTSMB_CLI_WIRE_BUFFER_s *pBuffer;        // For a client. points to the controlling SMBV1 buffer structure.
+    struct RTSMB_CLI_SESSION_T     *pSession;       // For a client. points to the controlling SMBV1 session structure.
+//    struct Rtsmb2ClientSession_s   *psmb2Session;   // For a client. points to smb2 session structure
+    struct RTSMB_CLI_SESSION_JOB_T *pJob;           // For a client points to the controlling SMBV1 job structure.
+
+    int      PadValue;                              // If the stream contains a compound message, set to the proper pad value between commands.
+    BBOOL    EncryptMessage;                        // For write operations, encryption is required. For reads decryption is required.
+    BBOOL    Success;                               // Indicates the current state of read or write operation is succesful.
+
+    RTSMB2_HEADER OutHdr;                           // Buffer control and header for response
+	RTSMB2_BUFFER_PARM WriteBufferParms[2];         // For writes, points to data source for data. Second slot is used in rare cases where 2 variable length parameters are present.
+	PFVOID   write_origin;                          // Points to the beginning of the buffer, the NBSS header.
+    PFVOID   saved_write_origin;                    // Original origin if the packet is beign encrypted
+    PFVOID   pOutBuf;                               // Current position in the output stream buffer.
+    rtsmb_size write_buffer_size;
+    rtsmb_size write_buffer_remaining;
+    rtsmb_size OutBodySize;
+
+    RTSMB2_HEADER InHdr;                            // Buffer control and header from command
+	RTSMB2_BUFFER_PARM ReadBufferParms[2];          // For reads points to sink for extra data.  Second slot is used in rare cases where 2 variable length parameters are present.
+	PFVOID   read_origin;
+    rtsmb_size read_buffer_size;
+    rtsmb_size read_buffer_remaining;
+//xx    rtsmb_size InBodySize;
+//xx	PFVOID   saved_read_origin;
+    PFVOID   pInBuf;
+} PACK_ATTRIBUTE smb2_iostream;
+PACK_PRAGMA_POP
+
+int RtsmbWireVarDecode (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize);
+int RtsmbWireVarEncode(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, word StructureSize);
+int RtsmbWireVarEncodePartTwo(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, dword UsedSize);
+
+#define RTSMB2_NBSS_TRANSFORM_HEADER_SIZE 52
+typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
+//extern int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarEncodeFn_t pVarEncodeFn);
+typedef int (* pVarDecodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);;
+// int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarDecodeFn_t pVarDecodeFn);
 
 
+#define FILL_PROLOG_TEMPLATE \
+    PFVOID origin,buf;\
+    rtsmb_size size;\
+    rtsmb_size consumed;\
+    PFVOID s, e;\
+    origin  = pStream->write_origin;\
+    buf     = pStream->pOutBuf;\
+    size    = (rtsmb_size)pStream->write_buffer_remaining; \
+    s = buf;
+
+#define FILL_EPILOG_TEMPLATE \
+	e = buf;\
+    if (pStream->PadValue) RTSMB_PACK_PAD_TO(pStream->PadValue);\
+    consumed = (rtsmb_size)PDIFF (e, s);\
+    pStream->pOutBuf = PADD(pStream->pOutBuf,consumed);\
+    pStream->write_buffer_remaining-=consumed;\
+    pStream->OutBodySize+=consumed;\
+	return (int) consumed;
+
+
+#define READ_PROLOG_TEMPLATE \
+PFVOID origin,buf;\
+rtsmb_size size;\
+PFVOID s, e;\
+    origin  = pStream->read_origin;\
+    buf     = pStream->pInBuf;\
+    size    = (rtsmb_size)pStream->read_buffer_remaining;\
+	s = buf;\
+	origin = origin; /* origin = origin Quiets compiler */
+
+#define READ_EPILOG_TEMPLATE \
+    {\
+    int consumed;\
+	e = buf;\
+    consumed = PDIFF (e, s);\
+    pStream->pInBuf+=consumed;\
+    pStream->read_buffer_remaining-=consumed;\
+	return (int) consumed;\
+    }
+// END These are either duplicated from server headers or they are derived from structures in the server that were previously required.
+
+
+// =====================
 /* error codes */
 #define RTSMB_CLI_WIRE_ERROR_BAD_STATE	-50
 #define RTSMB_CLI_WIRE_TOO_MANY_REQUESTS	-51
@@ -45,6 +155,7 @@ typedef enum
 #define INFO_CHAINED_ZERO_COPY   0x0002  /* this buffer includes a second section
                                             marked as 'zero-copy' for inclusion when
                                             sent on the wire */
+
 typedef struct RTSMB_CLI_WIRE_BUFFER_s
 {
 	word flags;	/* flags about this buffer */
@@ -66,7 +177,7 @@ typedef struct RTSMB_CLI_WIRE_BUFFER_s
 
     rtsmb_size allocated_buffer_size; /* Added for SMB2 */
 #ifdef SUPPORT_SMB2
-    smb2_stream smb2stream;
+    smb2_iostream smb2stream;
 #endif
 
 } RTSMB_CLI_WIRE_BUFFER;

@@ -63,9 +63,7 @@ $(OBJDIR)/%.$(obj): %.cpp
 	@echo rule based COMPILING for CPP $<
 	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
-$(OBJDIR)/%.o: $(lib_to_rtsmb_boostclient_path)/%.cpp
-	@echo COMPILING BOOST CLIENT for CPP $<
-	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
+include ../clientrulesgnu.inc
 
 # bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
 $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c

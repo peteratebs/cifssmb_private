@@ -5,7 +5,7 @@
 #if (INCLUDE_RTSMB_CLIENT)
 
 #ifdef SUPPORT_SMB2
-#include "com_smb2.h"
+//#include "com_smb2.h"
 #include "com_smb2_wiredefs.h"
 #endif
 
@@ -49,6 +49,37 @@
 #define RTSMB_CLI_SSN_RV_IN_PROGRESS          -101 /* the requested operation is still in progress */
 #define RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS  -102 /* the SMB2 retrieve is still in progress, display current results */
 #define RTSMB_CLI_SSN_RV_INVALID_RV           -100 /* this is guaranteed to never be used as an rv value */
+
+// SMB2 Job types, used in mappingh c processing routines to cpp objects.
+typedef enum jobTsmb2_t {
+  jobTsmb2_is_term=-2,
+  jobTsmb2_is_smb1=-1,
+  jobTsmb2_negotiate,
+  jobTsmb2_tree_connect,
+  jobTsmb2_session_setup,
+  jobTsmb2_logoff,
+  jobTsmb2_tree_disconnect,
+  jobTsmb2_read,
+  jobTsmb2_write,
+  jobTsmb2_open,
+  jobTsmb2_close,
+  jobTsmb2_seek,
+  jobTsmb2_truncate,
+  jobTsmb2_flush,
+  jobTsmb2_rename,
+  jobTsmb2_delete,
+  jobTsmb2_mkdir,
+  jobTsmb2_rmdir,
+  jobTsmb2_find_first,
+  jobTsmb2_find_close,
+  jobTsmb2_stat,
+  jobTsmb2_chmode,
+  jobTsmb2_full_server_enum,
+  jobTsmb2_get_free,
+  jobTsmb2_share_find_first,
+  jobTsmb2_server_enum,
+} jobTsmb2;
+
 
 typedef void  (RTSMB_FAR *RTSMB_JOB_CALLBACK)(int job, int r, PFVOID data);
 
@@ -270,7 +301,7 @@ typedef struct
     word vcs;
     word mpx_count;
     dword session_id;
-
+    ddword smb2_session_id;
     byte challenge [8];
 
 } RTSMB_CLI_SESSION_SERVER_INFO;
@@ -454,6 +485,7 @@ typedef struct
 RTSMB_CLI_RPC_INVOKE_JOB_DATA;
 typedef RTSMB_CLI_RPC_INVOKE_JOB_DATA RTSMB_FAR * PRTSMB_CLI_RPC_INVOKE_JOB_DATA;
 
+
 /* this struct contains enough information to restart a job */
 struct RTSMB_CLI_SESSION_JOB_T
 {
@@ -475,9 +507,10 @@ struct RTSMB_CLI_SESSION_JOB_T
     int (*receive_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 
 #ifdef SUPPORT_SMB2    // Some branching to SMB2 from this file, no major processing
-    int (*send_handler_smb2)    (smb2_stream  *psmb2stream);
-    int (*error_handler_smb2)   (smb2_stream  *psmb2stream);
-    int (*receive_handler_smb2) (smb2_stream  *psmb2stream);
+    jobTsmb2 smb2_jobtype;      // used in mappingh c processing routines to cpp objects for each object type.
+//    int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+//    int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+//    int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
 #endif
 
     union {
@@ -559,7 +592,7 @@ struct RTSMB_CLI_SESSION_JOB_T
             PRTSMB_CLI_SESSION_SHARE share_struct;
             rtsmb_char filename [SMBF_FILENAMESIZE + 1];
 
-        } delete;
+        } delete_args;
 
         struct {
 
@@ -755,6 +788,7 @@ struct RTSMB_CLI_SESSION_T
     char server_name [RTSMB_NB_NAME_SIZE + 1];
     BBOOL blocking_mode;
 
+
     unsigned int owning_thread; /* id for thread that started us */
     unsigned long timestamp; /* tells how long it's been since the session has been used */
 
@@ -777,7 +811,6 @@ struct RTSMB_CLI_SESSION_T
 
     RTSMB_CLI_SESSION_SHARE_SEARCH share_search;
 
-    struct Rtsmb2ClientSession_s   *psmb2Session;   // Points to the smb2 session structure. Initialized in rtsmb_cli_smb2_session_init()
 };
 
 /* session related */

@@ -29,7 +29,7 @@ typedef struct
 	char name[RTSMB_NB_NAME_SIZE + 1];	/* null ended */
 
 	word type;
-	word class;
+	word nbns_class;
 
 } RTSMB_NBNS_QUESTION;
 typedef RTSMB_NBNS_QUESTION RTSMB_FAR *PRTSMB_NBNS_QUESTION;
@@ -40,7 +40,7 @@ typedef struct
 	char name[RTSMB_NB_NAME_SIZE + 1];	/* null ended */
 
 	word type;
-	word class;
+	word nbns_class;
 	dword time_to_live;
 
 	word data_size;

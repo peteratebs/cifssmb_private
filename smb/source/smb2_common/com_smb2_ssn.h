@@ -34,6 +34,12 @@ typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
 
 
 
+#if (defined(BUILDING_CLIENT))
+// The smb2_stream structure definition is needed to build the client but is not used.
+// The smb2_stream structure has some server specific context and should be replaced with the smb2_iostream structure.
+typedef struct smb2_stream_s {    int notta; } smb2_stream;
+#else // Compiling server
+
 PACK_PRAGMA_ONE
 typedef struct smb2_stream_s {
      // Signing rules. Set by calling smb2_stream_set_signing_rule
@@ -80,6 +86,7 @@ typedef struct smb2_stream_s {
     struct smb_sessionCtx_s *pSmbCtx;
 } PACK_ATTRIBUTE smb2_stream;
 PACK_PRAGMA_POP
+#endif
 
 EXTERN_C int RtsmbStreamDecodeCommand(smb2_stream *pStream, PFVOID pItem);
 EXTERN_C int RtsmbStreamEncodeResponse(smb2_stream *pStream, PFVOID pItem);

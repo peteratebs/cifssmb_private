@@ -14,12 +14,12 @@
 
 #include "smbdefs.h"
 #ifdef SUPPORT_SMB2
-#include "com_smb2.h"
+// #include "com_smb2.h"
 #endif
 #include "cliwire.h"
 
 #ifdef SUPPORT_SMB2
-smb2_stream  *rtsmb_cli_wire_smb2_stream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
 #endif
 
 #if (INCLUDE_RTSMB_CLIENT)
@@ -676,7 +676,7 @@ int rtsmb_cli_wire_awaken_requests (PRTSMB_CLI_WIRE_SESSION pSession)
 /* Start decryption. Called on a stream from the top level dispatch if the session is set up and known to be encrypted.
    Wraps the stream in a buffer with an SMB2 transform header prepended. The message finalize process will encrypt the outgoing messge.
 
-   call smb2_stream_stop_decryption(smb2_stream *pstream, RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
+   call smb2_iostream_stop_decryption(smb2_iostream *pstream, RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
 
 */
 
@@ -801,8 +801,8 @@ rtsmb_debug_echo(pSession, pSession->buffers[i].buffer, (int)pSession->buffers[i
                     Finds the stream associted with the MID in header.
                     Copy the header to the stream's inHdr structure.
                     Set the stream buffer point and size to reflect that the NBSS and SMB headers have been consumed */
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_handle_message: recieved SMB2 message calling: rtsmb_cli_wire_smb2_stream_attach\n");
-                rtsmb_cli_wire_smb2_stream_attach (pSession, mid, smb2_header_length-RTSMB_NBSS_HEADER_SIZE, &header_smb2);
+                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_handle_message: recieved SMB2 message calling: rtsmb_cli_wire_smb2_iostream_attach\n");
+                rtsmb_cli_wire_smb2_iostream_attach (pSession, mid, smb2_header_length-RTSMB_NBSS_HEADER_SIZE, &header_smb2);
                 return 1;
             }
             else

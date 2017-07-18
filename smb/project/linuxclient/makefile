@@ -7,7 +7,7 @@
 ########################################################################
 incpath = .
 
-cflags+= -D SUPPORT_SMB2
+cflags += -D SUPPORT_SMB2 -D BUILDING_CLIENT
 
 ## SET SMB_PATH for mkgnu to find it
 HTTP_PATH = ../../../../http/v0.2.6
@@ -77,18 +77,36 @@ includes += $(lib_to_rtsmb_server_include)
 ## Note: debug dynamic allocation for client
 #defines += ALLOC_FROM_HEAP
 
-#cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
-#cpmodules := $(patsubst %.cpp,%,$(cpfiles))
+
 #cfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.c))
 
 #RTSMB COMMON FILES USED
 
-cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_stubs.c
-cfiles += $(lib_to_rtsmb2_common_path)/com_smb2_wire.c
 
+# These shouldn't be linked if NBNS support is disabled,, need to fix
 cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbss.c
 cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
 cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c
+
+cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c # several routines
+cfiles += $(lib_to_rtsmb_common_path)/psmbnet.c    # rtsmb_netport_select_n_for_read
+cfiles += $(lib_to_rtsmb_common_path)/smbbrbuf.c   # client uses int rtsmb_nbds_fill_whole_backup_list (dword token)
+cfiles += $(lib_to_rtsmb_common_path)/smbbrcfg.c   # prtsmb_browse_ctx and rtsmb_browse_config
+cfiles += $(lib_to_rtsmb_common_path)/smbdebug.c   # dump_bytes only
+
+# OK cfiles += $(lib_to_rtsmb_common_path)/smbglue.c
+# OK cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
+# OK cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c
+# OK cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbns.c
+# OK cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbss.c
+# OK cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
+# OK cfiles += $(lib_to_rtsmb_common_path)/psmbos.c
+
+cfiles += $(lib_to_rtsmb_common_path)/smbnet.c   # these all use several routines
+cfiles += $(lib_to_rtsmb_common_path)/smbpack.c
+cfiles += $(lib_to_rtsmb_common_path)/smbread.c
+cfiles += $(lib_to_rtsmb_common_path)/smbsjis.c
+cfiles += $(lib_to_rtsmb_common_path)/smbutil.c
 
 cfiles += $(lib_to_rtsmb_crypto_path)/des_enc.c
 cfiles += $(lib_to_rtsmb_crypto_path)/ecb_enc.c
@@ -97,24 +115,12 @@ cfiles += $(lib_to_rtsmb_crypto_path)/md5rsa.c
 cfiles += $(lib_to_rtsmb_crypto_path)/md4_dgst.c
 cfiles += $(lib_to_rtsmb_crypto_path)/md4_one.c
 cfiles += $(lib_to_rtsmb_crypto_path)/rc4.c
-cfiles += $(lib_to_rtsmb_common_path)/smbspnego.c
-cfiles += $(lib_to_rtsmb_common_path)/psmbfile.c
-cfiles += $(lib_to_rtsmb_common_path)/psmbnet.c
-cfiles += $(lib_to_rtsmb_common_path)/psmbos.c
+
+
+
+
 cfiles += $(lib_to_rtsmb_crypto_path)/set_key.c
-cfiles += $(lib_to_rtsmb_common_path)/smbbrbuf.c
-cfiles += $(lib_to_rtsmb_common_path)/smbbrcfg.c
-cfiles += $(lib_to_rtsmb_common_path)/smbdebug.c
-cfiles += $(lib_to_rtsmb_common_path)/smbglue.c
-# cfiles += $(lib_to_rtsmb_commonnb_path)/smbnb.c
-# cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbds.c
-# cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbns.c
-# cfiles += $(lib_to_rtsmb_commonnb_path)/smbnbss.c
-cfiles += $(lib_to_rtsmb_common_path)/smbnet.c
-cfiles += $(lib_to_rtsmb_common_path)/smbpack.c
-cfiles += $(lib_to_rtsmb_common_path)/smbread.c
-cfiles += $(lib_to_rtsmb_common_path)/smbsjis.c
-cfiles += $(lib_to_rtsmb_common_path)/smbutil.c
+
 
 #RTSMB CLIENT FILES USED
 cfiles += $(lib_to_rtsmb_client_path)/clians.c
@@ -128,8 +134,14 @@ cfiles += $(lib_to_rtsmb_client_path)/cliwire.c
 cfiles += $(lib_to_rtsmb_client_path)/cliwire.c
 cfiles += $(lib_to_rtsmb_client_path)/clsrvsvc.c
 
+cfiles += $(lib_to_rtsmb_client_path)/smb2_iostream.c
 cfiles += $(lib_to_rtsmb_client_path)/cli_smb2_wire.c
-cfiles += $(lib_to_rtsmb_client_path)/cli_smb2_proc.c
+
+cpfiles += $(lib_to_rtsmb_client_path)/wireobjects.cpp
+cpfiles += $(lib_to_rtsmb_client_path)/smb2wireobjects.cpp
+cpfiles += $(lib_to_rtsmb_client_path)/cli_smb2_proc.cpp
+# cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
+cpmodules := $(patsubst %.cpp,%,$(cpfiles))
 
 
 
