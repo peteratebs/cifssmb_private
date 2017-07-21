@@ -137,9 +137,16 @@ cfiles += $(lib_to_rtsmb_client_path)/clsrvsvc.c
 cfiles += $(lib_to_rtsmb_client_path)/smb2_iostream.c
 cfiles += $(lib_to_rtsmb_client_path)/cli_smb2_wire.c
 
-cpfiles += $(lib_to_rtsmb_client_path)/wireobjects.cpp
-cpfiles += $(lib_to_rtsmb_client_path)/smb2wireobjects.cpp
-cpfiles += $(lib_to_rtsmb_client_path)/cli_smb2_proc.cpp
+
+clienthpfiles := $(wildcard $(lib_to_rtsmb_client_path)/*.hpp)
+#hpdependlist := $(patsubst %.hpp,%,$(hpfiles))
+hpdependlist := $(hpfiles)
+
+cpfiles := $(wildcard $(lib_to_rtsmb_client_path)/*.cpp)
+
+//cpfiles += $(lib_to_rtsmb_client_path)/wireobjects.cpp
+//cpfiles += $(lib_to_rtsmb_client_path)/smb2wireobjects.cpp
+//cpfiles += $(lib_to_rtsmb_client_path)/cli_smb2_proc.cpp
 # cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
 cpmodules := $(patsubst %.cpp,%,$(cpfiles))
 

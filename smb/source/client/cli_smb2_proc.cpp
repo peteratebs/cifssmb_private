@@ -71,6 +71,8 @@ int RtsmbStreamDecodeResponse(smb2_iostream *pStream, PFVOID pItem);
 #include <smb2wireobjects.hpp>
 
 extern "C" void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
+void show_cpp_rtsmb2_cli_session_recv_negotiate(smb2_iostream  *pStream);
+void show_cpp_rtsmb2_cli_session_send_negotiate(smb2_iostream  *pStream);
 
 
 static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
@@ -241,6 +243,7 @@ static void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command
 }
 
 
+
 /* Encode with RtsmbStreamEncodeCommand */
 static int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
 {
@@ -266,6 +269,10 @@ static int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
         send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
     else
        send_status=RTSMB_CLI_SSN_RV_OK;
+
+
+    show_cpp_rtsmb2_cli_session_send_negotiate(pStream);
+
     return send_status;
 }
 
@@ -311,7 +318,6 @@ unsigned char command_pkt[MAX_SMB2_COMMAND_SIZE];
     return send_status;
 }
 
-
 static int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
 {
 int recv_status = RTSMB_CLI_SSN_RV_OK;
@@ -322,6 +328,7 @@ byte securiy_buffer[255];
     pStream->ReadBufferParms[0].pBuffer = securiy_buffer;
     if (RtsmbStreamDecodeResponse(pStream, &response_pkt) < 0)
         return RTSMB_CLI_SSN_RV_MALFORMED;
+   show_cpp_rtsmb2_cli_session_recv_negotiate(pStream);
     pStream->pSession->server_info.dialect =  (RTSMB_CLI_SESSION_DIALECT)response_pkt.DialectRevision;
 /*
 

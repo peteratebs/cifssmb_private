@@ -20,14 +20,42 @@ using std::endl;
 
 #include "smbdefs.h"
 
+
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 #if (INCLUDE_RTSMB_CLIENT)
 #include "client.h"
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
+#include <netstreambuffer.hpp>
 
 /// ===============================
+
+
+void show_cpp_rtsmb2_cli_session_recv_negotiate(smb2_iostream  *pStream)
+{
+NetNbssHeader NbssHeader;
+NetSmb2Header Smb2Header;
+   cout << "Parsing live input  !!" << endl;
+//   byte *pSmb2Raw = NbssHeader.bindpointers((byte *)pStream->read_origin);
+//   cout << "(NBSS Size :)" << NbssHeader.nbss_packet_size.get() << endl;
+   byte *pSmb2Raw =(byte *)pStream->read_origin;
+   pSmb2Raw = Smb2Header.bindpointers(pSmb2Raw);
+   cout << "(SMB2 Size :)" << Smb2Header.StructureSize.get() << endl;
+
+}
+void show_cpp_rtsmb2_cli_session_send_negotiate(smb2_iostream  *pStream)
+{
+NetNbssHeader NbssHeader;
+NetSmb2Header Smb2Header;
+
+    cout << "Parsing live output !!" << endl;
+    byte *pSmb2Raw = NbssHeader.bindpointers((byte *)pStream->write_origin);
+    cout << "(NBSS Size :)" << NbssHeader.nbss_packet_size.get() << endl;
+    pSmb2Raw = Smb2Header.bindpointers(pSmb2Raw);
+    cout << "(SMB2 Size :)" << Smb2Header.StructureSize.get() << endl;
+
+}
 
 
 void NetNbssHeader::BindAddressesToBuffer(byte *base)
@@ -57,4 +85,3 @@ void NetSmb2Header::BindAddressesToBuffer(byte *base)
 
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif
-
