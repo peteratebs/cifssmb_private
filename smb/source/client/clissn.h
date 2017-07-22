@@ -787,8 +787,9 @@ struct RTSMB_CLI_SESSION_T
     byte server_ip [4];
     char server_name [RTSMB_NB_NAME_SIZE + 1];
     BBOOL blocking_mode;
-
-
+#if (!defined(BUILDING_CLIENT))
+    struct Rtsmb2ClientSession_s   *psmb2Session;   // For a client. points to smb2 session structure
+#endif
     unsigned int owning_thread; /* id for thread that started us */
     unsigned long timestamp; /* tells how long it's been since the session has been used */
 
@@ -810,7 +811,6 @@ struct RTSMB_CLI_SESSION_T
     PRTSMB_CLI_SESSION_SEARCH searches;
 
     RTSMB_CLI_SESSION_SHARE_SEARCH share_search;
-
 };
 
 /* session related */

@@ -15,12 +15,14 @@
 // =====================
 // These are either duplicated from server headers or they are derived from structures in the server that were previously required.
 /* Building up a client session definition here to aid in building the server. Move this later when it is complete */
+#if (defined(BUILDING_CLIENT))
+
+
 typedef struct Rtsmb2ClientSession_s
 {
     BBOOL inUse;
     ddword SessionId;
 } Rtsmb2ClientSession;
-
 /* Used to pass buffers along with command/response/headers to/from SMB2 encode/decode */
 typedef struct
 {
@@ -28,6 +30,7 @@ typedef struct
     rtsmb_size  byte_count;
 } RTSMB2_BUFFER_PARM;
 typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
+#endif
 
 #include "com_smb2_wiredefs.h"
 
@@ -70,14 +73,18 @@ typedef struct smb2_iostream_s {
 } PACK_ATTRIBUTE smb2_iostream;
 PACK_PRAGMA_POP
 
+#define RTSMB2_NBSS_TRANSFORM_HEADER_SIZE 52
+
+#if (defined(BUILDING_CLIENT))
+typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
+
 int RtsmbWireVarDecode (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize);
 int RtsmbWireVarEncode(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, word StructureSize);
 int RtsmbWireVarEncodePartTwo(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,dword BufferOffset, dword BufferLength, dword UsedSize);
 
-#define RTSMB2_NBSS_TRANSFORM_HEADER_SIZE 52
-typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
 //extern int RtsmbWireEncodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarEncodeFn_t pVarEncodeFn);
-typedef int (* pVarDecodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);;
+typedef int (* pVarDecodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
+#endif
 // int RtsmbWireDecodeSmb2(smb2_stream *pStream, PFVOID pItem, rtsmb_size FixedSize, pVarDecodeFn_t pVarDecodeFn);
 
 
