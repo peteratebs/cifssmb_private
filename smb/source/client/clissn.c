@@ -3966,7 +3966,7 @@ int rtsmb_cli_session_process_smbs_on_wire (PRTSMB_CLI_SESSION pSession)
 #if (DEBUG_JOB)
        rtp_printf("rtsmb_cli_session_process_smbs_on_wire II release job: session = %x, job index = %d\n", pSession, i);
 #endif
-                        rtsmb_cli_session_job_close (&pSession->jobs[i]);
+                        rtsmb_cli_session_job_close (&pSession->jobs[i]);  // Marks the job available for starting another command
 #if (DEBUG_SESSION_ON_WIRE)
                         rtp_printf("PVO callback == %X\n",(unsigned int)pSession->jobs[i].callback);
 #endif

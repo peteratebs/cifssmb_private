@@ -78,7 +78,7 @@ int rtsmb_nbss_read_request (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_REQUEST pR
     return (int) PDIFF (e, s);
 }
 
-
+#if (!defined(BUILDING_CLIENT)) // Isolating client CPP and older C server code
 /**
  * returns size of header
  */
@@ -90,7 +90,7 @@ int rtsmb_nbss_fill_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStr
 
     return RTSMB_NBSS_HEADER_SIZE;
 }
-
+#endif
 
 /**
  * returns size of header

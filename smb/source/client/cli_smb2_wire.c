@@ -86,9 +86,7 @@ int rv = -1;
 
     switch (pStream->OutHdr.Command)
     {
-        case SMB2_NEGOTIATE:
-            rv = RtsmbWireEncodeSmb2(pStream,  pItem, 36, RtsmbWireVarEncodeNegotiateCommandCb);
-            break;
+//        case SMB2_NEGOTIATE:  This is now implemented in the cpp code base.
         case SMB2_SESSION_SETUP  :
             rv = RtsmbWireEncodeSmb2(pStream,  pItem, 25-1, RtsmbWireVarEncodeSessionSetupCommandCb);
             break;
@@ -233,18 +231,7 @@ int rv = -1;
     return rv;
 }
 
-
-int RtsmbWireVarEncodeNegotiateCommandCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
-{
-int i;
-PFVOID s=buf;
-    pStream=pStream;
-    for(i = 0; i < ((PRTSMB2_NEGOTIATE_C )pItem)->DialectCount; i++)
-    {
-	    RTSMB_PACK_WORD ( ((PRTSMB2_NEGOTIATE_C )pItem)->Dialects[i] );
-    }
-    return PDIFF (buf, s);
-}
+// RtsmbWireVarEncodeNegotiateCommandCb is now implemented in the cpp code base.
 
 static int RtsmbWireVarEncodeSessionSetupCommandCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
 {
@@ -730,4 +717,3 @@ int RtsmbWireDecodeSmb2(smb2_iostream *pStream, PFVOID pItem, rtsmb_size FixedSi
 
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif
-

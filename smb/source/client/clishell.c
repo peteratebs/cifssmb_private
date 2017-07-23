@@ -497,7 +497,7 @@ BBOOL DoOpenConnection=FALSE;
 char dialectString[20];
 dialectString[0]=0;
 //    strcpy(command, "USE d: \\\\192.168.1.17\\share0 /user:notebs /password:notpassword /dialect:2");
-    strcpy(command, "USE d: \\\\192.168.1.17\\share0 /user:notebs /password:notpassword /dialect:2");
+    strcpy(command, "USE d: \\\\192.168.1.12\\share0 /user:notebs /password:notpassword /dialect:2");
     smb_cli_term_printf(CLI_ALERT,"Inside with command == %s\n", command);
 //    command += STRCONSTLENGTH("NET ");
     smb_cli_term_printf(CLI_ALERT,"Inside 2 with command == %s STRCONSTLENGTH{\"USE\") == %d\n", command,(int)STRCONSTLENGTH("USE"));
@@ -2022,4 +2022,3 @@ ioctl_error:
 }
 
 #endif
-

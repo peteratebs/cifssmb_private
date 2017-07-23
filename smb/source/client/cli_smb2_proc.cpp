@@ -67,12 +67,13 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
 int RtsmbStreamEncodeCommand(smb2_iostream *pStream, PFVOID pItem);
 int RtsmbStreamDecodeResponse(smb2_iostream *pStream, PFVOID pItem);
 
+int rtsmb_nbss_fill_header_cpp (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+
 } // extern C
 #include <smb2wireobjects.hpp>
+typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
 
 extern "C" void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
-void show_cpp_rtsmb2_cli_session_recv_negotiate(smb2_iostream  *pStream);
-void show_cpp_rtsmb2_cli_session_send_negotiate(smb2_iostream  *pStream);
 
 
 static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
@@ -181,7 +182,7 @@ int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_io
         header.size += pBuffer->attached_size;
     }
   #endif
-    rtsmb_nbss_fill_header (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
+    rtsmb_nbss_fill_header_cpp (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
 
     TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
 
@@ -223,199 +224,10 @@ Get_Wire_Buffer_State(WAITING_ON_SERVER);
 }
 
 
-static void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId)
-{
-    tc_memset(&pStream->OutHdr, 0, sizeof(pStream->OutHdr));
-    tc_memcpy(pStream->OutHdr.ProtocolId,"\xfeSMB",4);
-    pStream->OutHdr.StructureSize=64;
-    pStream->OutHdr.CreditCharge = 0;
-    pStream->OutHdr.Status_ChannelSequenceReserved=0; /*  (4 bytes): */
-    pStream->OutHdr.Command = command;
-    pStream->OutHdr.CreditRequest_CreditResponse = 0;
-    pStream->OutHdr.Flags = 0;
-    pStream->OutHdr.NextCommand = 0;
-    pStream->OutHdr.MessageId = mid64;
-    pStream->OutHdr.SessionId = SessionId;
-    pStream->OutHdr.Reserved=0;
-    pStream->OutHdr.TreeId=0;
-    tc_strcpy((char *)pStream->OutHdr.Signature,"IAMTHESIGNATURE");
 
-}
+extern void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId); // This is now implemented in the cpp code base.
 
 
-
-/* Encode with RtsmbStreamEncodeCommand */
-static int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
-{
-    RTSMB2_NEGOTIATE_C command_pkt;
-    int send_status;
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-    rtsmb2_cli_session_init_header (pStream, SMB2_NEGOTIATE, (ddword) pStream->pBuffer->mid, 0);
-
-    command_pkt.StructureSize = 36;
-    command_pkt.DialectCount=2;
-    command_pkt.SecurityMode  = SMB2_NEGOTIATE_SIGNING_ENABLED;
-    command_pkt.Reserved=0;
-    command_pkt.Capabilities = 0; // SMB2_GLOBAL_CAP_DFS  et al
-    tc_strcpy((char *)command_pkt.guid, "IAMTHEGUID     ");
-    command_pkt.ClientStartTime = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
-    /* GUID is zero for SMB2002 */
-    // tc_memset(command_pkt.ClientGuid, 0, 16);
-    command_pkt.Dialects[0] = SMB2_DIALECT_2002;
-    command_pkt.Dialects[1] = SMB2_DIALECT_2100;
-
-    /* Packs the SMB2 header and negotiate command into the stream buffer and sets send_status to OK or and ERROR */
-    if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
-    else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-
-
-    show_cpp_rtsmb2_cli_session_send_negotiate(pStream);
-
-    return send_status;
-}
-
-static int rtsmb2_cli_session_send_negotiate_cb (smb2_iostream  *pStream, byte *pBuffer)
-{
-    RTSMB2_NEGOTIATE_C *pcommand_pkt = (RTSMB2_NEGOTIATE_C *) pBuffer;
-
-//    pcommand_pkt->StructureSize = 36;
-    pcommand_pkt->DialectCount=2;
-    pcommand_pkt->SecurityMode  = SMB2_NEGOTIATE_SIGNING_ENABLED;
-    pcommand_pkt->Reserved=0;
-    pcommand_pkt->Capabilities = 0; // SMB2_GLOBAL_CAP_DFS  et al
-    tc_strcpy((char *)pcommand_pkt->guid, "IAMTHEGUID     ");
-    pcommand_pkt->ClientStartTime = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
-    /* GUID is zero for SMB2002 */
-    // tc_memset(command_pkt.ClientGuid, 0, 16);
-    pcommand_pkt->Dialects[0] = SMB2_DIALECT_2002;
-    pcommand_pkt->Dialects[1] = SMB2_DIALECT_2100;
-
-    return RTSMB_CLI_SSN_RV_OK;
-}
-
-
-
-#define MAX_SMB2_COMMAND_SIZE 512 // Fix this
-static int new_rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
-{
-word command = SMB2_NEGOTIATE;
-word StructureSize = 36;
-unsigned char command_pkt[MAX_SMB2_COMMAND_SIZE];
-    int send_status;
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-    rtsmb2_cli_session_init_header (pStream, command, (ddword) pStream->pBuffer->mid, 0);
-
-    *((word *) command_pkt) = 36;
-    rtsmb2_cli_session_send_negotiate_cb (pStream, command_pkt);
-
-    /* Packs the SMB2 header and negotiate command into the stream buffer and sets send_status to OK or and ERROR */
-    if (RtsmbStreamEncodeCommand(pStream,command_pkt) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
-    else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-    return send_status;
-}
-
-static int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
-{
-int recv_status = RTSMB_CLI_SSN_RV_OK;
-RTSMB2_NEGOTIATE_R response_pkt;
-byte securiy_buffer[255];
-
-    pStream->ReadBufferParms[0].byte_count = sizeof(securiy_buffer);
-    pStream->ReadBufferParms[0].pBuffer = securiy_buffer;
-    if (RtsmbStreamDecodeResponse(pStream, &response_pkt) < 0)
-        return RTSMB_CLI_SSN_RV_MALFORMED;
-   show_cpp_rtsmb2_cli_session_recv_negotiate(pStream);
-    pStream->pSession->server_info.dialect =  (RTSMB_CLI_SESSION_DIALECT)response_pkt.DialectRevision;
-/*
-
-Indented means accounted for
-
-    word SecurityMode;
-  word DialectRevision;
-    byte  ServerGuid[16];
-    dword Capabilities;
-  dword MaxTransactSize;
-  dword MaxReadSize;
-  dword MaxWriteSize;
-    ddword SystemTime;
-    ddword ServerStartTime;
-  word SecurityBufferOffset;
-  word SecurityBufferLength;
-  dword Reserved2;
-  byte  SecurityBuffer;
-*/
-
-   // Get the maximum buffer size we can ever want to allocate and store it in buffer_size
-   {
-    dword maxsize =  response_pkt.MaxReadSize;
-    if (response_pkt.MaxWriteSize >  maxsize)
-      maxsize = response_pkt.MaxWriteSize;
-    if (response_pkt.MaxTransactSize >  maxsize)
-      maxsize = response_pkt.MaxTransactSize;
-    pStream->pSession->server_info.buffer_size =  maxsize;
-    pStream->pSession->server_info.raw_size   =   maxsize;
-   }
-
-#if (0)
-
-##    pSession->server_info.dialect = 0;
-##    if (nr.DialectRevision == SMB2_DIALECT_2002)
-##        pSession->server_info.dialect = CSSN_DIALECT_SMB2_2002;
-##    ASSURE (pSession->server_info.dialect != 0, RTSMB_CLI_SSN_RV_MALFORMED);
-##
-##//    pSession->server_info.user_mode = ON (nr.security_mode, 0x1);
-##    pSession->server_info.capabilities = nr.Capabilities;
-##//    pSession->server_info.encrypted = ON (nr.security_mode, 0x2);
-##    pSession->server_info.buffer_size = nr.MaxReadSize;
-##    pSession->server_info.raw_size = nr.MaxTransactSize;
-##//    pSession->server_info.vcs = nr.max_vcs;
-##//    pSession->server_info.session_id = nr.session_id;
-##//    pSession->server_info.mpx_count = (word) MIN (nr.max_mpx_count, prtsmb_cli_ctx->max_jobs_per_session);
-##
-##HEREHERE - Do the session
-##    int r = 0;
-##
-##    nr.challenge_size = 8;
-##    nr.challenge = pSession->server_info.challenge;
-##    nr.domain = 0;
-##    nr.dialect_index = 0;
-##    nr.security_mode = 0;
-##    nr.capabilities = 0;
-##    nr.max_buffer_size = 0;
-##    nr.max_raw_size = 0;
-##    nr.max_vcs = 0;
-##    nr.session_id = 0;
-##    nr.max_mpx_count = 0;
-##
-#####    rtsmb_cli_wire_smb2_read (&pSession->wire, pHeader->mid, cmd_read_negotiate_smb2, &nr, r);
-##    ASSURE (r == 0, RTSMB_CLI_SSN_RV_MALFORMED);
-##
-##    /* make sure we have a valid dialect */
-##    ASSURE (nr.dialect_index != 0xFF, RTSMB_CLI_SSN_RV_DEAD);
-##    ASSURE (nr.dialect_index < NUM_SPOKEN_DIALECTS, RTSMB_CLI_SSN_RV_MALICE);
-##
-##    pSession->server_info.dialect = dialect_types[nr.dialect_index];
-##    pSession->server_info.user_mode = ON (nr.security_mode, 0x1);
-##    pSession->server_info.capabilities = nr.capabilities;
-##    pSession->server_info.encrypted = ON (nr.security_mode, 0x2);
-##    pSession->server_info.buffer_size = nr.max_buffer_size;
-##    pSession->server_info.raw_size = nr.max_raw_size;
-##    pSession->server_info.vcs = nr.max_vcs;
-##    pSession->server_info.session_id = nr.session_id;
-##    pSession->server_info.mpx_count = (word) MIN (nr.max_mpx_count, prtsmb_cli_ctx->max_jobs_per_session);
-##
-##    if (pSession->server_info.encrypted)
-##    {
-##        /* we currently only support 8-bytes */
-##        ASSURE (nr.challenge_size == 8, RTSMB_CLI_SSN_RV_DEAD);
-##    }
-#endif
-    return recv_status;
-}
 
 
 // Captured init blob from windows
@@ -1060,12 +872,16 @@ int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
 
 
 
+
 typedef struct c_jobobject_t
 {
     int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
     int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
     int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
 } c_jobobject;
+
+typedef std::map <jobTsmb2 , c_jobobject *> CmdToJobObject_t;
+CmdToJobObject_t glCmdToJobObject;
 
 struct c_jobobject_table_t
 {
@@ -1079,70 +895,6 @@ static int rtsmb2_cli_session_error_handler_base (smb2_iostream  *pStream)
   return RTSMB_CLI_SSN_RV_INVALID_RV;
 
 }
-
-typedef std::map <jobTsmb2 , c_jobobject *> CmdToJobObject_t;
-static CmdToJobObject_t glCmdToJobObject;
-
-typedef struct c_smb2cmdobject_t
-{
-  const char *command_name;
-  int   command_size;
-  pVarEncodeFn_t pVarEncodeFn;
-  int   reply_size;
-  pVarDecodeFn_t pVarDecodeFn;
-  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
-  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
-  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
-} c_smb2cmdobject;
-
-typedef struct smb2cmdobject_table_t
-{
-  word            command;
-  c_smb2cmdobject cobject;
-} smb2cmdobject_table;
-
-typedef std::map <word , struct c_smb2cmdobject_t *> SmbCmdToCmdObject_t;
-SmbCmdToCmdObject_t glSmbCmdToCmdObject;
-
-
-extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-  if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
-  return r;
-}
-
-extern "C" int rtsmb_cli_wire_receive_handler_smb2(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-
-  printf("Yo search job: %d \n", pStream->pJob->smb2_jobtype);
-  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-  {
-     printf("Yo executing from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
-  }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-  {
-     r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
-  }
-  return r;
-}
-extern "C" int rtsmb_cli_wire_error_handler_smb2(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-  {
-     printf("Yo executing error from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
-  }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->error_handler_smb2(pStream);
-  return r;
-}
-
-
 
 int rtsmb2_cli_session_send_read (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_receive_read (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
@@ -1186,7 +938,6 @@ int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *pStream) {return RTS
 
 
 #define default_error_handler(FUNCNAME) static int FUNCNAME (smb2_iostream  *pStream) {return rtsmb2_cli_session_error_handler_base(pStream);}
-default_error_handler(rtsmb2_cli_session_send_negotiate_error_handler)
 // static int rtsmb2_cli_session_send_negotiate_error_handler (smb2_iostream  *pStream) {  return rtsmb2_cli_session_error_handler_base(pStream);}
 default_error_handler(rtsmb2_cli_session_send_logoff_error_handler)
 default_error_handler(rtsmb2_cli_session_send_tree_disconnect_error_handler)
@@ -1211,10 +962,10 @@ default_error_handler(rtsmb2_cli_session_send_share_find_first_error_handler)
 default_error_handler(rtsmb2_cli_session_send_server_enum_error_handler)
 
 
-#define TABLEEXTENT(X) (int) (sizeof(X)/sizeof(X[0]))
 static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 {
-  {jobTsmb2_negotiate,{ rtsmb2_cli_session_send_negotiate, rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate}},
+// See SmbCmdToCmdObjectTable for commands that are succesfully converted to CPP. These are routed through SmbCmdToCmdObjectTable instead of CmdToJobObjectTable.
+//  {jobTsmb2_negotiate,{ rtsmb2_cli_session_send_negotiate, rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate}},
   {jobTsmb2_tree_connect,{ rtsmb2_cli_session_send_tree_connect, rtsmb2_cli_session_send_tree_connect_error_handler,rtsmb2_cli_session_receive_tree_connect}},
   {jobTsmb2_session_setup, rtsmb2_cli_session_send_session_setup, rtsmb2_cli_session_send_session_setup_error_handler,rtsmb2_cli_session_receive_session_setup,},
   {jobTsmb2_logoff, rtsmb2_cli_session_send_logoff, rtsmb2_cli_session_send_logoff_error_handler,rtsmb2_cli_session_receive_logoff,},
@@ -1242,6 +993,7 @@ static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 
 };
 
+#if (0)
 #define COMMAND_OR_REPLY_SIZE_MAX_OCTETS 512 // 2048 byes on 8 byte boudary
 
 typedef int   (* pDataSourceFn_t) (void *pargs, void *ptobuffer, int max_size); // for example a wrapper for read
@@ -1384,43 +1136,14 @@ class Smb2ClientNegotiateMessageExchange : public Smb2ClientMessageExchange {
        RTSMB2_NEGOTIATE_R *reply_pkt = (RTSMB2_NEGOTIATE_R *) input_buffer_pcommand_packet();
        pull_input_buffer();
     }
-
-
-
-};
-
-
-
-#if(1)
-
-extern "C" int RtsmbWireVarEncodeNegotiateCommandCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
-extern "C" int RtsmbWireVarDecodeNegotiateResponseCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
-
-static int myRtsmbWireVarDecodeNegotiateResponseCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
-{
-PRTSMB2_NEGOTIATE_R pResponse = (PRTSMB2_NEGOTIATE_R) pItem;
-    return RtsmbWireVarDecode (pStream, origin, buf, size, pResponse->SecurityBufferOffset, pResponse->SecurityBufferLength, pResponse->StructureSize);
-}
-
-static int myRtsmbWireVarEncodeNegotiateCommandCb(smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem)
-{
-int i;
-PFVOID s=buf;
-    pStream=pStream;
-    for(i = 0; i < ((PRTSMB2_NEGOTIATE_C )pItem)->DialectCount; i++)
-    {
-	    RTSMB_PACK_WORD ( ((PRTSMB2_NEGOTIATE_C )pItem)->Dialects[i] );
-    }
-    return PDIFF (buf, s);
-}
-
-static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
-{
-// command_name, send_fixed_size, VarEncodeCb,  rcv_fixed_size, VarDecodeCb
- {SMB2_NEGOTIATE, {"NEGOTIATE", 36, myRtsmbWireVarEncodeNegotiateCommandCb, 64, myRtsmbWireVarDecodeNegotiateResponseCb, rtsmb2_cli_session_send_negotiate,rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate},},
 };
 #endif
+
 extern void include_wiretests();
+
+
+extern void InitSmbCmdToCmdObjectTable();
+
 
 // Use static initializer constructor to intitialize run time table
 class InitializeSmb2Tables {
@@ -1431,8 +1154,7 @@ class InitializeSmb2Tables {
       cout << "***                                                        ***" << endl;
       for (int i = 0; i < TABLEEXTENT(CmdToJobObjectTable);i++)
         glCmdToJobObject[CmdToJobObjectTable[i].command] = &CmdToJobObjectTable[i].cobject;
-      for (int i = 0; i < TABLEEXTENT(SmbCmdToCmdObjectTable);i++)
-        glSmbCmdToCmdObject[SmbCmdToCmdObjectTable[i].command] = &SmbCmdToCmdObjectTable[i].cobject;
+      InitSmbCmdToCmdObjectTable();
 //       AssureCmdToJobObjectInstance();
 //      Smb2ClientNegotiateMessageExchange NegotiateObject((smb2_iostream *) 0);
 //       Smb2ClientUnNegotiateMessageExchange UnNegotiateObject((smb2_iostream *) 0);
@@ -1443,6 +1165,7 @@ class InitializeSmb2Tables {
     }
 };
 InitializeSmb2Tables PerformInitializeSmb2Tables;
+
 
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif

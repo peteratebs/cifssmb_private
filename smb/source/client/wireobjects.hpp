@@ -15,7 +15,9 @@
 #ifndef include_wireobjects
 #define include_wireobjects
 
+extern "C" {
 #include "client.h"
+}
 
 #include <map>
 #include <algorithm>
@@ -109,6 +111,14 @@ class NetWireddword  : public NetWire {
     ddword get()  { ddword v; NETTOHDDWORD(v);return v;}
 };
 
+class NetWireFileTime  : public NetWire {
+  public:
+    NetWireFileTime() {blob_size=8;};
+    void operator =(ddword d)  { HTONETDDWORD(d); } // tc_memcpy(raw_address, &d, sizeof(ddword));}
+    ddword get()   { ddword v; NETTOHDDWORD(v);return v;}
+};
+
+
 class NetWireblob  : public NetWire {
   public:
     NetWireblob() {blob_size=0;}
@@ -142,6 +152,8 @@ class NetWireFileId  : public NetWireblob {
     const byte *get()  { return get_raw_address(); };
 };
 
+
+
 // Should be byte order independent
 class NetWire24bitword  : public NetWireblob {
 public:
@@ -168,13 +180,16 @@ private:
 class NetWireStruct   {
 public:
   NetWireStruct() { isvariable = false; };
+  virtual int  FixedStructureSize()  { return objectsize; };
+
 protected:
   virtual void BindAddressOpen(BindNetWireArgs & args) = 0;
   virtual void BindAddressClose(BindNetWireArgs & args) = 0;
   virtual void BindAddressesToBuffer(byte *base) = 0;
-  virtual int  FixedStructureSize() = 0;
+//  virtual int  FixedStructureSize() = 0;
   virtual byte *FixedStructureAddress() = 0;
   virtual void SetDefaults() = 0;
   bool isvariable;
+  dword objectsize;
 };
 #endif // include_wireobjects

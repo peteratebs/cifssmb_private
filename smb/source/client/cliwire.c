@@ -43,6 +43,8 @@ RTSMB_STATIC int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSess
 
 int rtsmb_cli_wire_start_connect (PRTSMB_CLI_WIRE_SESSION pSession);
 
+extern int rtsmb_nbss_fill_header_cpp (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+
 /**
  * This file contains the "wire" abstraction -- clients to this
  * need not keep track of maintaining the connection to the server,
@@ -594,13 +596,14 @@ Get_Wire_Session_State(CONNECTED);
     return 0;
 }
 
+
 void rtsmb_debug_echo(PRTSMB_CLI_WIRE_SESSION pSession, byte *p, int nbytes)
 {
     static byte mybuff[1024];
     RTSMB_NBSS_HEADER header;
     header.type = RTSMB_NBSS_COM_MESSAGE;
     header.size = (word) nbytes; /* - RTSMB_NBSS_HEADER_SIZE); */
-    rtsmb_nbss_fill_header (mybuff, RTSMB_NBSS_HEADER_SIZE, &header);
+    rtsmb_nbss_fill_header_cpp (mybuff, RTSMB_NBSS_HEADER_SIZE, &header);
     tc_memcpy(&mybuff[RTSMB_NBSS_HEADER_SIZE], p, (unsigned)nbytes);
     mybuff[56] ='X';
     mybuff[57] ='Y';
@@ -628,14 +631,14 @@ RTSMB_STATIC int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSess
     rtsmb_util_make_netbios_name (request.calling, RTSMB_NB_DEFAULT_NAME, RTSMB_NB_NAME_TYPE_WORKSTATION);
     rtsmb_util_make_netbios_name (request.called, pSession->server_name, RTSMB_NB_NAME_TYPE_SERVER);
 
-    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header (pBuffer,
+    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header_cpp (pBuffer,
         prtsmb_cli_ctx->buffer_size, &header), -3);
     pBuffer = PADD (pBuffer, RTSMB_NBSS_HEADER_SIZE);
     DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_request (pBuffer,
         prtsmb_cli_ctx->buffer_size - RTSMB_NBSS_HEADER_SIZE, &request), -3);
 
     header.size = (dword)r;
-    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header (pSession->temp_buffer,
+    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header_cpp (pSession->temp_buffer,
         prtsmb_cli_ctx->buffer_size, &header), -3);
 
     pSession->temp_end_time_base = rtp_get_system_msec ();
@@ -1181,7 +1184,7 @@ int rtsmb_cli_wire_smb_add_end (PRTSMB_CLI_WIRE_SESSION pSession, word mid)
     }
   #endif
 
-    rtsmb_nbss_fill_header (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
+    rtsmb_nbss_fill_header_cpp (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
 
     TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
 

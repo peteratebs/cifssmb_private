@@ -49,7 +49,10 @@
 #define CFG_RTSMB_OUT_BUFFER_SIZE_VETTED  ((32768*2)+4)
 
 #define CFG_RTSMB_TEMP_BUFFER_SIZE  ((32768*2)+4)
-
+// 512 with MAX_TRANSACTION_SIZE 64 works.
+// 256 with MAX_TRANSACTION_SIZE 64 works ??
+// #define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K              512       // 512 K for now
+// #define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K              256       // 512 K for now
 #define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K              512       // 512 K for now
 #define HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE                HARDWIRED_SMB2_MAX_NBSS_FRAME_SIZE_K*1024      // 512 K for now
 
@@ -195,6 +198,8 @@ typedef unsigned short    SMB_TIME;
 
 typedef void * signalobject_Cptr;
 typedef void * yield_Cptr;
+
+#define TABLEEXTENT(X) (int) (sizeof(X)/sizeof(X[0]))
 
 
 /* This is a time-since-microsoft-epoch struct.  That means it records

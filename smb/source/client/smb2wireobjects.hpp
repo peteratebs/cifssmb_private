@@ -14,7 +14,10 @@
 #ifndef include_smb2wireobjects
 #define include_smb2wireobjects
 
+extern "C" {
 #include "client.h"
+}
+
 #include "wireobjects.hpp"
 
 
@@ -27,15 +30,15 @@ using std::endl;
 
 class NetNbssHeader  : public NetWireStruct   {
   public:
-   NetNbssHeader() {}
+   NetNbssHeader() {objectsize=4;}
    NetWirebyte       nbss_packet_type;
    NetWire24bitword  nbss_packet_size;
    byte *FixedStructureAddress() { return 0; };
-   int  FixedStructureSize()  { return 4; };
+   int  FixedStructureSize()  { return objectsize; };
    void SetDefaults()  { };
    unsigned char *bindpointers(byte *_raw_address) {
         BindAddressesToBuffer( _raw_address);
-        return _raw_address+4;
+        return _raw_address+objectsize;
     }
 private:
   void BindAddressOpen(BindNetWireArgs & args) {};
@@ -46,6 +49,7 @@ private:
 
 class NetSmb2Header  : public NetWireStruct   {
 public:
+  NetSmb2Header() {objectsize=64; }
   NetWireblob4 ProtocolId;
   NetWireword StructureSize; // 64
   NetWireword CreditCharge; /* (2 bytes): In the SMB 2.002 dialect, this field MUST NOT be used and MUST be reserved. */
@@ -62,8 +66,7 @@ public:
 
   unsigned char *bindpointers(byte *_raw_address) {
        BindAddressesToBuffer( _raw_address);
-       return _raw_address+64;}
-  NetSmb2Header() { }
+       return _raw_address+FixedStructureSize();}
   int  FixedStructureSize()  { return 64; };
   byte *FixedStructureAddress() { return 0; };
   void SetDefaults()  { };
@@ -73,3 +76,32 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 #endif // include_smb2wireobjects
+
+
+class NetSmb2NegotiateCmd  : public NetWireStruct   {
+public:
+  NetSmb2NegotiateCmd() {objectsize=36; }
+    NetWireword StructureSize; // 36
+    NetWireword DialectCount;
+    NetWireword SecurityMode;
+    NetWireword Reserved;
+    NetWiredword Capabilities;
+    NetWireblob16 guid;
+    NetWireFileTime ClientStartTime;
+
+
+    NetWireword Dialect0;
+    NetWireword Dialect1;
+    NetWireword Dialect2;
+    NetWireword Dialect3;
+  unsigned char *bindpointers(byte *_raw_address) {
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return 0; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
