@@ -253,7 +253,7 @@ RTSMB_STATIC void rtsmb_cli_session_share_search_new (PRTSMB_CLI_SESSION_SHARE_S
 RTSMB_STATIC void rtsmb_cli_session_share_search_close (PRTSMB_CLI_SESSION_SHARE_SEARCH pSearch);
 RTSMB_STATIC PRTSMB_CLI_SESSION_SHARE_SEARCH rtsmb_cli_session_get_share_search (PRTSMB_CLI_SESSION pSession, int sid);
 
-RTSMB_STATIC void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
+void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
 void rtsmb_cli_session_user_close (PRTSMB_CLI_SESSION_USER pUser);
 
 RTSMB_STATIC int  rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
@@ -308,10 +308,10 @@ extern int rtsmb2_cli_session_send_server_enum (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *psmb2stream);
 #endif
 
-RTSMB_STATIC int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 RTSMB_STATIC int rtsmb_cli_session_send_session_setup_pre_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
-RTSMB_STATIC int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
-RTSMB_STATIC int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 
 RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
@@ -1930,7 +1930,7 @@ byte ntlm_response_buffer[] = {0xbc,0xd3,0x40,0x6e,0x8f,0x2e,0x83,0x5f,0xc2,0xd2
 0x20,0x00,0x63,0x00,0x69,0x00,0x66,0x00,0x73,0x00,0x2f,0x00,0x31,0x00,0x39,0x00,0x32,0x00,0x2e,0x00,0x31,0x00,0x36,0x00,0x38,0x00,0x2e,0x00,0x31,0x00,0x2e,0x00,0x37,0x00,0x0a,0x00,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
-int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain, PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
+int rtsmb_cli_session_ntlm_auth (int sid, PFCHAR user, PFCHAR password, PFCHAR domain, PFBYTE serverChallenge, PFBYTE serverInfoblock, int serverInfoblock_length)
 {
     PRTSMB_CLI_SESSION_JOB pJob;
     PRTSMB_CLI_SESSION pSession;
@@ -4588,7 +4588,6 @@ PRTSMB_CLI_SESSION_FID rtsmb_cli_session_get_fid (PRTSMB_CLI_SESSION pSession, i
     return 0;
 }
 
-RTSMB_STATIC
 void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid)
 {
     pUser->state = CSSN_USER_STATE_LOGGING_ON;
@@ -4718,7 +4717,6 @@ int rtsmb_cli_session_send_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SE
     return RTSMB_CLI_SSN_RV_OK;
 }
 
-RTSMB_STATIC
 int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
 {
     rtsmb_cli_session_user_close (pJob->data.session_setup.user_struct);
@@ -4883,7 +4881,6 @@ RTSMB_STATIC int rtsmb_cli_session_send_session_extended_setup_error_handler (PR
     return RTSMB_CLI_SSN_RV_INVALID_RV;
 }
 
-RTSMB_STATIC
 int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
     RTSMB_HEADER h;
@@ -6374,7 +6371,7 @@ int rtsmb_cli_session_ntlm_auth (int sid, PFRTCHAR user, PFCHAR password, PFRTCH
 }
 
 
-RTSMB_STATIC int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
+int rtsmb_cli_session_receive_session_setup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
 {
     RTSMB_SESSION_SETUP_AND_X_R s;
     int r = 0;

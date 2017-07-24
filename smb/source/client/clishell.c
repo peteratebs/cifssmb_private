@@ -141,7 +141,8 @@ static int do_dir_command(int which_command, char *command);
 static int do_logoff_command(char *command);
 
 static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSION_DIALECT dialect);
-static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
+extern  int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain); // done in cpp now
+// static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
 static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern);
 static int do_ls_command(char *command);
 
@@ -1611,66 +1612,8 @@ static int do_connect_server(int *sid)
 
 #include "clicfg.h"
 #include "clissn.h"
-/* Tools for loging on to server and connecting to shares, these work with
-   with do_setuser_command() et al to reduce typing */
-static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain)
-{
-    int r;
 
-    smb_cli_term_printf(CLI_ALERT,"\nuser = %s",user_name);
-    smb_cli_term_printf(CLI_ALERT,"\npassword = %s",password);
-    smb_cli_term_printf(CLI_ALERT,"\ndomain = %s\n",domain);
-
-    r = rtsmb_cli_session_logon_user(sid, user_name, password, domain);
-
-    if(r < 0)
-    {
-        smb_cli_term_printf(CLI_PROMPT,"\n Error during user logon");
-        return 0;
-    }
-    smb_cli_term_printf(CLI_PROMPT,"\n Wait for login\n");
-    r = wait_on_job(sid, r);
-    if(r < 0)
-    {
-        smb_cli_term_printf(CLI_PROMPT,"\n Error during logon response");
-        return 0;
-    }
-// if (prtsmb_cli_ctx->sessions[sid].state == CSSN_USER_STATE_CHALLENGED)
-    smb_cli_term_printf(CLI_PROMPT,"\n Got login check state %d\n", prtsmb_cli_ctx->sessions[sid].state);
-    if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
-    {
-       decoded_NegTokenTarg_challenge_t decoded_targ_token;
-       smb_cli_term_printf(CLI_PROMPT,"\n Got a challenge at shell layer\n");
-
-       rtsmb_dump_bytes("shell recved blob", prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server, DUMPBIN);
-       smb_cli_term_printf(CLI_PROMPT,"shell recved domain[0] ==  %x\n", prtsmb_cli_ctx->sessions[sid].user.domain_name[0]);
-       r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
-       if (r == 0)
-       {
-           r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
-               decoded_targ_token.ntlmserverchallenge,
-               decoded_targ_token.target_info->value_at_offset,
-               decoded_targ_token.target_info->size);
-       }
-       rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server);
-       spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
-
-       if(r < 0)
-       {
-          smb_cli_term_printf(CLI_PROMPT,"\n Error sending rtsmb_cli_session_ntlm_auth\n");
-          return 0;
-       }
-       r = wait_on_job(sid, r);
-       if(r < 0)
-       {
-          smb_cli_term_printf(CLI_PROMPT,"\n Error process rtsmb_cli_session_ntlm_auth\n");
-          return 0;
-       }
-    }
-
-    return(1);
-}
-
+// static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain); // done in cpp now
 static int do_logon_server(int sid)
 {
     char *user_name;
