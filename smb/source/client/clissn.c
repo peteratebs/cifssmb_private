@@ -570,11 +570,7 @@ int rtsmb_cli_session_resolve_name (PFCHAR name, PFBYTE broadcast_ip, PFBYTE ip)
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
-        if (rtsmb_cli_smb2_session_init (pSession) < 0)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
-            return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
-        }
+        rtsmb_cli_smb2_session_init (pSession);
     }
 #endif
 
@@ -693,11 +689,7 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
-        if (rtsmb_cli_smb2_session_init (pSession) < 0)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
-            return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
-        }
+        rtsmb_cli_smb2_session_init (pSession);
     }
 #endif
 
@@ -934,11 +926,7 @@ int rtsmb_cli_session_new_with_name (PFCHAR name, BBOOL blocking, PFBYTE broadca
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
-        if (rtsmb_cli_smb2_session_init (pSession) < 0)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Call to rtsmb_cli_smb2_session_init failed !!!!\n");
-            return RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES;
-        }
+        rtsmb_cli_smb2_session_init (pSession);
     }
 #endif
 
@@ -4652,7 +4640,12 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
 // xx NEW
             r = rtsmb_cli_wire_smb2_send_handler(pStream);   // maps pJob->smb2_jobtype to sendhandler and sends
 //            r = (*pJob->send_handler_smb2) (pStream);
-            if (r == RTSMB_CLI_SSN_RV_OK)
+
+            if (r == RTSMB_CLI_SSN_RV_SENT)
+               return  RTSMB_CLI_SSN_RV_OK;        // was sent by the lower layer
+            else if (r == RTSMB_CLI_SSN_RV_DEAD)
+               return RTSMB_CLI_SSN_RV_DEAD;
+            else if (r == RTSMB_CLI_SSN_RV_OK)
             {
                 r = rtsmb_cli_wire_smb2_iostream_flush(&pSession->wire, pStream);
                 if (r != 0)

@@ -174,7 +174,25 @@ public:
    /// Attach a memory oriented destination to the stream.
    /// Data from the source is passed to this buffer as it is pulled from the source.
    class NetStreamBuffer *attach_sink(MemoryDataSink *_memory_sink)   { pdevice_sink=0; pmemory_sink = _memory_sink; return this;}
+   NetStatus push_output(byte *output, dword byte_count)
+   {
+     dword bytes_free;
+     byte *to= get_write_buffer_pointer(bytes_free);
 
+     // Flush rthe output if we are full
+     if (bytes_free < byte_count)
+     {
+       dword bytes_pulled;
+       if (pdevice_sink)
+          pull_input(pdevice_sink, byte_count, bytes_pulled);
+       to= get_write_buffer_pointer(bytes_free);
+       if (bytes_free < byte_count)
+         return NetStatusFull;
+     }
+     tc_memcpy(to, output, byte_count);
+     discard_write_buffer_bytes(byte_count);
+     return NetStatusOk;
+   }
    /// "Cycle" by pulling bytes from the input and pass them to the output.
    NetStatus pull_input(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
    {
@@ -219,7 +237,7 @@ private:
   StreamBufferDataSource * data_sourcer;
   void consume_input (dword byte_count)          { read_pointer += byte_count; if (read_pointer == write_pointer) read_pointer = write_pointer=0;}
 
-  byte *get_write_buffer_pointer(dword & byte_count) { byte_count=read_pointer-write_pointer; return buffer_base+write_pointer;}
+  byte *get_write_buffer_pointer(dword & byte_count) { byte_count=buffer_size-write_pointer; return buffer_base+write_pointer;}
   byte *write_buffer_pointer() { return buffer_base+write_pointer;}
   void discard_write_buffer_bytes(dword byte_count) { write_pointer+=byte_count;}
 

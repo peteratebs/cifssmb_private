@@ -18,7 +18,8 @@
 #define RTSMB_CLI_MESSAGE_OVERHEAD_BYTES      60
 #define RTSMB_CLI_SESSION_MAX_DATA_BYTES      (RTSMB_CLI_WIRE_MAX_BUFFER_SIZE - RTSMB_CLI_MESSAGE_OVERHEAD_BYTES)
 
-#define RTSMB_CLI_SSN_RV_OK                   0    /* everything is good */
+#define RTSMB_CLI_SSN_RV_SENT                  1    /* The callback sends this when the packet was send internally and doesn't need to be sent from the top */
+#define RTSMB_CLI_SSN_RV_OK                    0    /* everything is good */
 #define RTSMB_CLI_SSN_RV_MALFORMED            -1   /* something was malformed on the wire */
 #define RTSMB_CLI_SSN_RV_LATER                -2   /* try again later */
 #define RTSMB_CLI_SSN_RV_DEAD                 -3   /* session is untenable and should be closed */

@@ -14,6 +14,7 @@
 //
 #ifndef include_wireobjects
 #define include_wireobjects
+#include "netstreambuffer.hpp"
 
 extern "C" {
 #include "client.h"
@@ -179,10 +180,18 @@ private:
 // pure virtual class forces implementations to not compile without required methods.
 class NetWireStruct   {
 public:
-  NetWireStruct() { isvariable = false; };
+  NetWireStruct() { isvariable = false; base_address=0; variablesize=0;};
   virtual int  FixedStructureSize()  { return objectsize; };
+  virtual void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
+  virtual NetStatus push_output(NetStreamBuffer  &StreamBuffer)
+  {
+    return StreamBuffer.push_output(base_address, objectsize+variablesize);
+  }
+//  virtual void push_output(smb2_iostream  &pStream) = 0;
+
 
 protected:
+  byte *base_address;
   virtual void BindAddressOpen(BindNetWireArgs & args) = 0;
   virtual void BindAddressClose(BindNetWireArgs & args) = 0;
   virtual void BindAddressesToBuffer(byte *base) = 0;
@@ -191,5 +200,6 @@ protected:
   virtual void SetDefaults() = 0;
   bool isvariable;
   dword objectsize;
+  dword variablesize;
 };
 #endif // include_wireobjects

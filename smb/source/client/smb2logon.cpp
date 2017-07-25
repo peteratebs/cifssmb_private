@@ -38,39 +38,12 @@ int rtsmb_cli_session_send_session_setup_nt (PRTSMB_CLI_SESSION pSession, PRTSMB
 void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
 int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 int RtsmbStreamEncodeCommand(smb2_iostream *pStream, PFVOID pItem);
+int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 }
-
+int rtsmb_cli_wire_smb2_iostream_flush_raw(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId);
 
-
 // --------------------------------------------------------
-extern "C" void mark_rv_cpp (int job, int rv, void *data)
-{
-    int *idata = (int *)data;
-
-    *idata = rv;
-    if (rv == -RTSMB_CLI_WIRE_BAD_MID)
-        cout << "Bad Permissions, Marked" << *idata << endl;
-}
-
-static int wait_on_job_cpp(int sid, int job)
-{
-    int rv = RTSMB_CLI_SSN_RV_INVALID_RV;
-    rtsmb_cli_session_set_job_callback(sid, job, mark_rv_cpp, &rv);
-
-    while(rv == RTSMB_CLI_SSN_RV_INVALID_RV )
-    {
-        int r = rtsmb_cli_session_cycle(sid, 10);
-        if (r < 0)
-        {
-//            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "\n wait_on_job: rtsmb_cli_session_cycle returned error == %d\n",r);
-            return r;
-        }
-    }
-    return rv;
-}
-
-
 
 static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
 {
@@ -203,6 +176,7 @@ extern "C" int RtsmbWireEncodeSmb2(smb2_iostream *pStream, PFVOID pItem, rtsmb_s
 extern int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 
+
 // part of this chain.
 // do_logon_server_worker()
 //   >> int rtsmb_cli_session_logon_user (int sid, PFCHAR user, PFCHAR password, PFCHAR domain) >>
@@ -213,17 +187,34 @@ extern int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStre
 //  r = send_stalled_jobs(sid, r);
 //       recv extended logon finishes it
 
+// #define OLDWAY
+
 extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
 {
-//    RTSMB2_NEGOTIATE_C command_pkt;
-    byte  command_pkt[44];                  // Max size is 36 * 4 * sizeof(word) == 44 bytes
+    NetNbssHeader       OutNbssHeader;
+    NetSmb2Header       OutSmb2Header;
     NetSmb2NegotiateCmd Smb2NegotiateCmd;
     int send_status;
+    NetStreamBuffer    SendBuffer;
 
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-    rtsmb2_cli_session_init_header (pStream, SMB2_NEGOTIATE, (ddword) pStream->pBuffer->mid, 0);
+    SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
 
-    Smb2NegotiateCmd.bindpointers((byte *)command_pkt);
+    ddword SessionId = 0;
+    byte *nbsstail = OutNbssHeader.bindpointers((byte *)pStream->write_origin);
+    byte *smbtail = OutSmb2Header.bindpointers(nbsstail);
+    byte *cmdtail = Smb2NegotiateCmd.bindpointers(smbtail);
+    cmdtail  += (2 * sizeof(word));   // Add in 2 variable words, not good
+
+    OutNbssHeader.nbss_packet_type = RTSMB_NBSS_COM_MESSAGE;
+    OutNbssHeader.nbss_packet_size = PDIFF(cmdtail,nbsstail);
+    if (OutNbssHeader.push_output(SendBuffer) != NetStatusOk)
+      return RTSMB_CLI_SSN_RV_DEAD;
+
+    OutSmb2Header.Initialize(SMB2_NEGOTIATE,(ddword) pStream->pBuffer->mid, SessionId);
+
+    if (OutSmb2Header.push_output(SendBuffer) != NetStatusOk)
+      return RTSMB_CLI_SSN_RV_DEAD;
+
     Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
     Smb2NegotiateCmd.DialectCount =   2;
     Smb2NegotiateCmd.SecurityMode =   SMB2_NEGOTIATE_SIGNING_ENABLED;
@@ -233,32 +224,32 @@ extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
     Smb2NegotiateCmd.ClientStartTime = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
     Smb2NegotiateCmd.Dialect0 =SMB2_DIALECT_2002;
     Smb2NegotiateCmd.Dialect1 =SMB2_DIALECT_2100;
-//    Smb2NegotiateCmd.Dialect2 =
-//    Smb2NegotiateCmd.Dialect3 =
+    Smb2NegotiateCmd.addto_variable_content(4);
+
+    if (Smb2NegotiateCmd.push_output(SendBuffer) != NetStatusOk)
+      return RTSMB_CLI_SSN_RV_DEAD;
 
 
-//    command_pkt.StructureSize = 36;
-//    command_pkt.DialectCount=2;
-//    command_pkt.SecurityMode  = SMB2_NEGOTIATE_SIGNING_ENABLED;
-//    command_pkt.Reserved=0;
-//    command_pkt.Capabilities = 0; // SMB2_GLOBAL_CAP_DFS  et al
-//    tc_strcpy((char *)command_pkt.guid, "IAMTHEGUID     ");
-//    command_pkt.ClientStartTime = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
-//    /* GUID is zero for SMB2002 */
-//    // tc_memset(command_pkt.ClientGuid, 0, 16);
-//    command_pkt.Dialects[0] = SMB2_DIALECT_2002;
-//    command_pkt.Dialects[1] = SMB2_DIALECT_2100;
+    rtsmb_size consumed=PDIFF(cmdtail,pStream->write_origin);
+    // THese are all that is used by rtsmb_cli_wire_smb2_iostream_flush_raw. We'll cahnge this to an object next anyway, new
+    pStream->write_buffer_remaining = pStream->write_buffer_size;  // For raw
+    pStream->write_buffer_remaining-=consumed;
 
-    /* Packs the SMB2 header and negotiate command into the stream buffer and sets send_status to OK or and ERROR */
-//    if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
-     if (RtsmbWireEncodeSmb2(pStream,  command_pkt, 40, 0) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
+//    pStream->pOutBuf = PADD(pStream->pOutBuf, consumed);
+//    pStream->OutBodySize+=consumed;
+
+    // Send it from here not from the top
+    if (rtsmb_cli_wire_smb2_iostream_flush_raw(&pStream->pSession->wire, pStream)==0)
+      send_status=RTSMB_CLI_SSN_RV_SENT;
     else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-
+      send_status=RTSMB_CLI_SSN_RV_DEAD;
 
     return send_status;
 }
+
+
+
+
 
 extern "C" int RtsmbStreamDecodeResponse(smb2_iostream *pStream, PFVOID pItem);
 extern "C" int RtsmbWireVarDecode (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size, dword BufferOffset, dword BufferLength, word StructureSize);
