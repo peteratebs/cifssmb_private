@@ -16,8 +16,20 @@
 
 #include <algorithm>
 #include <climits>
+#include <map>
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <memory>
+
+using std::cout;
+using std::endl;
+
+
+extern "C" {
 #include "smbdefs.h"
 #include "rtpmem.h"
+}
 
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
 #define ENSURECSTRINGSAFETY(S) S=S?(byte *)S:(byte *)""

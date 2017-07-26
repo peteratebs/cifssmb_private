@@ -129,3 +129,77 @@ private:
   void BindAddressClose(BindNetWireArgs & args) {};
   void BindAddressesToBuffer(byte *base);
 };
+
+
+
+///    Template class for generating frames of nbssheader:smb2:<commandtype>
+///      Template helps fills out the nbss and smb2 headers in the buffer and also helps send the buffer.
+//       The specific cmd is exposed for populating
+///   See _rtsmb2_cli_session_send_negotiate() for an example
+///     Requires specific prolog usage in a funtions:
+///      dword variable_content_size = (dword)2*sizeof(word);   optional arg defaults to zero
+///      NetNbssHeader       OutNbssHeader;     Nsss and smb2 declarations are always the same
+///      NetSmb2Header       OutSmb2Header;
+///      NetSmb2NegotiateCmd Smb2NegotiateCmd;  The command to be templated.
+///      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
+
+template <class T>
+class NetSmb2NBSSCmd {
+public:
+  NetSmb2NBSSCmd(word command, NetStreamBuffer &_SendBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_cmd, dword _variable_size=0)
+  {
+    SendBuffer=&_SendBuffer; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
+    isvariable = false; base_address=0; variablesize=_variable_size;
+    byte *nbsshead = SendBuffer->peek_input();
+    byte *nbsstail  = nbsshead+4;
+    byte *cmdtail = bindpointers(nbsshead);
+    cmdtail  += _variable_size;   // Add in 2 variable words, not good
+
+    nbss->nbss_packet_type = RTSMB_NBSS_COM_MESSAGE;
+    nbss->nbss_packet_size = PDIFF(cmdtail,nbsstail);
+    ddword SessionId = 0;
+
+    status = RTSMB_CLI_SSN_RV_OK;
+    smb2->Initialize(command,(ddword) SendBuffer->pStream->pBuffer->mid, SessionId);
+
+    if (nbss->push_output(*SendBuffer) != NetStatusOk)
+      status = RTSMB_CLI_SSN_RV_DEAD;
+    if (smb2->push_output(*SendBuffer) != NetStatusOk)
+      status = RTSMB_CLI_SSN_RV_DEAD;
+
+  }
+  int status;
+  void flush() {
+    if (rtsmb_cli_wire_smb2_iostream_flush_sendbufferptr(SendBuffer)==0)
+      status=RTSMB_CLI_SSN_RV_SENT;
+    else
+      status=RTSMB_CLI_SSN_RV_DEAD;
+
+  }
+
+  // Cloned from NetWireStruct()
+  int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();};
+  void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
+  NetStatus push_output(NetStreamBuffer  &StreamBuffer)
+  {
+    return StreamBuffer.push_output(base_address, objectsize+variablesize);
+  }
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       byte *nbsshead = _raw_address;
+       byte *nbsstail =nbss->bindpointers(nbsshead);
+       byte *smbtail = smb2->bindpointers(nbsstail);
+       byte *cmdtail = cmd->bindpointers(smbtail);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+  private:
+     T                  *cmd;
+     NetStreamBuffer    *SendBuffer;
+     NetNbssHeader       *nbss;
+     NetSmb2Header       *smb2;
+     byte *base_address;
+     bool isvariable;
+     dword objectsize;
+     dword variablesize;
+};

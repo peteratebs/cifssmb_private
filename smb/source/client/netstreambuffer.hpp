@@ -382,4 +382,29 @@ inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBu
     return 0;
 }
 
+
+/// Flush the content of a sendbuffer to the network and then turn the direction of the buffer around to wait for a timneout or for a reply to the message ID.
+inline int rtsmb_cli_wire_smb2_iostream_flush_sendbufferptr(NetStreamBuffer *SendBuffer)
+{
+    dword valid_byte_count;
+
+    TURN_ON (SendBuffer->pStream->pBuffer->flags, INFO_CAN_TIMEOUT);
+
+    if (SendBuffer->pStream->pSession->wire.state == CONNECTED)
+//    if (pSession->state == CONNECTED)
+    {
+        SendBuffer->pStream->pBuffer->state = WAITING_ON_US;
+    }
+    else
+    {
+        SendBuffer->pStream->pBuffer->end_time_base = rtp_get_system_msec ();
+        if (SendBuffer->flush() != NetStatusOk)
+        {
+            return -2;
+        }
+        SendBuffer->pStream->pBuffer->state = WAITING_ON_SERVER;
+    }
+    return 0;
+}
+
 #endif // include_netstreambuffer
