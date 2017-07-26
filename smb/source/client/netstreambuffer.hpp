@@ -16,6 +16,14 @@
 
 #include <algorithm>
 #include <climits>
+extern "C" {
+#include "rtpnet.h"
+#include "smbnet.h"
+#include "cliwire.h"
+#include "clissn.h"
+#include "smbutil.h"
+#include "rtptime.h"
+}
 
 /// Propogate status conditions up from the lowest failure level with these constants
 enum NetStatus {
@@ -25,6 +33,10 @@ enum NetStatus {
     NetStatusEmpty             = -3,
     NetStatusDeviceRecvFailed  = -4,
     NetStatusBadCallParms      = -5
+};
+
+struct SocketContext{
+    RTP_SOCKET socket;
 };
 
 struct memcpydevContext{
@@ -41,6 +53,16 @@ inline int memcpy_sink_function(void *devContext, byte *pData, int size)
   return size;
 }
 
+/// Protototype "device for sinking bytes from a stream.
+/// This memcopies to a location stored in device context.
+inline int socket_sink_function(void *devContext, byte *pData, int size)
+{
+   if (rtsmb_net_write( ((struct SocketContext *)devContext)->socket, pData,size)==0)
+    return size;
+   else
+     return -1;
+}
+
 
 typedef int (* pDeviceSendFn_t) (void *devContext, byte *pData, int size);
 /// Attach this to NetStreamBuffer to sink streamdata to a device
@@ -49,6 +71,8 @@ public:
   DataSinkDevtype() {}
   /// Constructor assigns a send function and a device context for the send function.
   DataSinkDevtype(pDeviceSendFn_t _DeviceSendFn,void *_DeviceContext) {DeviceSendFn=_DeviceSendFn;DeviceContext= _DeviceContext;}
+
+
   /// The sink function. Call this to send bytes to the device via the device callback
   NetStatus sink_bytes_to_device(byte *to, dword bytes_to_sink, dword &bytes_sunk)
   {
@@ -161,7 +185,7 @@ class NetStreamBuffer     {
 public:
    NetStreamBuffer()                              {   pdevice_sink=0;pmemory_sink=0; };
    ~NetStreamBuffer()                             {};
-
+   smb2_iostream  *pStream;
    ///  Assign a chunk of memory to the stream for internal buffering.
    ///   should be large enough for smooth performance with sockets and files
    void attach_buffer(byte *data, dword byte_count){ _attach(data, byte_count); }
@@ -203,6 +227,19 @@ public:
       return NetStatusBadCallParms;
    }
 
+  NetStatus flush()
+  {
+     dword buffered_byte_count=0;
+     dword bytes_pulled;
+     byte *pdata = peek_input(buffered_byte_count);
+     if (buffered_byte_count ==0)
+       return NetStatusOk;
+     else     // Pulling exactly what is in the buffer will push that much oout the pipe
+      return  pull_input(buffered_byte_count, bytes_pulled, buffered_byte_count);
+
+
+  }
+
    /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
    NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
    {
@@ -229,6 +266,7 @@ public:
       }
       return NetStatusOk;
    }
+   byte *peek_input()           { return read_buffer_pointer(); };
    byte *peek_input(dword & valid_byte_count)           {
                                                     valid_byte_count = read_buffer_count();
                                                     return read_buffer_pointer();
@@ -319,4 +357,29 @@ private:
   }
 
 };
+
+// inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(PRTSMB_CLI_WIRE_SESSION pSession, PRTSMB_CLI_WIRE_BUFFER pBuffer, NetStreamBuffer &SendBuffer)
+inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBuffer)
+{
+    dword valid_byte_count;
+
+    TURN_ON (SendBuffer.pStream->pBuffer->flags, INFO_CAN_TIMEOUT);
+
+    if (SendBuffer.pStream->pSession->wire.state == CONNECTED)
+//    if (pSession->state == CONNECTED)
+    {
+        SendBuffer.pStream->pBuffer->state = WAITING_ON_US;
+    }
+    else
+    {
+        SendBuffer.pStream->pBuffer->end_time_base = rtp_get_system_msec ();
+        if (SendBuffer.flush() != NetStatusOk)
+        {
+            return -2;
+        }
+        SendBuffer.pStream->pBuffer->state = WAITING_ON_SERVER;
+    }
+    return 0;
+}
+
 #endif // include_netstreambuffer

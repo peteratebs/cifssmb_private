@@ -40,7 +40,6 @@ int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSess
 int RtsmbStreamEncodeCommand(smb2_iostream *pStream, PFVOID pItem);
 int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 }
-int rtsmb_cli_wire_smb2_iostream_flush_raw(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId);
 
 // --------------------------------------------------------
@@ -189,18 +188,35 @@ extern int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStre
 
 // #define OLDWAY
 
+
+
+static int _rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer);
 extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
+{
+  NetStreamBuffer    SendBuffer;
+  struct             SocketContext sockContext;
+
+  SendBuffer.pStream = pStream;
+
+  sockContext.socket = pStream->pSession->wire.socket;
+  DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
+
+  SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
+  SendBuffer.attach_sink(&SocketSink);
+  return _rtsmb2_cli_session_send_negotiate (SendBuffer);
+}
+
+
+static int _rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
 {
     NetNbssHeader       OutNbssHeader;
     NetSmb2Header       OutSmb2Header;
     NetSmb2NegotiateCmd Smb2NegotiateCmd;
     int send_status;
-    NetStreamBuffer    SendBuffer;
-
-    SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
 
     ddword SessionId = 0;
-    byte *nbsstail = OutNbssHeader.bindpointers((byte *)pStream->write_origin);
+    byte *nbsshead = SendBuffer.peek_input();
+    byte *nbsstail = OutNbssHeader.bindpointers(nbsshead);
     byte *smbtail = OutSmb2Header.bindpointers(nbsstail);
     byte *cmdtail = Smb2NegotiateCmd.bindpointers(smbtail);
     cmdtail  += (2 * sizeof(word));   // Add in 2 variable words, not good
@@ -210,7 +226,7 @@ extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
     if (OutNbssHeader.push_output(SendBuffer) != NetStatusOk)
       return RTSMB_CLI_SSN_RV_DEAD;
 
-    OutSmb2Header.Initialize(SMB2_NEGOTIATE,(ddword) pStream->pBuffer->mid, SessionId);
+    OutSmb2Header.Initialize(SMB2_NEGOTIATE,(ddword) SendBuffer.pStream->pBuffer->mid, SessionId);
 
     if (OutSmb2Header.push_output(SendBuffer) != NetStatusOk)
       return RTSMB_CLI_SSN_RV_DEAD;
@@ -221,7 +237,7 @@ extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
     Smb2NegotiateCmd.Reserved     =   0;
     Smb2NegotiateCmd.Capabilities =   0; // SMB2_GLOBAL_CAP_DFS  et al
     Smb2NegotiateCmd.guid        =    (byte *) "IAMTHEGUID     ";
-    Smb2NegotiateCmd.ClientStartTime = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
+    Smb2NegotiateCmd.ClientStartTime = rtsmb_util_get_current_filetime();  // ???  TBD
     Smb2NegotiateCmd.Dialect0 =SMB2_DIALECT_2002;
     Smb2NegotiateCmd.Dialect1 =SMB2_DIALECT_2100;
     Smb2NegotiateCmd.addto_variable_content(4);
@@ -229,21 +245,12 @@ extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
     if (Smb2NegotiateCmd.push_output(SendBuffer) != NetStatusOk)
       return RTSMB_CLI_SSN_RV_DEAD;
 
-
-    rtsmb_size consumed=PDIFF(cmdtail,pStream->write_origin);
-    // THese are all that is used by rtsmb_cli_wire_smb2_iostream_flush_raw. We'll cahnge this to an object next anyway, new
-    pStream->write_buffer_remaining = pStream->write_buffer_size;  // For raw
-    pStream->write_buffer_remaining-=consumed;
-
-//    pStream->pOutBuf = PADD(pStream->pOutBuf, consumed);
-//    pStream->OutBodySize+=consumed;
-
-    // Send it from here not from the top
-    if (rtsmb_cli_wire_smb2_iostream_flush_raw(&pStream->pSession->wire, pStream)==0)
+    // rtsmb_cli_wire_smb2_iostream_flush_sendbuffer invokes SendBuffer.flush()
+    if (rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(SendBuffer)==0)
+//    if (rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(&SendBuffer.pStream->pSession->wire, SendBuffer.pStream->pBuffer, SendBuffer)==0)
       send_status=RTSMB_CLI_SSN_RV_SENT;
     else
       send_status=RTSMB_CLI_SSN_RV_DEAD;
-
     return send_status;
 }
 

@@ -111,8 +111,8 @@ class TestWireObjects {
      cout << endl << "Finished testing blob field types" << endl;
    }
    cout << endl << "Finished !!!!" << endl;
-   while (1)
-    cout << "Finished !!!!" << endr;
+//   while (1)
+//    cout << "Finished !!!!" << endr;
    }
 };
 

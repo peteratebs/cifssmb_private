@@ -18,6 +18,7 @@ using std::cout;
 using std::endl;
 
 #include "smbdefs.h"
+#include <netstreambuffer.hpp>
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
@@ -68,15 +69,17 @@ int RtsmbStreamEncodeCommand(smb2_iostream *pStream, PFVOID pItem);
 int RtsmbStreamDecodeResponse(smb2_iostream *pStream, PFVOID pItem);
 
 int rtsmb_nbss_fill_header_cpp (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
 
 } // extern C
+
 #include <smb2wireobjects.hpp>
+
 typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
 
-extern "C" void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
 
 
-static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
+//static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
 
 /* Called when a new_session is created sepcifying an SMBV2 dialect.
    Currently holds SessionId, building it up. */
@@ -164,6 +167,34 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
    return pStream;
 }
 
+// This is not used, see rtsmb_cli_wire_smb2_iostream_flush_sendbuffer()
+int rtsmb_cli_wire_smb2_iostream_flush_raw(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream)
+{
+    PRTSMB_CLI_WIRE_BUFFER pBuffer;
+    pBuffer = pStream->pBuffer;
+
+    pBuffer->buffer_size = pStream->write_buffer_size-pStream->write_buffer_remaining;
+
+    TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
+
+    if (pSession->state == CONNECTED)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Set state Waiting on us\n");
+        pBuffer->state = WAITING_ON_US;
+    }
+    else
+    {
+        pBuffer->end_time_base = rtp_get_system_msec ();
+        if (rtsmb_net_write (pSession->socket, pBuffer->buffer, (int)pBuffer->buffer_size)<0)
+        {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Error writing %d bytes !!!!!!!!!!!!!!!!!\n",(int)pBuffer->buffer_size);
+            return -2;
+        }
+
+        pBuffer->state = WAITING_ON_SERVER;
+    }
+    return 0;
+}
 
 int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream)
 {
@@ -773,6 +804,8 @@ rtp_printf("rtsmb2_cli_session_find_buffered_rt calling BufferedDirscanToDstat o
   }
 }
 
+static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
+
 
 int rtsmb2_cli_session_receive_find_first (smb2_iostream  *pStream)
 {
@@ -870,9 +903,6 @@ int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
    return RTSMB_CLI_SSN_RV_OK;
 }
 
-
-
-
 typedef struct c_jobobject_t
 {
     int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
@@ -888,6 +918,68 @@ struct c_jobobject_table_t
   jobTsmb2    command;
   c_jobobject cobject;
 };
+
+
+typedef struct c_smb2cmdobject_t
+{
+  const char *command_name;
+  int   command_size;
+  pVarEncodeFn_t pVarEncodeFn;
+  int   reply_size;
+  pVarDecodeFn_t pVarDecodeFn;
+  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
+} c_smb2cmdobject;
+#if (0)
+typedef struct smb2cmdobject_table_t
+{
+  word            command;
+  c_smb2cmdobject cobject;
+} smb2cmdobject_table;
+
+typedef std::map <word , struct c_smb2cmdobject_t *> SmbCmdToCmdObject_t;
+SmbCmdToCmdObject_t glSmbCmdToCmdObject;
+
+
+extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)
+{
+int r = RTSMB_CLI_SSN_RV_OK;
+  if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
+    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
+  return r;
+}
+
+extern "C" int rtsmb_cli_wire_receive_handler_smb2(smb2_iostream  *pStream)
+{
+int r = RTSMB_CLI_SSN_RV_OK;
+
+  printf("Yo search job: %d \n", pStream->pJob->smb2_jobtype);
+  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
+  {
+     printf("Yo executing from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
+     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
+  }
+  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
+  {
+     r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
+  }
+  return r;
+}
+extern "C" int rtsmb_cli_wire_error_handler_smb2(smb2_iostream  *pStream)
+{
+int r = RTSMB_CLI_SSN_RV_OK;
+  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
+  {
+     printf("Yo executing error from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
+     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
+  }
+  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
+    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->error_handler_smb2(pStream);
+  return r;
+}
+#endif
+
 
 
 static int rtsmb2_cli_session_error_handler_base (smb2_iostream  *pStream)
@@ -1140,9 +1232,7 @@ class Smb2ClientNegotiateMessageExchange : public Smb2ClientMessageExchange {
 #endif
 
 extern void include_wiretests();
-
-
-extern void InitSmbCmdToCmdObjectTable();
+void InitSmbCmdToCmdObjectTable();
 
 
 // Use static initializer constructor to intitialize run time table
@@ -1155,6 +1245,7 @@ class InitializeSmb2Tables {
       for (int i = 0; i < TABLEEXTENT(CmdToJobObjectTable);i++)
         glCmdToJobObject[CmdToJobObjectTable[i].command] = &CmdToJobObjectTable[i].cobject;
       InitSmbCmdToCmdObjectTable();
+
 //       AssureCmdToJobObjectInstance();
 //      Smb2ClientNegotiateMessageExchange NegotiateObject((smb2_iostream *) 0);
 //       Smb2ClientUnNegotiateMessageExchange UnNegotiateObject((smb2_iostream *) 0);
