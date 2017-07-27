@@ -14,6 +14,8 @@
 #ifndef include_smbutils
 #define include_smbutils
 
+
+
 #include <algorithm>
 #include <climits>
 #include <map>
@@ -29,7 +31,10 @@ using std::endl;
 extern "C" {
 #include "smbdefs.h"
 #include "rtpmem.h"
+#include "cliwire.h"
 }
+#include "netstreambuffer.hpp"
+
 
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
 #define ENSURECSTRINGSAFETY(S) S=S?(byte *)S:(byte *)""
@@ -61,6 +66,13 @@ private:
 
 extern int wait_on_job_cpp(int sid, int job);
 
+typedef struct c_smb2cmdobject_t
+{
+  int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
+  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
+} c_smb2cmdobject;
 
 
 #endif // include_smbutils

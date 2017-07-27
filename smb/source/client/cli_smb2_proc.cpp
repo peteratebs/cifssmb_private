@@ -16,6 +16,7 @@
 #include <iostream>
 using std::cout;
 using std::endl;
+#include "smb2utils.hpp"
 
 #include "smbdefs.h"
 #include <netstreambuffer.hpp>
@@ -905,6 +906,7 @@ int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
 
 typedef struct c_jobobject_t
 {
+    int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
     int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
     int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
     int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
@@ -918,68 +920,6 @@ struct c_jobobject_table_t
   jobTsmb2    command;
   c_jobobject cobject;
 };
-
-
-typedef struct c_smb2cmdobject_t
-{
-  const char *command_name;
-  int   command_size;
-  pVarEncodeFn_t pVarEncodeFn;
-  int   reply_size;
-  pVarDecodeFn_t pVarDecodeFn;
-  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
-  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
-  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
-} c_smb2cmdobject;
-#if (0)
-typedef struct smb2cmdobject_table_t
-{
-  word            command;
-  c_smb2cmdobject cobject;
-} smb2cmdobject_table;
-
-typedef std::map <word , struct c_smb2cmdobject_t *> SmbCmdToCmdObject_t;
-SmbCmdToCmdObject_t glSmbCmdToCmdObject;
-
-
-extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-  if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
-  return r;
-}
-
-extern "C" int rtsmb_cli_wire_receive_handler_smb2(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-
-  printf("Yo search job: %d \n", pStream->pJob->smb2_jobtype);
-  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-  {
-     printf("Yo executing from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
-  }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-  {
-     r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
-  }
-  return r;
-}
-extern "C" int rtsmb_cli_wire_error_handler_smb2(smb2_iostream  *pStream)
-{
-int r = RTSMB_CLI_SSN_RV_OK;
-  if ( glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-  {
-     printf("Yo executing error from glSmbCmdToCmdObjectb: %d \n", pStream->pJob->smb2_jobtype);
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
-  }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->error_handler_smb2(pStream);
-  return r;
-}
-#endif
-
 
 
 static int rtsmb2_cli_session_error_handler_base (smb2_iostream  *pStream)
@@ -1054,182 +994,40 @@ default_error_handler(rtsmb2_cli_session_send_share_find_first_error_handler)
 default_error_handler(rtsmb2_cli_session_send_server_enum_error_handler)
 
 
+// Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
+
 static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 {
 // See SmbCmdToCmdObjectTable for commands that are succesfully converted to CPP. These are routed through SmbCmdToCmdObjectTable instead of CmdToJobObjectTable.
 //  {jobTsmb2_negotiate,{ rtsmb2_cli_session_send_negotiate, rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate}},
-  {jobTsmb2_tree_connect,{ rtsmb2_cli_session_send_tree_connect, rtsmb2_cli_session_send_tree_connect_error_handler,rtsmb2_cli_session_receive_tree_connect}},
-  {jobTsmb2_session_setup, rtsmb2_cli_session_send_session_setup, rtsmb2_cli_session_send_session_setup_error_handler,rtsmb2_cli_session_receive_session_setup,},
-  {jobTsmb2_logoff, rtsmb2_cli_session_send_logoff, rtsmb2_cli_session_send_logoff_error_handler,rtsmb2_cli_session_receive_logoff,},
-  {jobTsmb2_tree_disconnect, rtsmb2_cli_session_send_tree_disconnect, rtsmb2_cli_session_send_tree_disconnect_error_handler,rtsmb2_cli_session_receive_tree_disconnect,},
-  {jobTsmb2_read, rtsmb2_cli_session_send_read, rtsmb2_cli_session_send_read_error_handler,rtsmb2_cli_session_receive_read,},
-  {jobTsmb2_write, rtsmb2_cli_session_send_write, rtsmb2_cli_session_send_write_error_handler,rtsmb2_cli_session_receive_write,},
-  {jobTsmb2_open, rtsmb2_cli_session_send_open, rtsmb2_cli_session_send_error_handler,rtsmb2_cli_session_receive_open,},
-  {jobTsmb2_close, rtsmb2_cli_session_send_close, rtsmb2_cli_session_send_close_error_handler,rtsmb2_cli_session_receive_close,},
-  {jobTsmb2_seek, rtsmb2_cli_session_send_seek, rtsmb2_cli_session_send_seek_error_handler,rtsmb2_cli_session_receive_seek},
-  {jobTsmb2_truncate, rtsmb2_cli_session_send_truncate, rtsmb2_cli_session_send_truncate_error_handler,rtsmb2_cli_session_receive_truncate,},
-  {jobTsmb2_flush, rtsmb2_cli_session_send_flush, rtsmb2_cli_session_send_flush_error_handler,rtsmb2_cli_session_receive_flush,},
-  {jobTsmb2_rename, rtsmb2_cli_session_send_rename, rtsmb2_cli_session_send_rename_error_handler,rtsmb2_cli_session_receive_rename,},
-  {jobTsmb2_delete, rtsmb2_cli_session_send_delete, rtsmb2_cli_session_send_delete_error_handler,rtsmb2_cli_session_receive_delete,},
-  {jobTsmb2_mkdir, rtsmb2_cli_session_send_mkdir, rtsmb2_cli_session_send_mkdir_error_handler,rtsmb2_cli_session_receive_mkdir,},
-  {jobTsmb2_rmdir, rtsmb2_cli_session_send_rmdir, rtsmb2_cli_session_send_rmdir_error_handler,rtsmb2_cli_session_receive_rmdir,},
-  {jobTsmb2_find_first, rtsmb2_cli_session_send_find_first, rtsmb2_cli_session_send_error_handler,rtsmb2_cli_session_receive_find_first,},
-  {jobTsmb2_find_close, rtsmb2_cli_session_send_find_close, rtsmb2_cli_session_send_find_close_error_handler,rtsmb2_cli_session_receive_find_close,},
-  {jobTsmb2_stat, rtsmb2_cli_session_send_stat, rtsmb2_cli_session_send_stat_error_handler,rtsmb2_cli_session_receive_stat,},
-  {jobTsmb2_chmode, rtsmb2_cli_session_send_chmode, rtsmb2_cli_session_send_chmode_error_handler,rtsmb2_cli_session_receive_chmode,},
-  {jobTsmb2_full_server_enum, rtsmb2_cli_session_send_full_server_enum, rtsmb2_cli_session_send_full_server_enum_error_handler,rtsmb2_cli_session_receive_full_server_enum,},
-  {jobTsmb2_get_free, rtsmb2_cli_session_send_get_free, rtsmb2_cli_session_send_get_free_error_handler,rtsmb2_cli_session_receive_get_free,},
-  {jobTsmb2_share_find_first, rtsmb2_cli_session_send_share_find_first, rtsmb2_cli_session_send_share_find_first_error_handler,rtsmb2_cli_session_receive_share_find_first,},
-  {jobTsmb2_server_enum, rtsmb2_cli_session_send_server_enum, rtsmb2_cli_session_send_server_enum_error_handler,rtsmb2_cli_session_receive_server_enum,},
-//  {jobTsmb2_is_term, 0,0,0},
+  {jobTsmb2_tree_connect,     0, rtsmb2_cli_session_send_tree_connect    , rtsmb2_cli_session_send_tree_connect_error_handler,rtsmb2_cli_session_receive_tree_connect},
+  {jobTsmb2_session_setup,    0, rtsmb2_cli_session_send_session_setup   , rtsmb2_cli_session_send_session_setup_error_handler,rtsmb2_cli_session_receive_session_setup,},
+  {jobTsmb2_logoff,           0, rtsmb2_cli_session_send_logoff          , rtsmb2_cli_session_send_logoff_error_handler,rtsmb2_cli_session_receive_logoff,},
+  {jobTsmb2_tree_disconnect,  0, rtsmb2_cli_session_send_tree_disconnect , rtsmb2_cli_session_send_tree_disconnect_error_handler,rtsmb2_cli_session_receive_tree_disconnect,},
+
+//  {jobTsmb2_read, rtsmb2_cli_session_send_read, rtsmb2_cli_session_send_read_error_handler,rtsmb2_cli_session_receive_read,},
+//  {jobTsmb2_write, rtsmb2_cli_session_send_write, rtsmb2_cli_session_send_write_error_handler,rtsmb2_cli_session_receive_write,},
+//  {jobTsmb2_open, rtsmb2_cli_session_send_open, rtsmb2_cli_session_send_error_handler,rtsmb2_cli_session_receive_open,},
+//  {jobTsmb2_close, rtsmb2_cli_session_send_close, rtsmb2_cli_session_send_close_error_handler,rtsmb2_cli_session_receive_close,},
+//  {jobTsmb2_seek, rtsmb2_cli_session_send_seek, rtsmb2_cli_session_send_seek_error_handler,rtsmb2_cli_session_receive_seek},
+//  {jobTsmb2_truncate, rtsmb2_cli_session_send_truncate, rtsmb2_cli_session_send_truncate_error_handler,rtsmb2_cli_session_receive_truncate,},
+//  {jobTsmb2_flush, rtsmb2_cli_session_send_flush, rtsmb2_cli_session_send_flush_error_handler,rtsmb2_cli_session_receive_flush,},
+//  {jobTsmb2_rename, rtsmb2_cli_session_send_rename, rtsmb2_cli_session_send_rename_error_handler,rtsmb2_cli_session_receive_rename,},
+//  {jobTsmb2_delete, rtsmb2_cli_session_send_delete, rtsmb2_cli_session_send_delete_error_handler,rtsmb2_cli_session_receive_delete,},
+//  {jobTsmb2_mkdir, rtsmb2_cli_session_send_mkdir, rtsmb2_cli_session_send_mkdir_error_handler,rtsmb2_cli_session_receive_mkdir,},
+//  {jobTsmb2_rmdir, rtsmb2_cli_session_send_rmdir, rtsmb2_cli_session_send_rmdir_error_handler,rtsmb2_cli_session_receive_rmdir,},
+
+  {jobTsmb2_find_first,       0, rtsmb2_cli_session_send_find_first      , rtsmb2_cli_session_send_error_handler,rtsmb2_cli_session_receive_find_first,},
+  {jobTsmb2_find_close,       0, rtsmb2_cli_session_send_find_close      , rtsmb2_cli_session_send_find_close_error_handler,rtsmb2_cli_session_receive_find_close,},
+
+//  {jobTsmb2_stat, rtsmb2_cli_session_send_stat, rtsmb2_cli_session_send_stat_error_handler,rtsmb2_cli_session_receive_stat,},
+//  {jobTsmb2_chmode, rtsmb2_cli_session_send_chmode, rtsmb2_cli_session_send_chmode_error_handler,rtsmb2_cli_session_receive_chmode,},
+//  {jobTsmb2_full_server_enum, rtsmb2_cli_session_send_full_server_enum, rtsmb2_cli_session_send_full_server_enum_error_handler,rtsmb2_cli_session_receive_full_server_enum,},
+//  {jobTsmb2_get_free, rtsmb2_cli_session_send_get_free, rtsmb2_cli_session_send_get_free_error_handler,rtsmb2_cli_session_receive_get_free,},
+//  {jobTsmb2_share_find_first, rtsmb2_cli_session_send_share_find_first, rtsmb2_cli_session_send_share_find_first_error_handler,rtsmb2_cli_session_receive_share_find_first,},
+//  {jobTsmb2_server_enum, rtsmb2_cli_session_send_server_enum, rtsmb2_cli_session_send_server_enum_error_handler,rtsmb2_cli_session_receive_server_enum,},
 
 };
-
-#if (0)
-#define COMMAND_OR_REPLY_SIZE_MAX_OCTETS 512 // 2048 byes on 8 byte boudary
-
-typedef int   (* pDataSourceFn_t) (void *pargs, void *ptobuffer, int max_size); // for example a wrapper for read
-typedef dword (* pDataSinkFn_t)   (void *pargs, void *pfrbuffer, int max_size); // for example a wrapper for write
-
-#define NBSS_HEADER_SIZE  5 // type:size == 1:4
-#define SMB2_HEADER_SIZE 64
-
-#define NBSS_HEADER_OFFSET 0
-#define SMB2_HEADER_OFFSET (NBSS_HEADER_OFFSET+NBSS_HEADER_SIZE)
-#define SMB2_COMMAND_OFFSET (SMB2_HEADER_OFFSET+SMB2_HEADER_SIZE)
-
-class Smb2ClientMessageExchange {
-  public:
-    Smb2ClientMessageExchange()
-    {
-      std::cout << "Default contructor *****" << std::endl;
-    }
-    Smb2ClientMessageExchange(smb2_iostream  *_psmb2stream,  word  _command_id,  const char *_command_name,  int  _command_size, int _reply_size) {
-     command_id=_command_id;command_name =_command_name; command_size =_command_size; response_size =_reply_size ;
-       construct_smb2_header();
-
-    }
-    const char *get_command_name()     { return command_name; };
-    void *output_buffer_nbss_header()
-    {
-       return (void *) ((byte *)_fixed_output_buffer);
-    }
-    void *output_buffer_psmb2_header()
-    {
-       return (void *) ((byte *)_fixed_output_buffer)+SMB2_HEADER_OFFSET;
-    }
-    void *output_buffer_pcommand_packet()
-    {
-       return (void *) ((byte *)_fixed_output_buffer)+SMB2_COMMAND_OFFSET;
-    }
-    void *input_buffer_nbss_header()
-    {
-       return (void *) ((byte *)_fixed_input_buffer);
-    }
-    void *input_buffer_psmb2_header()
-    {
-       return (void *) ((byte *)_fixed_input_buffer)+SMB2_HEADER_OFFSET;
-    }
-    void *input_buffer_pcommand_packet()
-    {
-       return (void *) ((byte *)_fixed_input_buffer)+SMB2_COMMAND_OFFSET;
-    }
-
-private:
-    ddword  _fixed_input_buffer[COMMAND_OR_REPLY_SIZE_MAX_OCTETS];       //   Header:Command:Varargs
-    ddword  _fixed_output_buffer[COMMAND_OR_REPLY_SIZE_MAX_OCTETS];// Header:Command:command_args
-
-protected:
-    smb2_iostream  *pSmbstream=0;
-    const char *command_name;                           // never changes after set by the constructor
-    word  command_id;                                   // never changes after set by the constructor
-    int   command_size;                                 // never changes after set by the constructor
-
-    int   command_args_size;                            // Set by the send routine. How many parameter bytes
-    // If a source function is provided (like for writing to file
-    dword command_var_args_size;                        // Set by the send routine. How many bytes to retrieve from callback
-    void  *command_data_source_function_params;            // Set by the send routine. conext for callback
-    pDataSourceFn_t  command_data_source_function=0;       // Function must source command_var_args_size bytes
-    RTSMB_NBSS_HEADER  nbss_Hdr;
-    RTSMB2_HEADER      out_Hdr;
-
-    int   response_size;                                //   never changes after set by the constructor
-    int   response_args_size;                           //   pulled from the reponse by receive_fixed_input_handler()
-
-    void  *command_data_sink_function_params;          // Set by the send routine. context for callback
-    pDataSinkFn_t    command_data_sink_function=0;     // Function must source command_var_args_size bytesvariable_output_sourcefN=0;       // Passed from the API think for write(),
-
-    virtual int send_command() = 0;
-
-    virtual int push_output_buffer            () {return RTSMB_CLI_SSN_RV_OK;};
-    virtual int push_output_buffer_with_args  (int arglen) {return RTSMB_CLI_SSN_RV_OK;};
-    virtual int push_data_source              () {return RTSMB_CLI_SSN_RV_OK;};
-    virtual int error_handler                 () {return RTSMB_CLI_SSN_RV_OK;};
-    virtual int pull_input_buffer             () {return RTSMB_CLI_SSN_RV_OK;};
-    virtual int pull_input_to_sink            () {return RTSMB_CLI_SSN_RV_OK;};
-
-    void construct_nbss_header()
-    {
-	  nbss_Hdr.type = RTSMB_NBSS_COM_MESSAGE;
-	  nbss_Hdr.size = 0;
-    }
-    void construct_smb2_header()
-    {
-      tc_memset((void*)&out_Hdr, 0, sizeof(out_Hdr));
-      tc_memcpy((void*)&out_Hdr.ProtocolId,"\xfeSMB",4);
-      out_Hdr.StructureSize=64;
-      out_Hdr.CreditCharge = 0;
-      out_Hdr.Status_ChannelSequenceReserved=0; /*  (4 bytes): */
-      out_Hdr.Command = command_id;
-      out_Hdr.CreditRequest_CreditResponse = 0;
-      out_Hdr.Flags = 0;
-      out_Hdr.NextCommand = 0;
-#warning mid64 missing
-//      out_Hdr.MessageId = pSmbstream->pBuffer->mid64;
-      out_Hdr.SessionId = pSmbstream->pSession->server_info.smb2_session_id;
-      out_Hdr.Reserved=0;
-      out_Hdr.TreeId=0;
-      tc_strcpy((char *)out_Hdr.Signature,"IAMTHESIGNATURE");
-    }
-
-};
-class Smb2ClientNegotiateMessageExchange : public Smb2ClientMessageExchange {
-  public:
-    Smb2ClientNegotiateMessageExchange(smb2_iostream  *_psmb2stream)
-       : Smb2ClientMessageExchange(_psmb2stream,SMB2_NEGOTIATE, "NEGOTIATE" , 36,64)
-    {
-      std::cout << "Smb2ClientNegotiateMessageExchange contructor *****" << std::endl;
-    }
-  private:
-    RTSMB2_NEGOTIATE_C command_pkt;
-    RTSMB2_NEGOTIATE_R response_pkt;
-    int send_command()
-    {
-      command_pkt.StructureSize       = command_size; // 36;
-      command_pkt.DialectCount        = 2;
-      command_pkt.SecurityMode        = SMB2_NEGOTIATE_SIGNING_ENABLED;
-      command_pkt.Reserved            = 0;
-      command_pkt.Capabilities        = 0; // SMB2_GLOBAL_CAP_DFS  et al
-      tc_strcpy((char *)command_pkt.guid, "IAMTHEGUID     ");
-      command_pkt.ClientStartTime    = 0; // rtsmb_util_get_current_filetime();  // ???  TBD
-      /* GUID is zero for SMB2002 */
-      // tc_memset(command_pkt.ClientGuid, 0, 16);
-      command_pkt.Dialects[0] = SMB2_DIALECT_2002;         // These 4 bytes are beyond the command packet
-      command_pkt.Dialects[1] = SMB2_DIALECT_2100;
-
-      RTSMB2_NEGOTIATE_C *pcommand_pkt = (RTSMB2_NEGOTIATE_C *) output_buffer_pcommand_packet();
-      *pcommand_pkt = command_pkt;
-
-      return Smb2ClientMessageExchange::push_output_buffer_with_args(4);
-    } // {return RTSMB_CLI_SSN_RV_OK;};
-
-    int recv_response()
-    {
-       RTSMB2_NEGOTIATE_R *reply_pkt = (RTSMB2_NEGOTIATE_R *) input_buffer_pcommand_packet();
-       pull_input_buffer();
-    }
-};
-#endif
 
 extern void include_wiretests();
 void InitSmbCmdToCmdObjectTable();

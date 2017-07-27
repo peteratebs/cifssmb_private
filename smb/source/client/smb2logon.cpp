@@ -24,23 +24,8 @@ int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSess
 }
 
 static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
-static int _rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer);
 
 
-extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *pStream)
-{
-  NetStreamBuffer    SendBuffer;
-  struct             SocketContext sockContext;
-
-  SendBuffer.pStream = pStream;
-
-  sockContext.socket = pStream->pSession->wire.socket;
-  DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
-
-  SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
-  SendBuffer.attach_sink(&SocketSink);
-  return _rtsmb2_cli_session_send_negotiate (SendBuffer);
-}
 
 
 class SmbLogonWorker {
@@ -92,7 +77,7 @@ extern "C" int do_logon_server_worker(int sid,  byte *user_name, byte *password,
 }
 
 
-extern int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 
 
@@ -109,7 +94,8 @@ extern int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStre
 
 
 
-static int _rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
+
+static int rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
 {
     int send_status;
     dword variable_content_size = (dword)2*sizeof(word);
@@ -225,9 +211,19 @@ PRTSMB2_NEGOTIATE_R pResponse = (PRTSMB2_NEGOTIATE_R) pItem;
     return RtsmbWireVarDecode (pStream, origin, buf, size, pResponse->SecurityBufferOffset, pResponse->SecurityBufferLength, pResponse->StructureSize);
 }
 
+extern void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink);
 
-extern "C" int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream);
-int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
+static int new_rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
+{
+  NetStreamBuffer    SendBuffer;
+  struct             SocketContext sockContext;
+  DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
+  rtsmb2_smb2_iostream_to_streambuffer(pStream, SendBuffer, sockContext, SocketSink);
+  return RTSMB_CLI_SSN_RV_OK;
+
+}
+
+static int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
 {
 int recv_status = RTSMB_CLI_SSN_RV_OK;
 RTSMB2_NEGOTIATE_R response_pkt;
@@ -324,3 +320,7 @@ Indented means accounted for
 #endif
     return recv_status;
 }
+
+// Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
+c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0,rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate};
+c_smb2cmdobject *get_negotiateobject() { return &negotiateobject;};
