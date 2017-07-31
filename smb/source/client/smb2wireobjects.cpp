@@ -73,7 +73,49 @@ void NetSmb2NegotiateCmd::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(Dialect3);
 }
 
+void NetSmb2NegotiateReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 65
+  BINDPOINTERS(SecurityMode);
+  BINDPOINTERS(DialectRevision);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(ServerGuid);
+  BINDPOINTERS(Capabilities);
+  BINDPOINTERS(MaxTransactSize);
+  BINDPOINTERS(MaxReadSize);
+  BINDPOINTERS(MaxWriteSize);
+  BINDPOINTERS(SystemTime);
+  BINDPOINTERS(ServerStartTime);
+  BINDPOINTERS(SecurityBufferOffset);
+  BINDPOINTERS(SecurityBufferLength);
+  BINDPOINTERS(Reserved2);
+  BINDPOINTERS(SecurityBuffer);      // Variable part starts here
+}
 
+void NetSmb2SetupCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 25
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(SecurityMode);
+  BINDPOINTERS(Capabilities);
+  BINDPOINTERS(Channel);
+  BINDPOINTERS(SecurityBufferOffset);
+  BINDPOINTERS(SecurityBufferLength);
+  BINDPOINTERS(PreviousSessionId);
+  BINDPOINTERS(Buffer);
+}
+
+void NetSmb2SetupReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 9
+  BINDPOINTERS(SessionFlags);
+  BINDPOINTERS(SecurityBufferOffset);
+  BINDPOINTERS(SecurityBufferLength);
+  BINDPOINTERS(Buffer);
+}
 
 
 #endif /* INCLUDE_RTSMB_CLIENT */

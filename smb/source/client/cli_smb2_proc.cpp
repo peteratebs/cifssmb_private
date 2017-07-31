@@ -597,7 +597,7 @@ int rtsmb2_cli_session_send_find_first (smb2_iostream  *pStream)
     int send_status;
     tc_memset(&command_pkt, 0, sizeof(command_pkt));
 
-
+cout << "Top Send Find first !!!!!" << endl;
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Session == %X \n",(int)pStream->pSession);
 
     rtsmb2_cli_session_init_header (pStream, SMB2_QUERY_DIRECTORY, (ddword) pStream->pBuffer->mid,pStream->pSession->server_info.smb2_session_id);
@@ -894,6 +894,8 @@ int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
 {
 //   pStream->pSession;       // For a client. points to the controlling SMBV1 session structure.
 //   pStream->pJob;
+cout << "Top Send Find close !!!!!" << endl;
+
 
    /*Make sure we free any buffering we left */
    rtsmb2_cli_session_free_dir_query_buffer (pStream);
@@ -906,10 +908,12 @@ int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
 
 typedef struct c_jobobject_t
 {
-    int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
-    int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
-    int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
-    int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
+  int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
+  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+  int (*new_error_handler_smb2) (NetStreamBuffer &SendBuffer);
+  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+  int (*new_receive_handler_smb2) (NetStreamBuffer &SendBuffer);
+  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
 } c_jobobject;
 
 typedef std::map <jobTsmb2 , c_jobobject *> CmdToJobObject_t;
@@ -973,6 +977,10 @@ int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *pStream) {return RTS
 // static int rtsmb2_cli_session_send_negotiate_error_handler (smb2_iostream  *pStream) {  return rtsmb2_cli_session_error_handler_base(pStream);}
 default_error_handler(rtsmb2_cli_session_send_logoff_error_handler)
 default_error_handler(rtsmb2_cli_session_send_tree_disconnect_error_handler)
+default_error_handler(rtsmb2_cli_session_send_error_handler)
+default_error_handler(rtsmb2_cli_session_send_find_close_error_handler)
+
+#if (0)
 default_error_handler(rtsmb2_cli_session_send_read_error_handler)
 default_error_handler(rtsmb2_cli_session_send_write_error_handler)
 default_error_handler(rtsmb2_cli_session_send_error_handler)
@@ -985,13 +993,13 @@ default_error_handler(rtsmb2_cli_session_send_delete_error_handler)
 default_error_handler(rtsmb2_cli_session_send_mkdir_error_handler)
 default_error_handler(rtsmb2_cli_session_send_rmdir_error_handler)
 // default_error_handler(rtsmb2_cli_session_send_error_handler)
-default_error_handler(rtsmb2_cli_session_send_find_close_error_handler)
 default_error_handler(rtsmb2_cli_session_send_stat_error_handler)
 default_error_handler(rtsmb2_cli_session_send_chmode_error_handler)
 default_error_handler(rtsmb2_cli_session_send_full_server_enum_error_handler)
 default_error_handler(rtsmb2_cli_session_send_get_free_error_handler)
 default_error_handler(rtsmb2_cli_session_send_share_find_first_error_handler)
 default_error_handler(rtsmb2_cli_session_send_server_enum_error_handler)
+#endif
 
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
@@ -1000,10 +1008,10 @@ static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 {
 // See SmbCmdToCmdObjectTable for commands that are succesfully converted to CPP. These are routed through SmbCmdToCmdObjectTable instead of CmdToJobObjectTable.
 //  {jobTsmb2_negotiate,{ rtsmb2_cli_session_send_negotiate, rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate}},
-  {jobTsmb2_tree_connect,     0, rtsmb2_cli_session_send_tree_connect    , rtsmb2_cli_session_send_tree_connect_error_handler,rtsmb2_cli_session_receive_tree_connect},
-  {jobTsmb2_session_setup,    0, rtsmb2_cli_session_send_session_setup   , rtsmb2_cli_session_send_session_setup_error_handler,rtsmb2_cli_session_receive_session_setup,},
-  {jobTsmb2_logoff,           0, rtsmb2_cli_session_send_logoff          , rtsmb2_cli_session_send_logoff_error_handler,rtsmb2_cli_session_receive_logoff,},
-  {jobTsmb2_tree_disconnect,  0, rtsmb2_cli_session_send_tree_disconnect , rtsmb2_cli_session_send_tree_disconnect_error_handler,rtsmb2_cli_session_receive_tree_disconnect,},
+  {jobTsmb2_tree_connect,     0, rtsmb2_cli_session_send_tree_connect    , 0,rtsmb2_cli_session_send_tree_connect_error_handler    ,0,rtsmb2_cli_session_receive_tree_connect},
+  {jobTsmb2_session_setup,    0, rtsmb2_cli_session_send_session_setup   , 0,rtsmb2_cli_session_send_session_setup_error_handler   ,0,rtsmb2_cli_session_receive_session_setup},
+  {jobTsmb2_logoff,           0, rtsmb2_cli_session_send_logoff          , 0,rtsmb2_cli_session_send_logoff_error_handler          ,0,rtsmb2_cli_session_receive_logoff,},
+  {jobTsmb2_tree_disconnect,  0, rtsmb2_cli_session_send_tree_disconnect , 0,rtsmb2_cli_session_send_tree_disconnect_error_handler ,0,rtsmb2_cli_session_receive_tree_disconnect},
 
 //  {jobTsmb2_read, rtsmb2_cli_session_send_read, rtsmb2_cli_session_send_read_error_handler,rtsmb2_cli_session_receive_read,},
 //  {jobTsmb2_write, rtsmb2_cli_session_send_write, rtsmb2_cli_session_send_write_error_handler,rtsmb2_cli_session_receive_write,},
@@ -1017,9 +1025,8 @@ static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 //  {jobTsmb2_mkdir, rtsmb2_cli_session_send_mkdir, rtsmb2_cli_session_send_mkdir_error_handler,rtsmb2_cli_session_receive_mkdir,},
 //  {jobTsmb2_rmdir, rtsmb2_cli_session_send_rmdir, rtsmb2_cli_session_send_rmdir_error_handler,rtsmb2_cli_session_receive_rmdir,},
 
-  {jobTsmb2_find_first,       0, rtsmb2_cli_session_send_find_first      , rtsmb2_cli_session_send_error_handler,rtsmb2_cli_session_receive_find_first,},
-  {jobTsmb2_find_close,       0, rtsmb2_cli_session_send_find_close      , rtsmb2_cli_session_send_find_close_error_handler,rtsmb2_cli_session_receive_find_close,},
-
+  {jobTsmb2_find_first,       0, rtsmb2_cli_session_send_find_first      , 0, rtsmb2_cli_session_send_error_handler                ,0,rtsmb2_cli_session_receive_find_first,},
+  {jobTsmb2_find_close,       0, rtsmb2_cli_session_send_find_close      , 0, rtsmb2_cli_session_send_find_close_error_handler     ,0,rtsmb2_cli_session_receive_find_close,},
 //  {jobTsmb2_stat, rtsmb2_cli_session_send_stat, rtsmb2_cli_session_send_stat_error_handler,rtsmb2_cli_session_receive_stat,},
 //  {jobTsmb2_chmode, rtsmb2_cli_session_send_chmode, rtsmb2_cli_session_send_chmode_error_handler,rtsmb2_cli_session_receive_chmode,},
 //  {jobTsmb2_full_server_enum, rtsmb2_cli_session_send_full_server_enum, rtsmb2_cli_session_send_full_server_enum_error_handler,rtsmb2_cli_session_receive_full_server_enum,},

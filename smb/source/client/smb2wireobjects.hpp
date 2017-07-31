@@ -86,7 +86,7 @@ public:
     Signature = (byte *)"IAMTHESIGNATURE";
   }
   int  FixedStructureSize()  { return 64; };
-  byte *FixedStructureAddress() { return 0; };
+  byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 
   NetStatus push_output(NetStreamBuffer  &StreamBuffer)
@@ -129,6 +129,135 @@ private:
   void BindAddressClose(BindNetWireArgs & args) {};
   void BindAddressesToBuffer(byte *base);
 };
+
+class NetSmb2NegotiateReply  : public NetWireStruct   {
+public:
+  NetSmb2NegotiateReply() {objectsize=65; }
+    NetWireword StructureSize; // 65
+    NetWireword SecurityMode;
+    NetWireword DialectRevision;
+    NetWireword Reserved;
+    NetWireblob16 ServerGuid;
+    NetWiredword Capabilities;
+    NetWiredword MaxTransactSize;
+    NetWiredword MaxReadSize;
+    NetWiredword MaxWriteSize;
+    NetWireddword SystemTime;
+    NetWireddword ServerStartTime;
+    NetWireword SecurityBufferOffset;
+    NetWireword SecurityBufferLength;
+    NetWiredword Reserved2;
+    NetWirebyte  SecurityBuffer;      // Variable part starts here
+
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return 0; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2SetupCmd  : public NetWireStruct   {
+public:
+  NetSmb2SetupCmd() {objectsize=25; }
+    NetWireword  StructureSize; // 25
+    NetWirebyte  Flags;
+    NetWirebyte  SecurityMode;
+    NetWiredword Capabilities;
+    NetWiredword Channel;
+    NetWireword SecurityBufferOffset;
+    NetWireword  SecurityBufferLength;
+    NetWireddword PreviousSessionId;
+    NetWirebyte  Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2SetupReply  : public NetWireStruct   {
+public:
+  NetSmb2SetupReply() {objectsize=9; }
+    NetWireword  StructureSize; // 9
+    NetWireword  SessionFlags;
+    NetWireword  SecurityBufferOffset;
+    NetWireword  SecurityBufferLength;
+    NetWirebyte  Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+template <class T>
+class NetSmb2NBSSReply {
+public:
+  NetSmb2NBSSReply(word command, NetStreamBuffer &_ReplyBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
+  {
+    ReplyBuffer=&_ReplyBuffer; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
+    isvariable = false; base_address=0; variablesize=0;
+    byte *nbsshead =  ReplyBuffer->peek_input();
+    byte *nbsstail  = nbsshead+4;
+    byte *cmdtail =   bindpointers(nbsshead);
+    status=RTSMB_CLI_SSN_RV_OK;
+
+
+//    if (nbss->push_output(*ReplyBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+//    if (smb2->push_output(*ReplyBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+
+
+//    if (nbss->pull_output(*SendBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+//    if (smb2->pull_output(*SendBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+
+  }
+  int status;
+  // Cloned from NetWireStruct()
+  int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  reply->FixedStructureSize();};
+  void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
+  NetStatus push_output(NetStreamBuffer  &StreamBuffer)
+  {
+    return StreamBuffer.push_output(base_address, objectsize+variablesize);
+  }
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       byte *nbsshead = ReplyBuffer->pStream->pSession->wire.incoming_nbss_header;
+       byte *nbsstail =nbss->bindpointers(nbsshead);
+       byte *smbtail = smb2->bindpointers(base_address);
+       byte *replytail = reply->bindpointers(smbtail);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  private:
+     T                  *reply;
+     NetStreamBuffer    *ReplyBuffer;
+     NetNbssHeader       *nbss;
+     NetSmb2Header       *smb2;
+     byte *base_address;
+     bool isvariable;
+     dword objectsize;
+     dword variablesize;
+};
+
 
 
 
@@ -179,7 +308,7 @@ public:
 
   // Cloned from NetWireStruct()
   int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();};
-  void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
+  void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize; };
   NetStatus push_output(NetStreamBuffer  &StreamBuffer)
   {
     return StreamBuffer.push_output(base_address, objectsize+variablesize);

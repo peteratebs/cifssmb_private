@@ -58,6 +58,7 @@ typedef enum jobTsmb2_t {
   jobTsmb2_negotiate,
   jobTsmb2_tree_connect,
   jobTsmb2_session_setup,
+  jobTsmb2_session_setup_phase_2,
   jobTsmb2_logoff,
   jobTsmb2_tree_disconnect,
   jobTsmb2_read,

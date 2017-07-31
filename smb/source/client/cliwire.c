@@ -878,6 +878,8 @@ int rtsmb_cli_wire_read (PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL,"rtsmb_cli_wire_read: rtsmb_nbss_read_header failed !!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                 return -4;
             }
+            // Save the nbss header for smb2 which want it
+            tc_memcpy (pSession->incoming_nbss_header,pSession->temp_buffer,4);
 
             pSession->reading = TRUE;
             pSession->total_to_read = message.size;
@@ -1015,7 +1017,7 @@ Get_Wire_Session_State(DEAD);
  *  -1 if we timed out
  *  -2 if an error occurred
  */
-int rtsmb_cli_wire_cycle (PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
+int rtsmb_cli_wire_cycle ( PRTSMB_CLI_SESSION pClientSession, PRTSMB_CLI_WIRE_SESSION pSession, long timeout)
 {
     return rtsmb_cli_wire_read (pSession, timeout);
 }

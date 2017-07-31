@@ -70,7 +70,9 @@ typedef struct c_smb2cmdobject_t
 {
   int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
   int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+  int (*new_error_handler_smb2) (NetStreamBuffer &SendBuffer);
   int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+  int (*new_receive_handler_smb2) (NetStreamBuffer &SendBuffer);
   int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
 } c_smb2cmdobject;
 

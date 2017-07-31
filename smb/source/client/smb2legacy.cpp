@@ -23,6 +23,8 @@
 
 // SmbCmdToCmdObjectTable[] has links to functions that load stream interfaces for the commands.
 extern c_smb2cmdobject *get_negotiateobject();
+extern c_smb2cmdobject *get_setupobject();
+extern c_smb2cmdobject *get_setupphase_2object();
 
 // Need one of each of these
 extern c_smb2cmdobject *get_tree_connectobject();
@@ -50,6 +52,16 @@ extern c_smb2cmdobject *get_share_find_firstobject();
 extern c_smb2cmdobject *get_server_enumobject();
 
 
+extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStream)
+{
+  if (pStream->InHdr.Status_ChannelSequenceReserved==0)
+    return TRUE;
+  else if (pStream->InHdr.Status_ChannelSequenceReserved == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+    return TRUE;
+  else
+    return FALSE;
+}
+
 
 
 /// ===============================
@@ -71,7 +83,10 @@ extern CmdToJobObject_t glCmdToJobObject;
 
 static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
 {
- {SMB2_NEGOTIATE, get_negotiateobject, 0}, // &negotiateobject},
+ {jobTsmb2_negotiate              ,  get_negotiateobject, 0},
+ {jobTsmb2_session_setup          ,  get_setupobject, 0},
+ {jobTsmb2_session_setup_phase_2  ,  get_setupphase_2object, 0},
+
 };
 void InitSmbCmdToCmdObjectTable()
 {
@@ -82,14 +97,20 @@ void InitSmbCmdToCmdObjectTable()
 
 void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
 {
-
   SendBuffer.pStream = pStream;
 
   sockContext.socket = pStream->pSession->wire.socket;
 
-
   SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
   SendBuffer.attach_sink(&SocketSink);
+}
+
+void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
+{
+  ReplyBuffer.pStream = pStream;
+//  sockContext.socket = pStream->pSession->wire.socket;
+  ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size);
+  //ReplyBuffer.attach_source(&SocketSource);
 }
 
 extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
@@ -117,12 +138,21 @@ extern "C" int rtsmb_cli_wire_receive_handler_smb2(smb2_iostream  *pStream)     
 {
 int r = RTSMB_CLI_SSN_RV_OK;
 
-  printf("Yo search job: %d \n", pStream->pJob->smb2_jobtype);
-  if (glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
+  if (glSmbCmdToCmdObject.find(pStream->pJob->smb2_jobtype) != glSmbCmdToCmdObject.end() )
+  {
+    NetStreamBuffer    SendBuffer;
+    struct             SocketContext sockContext;
+//    DataSinkDevtype SocketSource(socket_sink_function, (void *)&sockContext);
+    rtsmb2_smb2_iostream_to_input_streambuffer(pStream, SendBuffer);
+
+    if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_receive_handler_smb2)
+      r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_receive_handler_smb2(SendBuffer);
+    else
+      r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
+  }
   else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
   {
-     r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
+    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
   }
   return r;
 }
@@ -130,9 +160,18 @@ int r = RTSMB_CLI_SSN_RV_OK;
 extern "C" int rtsmb_cli_wire_error_handler_smb2(smb2_iostream  *pStream)       // Called from rtsmb_cli_session_handle_job_smb2
 {
 int r = RTSMB_CLI_SSN_RV_OK;
-  if (glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
+  if (glSmbCmdToCmdObject.find(pStream->pJob->smb2_jobtype) != glSmbCmdToCmdObject.end() )
+  {
+   NetStreamBuffer    SendBuffer;
+   struct             SocketContext sockContext;
+   DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
+   rtsmb2_smb2_iostream_to_streambuffer(pStream, SendBuffer, sockContext, SocketSink);
+
+   if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_error_handler_smb2)
+      r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_error_handler_smb2(SendBuffer);
+   else if (glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
      r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
+  } else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
     r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->error_handler_smb2(pStream);
   return r;
 }

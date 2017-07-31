@@ -24,8 +24,7 @@ int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSess
 }
 
 static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
-
-
+extern void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink);
 
 
 class SmbLogonWorker {
@@ -37,15 +36,23 @@ public:
   };
   int go()
   {
+      if (prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server)
+      {
+        rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server); // boiler plate, ignore not_defined_in_RFC4178@please_ignore
+        prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server = 0;
+      }
+
       int r = rtsmb_cli_session_logon_user_rt_cpp (sid, user_name, password, domain);
 
       if(r < 0) return 0;
+      cout << "SmbLogonWorker waiting for setup " << r << endl;
       r = wait_on_job_cpp(sid, r);
       if(r < 0) return 0;
       if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
       {
          decoded_NegTokenTarg_challenge_t decoded_targ_token;
-         r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
+         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
+
          if (r == 0)
          {
              r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain, // Does a send/wait
@@ -79,22 +86,6 @@ extern "C" int do_logon_server_worker(int sid,  byte *user_name, byte *password,
 
 static int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
-
-
-// part of this chain.
-// do_logon_server_worker()
-//   >> int rtsmb_cli_session_logon_user (int sid, PFCHAR user, PFCHAR password, PFCHAR domain) >>
-//       >>int rtsmb_cli_session_logon_user_rt (int sid, PFRTCHAR user, PFCHAR password, PFRTCHAR domain)    >> rtsmb2_cli_session_send_negotiate()
-//  r = wait_on_job(sid, r);
-//   >> rtsmb_cli_session_ntlm_auth
-//       rtsmb_cli_session_send_session_extended_logon
-//  r = send_stalled_jobs(sid, r);
-//       recv extended logon finishes it
-
-
-
-
-
 static int rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
 {
     int send_status;
@@ -118,10 +109,184 @@ static int rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
       if (Smb2NegotiateCmd.push_output(SendBuffer) != NetStatusOk)
          return RTSMB_CLI_SSN_RV_DEAD;
     }
+    SendBuffer.pStream->pJob->data.session_setup.user_struct = &SendBuffer.pStream->pSession->user;  // gross.
+    Smb2NBSSCmd.flush();
+    return Smb2NBSSCmd.status;
+}
+static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
+{
+//    int send_status;
+  dword in_variable_content_size = 0;
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+  NetSmb2NegotiateReply Smb2NegotiateReply;
+  NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, ReplyBuffer,                InNbssHeader,InSmb2Header, Smb2NegotiateReply);
+
+  if (Smb2NegotiateReply.SecurityBufferLength.get()&&Smb2NegotiateReply.SecurityBufferLength.get() < 255)
+  {
+    PRTSMB_CLI_SESSION_JOB pJob=ReplyBuffer.pStream->pJob;
+
+    // Hack it isn't set up yet
+    ReplyBuffer.pStream->pSession->user.uid = 0;
+
+   pJob->data.session_setup.user_struct->spnego_blob_size_from_server = Smb2NegotiateReply.SecurityBufferLength.get();
+   pJob->data.session_setup.user_struct->spnego_blob_from_server = (byte *)rtp_malloc(Smb2NegotiateReply.SecurityBufferLength.get());
+   pJob->data.session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
+   tc_memcpy( pJob->data.session_setup.user_struct->spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2NegotiateReply.SecurityBufferOffset.get(), Smb2NegotiateReply.SecurityBufferLength.get());
+
+  }
+
+  cout << ">>>>> Security Offset: " << Smb2NegotiateReply.SecurityBufferOffset.get() << "Length: " << Smb2NegotiateReply.SecurityBufferLength.get() << endl;
+
+   ReplyBuffer.pStream->pSession->server_info.dialect =  (RTSMB_CLI_SESSION_DIALECT)Smb2NegotiateReply.DialectRevision.get();
+
+   // Get the maximum buffer size we can ever want to allocate and store it in buffer_size
+   {
+    dword maxsize =  Smb2NegotiateReply.MaxReadSize.get();
+    if (Smb2NegotiateReply.MaxWriteSize.get() >  maxsize)
+      maxsize = Smb2NegotiateReply.MaxWriteSize.get();
+    if (Smb2NegotiateReply.MaxTransactSize.get() >  maxsize)
+      maxsize = Smb2NegotiateReply.MaxTransactSize.get();
+    ReplyBuffer.pStream->pSession->server_info.buffer_size =  maxsize;
+    ReplyBuffer.pStream->pSession->server_info.raw_size   =   maxsize;
+   }
+   ReplyBuffer.pStream->read_buffer_remaining = 0;   // Fore the top layer to stop.
+   return RTSMB_CLI_SSN_RV_OK;
+}
+
+
+
+
+
+static int rtsmb2_cli_session_send_setup_with_blob (NetStreamBuffer &SendBuffer, byte *variable_content, dword variable_content_size)
+{
+    int send_status;
+    NetNbssHeader       OutNbssHeader;
+    NetSmb2Header       OutSmb2Header;
+    NetSmb2SetupCmd     Smb2SetupCmd;
+    NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
+    if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
+    {
+      Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
+      Smb2SetupCmd.Flags                =  0x0;
+      Smb2SetupCmd.SecurityMode         =  0x01;
+      Smb2SetupCmd.Capabilities         =  0;
+      Smb2SetupCmd.Channel              =  0;
+      Smb2SetupCmd.SecurityBufferOffset =  0x58;
+      Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
+      Smb2SetupCmd.PreviousSessionId    =  0;
+      Smb2SetupCmd.addto_variable_content(Smb2SetupCmd.SecurityBufferLength.get());
+      if (Smb2SetupCmd.push_output(SendBuffer) != NetStatusOk)
+         return RTSMB_CLI_SSN_RV_DEAD;
+      tc_memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset.get(), variable_content, variable_content_size);
+    }
     Smb2NBSSCmd.flush();
     return Smb2NBSSCmd.status;
 }
 
+// This is fixed negTokeninit, mechType1 ... see wireshark for decode
+static const byte setup_blob[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,
+0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0xd7,0x3a,0x00,0x00,0x00,0x0f};
+
+static int rtsmb2_cli_session_send_setup (NetStreamBuffer &SendBuffer)
+{
+  return rtsmb2_cli_session_send_setup_with_blob (SendBuffer,(byte *)setup_blob, sizeof(setup_blob));
+#if (0)
+    int send_status;
+    NetNbssHeader       OutNbssHeader;
+    NetSmb2Header       OutSmb2Header;
+    NetSmb2SetupCmd     Smb2SetupCmd;
+    dword variable_content_size = 74;
+    NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
+    if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
+    {
+      Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
+      Smb2SetupCmd.Flags                =  0x0;
+      Smb2SetupCmd.SecurityMode         =  0x01;
+      Smb2SetupCmd.Capabilities         =  0;
+      Smb2SetupCmd.Channel              =  0;
+      Smb2SetupCmd.SecurityBufferOffset =  0x58;
+      Smb2SetupCmd.SecurityBufferLength =  sizeof(setup_blob); // 74;
+      Smb2SetupCmd.PreviousSessionId    =  0;
+      Smb2SetupCmd.addto_variable_content(Smb2SetupCmd.SecurityBufferLength.get());
+      if (Smb2SetupCmd.push_output(SendBuffer) != NetStatusOk)
+         return RTSMB_CLI_SSN_RV_DEAD;
+      tc_memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset.get(), setup_blob, sizeof(setup_blob));
+    }
+    Smb2NBSSCmd.flush();
+    return Smb2NBSSCmd.status;
+#endif
+}
+
+static int rtsmb2_cli_session_receive_setup (NetStreamBuffer &ReplyBuffer)
+{
+//    int send_status;
+  dword in_variable_content_size = 0;
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+  NetSmb2SetupReply Smb2SetupReply;
+  NetSmb2NBSSReply<NetSmb2SetupReply> Smb2NBSSReply(SMB2_SESSION_SETUP, ReplyBuffer,                InNbssHeader,InSmb2Header, Smb2SetupReply);
+
+  cout << "session_receive_setup received packet" << endl;
+
+  if (InSmb2Header.Status_ChannelSequenceReserved.get() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+  {
+    cout << "didnt get SMB_NT_STATUS_MORE_PROCESSING_REQUIRED" << endl;
+  }
+  if (Smb2SetupReply.SecurityBufferLength.get()&&Smb2SetupReply.SecurityBufferLength.get() < 2048)
+  {
+    PRTSMB_CLI_SESSION_USER user_struct = &ReplyBuffer.pStream->pSession->user;
+    PRTSMB_CLI_SESSION_JOB pJob=ReplyBuffer.pStream->pJob;
+    user_struct->spnego_blob_size_from_server = Smb2SetupReply.SecurityBufferLength.get();
+    user_struct->spnego_blob_from_server = (byte *)rtp_malloc(Smb2SetupReply.SecurityBufferLength.get());
+    user_struct->state = CSSN_USER_STATE_CHALLENGED;
+    tc_memcpy( user_struct->spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset.get(), Smb2SetupReply.SecurityBufferLength.get());
+    pJob->data.session_setup.user_struct = user_struct;
+  }
+  cout << ">>>>> Security Offset: " << Smb2SetupReply.SecurityBufferOffset.get() << "Length: " << Smb2SetupReply.SecurityBufferLength.get() << endl;
+  return RTSMB_CLI_SSN_RV_OK;
+}
+static int rtsmb2_cli_session_send_setup_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+
+
+//  static /*const*/ char ntlmssp_str[] = "NTLMSSP";
+//  dword ntlmssp_type = 0x1;
+static /*const*/ char setup2_blob[] = "NTLMSSPYEAHBABYNOWWEARETALKING";
+
+static int rtsmb2_cli_session_receive_setupphase_2 (NetStreamBuffer &ReplyBuffer)
+{
+//    int send_status;
+  dword in_variable_content_size = 0;
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+  NetSmb2SetupReply Smb2SetupReply;
+  NetSmb2NBSSReply<NetSmb2SetupReply> Smb2NBSSReply(SMB2_SESSION_SETUP, ReplyBuffer,                InNbssHeader,InSmb2Header, Smb2SetupReply);
+
+  cout << "session_receive_setup received packet" << endl;
+
+  if (InSmb2Header.Status_ChannelSequenceReserved.get() !=  SMB_NT_STATUS_SUCCESS)
+  {
+    cout << "setup_phase2 didnt get SMB_NT_STATUS_SUCCESS" << endl;
+  }
+  // Spnego should be a negTokenTarg completed status but ignore it
+  // should be 9 bytes: this sequence a1073005a0030a0100
+  cout << "setup_phase2 spnego reply size is:  " << Smb2SetupReply.SecurityBufferLength.get() << endl;
+  PRTSMB_CLI_SESSION_USER user_struct = &ReplyBuffer.pStream->pSession->user;
+  user_struct->state = CSSN_USER_STATE_LOGGED_ON;
+  return RTSMB_CLI_SSN_RV_OK;
+}
+
+
+
+
+static int rtsmb2_cli_session_send_setupphase_2 (NetStreamBuffer &SendBuffer)
+{
+PRTSMB_CLI_SESSION_JOB pJob=SendBuffer.pStream->pJob;
+  // ntlm_response_blob was set up by rtsmb_cli_session_ntlm_auth which was called by dologonworker after recving the challenge
+  return rtsmb2_cli_session_send_setup_with_blob (SendBuffer,(byte *)pJob->data.ntlm_auth.ntlm_response_blob, pJob->data.ntlm_auth.ntlm_response_blob_size);
+}
+
+static int rtsmb2_cli_session_send_setupphase_2_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 // --------------------------------------------------------
 
 static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
@@ -156,7 +321,11 @@ static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * pas
     ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
     rtsmb_cli_session_update_timestamp (pSession);
 
-    ASSURE (pSession->user.state == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);
+    // Allow CSSN_USER_STATE_CHALLENGED through as a legal state. it will be cleared later.
+    if (pSession->user.state != CSSN_USER_STATE_CHALLENGED)
+    {
+      ASSURE (pSession->user.state == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);
+    }
     pJob = rtsmb_cli_session_get_free_job (pSession);
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
@@ -166,38 +335,25 @@ static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * pas
     tc_strcpy (pJob->data.session_setup.password, (char *) password_string->ascii());
     rtsmb_cpy (pJob->data.session_setup.domain_name, domain_string->utf16());
 
-    pJob->error_handler = rtsmb_cli_session_send_session_setup_error_handler;
-    pJob->receive_handler = rtsmb_cli_session_receive_session_setup;
+   // note:  rtsmb2_cli_session_receive_negotiate is incomplete wrt processing capabities.
 
-    switch (pSession->server_info.dialect)
-    {
-//    case CSSN_DIALECT_PRE_NT:
-//        pJob->send_handler = rtsmb_cli_session_send_session_setup_pre_nt;
-//        break;
 
-    case CSSN_DIALECT_NT:
-        if (ON (pSession->server_info.capabilities, CAP_EXTENDED_SECURITY))
-        {
-            pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
-        }
-        else
-        {
-            pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
-        }
-        break;
-    case CSSN_DIALECT_SMB2_2002:
-        break;
-    }
+    //
+//    pJob->smb2_jobtype = jobTsmb2_setup;    // Setting this makes us pull from the smb2 dispatch table see get_setupobject() below.
+    pJob->error_handler    =   0;
+    pJob->receive_handler =    0;
+    pJob->send_handler    =    0;
+    pJob->smb2_jobtype = jobTsmb2_session_setup;
 
-    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
-    {
-        pJob->smb2_jobtype = jobTsmb2_session_setup;
-    }
     rtsmb_cli_session_user_new (&pSession->user, 1);
 
+    cout << "rtsmb_cli_session_logon_user_rt_cpp sending setup " << endl;
     rtsmb_cli_session_send_stalled_jobs (pSession);
 
-    return INDEX_OF (pSession->jobs, pJob);
+
+    int r =  INDEX_OF (pSession->jobs, pJob);
+    cout << "rtsmb_cli_session_logon_user_rt_cpp returnig r " << r << endl;
+    return r;
 }
 
 
@@ -211,31 +367,27 @@ PRTSMB2_NEGOTIATE_R pResponse = (PRTSMB2_NEGOTIATE_R) pItem;
     return RtsmbWireVarDecode (pStream, origin, buf, size, pResponse->SecurityBufferOffset, pResponse->SecurityBufferLength, pResponse->StructureSize);
 }
 
-extern void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink);
 
-static int new_rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
-{
-  NetStreamBuffer    SendBuffer;
-  struct             SocketContext sockContext;
-  DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
-  rtsmb2_smb2_iostream_to_streambuffer(pStream, SendBuffer, sockContext, SocketSink);
-  return RTSMB_CLI_SSN_RV_OK;
 
-}
 
+// Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
+c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0, 0,rtsmb2_cli_session_send_negotiate_error_handler, rtsmb2_cli_session_receive_negotiate, };
+c_smb2cmdobject *get_negotiateobject() { return &negotiateobject;};
+
+c_smb2cmdobject setupobject =     { rtsmb2_cli_session_send_setup,    0, 0,rtsmb2_cli_session_send_setup_error_handler,     rtsmb2_cli_session_receive_setup, };
+// c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0, 0,rtsmb2_cli_session_send_negotiate_error_handler, rtsmb2_cli_session_receive_negotiate, };
+c_smb2cmdobject *get_setupobject() { return &setupobject;};
+
+
+
+c_smb2cmdobject setupphase_2object =     { rtsmb2_cli_session_send_setupphase_2,    0, 0,rtsmb2_cli_session_send_setupphase_2_error_handler,     rtsmb2_cli_session_receive_setupphase_2, };
+// c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0, 0,rtsmb2_cli_session_send_negotiate_error_handler, rtsmb2_cli_session_receive_negotiate, };
+c_smb2cmdobject *get_setupphase_2object() { return &setupphase_2object;};
+
+#if (0)
+
+// note on negotiate
 static int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *pStream)
-{
-int recv_status = RTSMB_CLI_SSN_RV_OK;
-RTSMB2_NEGOTIATE_R response_pkt;
-byte securiy_buffer[255];
-
-    pStream->ReadBufferParms[0].byte_count = sizeof(securiy_buffer);
-    pStream->ReadBufferParms[0].pBuffer = securiy_buffer;
-    if (RtsmbStreamDecodeResponse(pStream, &response_pkt) < 0)
-        return RTSMB_CLI_SSN_RV_MALFORMED;
-    pStream->pSession->server_info.dialect =  (RTSMB_CLI_SESSION_DIALECT)response_pkt.DialectRevision;
-/*
-
 Indented means accounted for
 
     word SecurityMode;
@@ -251,21 +403,6 @@ Indented means accounted for
   word SecurityBufferLength;
   dword Reserved2;
   byte  SecurityBuffer;
-*/
-
-   // Get the maximum buffer size we can ever want to allocate and store it in buffer_size
-   {
-    dword maxsize =  response_pkt.MaxReadSize;
-    if (response_pkt.MaxWriteSize >  maxsize)
-      maxsize = response_pkt.MaxWriteSize;
-    if (response_pkt.MaxTransactSize >  maxsize)
-      maxsize = response_pkt.MaxTransactSize;
-    pStream->pSession->server_info.buffer_size =  maxsize;
-    pStream->pSession->server_info.raw_size   =   maxsize;
-   }
-
-#if (0)
-
 ##    pSession->server_info.dialect = 0;
 ##    if (nr.DialectRevision == SMB2_DIALECT_2002)
 ##        pSession->server_info.dialect = CSSN_DIALECT_SMB2_2002;
@@ -318,9 +455,3 @@ Indented means accounted for
 ##        ASSURE (nr.challenge_size == 8, RTSMB_CLI_SSN_RV_DEAD);
 ##    }
 #endif
-    return recv_status;
-}
-
-// Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
-c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0,rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate};
-c_smb2cmdobject *get_negotiateobject() { return &negotiateobject;};

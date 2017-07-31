@@ -259,6 +259,8 @@ void rtsmb_cli_session_user_close (PRTSMB_CLI_SESSION_USER pUser);
 RTSMB_STATIC int  rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 RTSMB_STATIC int  rtsmb_cli_session_send_negotiate (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 
+int rtsmb_cli_wire_cycle (PRTSMB_CLI_SESSION pClientSession, PRTSMB_CLI_WIRE_SESSION pSession, long timeout);
+
 #ifdef SUPPORT_SMB2
 extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *psmb2stream);
@@ -306,6 +308,7 @@ extern int rtsmb2_cli_session_send_share_find_first (smb2_iostream  *psmb2stream
 extern int rtsmb2_cli_session_receive_share_find_first (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_send_server_enum (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *psmb2stream);
+extern BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStream);
 #endif
 
 int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
@@ -1305,7 +1308,7 @@ RTSMB_GET_SESSION_STATE (CSSN_STATE_NEGOTIATED);
     }
 
     rtsmb_cli_session_send_stalled_jobs (pSession);
-    r = rtsmb_cli_wire_cycle (&pSession->wire, timeout);
+    r = rtsmb_cli_wire_cycle (pSession, &pSession->wire, timeout);
 
     return rtsmb_cli_session_examine_wire (pSession, r);
 }
@@ -1519,7 +1522,14 @@ int rtsmb_cli_session_negotiate (PRTSMB_CLI_SESSION pSession)
 #endif
 
     rtsmb_cli_session_send_stalled_jobs (pSession);
-
+#if (1)
+    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
+    {
+      rtp_printf("rtsmb_cli_session_negotiate() : force CSSN_STATE_NEGOTIATED\n");
+      pSession->state = CSSN_STATE_NEGOTIATED;
+      return INDEX_OF (pSession->jobs, pJob);
+    }
+#endif
     if (pSession->jobs[0].state == CSSN_JOB_STATE_FAKE)
     {
         /* OK, we have a fake job.  That means we should pretend that we are
@@ -2017,6 +2027,10 @@ int rtsmb_cli_session_ntlm_auth (int sid, PFCHAR user, PFCHAR password, PFCHAR d
 #if (DEBUG_LOGON)
     rtp_printf("PVO - rtsmb_cli_session_ntlm_auth go !! \n");
 #endif
+
+
+    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
+      pJob->smb2_jobtype = jobTsmb2_session_setup_phase_2;
 
     pJob->error_handler    = rtsmb_cli_session_send_session_extended_setup_error_handler;
     pJob->receive_handler  = rtsmb_cli_session_receive_session_extended_logon;
@@ -4183,7 +4197,7 @@ int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_S
                  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n");
                  rv = RTSMB_CLI_SSN_RV_MALICE;
              }
-             else if (pStream->InHdr.Status_ChannelSequenceReserved)
+             else if (pStream->InHdr.Status_ChannelSequenceReserved && pStream->InHdr.Status_ChannelSequenceReserved && pStream->InHdr.Status_ChannelSequenceReserved != SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
              {
                  RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: error passed in header returned %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
                  /* an error occurred */

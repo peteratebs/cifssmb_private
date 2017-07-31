@@ -191,6 +191,7 @@ typedef struct RTSMB_CLI_WIRE_BUFFER_s
 typedef RTSMB_CLI_WIRE_BUFFER RTSMB_FAR *PRTSMB_CLI_WIRE_BUFFER;
 
 
+
 typedef struct RTSMB_CLI_WIRE_SESSION_s
 {
 	RTP_SOCKET socket;	/* socket into which all data is sent */
@@ -199,6 +200,8 @@ typedef struct RTSMB_CLI_WIRE_SESSION_s
 	char server_name [RTSMB_NB_NAME_SIZE + 1]; /* name of server */
 
 	word next_mid;
+
+	byte   incoming_nbss_header[4];
 
 	RTSMB_CLI_WIRE_SESSION_STATE state;	/* the state that we are in */
 
@@ -246,7 +249,7 @@ int rtsmb_cli_wire_connect_cycle (PRTSMB_CLI_WIRE_SESSION pSession);
 
 RTSMB_CLI_MESSAGE_STATE rtsmb_cli_wire_check_message (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 
-int rtsmb_cli_wire_cycle (PRTSMB_CLI_WIRE_SESSION pSession, long timeout);
+// int rtsmb_cli_wire_cycle (PRTSMB_CLI_SESSION pClientSession, PRTSMB_CLI_WIRE_SESSION pSession, long timeout);
 
 /* adding stuff to a session sends data to the server */
 int rtsmb_cli_wire_smb_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
