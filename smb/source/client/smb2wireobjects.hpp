@@ -205,6 +205,48 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 
+class NetSmb2TreeconnectCmd  : public NetWireStruct   {
+public:
+  NetSmb2TreeconnectCmd() {objectsize=9; }
+  NetWireword  StructureSize; // 9
+  NetWireword  Reserved;
+  NetWireword  PathOffset;
+  NetWireword  PathLength;
+  NetWirebyte  Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+class NetSmb2TreeconnectReply  : public NetWireStruct   {
+public:
+  NetSmb2TreeconnectReply() {objectsize=16; }
+  NetWireword  StructureSize;
+  NetWirebyte  ShareType;
+  NetWirebyte  Reserved;
+  NetWiredword ShareFlags;
+  NetWiredword Capabilities;
+  NetWiredword MaximalAccess;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
 
 template <class T>
 class NetSmb2NBSSReply {
@@ -247,6 +289,7 @@ public:
        byte *replytail = reply->bindpointers(smbtail);
        return _raw_address+FixedStructureSize();}
   byte *FixedStructureAddress() { return base_address; };
+
   private:
      T                  *reply;
      NetStreamBuffer    *ReplyBuffer;

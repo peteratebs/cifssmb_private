@@ -118,5 +118,27 @@ void NetSmb2SetupReply::BindAddressesToBuffer(byte *base)
 }
 
 
+void NetSmb2TreeconnectCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(PathOffset);
+  BINDPOINTERS(PathLength);
+  BINDPOINTERS(Buffer);
+};
+
+
+void NetSmb2TreeconnectReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(ShareType);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(ShareFlags);
+  BINDPOINTERS(Capabilities);
+  BINDPOINTERS(MaximalAccess);
+};
+
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif

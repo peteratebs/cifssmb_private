@@ -488,34 +488,7 @@ RTSMB_CLI_RPC_INVOKE_JOB_DATA;
 typedef RTSMB_CLI_RPC_INVOKE_JOB_DATA RTSMB_FAR * PRTSMB_CLI_RPC_INVOKE_JOB_DATA;
 
 
-/* this struct contains enough information to restart a job */
-struct RTSMB_CLI_SESSION_JOB_T
-{
-    RTSMB_CLI_SESSION_JOB_STATE state;
-
-    word mid;
-    int send_count; /* number of times we've tried to send this */
-    int die_count; /* number of times we've restarted our connection while servicing this job */
-
-    int response;   /* response to client of us */
-
-    dword error;
-
-    RTSMB_JOB_CALLBACK  callback;
-    PFVOID callback_data;
-
-    int (*error_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
-    int (*send_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
-    int (*receive_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
-
-#ifdef SUPPORT_SMB2    // Some branching to SMB2 from this file, no major processing
-    jobTsmb2 smb2_jobtype;      // used in mappingh c processing routines to cpp objects for each object type.
-//    int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
-//    int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
-//    int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
-#endif
-
-    union {
+    union sessiondata_u {
         struct {
             PRTSMB_CLI_SESSION_USER user_struct;
             rtsmb_char account_name [CFG_RTSMB_MAX_USERNAME_SIZE + 1];
@@ -736,8 +709,35 @@ struct RTSMB_CLI_SESSION_JOB_T
 
         RTSMB_CLI_RPC_INVOKE_JOB_DATA rpc_invoke;
 
-    } data;
+    };
 
+/* this struct contains enough information to restart a job */
+struct RTSMB_CLI_SESSION_JOB_T
+{
+    RTSMB_CLI_SESSION_JOB_STATE state;
+
+    word mid;
+    int send_count; /* number of times we've tried to send this */
+    int die_count; /* number of times we've restarted our connection while servicing this job */
+
+    int response;   /* response to client of us */
+
+    dword error;
+
+    RTSMB_JOB_CALLBACK  callback;
+    PFVOID callback_data;
+
+    int (*error_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+    int (*send_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+    int (*receive_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
+
+#ifdef SUPPORT_SMB2    // Some branching to SMB2 from this file, no major processing
+    jobTsmb2 smb2_jobtype;      // used in mappingh c processing routines to cpp objects for each object type.
+//    int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+//    int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+//    int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
+#endif
+     union sessiondata_u data;
 };
 
 #define CSSN_FID_STATE_UNUSED -1

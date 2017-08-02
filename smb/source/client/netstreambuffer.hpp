@@ -240,37 +240,44 @@ public:
 
   }
 
-   /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
-   NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
-   {
-      bytes_pulled =0;
-      while (bytes_pulled < min_byte_count)
-      {
-        dword buffered_byte_count=0;
-        byte *pdata = peek_input(buffered_byte_count);
-        dword r = std::min (buffered_byte_count,byte_count);
-        if (data && r)  tc_memcpy(data, pdata,r);
-        if (r)
-        {
-          consume_input(r);
-          bytes_pulled += r;
-        }
-        if (bytes_pulled  < min_byte_count)
-        {
-          dword sourced_byte_count;
-          NetStatus status = data_sourcer->source_data(read_buffer_pointer(),std::min(byte_count,read_buffer_free()), sourced_byte_count);
-          if (status != NetStatusOk)
-            return status;
-          write_pointer += sourced_byte_count;
-        }
-      }
-      return NetStatusOk;
-   }
-   byte *peek_input()           { return read_buffer_pointer(); };
-   byte *peek_input(dword & valid_byte_count)           {
-                                                    valid_byte_count = read_buffer_count();
-                                                    return read_buffer_pointer();
-                                                  }
+  /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
+  NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
+  {
+     bytes_pulled =0;
+     while (bytes_pulled < min_byte_count)
+     {
+       dword buffered_byte_count=0;
+       byte *pdata = peek_input(buffered_byte_count);
+       dword r = std::min (buffered_byte_count,byte_count);
+       if (data && r)  tc_memcpy(data, pdata,r);
+       if (r)
+       {
+         consume_input(r);
+         bytes_pulled += r;
+       }
+       if (bytes_pulled  < min_byte_count)
+       {
+         dword sourced_byte_count;
+         NetStatus status = data_sourcer->source_data(read_buffer_pointer(),std::min(byte_count,read_buffer_free()), sourced_byte_count);
+         if (status != NetStatusOk)
+           return status;
+         write_pointer += sourced_byte_count;
+       }
+     }
+     return NetStatusOk;
+  }
+  byte *peek_input()                                       { return read_buffer_pointer(); };
+  byte *peek_input(dword & valid_byte_count)               { valid_byte_count = read_buffer_count(); return read_buffer_pointer(); }
+
+  // interface to legacy session / user / job structure
+  union sessiondata_u    *job_data()                       { return  &pStream->pJob->data; }
+  RTSMB_CLI_SESSION_SERVER_INFO * session_server_info()    {  return  &pStream->pSession->server_info; }
+  char *session_server_name()                              { return   pStream->pSession->server_name; }
+  RTSMB_CLI_SESSION_USER * session_user()                  {  return  &pStream->pSession->user; }
+  RTSMB_CLI_SESSION_SHARE *session_shares()                {  return  pStream->pSession->shares; }
+  RTSMB_CLI_SESSION_JOB   *session_jobs()                  {  return  pStream->pSession->jobs; }
+  RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
+
 private:
   StreamBufferDataSource * data_sourcer;
   void consume_input (dword byte_count)          { read_pointer += byte_count; if (read_pointer == write_pointer) read_pointer = write_pointer=0;}

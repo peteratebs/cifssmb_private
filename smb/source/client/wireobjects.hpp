@@ -181,13 +181,9 @@ private:
 class NetWireStruct   {
 public:
   NetWireStruct() { isvariable = false; base_address=0; variablesize=0;};
-  virtual int  FixedStructureSize()  { return objectsize; };
+  virtual int  FixedStructureSize()  { return (int)objectsize; };
   virtual void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
-  virtual NetStatus push_output(NetStreamBuffer  &StreamBuffer)
-  {
-    return StreamBuffer.push_output(base_address, objectsize+variablesize);
-  }
-//  virtual void push_output(smb2_iostream  &pStream) = 0;
+  virtual NetStatus push_output(NetStreamBuffer  &StreamBuffer)  {    return StreamBuffer.push_output(base_address, objectsize+variablesize); }
 
 
 protected:
@@ -198,6 +194,7 @@ protected:
 //  virtual int  FixedStructureSize() = 0;
   virtual byte *FixedStructureAddress() = 0;
   virtual void SetDefaults() = 0;
+
   bool isvariable;
   dword objectsize;
   dword variablesize;

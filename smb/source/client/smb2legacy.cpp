@@ -22,12 +22,12 @@
 
 
 // SmbCmdToCmdObjectTable[] has links to functions that load stream interfaces for the commands.
-extern c_smb2cmdobject *get_negotiateobject();
+extern c_smb2cmdobject *get_negotiateobject();            // smblogon.cpp
 extern c_smb2cmdobject *get_setupobject();
 extern c_smb2cmdobject *get_setupphase_2object();
+extern c_smb2cmdobject *get_treeconnectobject();
 
 // Need one of each of these
-extern c_smb2cmdobject *get_tree_connectobject();
 extern c_smb2cmdobject *get_session_setupobject();
 extern c_smb2cmdobject *get_logoffobject();
 extern c_smb2cmdobject *get_tree_disconnectobject();
@@ -86,7 +86,7 @@ static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
  {jobTsmb2_negotiate              ,  get_negotiateobject, 0},
  {jobTsmb2_session_setup          ,  get_setupobject, 0},
  {jobTsmb2_session_setup_phase_2  ,  get_setupphase_2object, 0},
-
+ {jobTsmb2_tree_connect           ,  get_treeconnectobject, 0},
 };
 void InitSmbCmdToCmdObjectTable()
 {
