@@ -26,11 +26,11 @@ extern c_smb2cmdobject *get_negotiateobject();            // smblogon.cpp
 extern c_smb2cmdobject *get_setupobject();
 extern c_smb2cmdobject *get_setupphase_2object();
 extern c_smb2cmdobject *get_treeconnectobject();
+extern c_smb2cmdobject *get_logoffobject();
+extern c_smb2cmdobject *get_disconnectobject();
 
 // Need one of each of these
 extern c_smb2cmdobject *get_session_setupobject();
-extern c_smb2cmdobject *get_logoffobject();
-extern c_smb2cmdobject *get_tree_disconnectobject();
 extern c_smb2cmdobject *get_readobject();
 extern c_smb2cmdobject *get_writeobject();
 extern c_smb2cmdobject *get_openobject();
@@ -87,7 +87,10 @@ static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
  {jobTsmb2_session_setup          ,  get_setupobject, 0},
  {jobTsmb2_session_setup_phase_2  ,  get_setupphase_2object, 0},
  {jobTsmb2_tree_connect           ,  get_treeconnectobject, 0},
+ {jobTsmb2_logoff                 ,  get_logoffobject, 0},
+ {jobTsmb2_disconnect             ,  get_disconnectobject, 0},
 };
+
 void InitSmbCmdToCmdObjectTable()
 {
       cout << "*** Initializing SMB2 SmbCmdToCmdObjectTable  *** " << endl;

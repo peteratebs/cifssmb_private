@@ -248,6 +248,78 @@ private:
 };
 
 
+
+class NetSmb2DisconnectCmd  : public NetWireStruct   {
+public:
+  NetSmb2DisconnectCmd() {objectsize=4; }
+  NetWireword  StructureSize; // 4
+  NetWireword  Reserved;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+class NetSmb2DisconnectReply  : public NetWireStruct   {
+public:
+  NetSmb2DisconnectReply() {objectsize=4; }
+  NetWireword  StructureSize; // 4
+  NetWireword  Reserved;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2LogoffCmd  : public NetWireStruct   {
+public:
+  NetSmb2LogoffCmd() {objectsize=4; }
+  NetWireword  StructureSize; // 4
+  NetWireword  Reserved;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+class NetSmb2LogoffReply  : public NetWireStruct   {
+public:
+  NetSmb2LogoffReply() {objectsize=4; }
+  NetWireword  StructureSize; // 4
+  NetWireword  Reserved;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
 template <class T>
 class NetSmb2NBSSReply {
 public:

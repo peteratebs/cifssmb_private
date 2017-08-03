@@ -140,5 +140,36 @@ void NetSmb2TreeconnectReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(MaximalAccess);
 };
 
+
+void NetSmb2LogoffCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+void NetSmb2LogoffReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+void NetSmb2DisconnectCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+void NetSmb2DisconnectReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+
+
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif

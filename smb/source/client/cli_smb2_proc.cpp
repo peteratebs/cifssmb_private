@@ -260,218 +260,6 @@ Get_Wire_Buffer_State(WAITING_ON_SERVER);
 extern void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId); // This is now implemented in the cpp code base.
 
 
-int rtsmb2_cli_session_send_tree_connect (smb2_iostream  *pStream)
-{
-    RTSMB2_TREE_CONNECT_C command_pkt;
-    rtsmb_char share_name [RTSMB_NB_NAME_SIZE + RTSMB_MAX_SHARENAME_SIZE + 4]; /* 3 for '\\'s and 1 for null */
-    int send_status;
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-
-    rtsmb2_cli_session_init_header (pStream, SMB2_TREE_CONNECT, (ddword) pStream->pBuffer->mid,pStream->pSession->server_info.smb2_session_id);
-
-    tc_memset (share_name, 0, sizeof (share_name));
-    if (tc_strcmp (pStream->pSession->server_name, "") != 0)
-    {
-        share_name[0] = '\\';
-        share_name[1] = '\\';
-        rtsmb_util_ascii_to_rtsmb (pStream->pSession->server_name, &share_name[2], CFG_RTSMB_USER_CODEPAGE);
-        share_name [rtsmb_len (share_name)] = '\\';
-    }
-    rtsmb_util_ascii_to_rtsmb (pStream->pJob->data.tree_connect.share_name, &share_name [rtsmb_len (share_name)], CFG_RTSMB_USER_CODEPAGE);
-    rtsmb_util_string_to_upper (share_name, CFG_RTSMB_USER_CODEPAGE);
-    pStream->WriteBufferParms[0].pBuffer = share_name;
-    pStream->WriteBufferParms[0].byte_count = (rtsmb_len (share_name)+1)*sizeof(rtsmb_char);
-
-    command_pkt.StructureSize   = 9;
-    command_pkt.Reserved        = 0;
-    command_pkt.PathOffset      = (word) (pStream->OutHdr.StructureSize+command_pkt.StructureSize-1);
-    command_pkt.PathLength      = (word)pStream->WriteBufferParms[0].byte_count;
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_tree_connect called: Sharename == %s\n",share_name);
-    /* Save the message ID in the share sructure */
-	pStream->pJob->data.tree_connect.share_struct->connect_mid = pStream->pJob->mid;
-
-
-//=====
-//	r = rtsmb_cli_wire_smb_add_start (&pSession->wire, pJob->mid);
-//	ASSURE (r >= 0, RTSMB_CLI_SSN_RV_LATER);
-//	pJob->mid = (word) r;
-//	pJob->data.tree_connect.share_struct->connect_mid = pJob->mid;
-//	rtsmb_cli_wire_smb_add_header (&pSession->wire, pJob->mid, &h);
-//	rtsmb_cli_wire_smb_add (&pSession->wire, pJob->mid, cli_cmd_fill_tree_connect_and_x, &t, r);
-//	rtsmb_cli_wire_smb_add_end (&pSession->wire, pJob->mid);
-// ================
-    /* Packs the SMB2 header and tree connect command/blob into the stream buffer and sets send_status to OK or and ERROR */
-    if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
-    else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-    return send_status;
-}
-
-
-int rtsmb2_cli_session_receive_tree_connect (smb2_iostream  *pStream)
-{
-int recv_status = RTSMB_CLI_SSN_RV_OK;
-RTSMB2_TREE_CONNECT_R response_pkt;
-
-    if (RtsmbStreamDecodeResponse(pStream, &response_pkt) < 0)
-        return RTSMB_CLI_SSN_RV_MALFORMED;
-
-// ====================================
-//int rtsmb_cli_session_receive_tree_connect (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader)
-{
-    PRTSMB_CLI_SESSION pSession;
-	PRTSMB_CLI_SESSION_SHARE pShare;
-	int r = 0;
-
-	pShare = 0;
-    pSession  = pStream->pSession;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect called\n");
-    if(!pSession)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No sesion info !!!! \n");
-    }
-    if(pSession)
-    {
-	    for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
-    	{
-      		if (pSession->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
-    		    pSession->shares[r].connect_mid == (word) pStream->InHdr.MessageId)
-    		{
-    			pShare = &pSession->shares[r];
-    		    break;
-    		}
-    	}
-    }
-   	if (!pShare)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_connect: No Share found !!!!!!! \n");
-        return RTSMB_CLI_SSN_RV_MALFORMED;
-    }
-
-	pShare->tid = (word)pStream->InHdr.TreeId;
-	pShare->state = CSSN_SHARE_STATE_CONNECTED;
-#ifdef STATE_DIAGNOSTICS
-RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
-#endif
-	tc_strcpy (pShare->share_name, pStream->pJob->data.tree_connect.share_name);
-	tc_strcpy (pShare->password, pStream->pJob->data.tree_connect.password);
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect: Share found: Names == %s\n",pShare->share_name);
-
-	/* We special-case a situation where we have just connected to the IPC$ share.  This
-	   means that we are now a fully-negotiated session and should alert our consumer. */
-	if (tc_strcmp (pShare->share_name, "IPC$") == 0)
-	{
-		/* To denote this, we find the pseudo-job that was waiting on this and finish it. */
-		for (r = 0; r < prtsmb_cli_ctx->max_jobs_per_session; r++)
-		{
-			if (pSession->jobs[r].state == CSSN_JOB_STATE_FAKE)
-			{
-			    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect IPC$: Finish logon by calling rtsmb_cli_session_job_cleanup\n");
-				rtsmb_cli_session_job_cleanup (pSession, &pSession->jobs[r], RTSMB_CLI_SSN_RV_OK);
-			}
-		}
-	}
-
-	if (pSession->state == CSSN_STATE_RECOVERY_TREE_CONNECTING)
-	{
-		pSession->state = CSSN_STATE_RECOVERY_TREE_CONNECTED;
-#ifdef STATE_DIAGNOSTICS
-RTSMB_GET_SESSION_USER_STATE (CSSN_STATE_RECOVERY_TREE_CONNECTED);
-#endif
-	}
-
-    recv_status = RTSMB_CLI_SSN_RV_OK;
-}
-
-
-
-// ====================================
-/*
-    response_pkt.StructureSize;
-    response_pkt.ShareType;
-    response_pkt.Reserved;
-    response_pkt.ShareFlags;
-    response_pkt.Capabilities;
-    response_pkt.MaximalAccess;
-*/
-    return recv_status;
-}
-
-int rtsmb2_cli_session_send_logoff (smb2_iostream  *pStream)
-{
-    RTSMB2_LOGOFF_C command_pkt;
-    int send_status;
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-    rtsmb2_cli_session_init_header (pStream, SMB2_LOGOFF, (ddword) pStream->pBuffer->mid,pStream->pSession->server_info.smb2_session_id);
-    command_pkt.StructureSize   = 4;
-    command_pkt.Reserved        = 0;
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_logoff called:\n");
-    /* Packs the SMB2 header and tree disconnect into the stream buffer and sets send_status to OK or and ERROR */
-    if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
-    else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-    return send_status;
-}
-int rtsmb2_cli_session_receive_logoff (smb2_iostream  *pStream)
-{
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_logoff called for session (%d):\n",(int)pStream->InHdr.SessionId);
- 	/* make sure we have a valid user */
-	if (pStream->pSession->user.state != CSSN_USER_STATE_LOGGED_ON)
-	{
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_logoff: error: (pStream->pSession->user.state != CSSN_USER_STATE_LOGGED_ON) \n");
-	    return RTSMB_CLI_SSN_RV_BAD_UID;
-    }
-
-//	ASSURE (pSession->user.uid == pHeader->uid, RTSMB_CLI_SSN_RV_BAD_UID);
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_logoff: calling: rtsmb_cli_session_user_close \n");
-	rtsmb_cli_session_user_close (&pStream->pSession->user);
-
-
-    return RTSMB_CLI_SSN_RV_OK;
-}
-
-
-int rtsmb2_cli_session_send_tree_disconnect (smb2_iostream  *pStream)
-{
-    RTSMB2_TREE_DISCONNECT_C command_pkt;
-    int send_status;
-    tc_memset(&command_pkt, 0, sizeof(command_pkt));
-
-
-    rtsmb2_cli_session_init_header (pStream, SMB2_TREE_DISCONNECT, (ddword) pStream->pBuffer->mid,pStream->pSession->server_info.smb2_session_id);
-
-    pStream->OutHdr.TreeId = (ddword) pStream->pJob->data.tree_disconnect.tid;
-    command_pkt.StructureSize   = 4;
-    command_pkt.Reserved        = 0;
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_tree_disconnect called:\n");
-    /* Packs the SMB2 header and tree disconnect into the stream buffer and sets send_status to OK or and ERROR */
-    if (RtsmbStreamEncodeCommand(pStream,&command_pkt) < 0)
-        send_status=RTSMB_CLI_SSN_RV_TOO_MUCH_DATA;
-    else
-       send_status=RTSMB_CLI_SSN_RV_OK;
-    return send_status;
-}
-int rtsmb2_cli_session_receive_tree_disconnect (smb2_iostream  *pStream)
-{
-int recv_status = RTSMB_CLI_SSN_RV_OK;
-int rv;
-RTSMB2_TREE_DISCONNECT_R response_pkt;
-
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_disconnect: called with error == %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
-    if ((rv=RtsmbStreamDecodeResponse(pStream, &response_pkt)) < 0)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_disconnect: RtsmbStreamDecodeResponse failed with error == %X\n", rv);
-        return RTSMB_CLI_SSN_RV_MALFORMED;
-    }
-    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb2_cli_session_receive_tree_disconnect: RtsmbStreamDecodeResponse success on treeId == %d\n", (int) pStream->InHdr.TreeId);
-    return RTSMB_CLI_SSN_RV_OK;
-}
 
 
 int rtsmb2_cli_session_send_find_first (smb2_iostream  *pStream)
@@ -839,7 +627,6 @@ int rtsmb2_cli_session_send_rmdir (smb2_iostream  *pStream) {return RTSMB_CLI_SS
 int rtsmb2_cli_session_receive_rmdir (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 
 int rtsmb2_cli_session_send_find_first_error_handler (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
-int rtsmb2_cli_session_send_tree_connect_error_handler (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_receive_find_close (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_send_stat (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
 int rtsmb2_cli_session_receive_stat (smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_OK;}
@@ -859,7 +646,6 @@ int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *pStream) {return RTS
 #define default_error_handler(FUNCNAME) static int FUNCNAME (smb2_iostream  *pStream) {return rtsmb2_cli_session_error_handler_base(pStream);}
 // static int rtsmb2_cli_session_send_negotiate_error_handler (smb2_iostream  *pStream) {  return rtsmb2_cli_session_error_handler_base(pStream);}
 default_error_handler(rtsmb2_cli_session_send_logoff_error_handler)
-default_error_handler(rtsmb2_cli_session_send_tree_disconnect_error_handler)
 default_error_handler(rtsmb2_cli_session_send_error_handler)
 default_error_handler(rtsmb2_cli_session_send_find_close_error_handler)
 
@@ -891,10 +677,10 @@ static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 {
 // See SmbCmdToCmdObjectTable for commands that are succesfully converted to CPP. These are routed through SmbCmdToCmdObjectTable instead of CmdToJobObjectTable.
 //  {jobTsmb2_negotiate,{ rtsmb2_cli_session_send_negotiate, rtsmb2_cli_session_send_negotiate_error_handler,rtsmb2_cli_session_receive_negotiate}},
-  {jobTsmb2_tree_connect,     0, rtsmb2_cli_session_send_tree_connect    , 0,rtsmb2_cli_session_send_tree_connect_error_handler    ,0,rtsmb2_cli_session_receive_tree_connect},
+//  {jobTsmb2_tree_connect,     0, rtsmb2_cli_session_send_tree_connect    , 0,rtsmb2_cli_session_send_tree_connect_error_handler    ,0,rtsmb2_cli_session_receive_tree_connect},
 //  {jobTsmb2_session_setup,    0, rtsmb2_cli_session_send_session_setup   , 0,rtsmb2_cli_session_send_session_setup_error_handler   ,0,rtsmb2_cli_session_receive_session_setup},
-  {jobTsmb2_logoff,           0, rtsmb2_cli_session_send_logoff          , 0,rtsmb2_cli_session_send_logoff_error_handler          ,0,rtsmb2_cli_session_receive_logoff,},
-  {jobTsmb2_tree_disconnect,  0, rtsmb2_cli_session_send_tree_disconnect , 0,rtsmb2_cli_session_send_tree_disconnect_error_handler ,0,rtsmb2_cli_session_receive_tree_disconnect},
+//  {jobTsmb2_logoff,           0, rtsmb2_cli_session_send_logoff          , 0,rtsmb2_cli_session_send_logoff_error_handler          ,0,rtsmb2_cli_session_receive_logoff,},
+//  {jobTsmb2_disconnect,  0, rtsmb2_cli_session_send_tree_disconnect , 0,rtsmb2_cli_session_send_tree_disconnect_error_handler ,0,rtsmb2_cli_session_receive_tree_disconnect},
 
 //  {jobTsmb2_read, rtsmb2_cli_session_send_read, rtsmb2_cli_session_send_read_error_handler,rtsmb2_cli_session_receive_read,},
 //  {jobTsmb2_write, rtsmb2_cli_session_send_write, rtsmb2_cli_session_send_write_error_handler,rtsmb2_cli_session_receive_write,},
