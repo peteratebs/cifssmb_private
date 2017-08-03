@@ -170,6 +170,32 @@ void NetSmb2DisconnectReply::BindAddressesToBuffer(byte *base)
 };
 
 
+void NetSmb2QuerydirectoryCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 33
+  BINDPOINTERS(FileInformationClass);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(FileIndex);
+  BINDPOINTERS(FileId);
+  BINDPOINTERS(FileNameOffset);
+  BINDPOINTERS(FileNameLength);
+  BINDPOINTERS(OutputBufferLength);
+  BINDPOINTERS(Buffer);
+}
+
+
+void NetSmb2QuerydirectoryReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 9
+  BINDPOINTERS(OutputBufferOffset);
+  BINDPOINTERS(OutputBufferLength);
+  BINDPOINTERS(Buffer);
+}
+
+
+
 
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif

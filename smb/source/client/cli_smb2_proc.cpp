@@ -362,6 +362,8 @@ typedef struct s_FILE_ID_BOTH_DIR_INFORMATION
 PACK_PRAGMA_POP
 
 
+#define FILETIMETOTIME(T) *((TIME *)&T)
+
 static int BufferedDirscanToDstat(PRTSMB_CLI_SESSION_SEARCH pSearch)
 {
 int nConverted = 0;
@@ -390,7 +392,6 @@ if (!pSearch->pBufferedIterator)
       }
       else
       {   // Consume these
-         #define FILETIMETOTIME(T) *((TIME *)&T)
          tc_memcpy (pSearch->dstats[i].filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
          // null terminate
          * ((char *) (&pSearch->dstats[i].filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
@@ -694,7 +695,7 @@ static  struct c_jobobject_table_t CmdToJobObjectTable[] =
 //  {jobTsmb2_mkdir, rtsmb2_cli_session_send_mkdir, rtsmb2_cli_session_send_mkdir_error_handler,rtsmb2_cli_session_receive_mkdir,},
 //  {jobTsmb2_rmdir, rtsmb2_cli_session_send_rmdir, rtsmb2_cli_session_send_rmdir_error_handler,rtsmb2_cli_session_receive_rmdir,},
 
-  {jobTsmb2_find_first,       0, rtsmb2_cli_session_send_find_first      , 0, rtsmb2_cli_session_send_error_handler                ,0,rtsmb2_cli_session_receive_find_first,},
+//  {jobTsmb2_find_first,       0, rtsmb2_cli_session_send_find_first      , 0, rtsmb2_cli_session_send_error_handler                ,0,rtsmb2_cli_session_receive_find_first,},
   {jobTsmb2_find_close,       0, rtsmb2_cli_session_send_find_close      , 0, rtsmb2_cli_session_send_find_close_error_handler     ,0,rtsmb2_cli_session_receive_find_close,},
 //  {jobTsmb2_stat, rtsmb2_cli_session_send_stat, rtsmb2_cli_session_send_stat_error_handler,rtsmb2_cli_session_receive_stat,},
 //  {jobTsmb2_chmode, rtsmb2_cli_session_send_chmode, rtsmb2_cli_session_send_chmode_error_handler,rtsmb2_cli_session_receive_chmode,},

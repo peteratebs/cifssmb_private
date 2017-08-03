@@ -28,6 +28,7 @@ extern c_smb2cmdobject *get_setupphase_2object();
 extern c_smb2cmdobject *get_treeconnectobject();
 extern c_smb2cmdobject *get_logoffobject();
 extern c_smb2cmdobject *get_disconnectobject();
+extern c_smb2cmdobject *get_querydirectoryobject();
 
 // Need one of each of these
 extern c_smb2cmdobject *get_session_setupobject();
@@ -69,7 +70,7 @@ extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStrea
 
 typedef struct smb2cmdobject_table_t
 {
-  word            command;
+  jobTsmb2            command;
   c_smb2cmdobject *(* cobject_fetch)();
   c_smb2cmdobject *cobject;
 } smb2cmdobject_table;
@@ -89,19 +90,19 @@ static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
  {jobTsmb2_tree_connect           ,  get_treeconnectobject, 0},
  {jobTsmb2_logoff                 ,  get_logoffobject, 0},
  {jobTsmb2_disconnect             ,  get_disconnectobject, 0},
+ {jobTsmb2_find_first             ,  get_querydirectoryobject, 0},
 };
 
 void InitSmbCmdToCmdObjectTable()
 {
       cout << "*** Initializing SMB2 SmbCmdToCmdObjectTable  *** " << endl;
   for (int i = 0; i < TABLEEXTENT(SmbCmdToCmdObjectTable);i++)
-    glSmbCmdToCmdObject[SmbCmdToCmdObjectTable[i].command] = SmbCmdToCmdObjectTable[i].cobject_fetch();
+     glSmbCmdToCmdObject[SmbCmdToCmdObjectTable[i].command] = SmbCmdToCmdObjectTable[i].cobject_fetch();
 }
 
 void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
 {
-  SendBuffer.pStream = pStream;
-
+  SendBuffer.session_pStream(pStream);
   sockContext.socket = pStream->pSession->wire.socket;
 
   SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
@@ -110,9 +111,12 @@ void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuff
 
 void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
 {
-  ReplyBuffer.pStream = pStream;
+  ReplyBuffer.session_pStream(pStream);
 //  sockContext.socket = pStream->pSession->wire.socket;
-  ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size);
+  // Attach the buffer and logically prefill with total_read valid bytes that are in the buffer now
+  ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size,pStream->pSession->wire.total_read);
+
+
   //ReplyBuffer.attach_source(&SocketSource);
 }
 
@@ -120,6 +124,7 @@ extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        
 {
 
 int r = RTSMB_CLI_SSN_RV_OK;
+
   if (glSmbCmdToCmdObject.find(pStream->pJob->smb2_jobtype) != glSmbCmdToCmdObject.end() )
   {
      NetStreamBuffer    SendBuffer;

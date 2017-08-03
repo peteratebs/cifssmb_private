@@ -147,6 +147,9 @@ typedef struct
 
     /* the rest of this structure is for internal use only */
     int sid;
+    // Shell callbacks to SMB2 content receive layer, in the stat structure because it's conveniently already present.
+    void *sink_function;         // This typedef int (* pDeviceSendFn_t) (void *devContext, byte *pData, int size);
+    void *sink_parameters;       //
 
 } RTSMB_CLI_SESSION_DSTAT;
 typedef RTSMB_CLI_SESSION_DSTAT RTSMB_FAR *PRTSMB_CLI_SESSION_DSTAT;

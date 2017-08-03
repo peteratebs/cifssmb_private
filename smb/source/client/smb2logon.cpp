@@ -181,7 +181,7 @@ static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
     ReplyBuffer.session_server_info()->raw_size   =   maxsize;
     // HEREHERE -  ReplyBuffer.session_server_info()->smb2_session_id = InSmb2Header->Smb2NegotiateReply???
    }
-   ReplyBuffer.pStream->read_buffer_remaining = 0;   // Fore the top layer to stop.
+   ReplyBuffer.session_pStream()->read_buffer_remaining = 0;   // Fore the top layer to stop.
    return RTSMB_CLI_SSN_RV_OK;
 }
 

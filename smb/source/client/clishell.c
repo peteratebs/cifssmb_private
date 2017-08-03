@@ -973,13 +973,132 @@ static int do_logoff_command(char *command)
     }
 }
 
+// Messy in-line C implementation using packed structures. Needs to be done
+// with wire object structures
+struct lsContext{
+    byte *pData;
+    dword bytes_left;
+};
+
+// Returned structures Borrowed from server code for now, need to fix
+PACK_PRAGMA_ONE
+typedef struct s_FILE_DIRECTORY_INFORMATION_BASE
+{
+	dword NextEntryOffset;
+	dword FileIndex;
+	FILETIME_T CreationTime;
+	FILETIME_T LastAccessTime;
+	FILETIME_T LastWriteTime;
+	FILETIME_T ChangeTime;
+	ddword EndofFile;
+	ddword AllocationSize;
+	dword FileAttributes;
+	dword FileNameLength;
+} PACK_ATTRIBUTE FILE_DIRECTORY_INFORMATION_BASE;
+PACK_PRAGMA_POP
+PACK_PRAGMA_ONE
+typedef struct s_FILE_ID_BOTH_DIR_INFORMATION
+{
+    FILE_DIRECTORY_INFORMATION_BASE directory_information_base;
+	dword EaSize;
+	byte  ShortNameLength;
+	byte  Reserved1;
+	byte  ShortName[24];
+	word  Reserved2;
+	ddword FileId;
+	byte  FileName[1];
+} PACK_ATTRIBUTE FILE_ID_BOTH_DIR_INFORMATION;
+PACK_PRAGMA_POP
+
+#define FILETIMETOTIME(T) *((TIME *)&T)
+
+static void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat)
+{
+  char temp[300];
+  rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pstat->filename, temp, 0);
+  {
+     DATE_STR d;
+     RTP_DATE rtpDateStruct;
+     dword  unix_time = rtsmb_util_time_date_to_unix (rtsmb_util_time_ms_to_date (/*(TIME)*/pstat->fctime64));
+     char attrib_string[8];
+     byte fattributes = (byte)pstat->fattributes;
+
+     if (fattributes & RTP_FILE_ATTRIB_ISDIR) // RTP_FILE_ATTRIB_ISDIR)
+         attrib_string[0] = 'd';
+     else
+         attrib_string[0] = '_';
+     attrib_string[1] = 'r';
+     if ((fattributes & RTP_FILE_ATTRIB_RDONLY)==0) // RTP_FILE_ATTRIB_ISDIR)
+       attrib_string[2] = 'w';
+     else
+       attrib_string[2] = '_';
+     attrib_string[3] = 0;
+
+     rtpDateStruct =  rtsmb_util_time_unix_to_rtp_date (unix_time);
+
+     smb_cli_term_printf(CLI_PROMPT,"%s %s %2d %4d, %8d %s\n", attrib_string,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year,  (int)pstat->fsize, temp);
+  }
+}
+static int FormatDirscanToDstat(void *pBuffer, byte *out_buffer)
+{
+  FILE_ID_BOTH_DIR_INFORMATION *BothDirInfoIterator = (FILE_ID_BOTH_DIR_INFORMATION *) pBuffer;
+  RTSMB_CLI_SESSION_DSTAT mystat;
+  PRTSMB_CLI_SESSION_DSTAT pstat = &mystat;
+  tc_memcpy (pstat->filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
+   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
+   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength+1) = 0;
+   pstat->unicode = 1;           //    char unicode;   /* will be zero if filename is ascii, non-zero if unicode */
+   pstat->fattributes = (unsigned short) BothDirInfoIterator->directory_information_base.FileAttributes;    //    unsigned short fattributes;
+   pstat->fatime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastAccessTime);              //    TIME           fatime64; /* last access time */
+   pstat->fatime64= *((TIME *)(&BothDirInfoIterator->directory_information_base.LastAccessTime));              //    TIME           fatime64; /* last access time */
+   pstat->fwtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastWriteTime);              //    TIME           fwtime64; /* last write time */
+   pstat->fctime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.CreationTime);              //    TIME           fctime64; /* last create time */
+   pstat->fhtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.ChangeTime);              //    TIME           fhtime64; /* last change time */
+   pstat->fsize = (dword) BothDirInfoIterator->directory_information_base.EndofFile;                 //    unsigned long fsize;
+   pstat->fsizehi; (dword) (BothDirInfoIterator->directory_information_base.EndofFile>>32);                 //    unsigned long fsize;
+//   pstat->sid =  pSearch->sid;
+                  //    int sid;
+   DisplayDirscan(pstat);
+   return BothDirInfoIterator->directory_information_base.NextEntryOffset;
+}
+
+
+
+/// Protototype "device for sinking bytes from a stream.
+/// This memcopies to a location stored in device context.
+int ls_sink_function(void *devContext, byte *pData, int size)
+{
+//  tc_memcpy( ((struct memcpydevContext *)devContext)->pData, pData,size);
+//  ((struct memcpydevContext *)devContext)->pData += size;
+//  ((struct memcpydevContext *)devContext)->bytes_left -= size;
+
+  rtp_printf("ls_sink_function size = %d\n", size);
+  int fmt_size = FormatDirscanToDstat(pData, (byte *) 0);
+  rtp_printf("ls_sink_function size = %d %d \n", size, fmt_size);
+  return fmt_size;
+}
+
+
+
+inline int smb2_ls_function(void *devContext, byte *pData, int size)
+{
+  int esize;
+
+  esize = FormatDirscanToDstat(pData, 0);
+  smb_cli_term_printf(CLI_PROMPT," We got ls function with size %d recordsize:%d \n", size, esize);
+  return esize>0?esize:size;
+}
 
 static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern)
 {
     RTSMB_CLI_SESSION_DSTAT dstat1;
+    int smb2_ls_context;  // not used yet
     smb_cli_term_printf(CLI_ALERT,"performing LS on %s\\%s \n", sharename, pattern);
     do
     {
+        // pass callbacks to smb2 stream layer through the stat structure
+        dstat1.sink_function = (void *) smb2_ls_function;
+        dstat1.sink_parameters = (void *) &smb2_ls_context;
         int r1 = rtsmb_cli_session_find_first(sid, sharename, pattern, &dstat1);
         if(r1 < 0)
         {

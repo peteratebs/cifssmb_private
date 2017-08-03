@@ -320,6 +320,53 @@ private:
 };
 
 
+class NetSmb2QuerydirectoryCmd  : public NetWireStruct   {
+public:
+  NetSmb2QuerydirectoryCmd() {objectsize=33; }
+  NetWireword  StructureSize; // 33
+  NetWirebyte    FileInformationClass;
+  NetWirebyte    Flags;
+  NetWiredword   FileIndex;
+  NetWireblob16  FileId;
+  NetWireword    FileNameOffset;
+  NetWireword    FileNameLength;
+  NetWiredword   OutputBufferLength;
+  NetWirebyte    Buffer;
+
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+class NetSmb2QuerydirectoryReply  : public NetWireStruct   {
+public:
+  NetSmb2QuerydirectoryReply() {objectsize=9; }
+  NetWireword    StructureSize; // 9
+  NetWireword    OutputBufferOffset;
+  NetWiredword   OutputBufferLength;
+  NetWirebyte    Buffer;
+
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
 template <class T>
 class NetSmb2NBSSReply {
 public:
@@ -355,7 +402,7 @@ public:
   }
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
-       byte *nbsshead = ReplyBuffer->pStream->pSession->wire.incoming_nbss_header;
+       byte *nbsshead = ReplyBuffer->session_pStream()->pSession->wire.incoming_nbss_header;
        byte *nbsstail =nbss->bindpointers(nbsshead);
        byte *smbtail = smb2->bindpointers(base_address);
        byte *replytail = reply->bindpointers(smbtail);
@@ -404,7 +451,7 @@ public:
     ddword SessionId = 0;
 
     status = RTSMB_CLI_SSN_RV_OK;
-    smb2->Initialize(command,(ddword) SendBuffer->pStream->pBuffer->mid, SessionId);
+    smb2->Initialize(command,(ddword) SendBuffer->session_pStream()->pBuffer->mid, SessionId);
 
     if (nbss->push_output(*SendBuffer) != NetStatusOk)
       status = RTSMB_CLI_SSN_RV_DEAD;

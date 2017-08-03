@@ -43,7 +43,7 @@ struct memcpydevContext{
     byte *pData;
     dword bytes_left;
 };
-/// Protototype "device for sinking bytes from a stream.
+/// "device for sinking bytes from a stream.
 /// This memcopies to a location stored in device context.
 inline int memcpy_sink_function(void *devContext, byte *pData, int size)
 {
@@ -53,14 +53,27 @@ inline int memcpy_sink_function(void *devContext, byte *pData, int size)
   return size;
 }
 
-/// Protototype "device for sinking bytes from a stream.
-/// This memcopies to a location stored in device context.
+/// device for sinking bytes to null.
+inline int null_sink_function(void *devContext, byte *pData, int size)
+{
+  return size;
+}
+
+/// device for sinking bytes to tcp stream.
 inline int socket_sink_function(void *devContext, byte *pData, int size)
 {
    if (rtsmb_net_write( ((struct SocketContext *)devContext)->socket, pData,size)==0)
     return size;
    else
      return -1;
+}
+
+
+/// device for sourcing bytes from tcp stream.
+inline int socket_source_function(void *devContext, byte *pData, int size)
+{
+   int r = rtsmb_net_read ( ((struct SocketContext *)devContext)->socket, pData, size, size);
+   return r;
 }
 
 
@@ -185,10 +198,10 @@ class NetStreamBuffer     {
 public:
    NetStreamBuffer()                              {   pdevice_sink=0;pmemory_sink=0; };
    ~NetStreamBuffer()                             {};
-   smb2_iostream  *pStream;
+//   smb2_iostream  *pStream;
    ///  Assign a chunk of memory to the stream for internal buffering.
    ///   should be large enough for smooth performance with sockets and files
-   void attach_buffer(byte *data, dword byte_count){ _attach(data, byte_count); }
+   void attach_buffer(byte *data, dword byte_count, dword preload_count=0){ _attach(data, byte_count,preload_count); }
 
    /// Assign a data source for the stream, this object is configurable to source from a memory array or from a device.
    void attach_source(StreamBufferDataSource & _data_source){ data_sourcer = &_data_source; }
@@ -277,8 +290,10 @@ public:
   RTSMB_CLI_SESSION_SHARE *session_shares()                {  return  pStream->pSession->shares; }
   RTSMB_CLI_SESSION_JOB   *session_jobs()                  {  return  pStream->pSession->jobs; }
   RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
-
+  smb2_iostream           *session_pStream()               {  return  pStream; }
+  void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
 private:
+  smb2_iostream  *pStream;
   StreamBufferDataSource * data_sourcer;
   void consume_input (dword byte_count)          { read_pointer += byte_count; if (read_pointer == write_pointer) read_pointer = write_pointer=0;}
 
@@ -290,7 +305,7 @@ private:
   byte *read_buffer_pointer() { return buffer_base+read_pointer;}
   dword read_buffer_free() {return buffer_size-read_pointer;}
   dword read_buffer_count() {return write_pointer-read_pointer;}
-  void _attach(byte *_buffer_base, dword _buffer_size) {buffer_base=_buffer_base;buffer_size=_buffer_size;write_pointer=read_pointer=0;}
+  void _attach(byte *_buffer_base, dword _buffer_size, dword preload_count) {buffer_base=_buffer_base;buffer_size=_buffer_size;write_pointer=preload_count; read_pointer=0;}
   DataSinkDevtype *pdevice_sink;
   MemoryDataSink  *pmemory_sink;
   dword buffer_size;
@@ -370,21 +385,21 @@ inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBu
 {
     dword valid_byte_count;
 
-    TURN_ON (SendBuffer.pStream->pBuffer->flags, INFO_CAN_TIMEOUT);
+    TURN_ON (SendBuffer.session_pStream()->pBuffer->flags, INFO_CAN_TIMEOUT);
 
-    if (SendBuffer.pStream->pSession->wire.state == CONNECTED)
+    if (SendBuffer.session_pSession()->wire.state == CONNECTED)
 //    if (pSession->state == CONNECTED)
     {
-        SendBuffer.pStream->pBuffer->state = WAITING_ON_US;
+        SendBuffer.session_pStream()->pBuffer->state = WAITING_ON_US;
     }
     else
     {
-        SendBuffer.pStream->pBuffer->end_time_base = rtp_get_system_msec ();
+        SendBuffer.session_pStream()->pBuffer->end_time_base = rtp_get_system_msec ();
         if (SendBuffer.flush() != NetStatusOk)
         {
             return -2;
         }
-        SendBuffer.pStream->pBuffer->state = WAITING_ON_SERVER;
+        SendBuffer.session_pStream()->pBuffer->state = WAITING_ON_SERVER;
     }
     return 0;
 }
@@ -395,21 +410,21 @@ inline int rtsmb_cli_wire_smb2_iostream_flush_sendbufferptr(NetStreamBuffer *Sen
 {
     dword valid_byte_count;
 
-    TURN_ON (SendBuffer->pStream->pBuffer->flags, INFO_CAN_TIMEOUT);
+    TURN_ON (SendBuffer->session_pStream()->pBuffer->flags, INFO_CAN_TIMEOUT);
 
-    if (SendBuffer->pStream->pSession->wire.state == CONNECTED)
+    if (SendBuffer->session_pStream()->pSession->wire.state == CONNECTED)
 //    if (pSession->state == CONNECTED)
     {
-        SendBuffer->pStream->pBuffer->state = WAITING_ON_US;
+        SendBuffer->session_pStream()->pBuffer->state = WAITING_ON_US;
     }
     else
     {
-        SendBuffer->pStream->pBuffer->end_time_base = rtp_get_system_msec ();
+        SendBuffer->session_pStream()->pBuffer->end_time_base = rtp_get_system_msec ();
         if (SendBuffer->flush() != NetStatusOk)
         {
             return -2;
         }
-        SendBuffer->pStream->pBuffer->state = WAITING_ON_SERVER;
+        SendBuffer->session_pStream()->pBuffer->state = WAITING_ON_SERVER;
     }
     return 0;
 }
