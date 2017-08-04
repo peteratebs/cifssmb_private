@@ -973,46 +973,9 @@ static int do_logoff_command(char *command)
     }
 }
 
-// Messy in-line C implementation using packed structures. Needs to be done
-// with wire object structures
-struct lsContext{
-    byte *pData;
-    dword bytes_left;
-};
-
-// Returned structures Borrowed from server code for now, need to fix
-PACK_PRAGMA_ONE
-typedef struct s_FILE_DIRECTORY_INFORMATION_BASE
-{
-	dword NextEntryOffset;
-	dword FileIndex;
-	FILETIME_T CreationTime;
-	FILETIME_T LastAccessTime;
-	FILETIME_T LastWriteTime;
-	FILETIME_T ChangeTime;
-	ddword EndofFile;
-	ddword AllocationSize;
-	dword FileAttributes;
-	dword FileNameLength;
-} PACK_ATTRIBUTE FILE_DIRECTORY_INFORMATION_BASE;
-PACK_PRAGMA_POP
-PACK_PRAGMA_ONE
-typedef struct s_FILE_ID_BOTH_DIR_INFORMATION
-{
-    FILE_DIRECTORY_INFORMATION_BASE directory_information_base;
-	dword EaSize;
-	byte  ShortNameLength;
-	byte  Reserved1;
-	byte  ShortName[24];
-	word  Reserved2;
-	ddword FileId;
-	byte  FileName[1];
-} PACK_ATTRIBUTE FILE_ID_BOTH_DIR_INFORMATION;
-PACK_PRAGMA_POP
-
-#define FILETIMETOTIME(T) *((TIME *)&T)
-
-static void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat)
+// FormatDirscanToDstat) is in cpp with aligned data but it calls this function
+extern int FormatDirscanToDstat(void *pBuffer);
+void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat)
 {
   char temp[300];
   rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pstat->filename, temp, 0);
@@ -1039,28 +1002,6 @@ static void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat)
      smb_cli_term_printf(CLI_PROMPT,"%s %s %2d %4d, %8d %s\n", attrib_string,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year,  (int)pstat->fsize, temp);
   }
 }
-static int FormatDirscanToDstat(void *pBuffer, byte *out_buffer)
-{
-  FILE_ID_BOTH_DIR_INFORMATION *BothDirInfoIterator = (FILE_ID_BOTH_DIR_INFORMATION *) pBuffer;
-  RTSMB_CLI_SESSION_DSTAT mystat;
-  PRTSMB_CLI_SESSION_DSTAT pstat = &mystat;
-  tc_memcpy (pstat->filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
-   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
-   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength+1) = 0;
-   pstat->unicode = 1;           //    char unicode;   /* will be zero if filename is ascii, non-zero if unicode */
-   pstat->fattributes = (unsigned short) BothDirInfoIterator->directory_information_base.FileAttributes;    //    unsigned short fattributes;
-   pstat->fatime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastAccessTime);              //    TIME           fatime64; /* last access time */
-   pstat->fatime64= *((TIME *)(&BothDirInfoIterator->directory_information_base.LastAccessTime));              //    TIME           fatime64; /* last access time */
-   pstat->fwtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.LastWriteTime);              //    TIME           fwtime64; /* last write time */
-   pstat->fctime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.CreationTime);              //    TIME           fctime64; /* last create time */
-   pstat->fhtime64=FILETIMETOTIME(BothDirInfoIterator->directory_information_base.ChangeTime);              //    TIME           fhtime64; /* last change time */
-   pstat->fsize = (dword) BothDirInfoIterator->directory_information_base.EndofFile;                 //    unsigned long fsize;
-   pstat->fsizehi; (dword) (BothDirInfoIterator->directory_information_base.EndofFile>>32);                 //    unsigned long fsize;
-//   pstat->sid =  pSearch->sid;
-                  //    int sid;
-   DisplayDirscan(pstat);
-   return BothDirInfoIterator->directory_information_base.NextEntryOffset;
-}
 
 
 
@@ -1073,7 +1014,7 @@ int ls_sink_function(void *devContext, byte *pData, int size)
 //  ((struct memcpydevContext *)devContext)->bytes_left -= size;
 
   rtp_printf("ls_sink_function size = %d\n", size);
-  int fmt_size = FormatDirscanToDstat(pData, (byte *) 0);
+  int fmt_size = FormatDirscanToDstat(pData);
   rtp_printf("ls_sink_function size = %d %d \n", size, fmt_size);
   return fmt_size;
 }
@@ -1084,7 +1025,7 @@ inline int smb2_ls_function(void *devContext, byte *pData, int size)
 {
   int esize;
 
-  esize = FormatDirscanToDstat(pData, 0);
+  esize = FormatDirscanToDstat(pData);
   smb_cli_term_printf(CLI_PROMPT," We got ls function with size %d recordsize:%d \n", size, esize);
   return esize>0?esize:size;
 }

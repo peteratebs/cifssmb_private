@@ -130,6 +130,14 @@ private:
 };
 
 
+class NetWireblob24  : public NetWireblob {
+  public:
+    void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
+    NetWireblob24() {blob_size=24;};
+    void get(void *p)  { NetWireblob::get(p); };
+    const byte *get()  { return get_raw_address(); };
+};
+
 class NetWireblob16  : public NetWireblob {
   public:
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};

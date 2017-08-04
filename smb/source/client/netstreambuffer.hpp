@@ -240,6 +240,26 @@ public:
       return NetStatusBadCallParms;
    }
 
+   NetStatus toss_input(dword toss_count)
+   {
+     NetStatus s = NetStatusOk;
+
+     DataSinkDevtype *_device_sink = pdevice_sink;
+     DataSinkDevtype NullSink( null_sink_function,  0);
+     attach_sink(&NullSink);
+     dword bytes_tossed  = 0;
+     while (bytes_tossed < toss_count && s==NetStatusOk)
+     {
+       dword _bytes_pulled;
+       s = pull_input(toss_count-bytes_tossed,_bytes_pulled);
+       if (s==NetStatusOk)
+         bytes_tossed += _bytes_pulled;
+     }
+     attach_sink(_device_sink);
+     return s;
+  }
+
+
   NetStatus flush()
   {
      dword buffered_byte_count=0;

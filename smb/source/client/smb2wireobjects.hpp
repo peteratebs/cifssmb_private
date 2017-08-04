@@ -366,7 +366,6 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 
-
 template <class T>
 class NetSmb2NBSSReply {
 public:
@@ -377,6 +376,7 @@ public:
     byte *nbsshead =  ReplyBuffer->peek_input();
     byte *nbsstail  = nbsshead+4;
     byte *cmdtail =   bindpointers(nbsshead);
+
     status=RTSMB_CLI_SSN_RV_OK;
 
 
