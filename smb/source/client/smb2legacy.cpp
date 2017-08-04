@@ -12,7 +12,6 @@
 //  Populate SmbCmdToCmdObjectTable[] as commands are moved to a stream interface for the commands
 //  and accessed through glSmbCmdToCmdObject
 //
-//  The glCmdToJobObject interface has legacy implementations of several commands that will be replaced one at a time.
 
 //
 #include "smb2utils.hpp"
@@ -79,7 +78,6 @@ typedef std::map <word , struct c_smb2cmdobject_t *> SmbCmdToCmdObject_t;
 SmbCmdToCmdObject_t glSmbCmdToCmdObject;
 
 typedef std::map <jobTsmb2 , c_smb2cmdobject *> CmdToJobObject_t;
-extern CmdToJobObject_t glCmdToJobObject;
 
 
 static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
@@ -100,6 +98,24 @@ void InitSmbCmdToCmdObjectTable()
      glSmbCmdToCmdObject[SmbCmdToCmdObjectTable[i].command] = SmbCmdToCmdObjectTable[i].cobject_fetch();
 }
 
+extern void include_wiretests();
+void InitSmbCmdToCmdObjectTable();
+
+// Use static initializer constructor to intitialize run time table
+class InitializeSmb2Tables {
+    public:
+     InitializeSmb2Tables()
+     {
+      cout << "*** Initializing SMB2 client runtime proccessing variables *** " << endl;
+      cout << "***                                                        ***" << endl;
+      InitSmbCmdToCmdObjectTable();
+      cout << "*** Done Initializing SMB2 client runtime proccessing variables *** " << endl;
+      include_wiretests();
+    }
+};
+InitializeSmb2Tables PerformInitializeSmb2Tables;
+
+
 void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
 {
   SendBuffer.session_pStream(pStream);
@@ -112,12 +128,7 @@ void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuff
 void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
 {
   ReplyBuffer.session_pStream(pStream);
-//  sockContext.socket = pStream->pSession->wire.socket;
-  // Attach the buffer and logically prefill with total_read valid bytes that are in the buffer now
   ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size,pStream->pSession->wire.total_read);
-
-
-  //ReplyBuffer.attach_source(&SocketSource);
 }
 
 extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
@@ -137,8 +148,6 @@ int r = RTSMB_CLI_SSN_RV_OK;
      else
        r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
   }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
   return r;
 }
 
@@ -158,10 +167,6 @@ int r = RTSMB_CLI_SSN_RV_OK;
     else
       r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
   }
-  else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-  {
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->receive_handler_smb2(pStream);
-  }
   return r;
 }
 
@@ -179,8 +184,7 @@ int r = RTSMB_CLI_SSN_RV_OK;
       r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_error_handler_smb2(SendBuffer);
    else if (glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
      r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
-  } else if ( glCmdToJobObject.find(pStream->pJob->smb2_jobtype) != glCmdToJobObject.end() )
-    r = glCmdToJobObject[pStream->pJob->smb2_jobtype]->error_handler_smb2(pStream);
+  }
   return r;
 }
 
@@ -195,7 +199,7 @@ NetNbssHeader NbssHeader;
   NbssHeader.nbss_packet_size =  pStruct->size;
   return NbssHeader.FixedStructureSize(); // RTSMB_NBSS_HEADER_SIZE;
 }
-
+#ifdef __notused__
 // Init header function using bytes order?alignment friendly factory object replaces C version of same.
 extern void rtsmb2_cli_session_init_header(smb2_iostream  *pStream, word command, ddword mid64, ddword SessionId)
 {
@@ -218,3 +222,4 @@ NetSmb2Header Smb2Header;
     Smb2Header.SessionId = SessionId;
     Smb2Header.Signature = (byte *)"IAMTHESIGNATURE";
 }
+#endif
