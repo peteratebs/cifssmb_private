@@ -441,7 +441,6 @@ private:
 
 };
 
-// inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(PRTSMB_CLI_WIRE_SESSION pSession, PRTSMB_CLI_WIRE_BUFFER pBuffer, NetStreamBuffer &SendBuffer)
 inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBuffer)
 {
     dword valid_byte_count;

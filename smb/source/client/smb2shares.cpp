@@ -212,9 +212,9 @@ static int rtsmb2_cli_session_send_logoff (NetStreamBuffer &SendBuffer)
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
   NetSmb2LogoffCmd    Smb2LogoffCmd;
-  OutSmb2Header.TreeId =  (ddword)SendBuffer.job_data()->tree_disconnect.tid;
 
   NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
+  OutSmb2Header.TreeId =  (ddword)SendBuffer.job_data()->tree_disconnect.tid;
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {

@@ -62,7 +62,6 @@ extern void  smb2_iostream_start_encryption(smb2_iostream *pStream);
 int rtsmb_cli_wire_smb2_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 void rtsmb_cli_session_search_close (PRTSMB_CLI_SESSION_SEARCH pSearch);
 
-int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
@@ -168,92 +167,6 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
    return pStream;
 }
 
-// This is not used, see rtsmb_cli_wire_smb2_iostream_flush_sendbuffer()
-int rtsmb_cli_wire_smb2_iostream_flush_raw(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream)
-{
-    PRTSMB_CLI_WIRE_BUFFER pBuffer;
-    pBuffer = pStream->pBuffer;
-
-    pBuffer->buffer_size = pStream->write_buffer_size-pStream->write_buffer_remaining;
-
-    TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
-
-    if (pSession->state == CONNECTED)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Set state Waiting on us\n");
-        pBuffer->state = WAITING_ON_US;
-    }
-    else
-    {
-        pBuffer->end_time_base = rtp_get_system_msec ();
-        if (rtsmb_net_write (pSession->socket, pBuffer->buffer, (int)pBuffer->buffer_size)<0)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Error writing %d bytes !!!!!!!!!!!!!!!!!\n",(int)pBuffer->buffer_size);
-            return -2;
-        }
-
-        pBuffer->state = WAITING_ON_SERVER;
-    }
-    return 0;
-}
-
-int rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream)
-{
-    PRTSMB_CLI_WIRE_BUFFER pBuffer;
-    RTSMB_NBSS_HEADER header;
-    pBuffer = pStream->pBuffer;
-
-    pBuffer->buffer_size = pStream->write_buffer_size-pStream->write_buffer_remaining;
-
-    header.type = RTSMB_NBSS_COM_MESSAGE;
-    header.size = (word) (pBuffer->buffer_size - RTSMB_NBSS_HEADER_SIZE);
-
-  #ifdef INCLUDE_RTSMB_CLI_ZERO_COPY
-    if (pBuffer->attached_data)
-    {
-        header.size += pBuffer->attached_size;
-    }
-  #endif
-    rtsmb_nbss_fill_header_cpp (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
-
-    TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
-
-    if (pSession->state == CONNECTED)
-    {
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Set state Waiting on us\n");
-        pBuffer->state = WAITING_ON_US;
-#ifdef STATE_DIAGNOSTICS
-Get_Wire_Buffer_State(WAITING_ON_US);
-#endif
-    }
-    else
-    {
-        pBuffer->end_time_base = rtp_get_system_msec ();
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Writing %d bytes\n",(int)pBuffer->buffer_size);
-        if (rtsmb_net_write (pSession->socket, pBuffer->buffer, (int)pBuffer->buffer_size)<0)
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Error writing %d bytes !!!!!!!!!!!!!!!!!\n",(int)pBuffer->buffer_size);
-            return -2;
-        }
-
-      #ifdef INCLUDE_RTSMB_CLI_ZERO_COPY
-        if (pBuffer->attached_data)
-        {
-            if (rtsmb_net_write (pSession->socket, pBuffer->attached_data, (int)pBuffer->attached_size)<0)
-            {
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Error writing %d attached bytes !!!!!!!!!!!!!!!!!\n",(int)pBuffer->attached_size);
-                return -2;
-            }
-        }
-      #endif
-        pBuffer->state = WAITING_ON_SERVER;
-        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb_cli_wire_smb2_iostream_flush: Set state Waiting on server\n");
-#ifdef STATE_DIAGNOSTICS
-Get_Wire_Buffer_State(WAITING_ON_SERVER);
-#endif
-    }
-    return 0;
-}
 
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif

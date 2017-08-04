@@ -64,7 +64,6 @@
 
 
 #ifdef SUPPORT_SMB2
-int           rtsmb_cli_wire_smb2_iostream_flush(PRTSMB_CLI_WIRE_SESSION pSession, smb2_iostream  *pStream);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 #endif
@@ -4616,13 +4615,7 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
                return RTSMB_CLI_SSN_RV_DEAD;
             else if (r == RTSMB_CLI_SSN_RV_OK)
             {
-                r = rtsmb_cli_wire_smb2_iostream_flush(&pSession->wire, pStream);
-                if (r != 0)
-                {
-                    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_iostream_flush failed\n");
-                }
-                ASSURE (r == 0, RTSMB_CLI_SSN_RV_DEAD);
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: rtsmb_cli_wire_smb2_iostream_flush succeed\n");
+               return  RTSMB_CLI_SSN_RV_OK;
             }
         }
         else
