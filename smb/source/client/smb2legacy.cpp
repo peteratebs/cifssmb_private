@@ -223,3 +223,109 @@ NetSmb2Header Smb2Header;
     Smb2Header.Signature = (byte *)"IAMTHESIGNATURE";
 }
 #endif
+
+extern "C" {
+
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
+
+void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
+
+int rtsmb_cli_wire_smb2_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
+extern void  smb2_iostream_start_encryption(smb2_iostream *pStream);
+
+} // extern C
+
+
+typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
+
+
+//static void rtsmb2_cli_session_free_dir_query_buffer (smb2_iostream  *pStream);
+
+/* Called when a new_session is created sepcifying an SMBV2 dialect.
+   Currently holds SessionId, building it up. */
+void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession)
+{
+    pSession->server_info.smb2_session_id = 0;  // New session sends zero in the header
+}
+
+void rtsmb_cli_smb2_session_release (PRTSMB_CLI_SESSION pSession)
+{
+}
+
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+{
+    PRTSMB_CLI_WIRE_BUFFER pBuffer;
+    BBOOL EncryptMessage = FALSE;
+    int v1_mid;
+
+    /* Attach a buffer to the wire session */
+    v1_mid = rtsmb_cli_wire_smb2_add_start (&pSession->wire, pJob->mid);
+    if (v1_mid<0)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_construct: rtsmb_cli_wire_smb2_add_start Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        return 0;
+    }
+
+    pJob->mid = (word)v1_mid;
+    pBuffer = rtsmb_cli_wire_get_buffer (&pSession->wire, (word) v1_mid);
+    if (!pBuffer)
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_construct: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        return 0;
+    }
+
+    /* Initialize stream structure from V1 buffer structure */
+    tc_memset(&pBuffer->smb2stream, 0, sizeof(pBuffer->smb2stream));
+
+    /* Reads and writes don't interleave so the streams are initialized the same */
+
+    /* Reads will be performed starting form the session buffer origin using size values and offset from the session buffer */
+    pBuffer->smb2stream.Success=TRUE;
+    pBuffer->smb2stream.read_origin             = pBuffer->buffer;
+    pBuffer->smb2stream.pInBuf                  = pBuffer->buffer_end;
+    pBuffer->smb2stream.read_buffer_size        = pBuffer->allocated_buffer_size;                               /* read buffer_size is the buffer size minus NBSS header */
+    pBuffer->smb2stream.read_buffer_remaining   = pBuffer->smb2stream.read_buffer_size-(rtsmb_size)PDIFF(pBuffer->smb2stream.pInBuf,pBuffer->smb2stream.read_origin); // RTSMB_NBSS_HEADER_SIZE;
+
+    /* Writes will be performed starting form the session buffer origin using size values and offset from the session buffer */
+    pBuffer->smb2stream.OutHdr.StructureSize    = 64;
+    pBuffer->smb2stream.write_origin            = pBuffer->smb2stream.read_origin;                  /* write_buffer_size is the buffer size minus NBSS header */
+    pBuffer->smb2stream.write_buffer_size       = pBuffer->smb2stream.read_buffer_size;
+    pBuffer->smb2stream.pOutBuf                 = pBuffer->smb2stream.pInBuf;
+    pBuffer->smb2stream.write_buffer_remaining  = pBuffer->smb2stream.read_buffer_remaining;
+    pBuffer->smb2stream.OutBodySize = 0;
+
+    pBuffer->smb2stream.pBuffer = pBuffer;
+    pBuffer->smb2stream.pSession = pSession;
+    pBuffer->smb2stream.pJob     = pJob;
+    if (EncryptMessage)
+        smb2_iostream_start_encryption(&pBuffer->smb2stream);
+    return &pBuffer->smb2stream;
+}
+
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid)
+{
+    PRTSMB_CLI_WIRE_BUFFER pBuffer;
+    pBuffer = rtsmb_cli_wire_get_buffer (pSession, mid);
+    if (pBuffer)
+    {
+        return &pBuffer->smb2stream;
+    }
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_get: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    return 0;
+}
+
+smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2)
+{
+    smb2_iostream  *pStream = rtsmb_cli_wire_smb2_iostream_get(pSession, mid);
+
+    if (pStream )
+    {
+        pStream->InHdr     = *pheader_smb2;
+        pStream->pInBuf    = PADD(pStream->pInBuf,header_length);
+        pStream->read_buffer_remaining -= (rtsmb_size)header_length;
+    }
+   return pStream;
+}
+
