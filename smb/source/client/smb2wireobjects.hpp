@@ -406,6 +406,7 @@ public:
        byte *nbsstail =nbss->bindpointers(nbsshead);
        byte *smbtail = smb2->bindpointers(base_address);
        byte *replytail = reply->bindpointers(smbtail);
+       ReplyBuffer->attach_nbss(nbss->nbss_packet_size());     // Log the size of the new frame
        return _raw_address+FixedStructureSize();}
   byte *FixedStructureAddress() { return base_address; };
 

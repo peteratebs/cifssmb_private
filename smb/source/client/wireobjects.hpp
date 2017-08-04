@@ -88,6 +88,11 @@ class NetWirebyte  : public NetWire {
   public:
     NetWirebyte() {blob_size=1;}
     void operator =(byte d)  { *((byte *)raw_address) = d;}; // override equal operator
+
+    byte operator()() {
+        return get();
+    }
+   private:
     byte get()  { return (byte)*raw_address;}
 };
 
@@ -95,6 +100,8 @@ class NetWireword  : public NetWire {
   public:
     NetWireword() {blob_size=2;};
     void operator =(word d)  { HTONETWORD(d); }; // tc_memcpy(raw_address, &d, sizeof(word));}
+    word operator()() { return get(); }
+   private:
     word get()  { word v; NETTOHWORD(v);return v;}
 };
 
@@ -102,20 +109,26 @@ class NetWiredword  : public NetWire {
   public:
     NetWiredword() {blob_size=4;}
     void operator =(dword d)  { HTONETDWORD(d);}; // tc_memcpy(raw_address, &d, sizeof(dword));}
+    dword operator()() { return get(); }
+   private:
     dword get()  { dword v; NETTOHDWORD(v);return v;}
 };
 
 class NetWireddword  : public NetWire {
   public:
     NetWireddword() {blob_size=8;}
+    ddword operator()() { return get(); }
     void operator =(ddword d)  { HTONETDDWORD(d); }; // tc_memcpy(raw_address, &d, sizeof(ddword));}
+   private:
     ddword get()  { ddword v; NETTOHDDWORD(v);return v;}
 };
 
 class NetWireFileTime  : public NetWire {
   public:
     NetWireFileTime() {blob_size=8;};
+    ddword operator()() { return get(); }
     void operator =(ddword d)  { HTONETDDWORD(d); } // tc_memcpy(raw_address, &d, sizeof(ddword));}
+   private:
     ddword get()   { ddword v; NETTOHDDWORD(v);return v;}
 };
 
@@ -135,6 +148,8 @@ class NetWireblob24  : public NetWireblob {
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
     NetWireblob24() {blob_size=24;};
     void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
     const byte *get()  { return get_raw_address(); };
 };
 
@@ -143,6 +158,8 @@ class NetWireblob16  : public NetWireblob {
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
     NetWireblob16() {blob_size=16;};
     void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
     const byte *get()  { return get_raw_address(); };
 };
 class NetWireblob4  : public NetWireblob {
@@ -150,6 +167,8 @@ class NetWireblob4  : public NetWireblob {
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
     NetWireblob4() { blob_size=4;};
     void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
     const byte *get()  { return get_raw_address(); };
 };
 
@@ -158,6 +177,8 @@ class NetWireFileId  : public NetWireblob {
     NetWireFileId() {blob_size=16;};
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
     void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
     const byte *get()  { return get_raw_address(); };
 };
 
@@ -168,6 +189,8 @@ class NetWire24bitword  : public NetWireblob {
 public:
     NetWire24bitword() {blob_size=3;};
     void operator =(dword d)  { set(d); }; // tc_memcpy(raw_address, &d, sizeof(ddword));}
+    dword operator()() { return get(); }
+private:
     dword get()  {
          byte buf[3];
          NetWireblob::get(buf);

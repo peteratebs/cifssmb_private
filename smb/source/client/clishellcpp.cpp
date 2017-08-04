@@ -35,22 +35,21 @@ extern "C" int FormatDirscanToDstat(void *pBuffer)
   PRTSMB_CLI_SESSION_DSTAT pstat = &mystat;
   tc_memcpy (pstat->filename,
     BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.FixedStructureSize()-1,
-    BothDirInfoIterator.FileNameLength.get());
+    BothDirInfoIterator.FileNameLength());
 //  tc_memcpy (pstat->filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
 //   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
 //   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength+1) = 0;
    pstat->unicode = 1;           //    char unicode;   /* will be zero if filename is ascii, non-zero if unicode */
-   pstat->fattributes = (unsigned short) BothDirInfoIterator.FileAttributes.get();    //    unsigned short fattributes;
-   pstat->fatime64=FILETIMETOTIME(BothDirInfoIterator.LastAccessTime.get());              //    TIME           fatime64; /* last access time */
-   pstat->fatime64= FILETIMETOTIME(BothDirInfoIterator.LastAccessTime.get());              //    TIME           fatime64; /* last access time */
-   pstat->fwtime64=FILETIMETOTIME(BothDirInfoIterator.LastWriteTime.get());              //    TIME           fwtime64; /* last write time */
-   pstat->fctime64=FILETIMETOTIME(BothDirInfoIterator.CreationTime.get());              //    TIME           fctime64; /* last create time */
-   pstat->fhtime64=FILETIMETOTIME(BothDirInfoIterator.ChangeTime.get());              //    TIME           fhtime64; /* last change time */
-   pstat->fsize = (dword) BothDirInfoIterator.EndofFile.get();                 //    unsigned long fsize;
-   pstat->fsizehi; (dword) (BothDirInfoIterator.EndofFile.get()>>32);                 //    unsigned long fsize;
+   pstat->fattributes = (unsigned short) BothDirInfoIterator.FileAttributes();    //    unsigned short fattributes;
+   pstat->fatime64=FILETIMETOTIME(BothDirInfoIterator.LastAccessTime());              //    TIME           fatime64; /* last access time */
+   pstat->fatime64= FILETIMETOTIME(BothDirInfoIterator.LastAccessTime());              //    TIME           fatime64; /* last access time */
+   pstat->fwtime64=FILETIMETOTIME(BothDirInfoIterator.LastWriteTime());              //    TIME           fwtime64; /* last write time */
+   pstat->fctime64=FILETIMETOTIME(BothDirInfoIterator.CreationTime());              //    TIME           fctime64; /* last create time */
+   pstat->fhtime64=FILETIMETOTIME(BothDirInfoIterator.ChangeTime());              //    TIME           fhtime64; /* last change time */
+   pstat->fsize = (dword) BothDirInfoIterator.EndofFile();                 //    unsigned long fsize;
+   pstat->fsizehi; (dword) (BothDirInfoIterator.EndofFile()>>32);                 //    unsigned long fsize;
 //   pstat->sid =  pSearch->sid;
                   //    int sid;
    DisplayDirscan(pstat);
-   return BothDirInfoIterator.NextEntryOffset.get();
+   return BothDirInfoIterator.NextEntryOffset();
 }
-

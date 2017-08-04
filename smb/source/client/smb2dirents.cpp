@@ -125,10 +125,13 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
     Smb2QuerydirectoryCmd.Flags                   = 0; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
 
     SendBuffer.job_data()->findsmb2.search_struct->has_continue = FALSE;
-    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags.get()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+    Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+//    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+
+    cout << "YOYO Flags1: " << (int)Smb2QuerydirectoryCmd.Flags() << "Flags2: " << (int)Smb2QuerydirectoryCmd.Flags() << endl;
 
     Smb2QuerydirectoryCmd.FileId =  SendBuffer.job_data()->findsmb2.search_struct->SMB2FileId;
-    Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize.get()+Smb2QuerydirectoryCmd.StructureSize.get()-1);
+    Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize()+Smb2QuerydirectoryCmd.StructureSize()-1);
 
     if (SendBuffer.job_data()->findsmb2.pattern)
       Smb2QuerydirectoryCmd.FileNameLength   = (word)rtsmb_len (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
@@ -138,11 +141,11 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
    // Wrong
     Smb2QuerydirectoryCmd.OutputBufferLength      = (word)1400;
 
-    if (Smb2QuerydirectoryCmd.FileNameLength.get() != 0)
+    if (Smb2QuerydirectoryCmd.FileNameLength() != 0)
     {
-      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, SendBuffer.job_data()->findsmb2.pattern, Smb2QuerydirectoryCmd.FileNameLength.get());
+      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, SendBuffer.job_data()->findsmb2.pattern, Smb2QuerydirectoryCmd.FileNameLength());
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Call encode \n");
-      Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength.get());
+      Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
       if (Smb2QuerydirectoryCmd.push_output(SendBuffer) != NetStatusOk)
          return RTSMB_CLI_SSN_RV_DEAD;
       Smb2NBSSCmd.flush();
@@ -183,7 +186,7 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
   ReplyBuffer.attach_sink(&ShellCallbackSink);
 
   dword bytes_pulled=0;
-  dword byte_count = Smb2QuerydirectoryReply.OutputBufferLength.get();
+  dword byte_count = Smb2QuerydirectoryReply.OutputBufferLength();
 //  ReplyBuffer.attach_sink(&ShellCallbackSink);
   while (bytes_pulled < byte_count && s==NetStatusOk)
   {

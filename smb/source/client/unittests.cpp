@@ -92,20 +92,20 @@ class TestWireObjects {
        TestObject.test_blob16 = (byte *)test_string2.c_str();
 //     test_blob = (blob) test_value;
     }
-    if (test_value <= 0xff)       cout << "(byte)" << (int)(byte)TestObject.test_byte.get() << endr;
-    if (test_value <= 0xffff)     cout << "(word)" << (word)TestObject.test_word.get() << endr;
-    if (test_value <= 0xffffffff) cout << "(dword)" << (dword)TestObject.test_dword.get() << endr;
-    if (test_value <= 0xffffff)   cout << "(24bitword)" << (dword)TestObject.test_24bitword.get() << endr;
-                                  cout << "(ddword)" << (ddword)TestObject.test_ddword.get() << endr;
+    if (test_value <= 0xff)       cout << "(byte)" << (int)(byte)TestObject.test_byte() << endr;
+    if (test_value <= 0xffff)     cout << "(word)" << (word)TestObject.test_word() << endr;
+    if (test_value <= 0xffffffff) cout << "(dword)" << (dword)TestObject.test_dword() << endr;
+    if (test_value <= 0xffffff)   cout << "(24bitword)" << (dword)TestObject.test_24bitword() << endr;
+                                  cout << "(ddword)" << (ddword)TestObject.test_ddword() << endr;
     if (test_value >= (int) 'A' && test_value <= (int) 'Z')
     {
-       std::string result_string = std::string ((const char *)TestObject.test_blob4.get());
+       std::string result_string = std::string ((const char *)TestObject.test_blob4());
        cout << "(blob4)" << result_string << endl;
-       std::string result_string1 = std::string ((const char *)TestObject.test_FileId.get());
+       std::string result_string1 = std::string ((const char *)TestObject.test_FileId());
        cout << "(FileId)" << result_string1 << endl;
-       std::string result_string2 = std::string ((const char *)TestObject.test_blob16.get());
+       std::string result_string2 = std::string ((const char *)TestObject.test_blob16());
        cout << "(blob16)" << result_string2 << endl;
-//     cout << "(blob)" << (blob)TestObject.test_blob.get() << endl;
+//     cout << "(blob)" << (blob)TestObject.test_blob() << endl;
     }
     if (test_value == (int) 'Z')
      cout << endl << "Finished testing blob field types" << endl;

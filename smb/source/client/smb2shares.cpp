@@ -119,13 +119,13 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
   {
     Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
     Smb2TreeconnectCmd.Reserved = 0;
-    Smb2TreeconnectCmd.PathOffset = (word) (OutSmb2Header.StructureSize.get()+Smb2TreeconnectCmd.StructureSize.get()-1);
+    Smb2TreeconnectCmd.PathOffset = (word) (OutSmb2Header.StructureSize()+Smb2TreeconnectCmd.StructureSize()-1);
     Smb2TreeconnectCmd.PathLength = pathlen;
     Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
 
-    SendBuffer.job_data()->tree_connect.share_struct->connect_mid = (word) OutSmb2Header.MessageId.get();
+    SendBuffer.job_data()->tree_connect.share_struct->connect_mid = (word) OutSmb2Header.MessageId();
 
-    tc_memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1,lshare_name, Smb2TreeconnectCmd.PathLength.get());
+    tc_memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1,lshare_name, Smb2TreeconnectCmd.PathLength());
     if (Smb2TreeconnectCmd.push_output(SendBuffer) != NetStatusOk)
        return RTSMB_CLI_SSN_RV_DEAD;
 
@@ -156,7 +156,7 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
     for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
     {
       if (ReplyBuffer.session_shares()[r].state != CSSN_SHARE_STATE_UNUSED &&
-       ReplyBuffer.session_shares()[r].connect_mid == (word) InSmb2Header.MessageId.get())
+       ReplyBuffer.session_shares()[r].connect_mid == (word) InSmb2Header.MessageId())
       {
         pShare = &ReplyBuffer.session_shares()[r];
         break;
@@ -167,7 +167,7 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
         return RTSMB_CLI_SSN_RV_MALFORMED;
     }
 
-    pShare->tid = (word)InSmb2Header.TreeId.get();
+    pShare->tid = (word)InSmb2Header.TreeId();
     pShare->state = CSSN_SHARE_STATE_CONNECTED;
 #ifdef STATE_DIAGNOSTICS
 RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);

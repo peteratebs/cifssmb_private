@@ -161,22 +161,22 @@ static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
   NetSmb2NegotiateReply Smb2NegotiateReply;
   NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
 
-  if (Smb2NegotiateReply.SecurityBufferLength.get())
+  if (Smb2NegotiateReply.SecurityBufferLength())
   {
     // Hack it isn't set up yet
     ReplyBuffer.session_user()->uid = 0;
    // This is the ignore rfc xx comment, no need to save it
    ReplyBuffer.job_data()->session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
   }
-  ReplyBuffer.session_server_info()->dialect =  (RTSMB_CLI_SESSION_DIALECT)Smb2NegotiateReply.DialectRevision.get();
+  ReplyBuffer.session_server_info()->dialect =  (RTSMB_CLI_SESSION_DIALECT)Smb2NegotiateReply.DialectRevision();
 
   // Get the maximum buffer size we can ever want to allocate and store it in buffer_size
   {
-    dword maxsize =  Smb2NegotiateReply.MaxReadSize.get();
-    if (Smb2NegotiateReply.MaxWriteSize.get() >  maxsize)
-      maxsize = Smb2NegotiateReply.MaxWriteSize.get();
-    if (Smb2NegotiateReply.MaxTransactSize.get() >  maxsize)
-      maxsize = Smb2NegotiateReply.MaxTransactSize.get();
+    dword maxsize =  Smb2NegotiateReply.MaxReadSize();
+    if (Smb2NegotiateReply.MaxWriteSize() >  maxsize)
+      maxsize = Smb2NegotiateReply.MaxWriteSize();
+    if (Smb2NegotiateReply.MaxTransactSize() >  maxsize)
+      maxsize = Smb2NegotiateReply.MaxTransactSize();
     ReplyBuffer.session_server_info()->buffer_size =  maxsize;
     ReplyBuffer.session_server_info()->raw_size   =   maxsize;
     // HEREHERE -  ReplyBuffer.session_server_info()->smb2_session_id = InSmb2Header->Smb2NegotiateReply???
@@ -203,10 +203,10 @@ static int rtsmb2_cli_session_send_setup_with_blob (NetStreamBuffer &SendBuffer,
       Smb2SetupCmd.SecurityBufferOffset =  0x58;
       Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
       Smb2SetupCmd.PreviousSessionId    =  0;
-      Smb2SetupCmd.addto_variable_content(Smb2SetupCmd.SecurityBufferLength.get());
+      Smb2SetupCmd.addto_variable_content(Smb2SetupCmd.SecurityBufferLength());
       if (Smb2SetupCmd.push_output(SendBuffer) != NetStatusOk)
          return RTSMB_CLI_SSN_RV_DEAD;
-      tc_memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset.get(), variable_content, variable_content_size);
+      tc_memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
     }
     Smb2NBSSCmd.flush();
     return Smb2NBSSCmd.status;
@@ -232,16 +232,16 @@ static int rtsmb2_cli_session_receive_setup (NetStreamBuffer &ReplyBuffer)
 
   cout << "session_receive_setup received packet" << endl;
 
-  if (InSmb2Header.Status_ChannelSequenceReserved.get() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+  if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
   {
     cout << "didnt get SMB_NT_STATUS_MORE_PROCESSING_REQUIRED" << endl;
   }
-  if (Smb2SetupReply.SecurityBufferLength.get()&&Smb2SetupReply.SecurityBufferLength.get() < 2048)
+  if (Smb2SetupReply.SecurityBufferLength()&&Smb2SetupReply.SecurityBufferLength() < 2048)
   {
-    ReplyBuffer.session_user()->spnego_blob_size_from_server = Smb2SetupReply.SecurityBufferLength.get();
-    ReplyBuffer.session_user()->spnego_blob_from_server = (byte *)rtp_malloc(Smb2SetupReply.SecurityBufferLength.get());
+    ReplyBuffer.session_user()->spnego_blob_size_from_server = Smb2SetupReply.SecurityBufferLength();
+    ReplyBuffer.session_user()->spnego_blob_from_server = (byte *)rtp_malloc(Smb2SetupReply.SecurityBufferLength());
     ReplyBuffer.session_user()->state = CSSN_USER_STATE_CHALLENGED;
-    tc_memcpy( ReplyBuffer.session_user()->spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset.get(), Smb2SetupReply.SecurityBufferLength.get());
+    tc_memcpy( ReplyBuffer.session_user()->spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), Smb2SetupReply.SecurityBufferLength());
     ReplyBuffer.job_data()->session_setup.user_struct = ReplyBuffer.session_user();
   }
   return RTSMB_CLI_SSN_RV_OK;
@@ -257,11 +257,11 @@ static int rtsmb2_cli_session_receive_setupphase_2 (NetStreamBuffer &ReplyBuffer
   NetSmb2SetupReply Smb2SetupReply;
   NetSmb2NBSSReply<NetSmb2SetupReply> Smb2NBSSReply(SMB2_SESSION_SETUP, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2SetupReply);
 
-  if (InSmb2Header.Status_ChannelSequenceReserved.get() !=  SMB_NT_STATUS_SUCCESS)
+  if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_SUCCESS)
     cout << "setup_phase2 didnt get SMB_NT_STATUS_SUCCESS" << endl;
   // Spnego should be a negTokenTarg completed status but ignore it
   // should be 9 bytes: this sequence a1073005a0030a0100
-  // cout << "setup_phase2 spnego reply size is:  " << Smb2SetupReply.SecurityBufferLength.get() << endl;
+  // cout << "setup_phase2 spnego reply size is:  " << Smb2SetupReply.SecurityBufferLength() << endl;
   ReplyBuffer.session_user()->state = CSSN_USER_STATE_LOGGED_ON;
   return RTSMB_CLI_SSN_RV_OK;
 }
