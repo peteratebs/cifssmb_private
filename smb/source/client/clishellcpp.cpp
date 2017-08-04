@@ -24,6 +24,13 @@ extern "C" {
   void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat);
 }
 
+// Clean up what we can after completing a command
+extern "C" void cpp_cleanup_after_command()
+{
+  int job; int session=0;
+  for (job = 0; job < prtsmb_cli_ctx->max_jobs_per_session; job++)  prtsmb_cli_ctx->sessions[session].jobs[job].state = CSSN_JOB_STATE_UNUSED;
+}
+
 // Format the dstat in C++ with alignment independent classes and call back to the shell to display
 extern "C" int FormatDirscanToDstat(void *pBuffer)
 {

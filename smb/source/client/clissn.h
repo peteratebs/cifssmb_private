@@ -48,7 +48,9 @@
 #define RTSMB_CLI_SSN_RV_FILE_NOT_FOUND       -51  /* an error occurred on server for a particular smb */
 #define RTSMB_CLI_SSN_RV_BAD_PERMISSIONS      -52  /* an error occurred on server for a particular smb */
 #define RTSMB_CLI_SSN_RV_IN_PROGRESS          -101 /* the requested operation is still in progress */
-#define RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS  -102 /* the SMB2 retrieve is still in progress, display current results */
+#define RTSMB_CLI_SSN_SMB2_QUERY_MORE         -102 /* the SMB2 retrieve is still in progress, display current results */
+#define RTSMB_CLI_SSN_SMB2_QUERY_FINISHED     -103 /* the SMB2 retrieve is complte. Send a search close */
+#define RTSMB_CLI_SSN_SMB2_COMPUND_INPUT      -104 /* the SMB2 packet indicates moree data */
 #define RTSMB_CLI_SSN_RV_INVALID_RV           -100 /* this is guaranteed to never be used as an rv value */
 
 // SMB2 Job types, used in mappingh c processing routines to cpp objects.
@@ -73,7 +75,6 @@ typedef enum jobTsmb2_t {
   jobTsmb2_mkdir,
   jobTsmb2_rmdir,
   jobTsmb2_find_first,
-  jobTsmb2_find_close,
   jobTsmb2_stat,
   jobTsmb2_chmode,
   jobTsmb2_full_server_enum,
@@ -383,9 +384,6 @@ typedef struct
     PRTSMB_CLI_SESSION_DSTAT dstats;
 
     PRTSMB_CLI_SESSION_SHARE share_struct;  /* share that search is on */
-    void *pBufferedResponse;
-    void *pBufferedIterator;
-    void *pBufferedIteratorEnd;
 
 } RTSMB_CLI_SESSION_SEARCH;
 typedef RTSMB_CLI_SESSION_SEARCH RTSMB_FAR *PRTSMB_CLI_SESSION_SEARCH;

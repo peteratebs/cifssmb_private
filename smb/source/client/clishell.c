@@ -21,9 +21,11 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 #include "smbspnego.h"
 #include "rtpmem.h"
 #include <stdarg.h>
+#include "clicfg.h"
 
 extern char *CommandProcessorGets(char *to, int max_count);
 extern void CommandProcessorPuts(char *buffer);
+extern void cpp_cleanup_after_command();
 
 // --------------------------------------------------------
 #define HISTORY_MODE 1 /* Set to one, to remember parts of Url zero to prompt for all elements of URL */
@@ -411,6 +413,8 @@ static void smb_cli_shell_proc(char *command_buffer)
     do_setuser_command();
    else if (rtp_strcmp(command_buffer, setpassword_cmd) == 0)
     do_setpassword_command();
+   cpp_cleanup_after_command();
+
 }
 
 
@@ -1040,15 +1044,32 @@ static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *patter
         // pass callbacks to smb2 stream layer through the stat structure
         dstat1.sink_function = (void *) smb2_ls_function;
         dstat1.sink_parameters = (void *) &smb2_ls_context;
-        int r1 = rtsmb_cli_session_find_first(sid, sharename, pattern, &dstat1);
+        int r1;
+        r1 = rtsmb_cli_session_find_first(sid, sharename, pattern, &dstat1);
         if(r1 < 0)
         {
-            smb_cli_term_printf(CLI_ALERT,"\n Error getting files\n");
-            return 1;
+          smb_cli_term_printf(CLI_ALERT,"\n Error getting files\n");
+          return 1;
         }
         r1 = wait_on_job(sid, r1);
-        while(r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY || r1 == RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS)
+        // This is the SMB2 flavor of search continue
+// Cheating, using RTSMB_CLI_SSN_SMB2_COMPUND_INPUT to assume he wants another
+// Should really be RTSMB_CLI_SSN_SMB2_QUERY_MORE
+//        while (r1 == RTSMB_CLI_SSN_SMB2_QUERY_MORE)
+        while (r1 == RTSMB_CLI_SSN_SMB2_COMPUND_INPUT)
         {
+            r1 = rtsmb_cli_session_find_next(sid, &dstat1);
+            if(r1 < 0)
+            {
+              smb_cli_term_printf(CLI_ALERT,"\n Error getting files\n");
+              return 1;
+            }
+            r1 = wait_on_job(sid, r1);
+        }
+
+        // This is the SMB1 flavor of search continue
+        while(r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
+        {  // SMB1 stuff
             char temp[200];
 
             rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) dstat1.filename, temp, 0);
@@ -1075,8 +1096,7 @@ static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *patter
 
                 smb_cli_term_printf(CLI_PROMPT,"%s %s %2d %4d, %8d %s\n", attrib_string,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year,  (int)dstat1.fsize, temp);
             }
-        }
-        r1 = rtsmb_cli_session_find_next(sid, &dstat1);
+        } r1 = rtsmb_cli_session_find_next(sid, &dstat1);
         rtsmb_cli_session_find_close(sid, &dstat1);
     } while(doLoop);
     return 0;

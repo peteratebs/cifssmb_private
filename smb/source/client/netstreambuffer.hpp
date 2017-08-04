@@ -323,6 +323,7 @@ public:
   RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
   smb2_iostream           *session_pStream()               {  return  pStream; }
   void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
+  dword get_smb2_read_pointer() {return (smb2_read_pointer);}
 private:
   smb2_iostream  *pStream;
   StreamBufferDataSource * data_sourcer;

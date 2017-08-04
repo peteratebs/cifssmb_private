@@ -24,30 +24,10 @@
 //  get_setupphase_2object()
 
 
-#if (0)
-need pieces of this fragment
 
-int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
-{
-//   pStream->pSession;       // For a client. points to the controlling SMBV1 session structure.
-//   pStream->pJob;
-cout << "Top Send Find close !!!!!" << endl;
-
-
-   /*Make sure we free any buffering we left */
-   rtsmb2_cli_session_free_dir_query_buffer (pStream);
-    /*  Release the buffer we used for this job */
-
-   /* we also want to close everything up here -- useless to wait for response */
-   HEREHERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   rtsmb_cli_session_search_close (pStream->pJob->data.findsmb2.search_struct);
-   return RTSMB_CLI_SSN_RV_OK;
-}
-#endif
 extern "C" {
+  void rtsmb_cli_session_job_close (PRTSMB_CLI_SESSION_JOB pJob);
 }
-// static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
-
 
 class SmbQuerydirectoryWorker {
 public:
@@ -99,7 +79,10 @@ extern "C" int do_querydirectory_worker(int sid,  byte *share_name, byte *passwo
 }
 
 
-static int rtsmb2_cli_session_send_querydirectory_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_querydirectory_error_handler(smb2_iostream  *pStream) {
+    cout << "Yo got error :" << endl;
+    return RTSMB_CLI_SSN_RV_INVALID_RV;
+}
 
 
 static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
@@ -124,8 +107,8 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
     Smb2QuerydirectoryCmd.FileIndex               = 0;
     Smb2QuerydirectoryCmd.Flags                   = 0; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
 
-    SendBuffer.job_data()->findsmb2.search_struct->has_continue = FALSE;
-    Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+    if (SendBuffer.job_data()->findsmb2.search_struct->has_continue==FALSE)
+      Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS;
 //    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
 
     cout << "YOYO Flags1: " << (int)Smb2QuerydirectoryCmd.Flags() << "Flags2: " << (int)Smb2QuerydirectoryCmd.Flags() << endl;
@@ -155,6 +138,7 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
 }
 
 
+
 static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuffer)
 {
   dword in_variable_content_size = 0;
@@ -165,6 +149,22 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
 
   // The headers are actually in memory already but this should go before instantiate in case we
   NetSmb2NBSSReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
+
+  if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_INFO_LENGTH_MISMATCH)
+  {
+     cout << "qeply status1 got missmatch: " << endl;
+
+  }
+
+  if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_NO_MORE_FILES)
+  {
+     cout << "qeply status1 got no more files: " << endl;
+     return RTSMB_CLI_SSN_SMB2_QUERY_FINISHED;
+  }
+
+
+  cout << "YOYO Qreply status1: " << std::hex << (dword)InSmb2Header.Status_ChannelSequenceReserved() << "no more :" << std::hex << (dword) SMB2_STATUS_NO_MORE_FILES << endl;
+  cout << "YOYO mismatch==: " << std::hex << (dword)SMB2_STATUS_INFO_LENGTH_MISMATCH << endl;
 
   // bind to the socket and toss the buffer content we already used.
   StreamBufferDataSource SocketSource;
@@ -179,6 +179,7 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
   {
     return RTSMB_CLI_SSN_RV_DEAD;
   }
+
   // Now sink the rest to to the shell callback
   DataSinkDevtype ShellCallbackSink(
      (pDeviceSendFn_t)ReplyBuffer.job_data()->findsmb2.answering_dstat->sink_function,
@@ -194,6 +195,13 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
     s = ReplyBuffer.pull_input(byte_count,_bytes_pulled);
     if (s==NetStatusOk)
       bytes_pulled += _bytes_pulled;
+  }
+  // Remember the search ID
+  ReplyBuffer.job_data()->findsmb2.answering_dstat->sid = ReplyBuffer.job_data()->findsmb2.search_struct->sid;
+  if (InSmb2Header.NextCommand())
+  {
+    cout << "Yo next :" << InSmb2Header.NextCommand() << "Stream view: " << ReplyBuffer.get_smb2_read_pointer() << endl;
+    return RTSMB_CLI_SSN_SMB2_QUERY_MORE;
   }
   return  RTSMB_CLI_SSN_RV_OK;
 }

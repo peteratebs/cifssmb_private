@@ -2793,7 +2793,6 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
     }
 
     pSearch->share_struct = pShare;
-    pSearch->pBufferedResponse =  pSearch->pBufferedIterator = pSearch->pBufferedIteratorEnd = 0;
 
     /* SMB2 holds onto the job while it runs through the steps
        so remember the job number */
@@ -2812,9 +2811,6 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
         pJob->data.findsmb2.answering_dstat = pdstat;
         pJob->data.findsmb2.search_struct->has_continue = FALSE;
         rtsmb_cpy (pJob->data.findsmb2.pattern, pattern);
-        pSearch->pBufferedIterator =
-        pSearch->pBufferedIteratorEnd =
-        pSearch->pBufferedResponse = 0;
         pJob->smb2_jobtype = jobTsmb2_find_first;
 //        pJob->send_handler_smb2     = rtsmb2_cli_session_send_find_first;
 //        pJob->error_handler_smb2    = rtsmb2_cli_session_send_find_first_error_handler;
@@ -2860,32 +2856,23 @@ int rtsmb_cli_session_find_next (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
 
     ASSURE (pSearch, RTSMB_CLI_SSN_RV_BAD_SEARCH);
 
-
-    if (pSearch->index + 1 >= pSearch->num_stats)
+    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
+        pJob = &pSession->jobs[pSearch->job_number];
+        if (!pJob)
+          return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
+        pJob->data.findsmb2.search_struct = pSearch;
+        pJob->data.findsmb2.answering_dstat = pdstat;
+        pJob->data.findsmb2.search_struct->has_continue = TRUE;
+        pJob->smb2_jobtype = jobTsmb2_find_first;
+        pJob->state = CSSN_JOB_STATE_STALLED;
+    }
+    else if (pSearch->index + 1 >= pSearch->num_stats)
+    { // SMB1
         if (pSearch->end_of_search)
         {
             return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
         }
-
-#ifdef SUPPORT_SMB2
-        if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
-        {
-            if (!pSearch->has_continue)
-            {
-              pSearch->end_of_search = TRUE;
-              return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
-            }
-            pJob = &pSession->jobs[pSearch->job_number];
-            if (!pJob)
-              return RTSMB_CLI_SSN_RV_END_OF_SEARCH;
-            // reuses the handlers from the current job
-            //pJob->send_handler_smb2     = rtsmb2_cli_session_send_find_first;
-            //pJob->error_handler_smb2    = rtsmb2_cli_session_send_find_first_error_handler;
-            //pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_find_first;
-        }
-        else
-#endif
         {
           /* we have to get more results, so we send a find next job */
             PRTSMB_CLI_SESSION_JOB pJob;
@@ -2896,32 +2883,33 @@ int rtsmb_cli_session_find_next (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
             pJob->send_handler = rtsmb_cli_session_send_find_next;
             pJob->receive_handler = rtsmb_cli_session_receive_find_next;
         }
-
-        rtsmb_cli_session_send_stalled_jobs (pSession);
-
-        if (pSession->blocking_mode)
+    }
+    else
+    { // SMB1
+        /* we have the data right now, so let's fill stat object out */
+        *pdstat = pSearch->dstats[++pSearch->index];
         {
-        int r;
-            r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
-            return(r);
+          char temp[200];
+          rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pdstat->filename, temp, 0);
+          rtp_printf("rtsmb_cli_session_find_next: index %d name: %s\n", pSearch->index-1, temp);
         }
-        else
-        {
-            return INDEX_OF (pSession->jobs, pJob);
-        }
+        return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY;
+    }
+    // SMB1 and SMB2 fll throughn to here
+    rtsmb_cli_session_send_stalled_jobs (pSession);
+
+    if (pSession->blocking_mode)
+    {
+    int r;
+        r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
+        return(r);
     }
     else
     {
-        /* we have the data right now, so let's fill stat object out */
-        *pdstat = pSearch->dstats[++pSearch->index];
-{
-        char temp[200];
-        rtsmb_util_rtsmb_to_ascii ((PFRTCHAR) pdstat->filename, temp, 0);
-        rtp_printf("rtsmb_cli_session_find_next: index %d name: %s\n", pSearch->index-1, temp);
-}
-        return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY;
+        return INDEX_OF (pSession->jobs, pJob);
     }
 }
+
 
 int rtsmb_cli_session_find_close (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
 {
@@ -2931,6 +2919,8 @@ int rtsmb_cli_session_find_close (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
 
     pSession = rtsmb_cli_session_get_session (sid);
     ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+
+
     ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
     rtsmb_cli_session_update_timestamp (pSession);
 
@@ -2940,19 +2930,15 @@ int rtsmb_cli_session_find_close (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
     pJob = rtsmb_cli_session_get_free_job (pSession);
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
+    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
+    {   // Nothing to send
+       rtsmb_cli_session_search_close (pSearch);
+       return 0;
+    }
+
     pJob->data.findclose.search_struct = pSearch;
 
-#ifdef SUPPORT_SMB2
-    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
-    {
-        pJob->smb2_jobtype = jobTsmb2_find_close;
-//        pJob->send_handler_smb2 = rtsmb2_cli_session_send_find_close;
-    }
-    else
-#endif
-    {
-        pJob->send_handler = rtsmb_cli_session_send_find_close;
-    }
+    pJob->send_handler = rtsmb_cli_session_send_find_close;
 
     rtsmb_cli_session_send_stalled_jobs (pSession);
 
@@ -4316,7 +4302,6 @@ RTSMB_GET_SESSION_JOB_STATE (CSSN_JOB_STATE_STALLED);
     pJob->mid = 0;
 }
 
-RTSMB_STATIC
 void rtsmb_cli_session_job_close (PRTSMB_CLI_SESSION_JOB pJob)
 {
     pJob->state = CSSN_JOB_STATE_UNUSED;
@@ -4589,7 +4574,7 @@ void rtsmb_cli_session_send_stalled_jobs (PRTSMB_CLI_SESSION pSession)
 
             r = rtsmb_cli_session_send_job (pSession, &pSession->jobs[i]);
 
-            if (r == RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS)
+            if (r == RTSMB_CLI_SSN_SMB2_QUERY_MORE)
             {
                 pSession->jobs[i].state = CSSN_JOB_STATE_WAITING;
             }
