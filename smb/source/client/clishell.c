@@ -1075,17 +1075,6 @@ static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *patter
 
                 smb_cli_term_printf(CLI_PROMPT,"%s %s %2d %4d, %8d %s\n", attrib_string,month_names[(rtpDateStruct.month-1)%12], (int)rtpDateStruct.day, (int)rtpDateStruct.year,  (int)dstat1.fsize, temp);
             }
-            // Handle the fact that SMB2 find_first and find_next can buffer multiple entries.
-            r1 = rtsmb_cli_session_find_buffered(sid, &dstat1);
-            if (r1 != RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
-            {
-              // RTSMB_CLI_SSN_RV_IN_PROGRESS
-              r1 = rtsmb_cli_session_find_next(sid, &dstat1);
-              if(r1 >= 0)
-              {
-                r1 = wait_on_job(sid, r1);
-              }
-            }
         }
         r1 = rtsmb_cli_session_find_next(sid, &dstat1);
         rtsmb_cli_session_find_close(sid, &dstat1);

@@ -2760,25 +2760,6 @@ int rtsmb_cli_session_rmdir_rt (int sid, PFCHAR share, PFRTCHAR filename)
     }
 }
 
-// SMB2 only return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY if we still have content buffered  or RTSMB_CLI_SSN_SMB2_QUERY_IN_PROGRESS if
-// we should tell the top layer to start another get dir info without setting the restart bit
-// Return RTSMB_CLI_SSN_RV_OK to force a gnext call
-// SMB1 always returns RTSMB_CLI_SSN_RV_OK to force a gnext call
-int rtsmb2_cli_session_find_buffered_rt (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat);
-
-int rtsmb_cli_session_find_buffered_rt (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
-{
- PRTSMB_CLI_SESSION pSession;
- pSession = rtsmb_cli_session_get_session (sid);
- if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
- {
-   return rtsmb2_cli_session_find_buffered_rt (sid, pdstat);
- }
- else
- {
-   return RTSMB_CLI_SSN_RV_OK;
- }
-}
 
 int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat)
 {

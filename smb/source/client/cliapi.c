@@ -134,13 +134,6 @@ int  rtsmb_cli_session_rmdir (int sid, PFCHAR share, PFCHAR filename)
     return rtsmb_cli_session_rmdir_rt (sid, share, filename_uc);
 }
 
-//   Handle how smb2 find firsts and nexts  buffr multiple entries
-//   return RTSMB_CLI_SSN_RV_OK;               if we didn't return anythng
-//   return RTSMB_CLI_SSN_RV_SEARCH_DATA_READY if we populated pdstat;
-int  rtsmb_cli_session_find_buffered (int sid, PRTSMB_CLI_SESSION_DSTAT pdstat)
-{
-  return rtsmb_cli_session_find_buffered_rt (sid, pdstat);
-}
 
 int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat)
 {

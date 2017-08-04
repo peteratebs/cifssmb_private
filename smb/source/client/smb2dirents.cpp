@@ -24,6 +24,26 @@
 //  get_setupphase_2object()
 
 
+#if (0)
+need pieces of this fragment
+
+int rtsmb2_cli_session_send_find_close (smb2_iostream  *pStream)
+{
+//   pStream->pSession;       // For a client. points to the controlling SMBV1 session structure.
+//   pStream->pJob;
+cout << "Top Send Find close !!!!!" << endl;
+
+
+   /*Make sure we free any buffering we left */
+   rtsmb2_cli_session_free_dir_query_buffer (pStream);
+    /*  Release the buffer we used for this job */
+
+   /* we also want to close everything up here -- useless to wait for response */
+   HEREHERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   rtsmb_cli_session_search_close (pStream->pJob->data.findsmb2.search_struct);
+   return RTSMB_CLI_SSN_RV_OK;
+}
+#endif
 extern "C" {
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
