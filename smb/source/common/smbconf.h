@@ -90,12 +90,6 @@
 #define INCLUDE_RTSMB_SERVER                    1
 #endif
 
-/**
- * If on, RTSMB will include code for the client.
- */
-#ifndef INCLUDE_RTSMB_CLIENT
-#define INCLUDE_RTSMB_CLIENT                    1
-#endif
 
 /**
  * If on, RTSMB will include code for the client EZ API.
@@ -141,12 +135,6 @@
 /**
  * Sanity checks and redifinitions that have to take place.
  */
-
-/* If EZ is on, client must be turned on. */
-#if (INCLUDE_RTSMB_CLIENT_EZ) && !(INCLUDE_RTMSB_CLIENT)
-#undef  INCLUDE_RTSMB_CLIENT
-#define INCLUDE_RTSMB_CLIENT 1
-#endif
 
 /* If multi-threading is on, then we must operate in threadsafe mode */
 #ifdef INCLUDE_RTSMB_MULTITHREAD

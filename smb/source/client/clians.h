@@ -3,7 +3,6 @@
 
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 #include "smbobjs.h"
 
@@ -92,6 +91,5 @@ int cli_cmd_read_info_standard (PFVOID origin, PFVOID buf, rtsmb_size size,
 int cli_cmd_read_query_file_all_info (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_QUERY_FILE_ALL_INFO pInfo);
 
-#endif /* INCLUDE_RTSMB_CLIENT */
 
 #endif /* __CLI_ANS_H__ */

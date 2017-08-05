@@ -2,7 +2,6 @@
 #define __CLI_SSN_H__
 
 #include "smbdefs.h"
-#if (INCLUDE_RTSMB_CLIENT)
 
 #ifdef SUPPORT_SMB2
 //#include "com_smb2.h"
@@ -885,6 +884,4 @@ int rtsmb_cli_session_receive_read_job (
         PRTSMB_HEADER pHeader,
         PRTSMB_CLI_READ_JOB_DATA info);
 
-#endif /* INCLUDE_RTSMB_CLIENT */
-
-#endif /* __CLI_SSN_H__ */
+#endif // #ifndef __CLI_SSN_H__

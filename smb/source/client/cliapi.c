@@ -21,7 +21,6 @@
 #include "smbnbds.h"
 #include "clicfg.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 /**
  * Here, we define some of the API calls that don't live elsewhere.  These are mostly
@@ -536,5 +535,3 @@ int  rtsmb_cli_ez_set_cwd (PFCHAR filename)
 #endif /* INCLUDE_RTMSB_CLIENT_EZ */
 
 #endif /* INCLUDE_RTSMB_UNICODE */
-
-#endif /* INCLUDE_RTSMB_CLIENT */

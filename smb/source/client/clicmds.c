@@ -13,7 +13,6 @@
 //
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 #include "clicmds.h"
 #include "smbpack.h"
@@ -1112,5 +1111,3 @@ int cli_cmd_fill_trans2_query_path_information (PFVOID origin, PFVOID buf, rtsmb
 
 	return (int) PDIFF (e, pres);
 }
-
-#endif /* INCLUDE_RTSMB_CLIENT */

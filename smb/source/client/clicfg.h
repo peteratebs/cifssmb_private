@@ -3,8 +3,6 @@
 
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
-
 #include "clissn.h"
 #include "cliez.h"
 
@@ -52,7 +50,5 @@ extern PRTSMB_CLIENT_CONTEXT prtsmb_cli_ctx;
 int rtsmb_client_config(void);
 
 extern int rtsmb_client_config_initialized;
-
-#endif /* INCLUDE_RTSMB_CLIENT */
 
 #endif

@@ -21,7 +21,6 @@
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
-#if (INCLUDE_RTSMB_CLIENT)
 //#include "client.h"
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
@@ -191,9 +190,4 @@ void NetSmb2QuerydirectoryReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(OutputBufferLength);
   BINDPOINTERS(Buffer);
 }
-
-
-
-
-#endif /* INCLUDE_RTSMB_CLIENT */
 #endif

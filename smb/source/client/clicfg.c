@@ -35,7 +35,6 @@
 
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 #include "clicfg.h"
 #include "psmbos.h"
@@ -377,6 +376,3 @@ int rtsmb_client_config(void)
 
     return 1;
 }
-
-#endif /* INCLUDE_RTSMB_CLIENT */
-

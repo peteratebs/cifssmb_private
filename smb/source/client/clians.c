@@ -13,7 +13,6 @@
 //
 
 #include "smbdefs.h"
-#if (INCLUDE_RTSMB_CLIENT)
 
 #include "clians.h"
 #include "smbread.h"
@@ -1208,5 +1207,3 @@ int cli_cmd_read_info_allocation (PFVOID origin, PFVOID buf, rtsmb_size size,
 
 	return (int) PDIFF (e, reals);
 }
-
-#endif /* INCLUDE_RTSMB_CLIENT */

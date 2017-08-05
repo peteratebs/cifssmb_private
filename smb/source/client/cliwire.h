@@ -3,8 +3,6 @@
 
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
-
 #include "smbobjs.h"
 #include "clicmds.h"
 #include "clians.h"
@@ -352,6 +350,4 @@ PRTSMB_CLI_WIRE_BUFFER rtsmb_cli_wire_get_buffer (PRTSMB_CLI_WIRE_SESSION pSessi
 	}\
 }
 
-#endif /* INCLUDE_RTSMB_CLIENT */
-
-#endif /* __CLI_WIRE_H__ */
+#endif // ifndef __CLI_WIRE_H__

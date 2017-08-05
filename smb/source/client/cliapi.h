@@ -6,7 +6,6 @@
 #include "cliez.h"   /* for all of the error codes there */
 
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 /**
  * NOTE:  Before using any of these API calls, it is recommended that you call
@@ -1859,6 +1858,5 @@ int  rtsmb_cli_ez_set_cwd_uc (PFWCS filename);
 #endif
 #endif /* INCLUDE_RTMSB_CLIENT_EZ */
 
-#endif /* INCLUDE_RTMSB_CLIENT */
 
-#endif
+#endif // ifndef __CLI_API_H__

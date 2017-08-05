@@ -20,11 +20,9 @@
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
-#if (INCLUDE_RTSMB_CLIENT)
 #include "client.h"
 #include <smb2utils.hpp>
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
 
-#endif /* INCLUDE_RTSMB_CLIENT */
 #endif

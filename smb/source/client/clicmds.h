@@ -3,8 +3,6 @@
 
 #include "smbdefs.h"
 
-#if (INCLUDE_RTSMB_CLIENT)
-
 #include "smbobjs.h"
 
 int cli_cmd_fill_header (PFVOID origin, PFVOID buf, rtsmb_size size,
@@ -101,7 +99,5 @@ int cli_cmd_fill_query_fs_information (PFVOID origin, PFVOID buf, rtsmb_size siz
 
 int cli_cmd_fill_trans2_query_path_information (PFVOID origin, PFVOID buf, rtsmb_size size,
 	PRTSMB_HEADER pHeader, PRTSMB_TRANS2_QUERY_PATH_INFORMATION pQuery);
-
-#endif /* INCLUDE_RTSMB_CLIENT */
 
 #endif

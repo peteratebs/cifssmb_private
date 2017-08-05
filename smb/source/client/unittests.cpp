@@ -21,7 +21,6 @@
 
 #ifdef SUPPORT_SMB2   /* exclude rest of file */
 
-#if (INCLUDE_RTSMB_CLIENT)
 #include "client.h"
 #include <wireobjects.hpp>
 #include <netstreambuffer.hpp>
@@ -221,6 +220,4 @@ static void _TestBufferingType(int test_buffertype)
       s += bytes_pulled;
     } while (bytes_pulled!=0);
     }
-
-#endif /* INCLUDE_RTSMB_CLIENT */
 #endif

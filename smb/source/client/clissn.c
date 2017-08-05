@@ -16,7 +16,6 @@
 
 #define HEREHERE
 
-#if (INCLUDE_RTSMB_CLIENT)
 #include "clissn.h"
 #include "cliwire.h"
 #include "smbutil.h"
@@ -6996,5 +6995,3 @@ int rtsmb_cli_session_receive_get_free (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_
 
     return RTSMB_CLI_SSN_RV_OK;
 }
-
-#endif /* INCLUDE_RTSMB_CLIENT */

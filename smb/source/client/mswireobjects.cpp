@@ -19,9 +19,6 @@
 
 #include "smbdefs.h"
 
-#ifdef SUPPORT_SMB2   /* exclude rest of file */
-
-#if (INCLUDE_RTSMB_CLIENT)
 //#include "client.h"
 #include <netstreambuffer.hpp>
 #include <wireobjects.hpp>
@@ -47,8 +44,3 @@ void ms_FILE_ID_BOTH_DIR_INFORMATION::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(FileId);
   BINDPOINTERS(FileName);
 }
-
-
-
-#endif /* INCLUDE_RTSMB_CLIENT */
-#endif

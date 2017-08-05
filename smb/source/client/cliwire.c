@@ -22,7 +22,6 @@
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
 #endif
 
-#if (INCLUDE_RTSMB_CLIENT)
 
 #include "cliwire.h"
 #include "smbutil.h"
@@ -1304,5 +1303,3 @@ Get_Wire_Buffer_State(UNUSED);
 
     return 0;
 }
-
-#endif /* INCLUDE_RTSMB_CLIENT */
