@@ -16,6 +16,28 @@
 #include "smbread.h"
 #include "smbutil.h"
 
+#if (defined(BUILDING_CLIENT))
+// Messy but the server also has a copy and trying to avoid any changes to server code for now
+// ======================================
+// This is called via smbdefs #define SMB_SWAP_BYTES_DD(A) (ddword) swapdword(A)
+// not used now because smb2 is all done elsewhere and smb1 doesn't use ddword
+ddword swapdword(const ddword i)
+{
+    ddword  rval;
+    ddword  *input = (ddword  *) &i;
+    byte    *data = (byte *)&rval;
+    data[0] = *input >> 56;
+    data[1] = *input >> 48;
+    data[2] = *input >> 40;
+    data[3] = *input >> 32;
+    data[4] = *input >> 24;
+    data[5] = *input >> 16;
+    data[6] = *input >> 8;
+    data[7] = *input >> 0;
+    return rval;
+}
+#endif
+
 
 /**
  * No error checking is performed.
@@ -334,7 +356,6 @@ PFVOID rtsmb_read_dword (PFVOID buf, PFSIZE buf_size,
     return rv;
 }
 
-#ifdef SUPPORT_SMB2
 /**
  * Adds ddw to buf.
  */
@@ -349,4 +370,3 @@ PFVOID rtsmb_read_ddword (PFVOID buf, PFSIZE buf_size,
 
     return rv;
 }
-#endif

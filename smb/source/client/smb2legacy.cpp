@@ -236,7 +236,6 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
 void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
 
 int rtsmb_cli_wire_smb2_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
-extern void  smb2_iostream_start_encryption(smb2_iostream *pStream);
 
 } // extern C
 
@@ -302,8 +301,8 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSess
     pBuffer->smb2stream.pBuffer = pBuffer;
     pBuffer->smb2stream.pSession = pSession;
     pBuffer->smb2stream.pJob     = pJob;
-    if (EncryptMessage)
-        smb2_iostream_start_encryption(&pBuffer->smb2stream);
+//    if (EncryptMessage)
+//        smb2_iostream_start_encryption(&pBuffer->smb2stream);
     return &pBuffer->smb2stream;
 }
 
@@ -330,5 +329,49 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
         pStream->read_buffer_remaining -= (rtsmb_size)header_length;
     }
    return pStream;
+}
+
+
+extern "C" {
+
+// These are either duplicated from server files or they are derived from functions in the server's com_smb2_wire.c
+// implementaion. sm2_stream structure that handles both server and client, these functions allow us to exclude
+// the smb2_stream declaration and use the smb2_iostream declaration which is excludes server specific fields
+
+/* Unpacks a 64 byte SMB2 header from a stream.
+    Updates:
+        pStream->pInBuf,  pStream->read_buffer_remaining
+    Returns:
+        -1   If read_buffer_remaining is too small to contain the header
+        > 0  The number of bytes in the header (should be 64)
+*/
+int cmd_read_transform_header_smb2(PFVOID origin, PFVOID buf, rtsmb_size size, RTSMB2_TRANSFORM_HEADER *pHeader)
+{
+   return -1;
+
+}
+/* Unpacks a 64 byte SMB2 header from a buffer.
+    Returns:
+        -1   If size is too small to contain the header or it is not an SMB2 packet by signature
+        > 0  The number of bytes in the header (should be 64)
+*/
+int cmd_read_header_raw_smb2 (PFVOID origin, PFVOID buf, rtsmb_size size, PRTSMB2_HEADER pHeader)
+{
+	PFVOID s, e;
+	s = buf;
+    UNPACK_STRUCT_FR_WIRE(pHeader,RTSMB2_HEADER, 64);
+	if (pHeader->ProtocolId[0] != 0xFE)
+		return -1;
+	if (tc_strncmp ((char *)&pHeader->ProtocolId[1], "SMB", 3) != 0)
+		return -1;
+	e = buf;
+	return (int) PDIFF (e, s);
+}
+
+PFCHAR (*rtsmb_glue_get_server_name_from_cache) (PFINT i) = 0;
+BBOOL (*rtsmb_glue_are_other_workgroups) (void) = (BBOOL)0;
+BBOOL (*rtsmb_glue_do_we_have_server_list) (void) = (BBOOL)0;
+PFCHAR (*rtsmb_glue_get_our_server_name) (void) = 0;
+void (*rtsmb_glue_process_nbds_message) (PFCHAR dest_name, byte command, PFVOID origin, PFVOID buf, rtsmb_size size, PRTSMB_HEADER pheader) = 0;
 }
 

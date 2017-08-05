@@ -732,6 +732,7 @@ int rtsmb_cli_wire_handle_message (PRTSMB_CLI_WIRE_SESSION pSession, rtsmb_size 
 
 #ifdef SUPPORT_SMB2
     /* Check if the message is encrypted   */
+
     if (pSession->temp_buffer[0] == 0xFD)
     {
 
@@ -741,8 +742,7 @@ int rtsmb_cli_wire_handle_message (PRTSMB_CLI_WIRE_SESSION pSession, rtsmb_size 
             ptransform_header_smb2 = &transform_header_smb2;
             mid = (word)transform_header_smb2.SessionId;
         }
-    }
-    else if (pSession->temp_buffer[0] == 0xFE)
+    } if (pSession->temp_buffer[0] == 0xFE)
     {
         smb2_header_length = cmd_read_header_raw_smb2 (pSession->temp_buffer,pSession->temp_buffer,prtsmb_cli_ctx->buffer_size, &header_smb2);
         if (smb2_header_length > 0)

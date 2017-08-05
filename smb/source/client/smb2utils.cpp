@@ -58,6 +58,5 @@ int wait_on_job_cpp(int sid, int job)
     return rv;
 }
 
-
 #endif /* INCLUDE_RTSMB_CLIENT */
 #endif
