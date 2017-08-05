@@ -123,7 +123,7 @@ extern "C" int do_logon_server_worker(int sid,  byte *user_name, byte *password,
 }
 
 
-static int rtsmb2_cli_session_send_negotiate_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_negotiate_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 static int rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
 {
@@ -246,7 +246,7 @@ static int rtsmb2_cli_session_receive_setup (NetStreamBuffer &ReplyBuffer)
   }
   return RTSMB_CLI_SSN_RV_OK;
 }
-static int rtsmb2_cli_session_send_setup_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_setup_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 
 static int rtsmb2_cli_session_receive_setupphase_2 (NetStreamBuffer &ReplyBuffer)
@@ -272,14 +272,14 @@ static int rtsmb2_cli_session_send_setupphase_2 (NetStreamBuffer &SendBuffer)
   return rtsmb2_cli_session_send_setup_with_blob (SendBuffer,(byte *)SendBuffer.job_data()->ntlm_auth.ntlm_response_blob, SendBuffer.job_data()->ntlm_auth.ntlm_response_blob_size);
 }
 
-static int rtsmb2_cli_session_send_setupphase_2_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_setupphase_2_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 // --------------------------------------------------------
 
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
-c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,0, 0,rtsmb2_cli_session_send_negotiate_error_handler, rtsmb2_cli_session_receive_negotiate, };
+c_smb2cmdobject negotiateobject = { rtsmb2_cli_session_send_negotiate,rtsmb2_cli_session_send_negotiate_error_handler, rtsmb2_cli_session_receive_negotiate, };
 c_smb2cmdobject *get_negotiateobject() { return &negotiateobject;};
-c_smb2cmdobject setupobject =     { rtsmb2_cli_session_send_setup,    0, 0,rtsmb2_cli_session_send_setup_error_handler,     rtsmb2_cli_session_receive_setup, };
+c_smb2cmdobject setupobject =     { rtsmb2_cli_session_send_setup,   rtsmb2_cli_session_send_setup_error_handler,     rtsmb2_cli_session_receive_setup, };
 c_smb2cmdobject *get_setupobject() { return &setupobject;};
-c_smb2cmdobject setupphase_2object =     { rtsmb2_cli_session_send_setupphase_2,    0, 0,rtsmb2_cli_session_send_setupphase_2_error_handler,     rtsmb2_cli_session_receive_setupphase_2, };
+c_smb2cmdobject setupphase_2object =     { rtsmb2_cli_session_send_setupphase_2,rtsmb2_cli_session_send_setupphase_2_error_handler, rtsmb2_cli_session_receive_setupphase_2, };
 c_smb2cmdobject *get_setupphase_2object() { return &setupphase_2object;};

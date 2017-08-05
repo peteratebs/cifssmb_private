@@ -27,6 +27,13 @@
 using std::cout;
 using std::endl;
 
+// Log levels for further processing by cout_log()
+#define LL_JUNK  0
+#define LL_TESTS 1
+#define LL_INIT  2
+// Macro for now but convert to a class for a better outcome
+#define cout_log(level) cout
+
 
 extern "C" {
 #include "smbdefs.h"
@@ -40,6 +47,7 @@ extern "C" {
 #define ENSURECSTRINGSAFETY(S) S=S?(byte *)S:(byte *)""
 
 #define LARGEST_STRING 255
+
 
 /// dualstring string container can be intialized with ascii or utf16 and then be dereferenced by either type utf16() or the ascii() methods.
 /// Uses dynamic memory so use dualstringdecl(stringname) to ensure that the destrcutor is called to free memory.
@@ -69,11 +77,11 @@ extern int wait_on_job_cpp(int sid, int job);
 typedef struct c_smb2cmdobject_t
 {
   int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
-  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
+//  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
   int (*new_error_handler_smb2) (NetStreamBuffer &SendBuffer);
-  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
+//  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
   int (*new_receive_handler_smb2) (NetStreamBuffer &SendBuffer);
-  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
+//  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
 } c_smb2cmdobject;
 
 

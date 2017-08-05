@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <climits>
+#include "smb2utils.hpp"
+
 extern "C" {
 #include "rtpnet.h"
 #include "smbnet.h"
@@ -367,7 +369,7 @@ private:
   }
   void _attach_nbss (dword _nbss_frame_size)
   {
-    cout << "new nbs frame sized: " << _nbss_frame_size << endl;
+    cout_log(0) << "new nbs frame sized: " << _nbss_frame_size << endl;
     nbss_frame_size=_nbss_frame_size;
     smb2_frame_size=nbss_read_pointer=smb2_read_pointer=0;
   }

@@ -15,8 +15,7 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
-using std::cout;
-using std::endl;
+#include "smb2utils.hpp"
 
 #include "smbdefs.h"
 
@@ -62,7 +61,7 @@ class TestWireObjects {
      {
       TestBuffering();
       unsigned char test_storage[512];
-      cout << "*** Testing wire objects *** " << endl;
+      cout_log(LL_TESTS)  << "*** Testing wire objects *** " << endl;
 
       NetTestObject TestObject;
 
@@ -81,7 +80,7 @@ class TestWireObjects {
 //     dword  test_dword = (dword ) test_value;
 //     ddword test_ddword =(ddword) test_value;
     if (test_value == (int) 'A')
-    cout << endl << "Testing blob field types" << endl;
+    cout_log(LL_TESTS)  << endl << "Testing blob field types" << endl;
     if (test_value >= (int) 'A' && test_value <= (int) 'Z')
     {
        std::string test_string = std::string (3, (char) test_value);
@@ -92,36 +91,36 @@ class TestWireObjects {
        TestObject.test_blob16 = (byte *)test_string2.c_str();
 //     test_blob = (blob) test_value;
     }
-    if (test_value <= 0xff)       cout << "(byte)" << (int)(byte)TestObject.test_byte() << endr;
-    if (test_value <= 0xffff)     cout << "(word)" << (word)TestObject.test_word() << endr;
-    if (test_value <= 0xffffffff) cout << "(dword)" << (dword)TestObject.test_dword() << endr;
-    if (test_value <= 0xffffff)   cout << "(24bitword)" << (dword)TestObject.test_24bitword() << endr;
-                                  cout << "(ddword)" << (ddword)TestObject.test_ddword() << endr;
+    if (test_value <= 0xff)       cout_log(LL_TESTS)  << "(byte)" << (int)(byte)TestObject.test_byte() << endr;
+    if (test_value <= 0xffff)     cout_log(LL_TESTS)  << "(word)" << (word)TestObject.test_word() << endr;
+    if (test_value <= 0xffffffff) cout_log(LL_TESTS)  << "(dword)" << (dword)TestObject.test_dword() << endr;
+    if (test_value <= 0xffffff)   cout_log(LL_TESTS)  << "(24bitword)" << (dword)TestObject.test_24bitword() << endr;
+                                  cout_log(LL_TESTS)  << "(ddword)" << (ddword)TestObject.test_ddword() << endr;
     if (test_value >= (int) 'A' && test_value <= (int) 'Z')
     {
        std::string result_string = std::string ((const char *)TestObject.test_blob4());
-       cout << "(blob4)" << result_string << endl;
+       cout_log(LL_TESTS)  << "(blob4)" << result_string << endl;
        std::string result_string1 = std::string ((const char *)TestObject.test_FileId());
-       cout << "(FileId)" << result_string1 << endl;
+       cout_log(LL_TESTS)  << "(FileId)" << result_string1 << endl;
        std::string result_string2 = std::string ((const char *)TestObject.test_blob16());
-       cout << "(blob16)" << result_string2 << endl;
-//     cout << "(blob)" << (blob)TestObject.test_blob() << endl;
+       cout_log(LL_TESTS)  << "(blob16)" << result_string2 << endl;
+//     cout_log(LL_TESTS)  << "(blob)" << (blob)TestObject.test_blob() << endl;
     }
     if (test_value == (int) 'Z')
-     cout << endl << "Finished testing blob field types" << endl;
+     cout_log(LL_TESTS)  << endl << "Finished testing blob field types" << endl;
    }
-   cout << endl << "Finished !!!!" << endl;
+   cout_log(LL_TESTS)  << endl << "Finished !!!!" << endl;
 //   while (1)
-//    cout << "Finished !!!!" << endr;
+//    cout_log(LL_TESTS)  << "Finished !!!!" << endr;
    }
 };
 
 TestWireObjects PerformTestWireObjects;
 void include_wiretests()
 {
-//cout << "=== callme === # " << endl;
+//cout_log(LL_TESTS)  << "=== callme === # " << endl;
 // TestWireObjects PerformTestWireObjects;
-//cout << "=== callme 2 === # " << endl;
+//cout_log(LL_TESTS)  << "=== callme 2 === # " << endl;
 }
 
 /// ===============================
@@ -159,9 +158,9 @@ static void _TestBufferingType(int test_buffertype)
 //    std::for_each(nums.begin(), nums.end(), [](int &n, &index){ n = index++; });
     for(dword i=0;i<TESTBUFFER_SIZE_D;i++) source_pattern[i]=i;
 
-    cout << "*** Testing NetStreamBuffer object *** type: " << test_buffertype << endl;
+    cout_log(LL_TESTS)  << "*** Testing NetStreamBuffer object *** type: " << test_buffertype << endl;
     NetStreamBuffer  TestBuffer;
-    cout << "*** Filling NetStreamBuffer object *** " << endl;
+    cout_log(LL_TESTS)  << "*** Filling NetStreamBuffer object *** " << endl;
     StreamBufferDataSource TestDataSource;
 
     memcpydevContext cpydevContext = {(byte *) source_pattern,TESTBUFFER_SIZE };
@@ -176,10 +175,10 @@ static void _TestBufferingType(int test_buffertype)
     byte  *s = (byte *) source_pattern;
     do
     {
-      cout << "*** Pulling *** " << endl;
+      cout_log(LL_TESTS)  << "*** Pulling *** " << endl;
       byte   *read_buffer_pointer;
       read_buffer_pointer = TestBuffer.peek_input(buffered_byte_count);
-      cout << "*** Peeked nbytes: " << buffered_byte_count << " bytes" << endl;
+      cout_log(LL_TESTS)  << "*** Peeked nbytes: " << buffered_byte_count << " bytes" << endl;
 
       if (test_buffertype==0)
       {
@@ -190,7 +189,7 @@ static void _TestBufferingType(int test_buffertype)
 //      if (TestBuffer.pull_input(&TestDeviceSink, (dword)1024, bytes_pulled) != NetStatusOk)
       if (TestBuffer.pull_input((dword)1024, bytes_pulled) != NetStatusOk)
       {
-        cout << "*** DataSinkDevtype Pull failed *** " << endl;
+        cout_log(LL_TESTS)  << "*** DataSinkDevtype Pull failed *** " << endl;
         break;
       }
       }
@@ -202,7 +201,7 @@ static void _TestBufferingType(int test_buffertype)
       if (TestBuffer.pull_input(1024, bytes_pulled) != NetStatusOk)
 //      if (TestBuffer.pull_input(TestMemoryDataSink, 1024, bytes_pulled) != NetStatusOk)
       {
-        cout << "*** MemoryDataSink Pull failed *** " << endl;
+        cout_log(LL_TESTS)  << "*** MemoryDataSink Pull failed *** " << endl;
         break;
       }
       }
@@ -210,13 +209,13 @@ static void _TestBufferingType(int test_buffertype)
       {
       if (TestBuffer.pull_input(pull_buffer, 1024, bytes_pulled) != NetStatusOk)
       {
-        cout << "*** pull_buffer Pull failed *** " << endl;
+        cout_log(LL_TESTS)  << "*** pull_buffer Pull failed *** " << endl;
         break;
       }
 }
       if (tc_memcmp(pull_buffer, s, bytes_pulled) != 0)
       {
-        cout << "*** pullr compare failed *** " << endl;
+        cout_log(LL_TESTS)  << "*** pullr compare failed *** " << endl;
         break;
       }
       s += bytes_pulled;

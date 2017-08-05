@@ -30,7 +30,6 @@ extern c_smb2cmdobject *get_disconnectobject();
 extern c_smb2cmdobject *get_querydirectoryobject();
 
 // Need one of each of these
-extern c_smb2cmdobject *get_session_setupobject();
 extern c_smb2cmdobject *get_readobject();
 extern c_smb2cmdobject *get_writeobject();
 extern c_smb2cmdobject *get_openobject();
@@ -52,20 +51,9 @@ extern c_smb2cmdobject *get_share_find_firstobject();
 extern c_smb2cmdobject *get_server_enumobject();
 
 
-extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStream)
-{
-  if (pStream->InHdr.Status_ChannelSequenceReserved==0)
-    return TRUE;
-  else if (pStream->InHdr.Status_ChannelSequenceReserved == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
-    return TRUE;
-  else
-    return FALSE;
-}
 
-
-
-/// ===============================
-
+// ===============================
+// Use static initializer constructor to intitialize run time table
 
 typedef struct smb2cmdobject_table_t
 {
@@ -78,7 +66,6 @@ typedef std::map <word , struct c_smb2cmdobject_t *> SmbCmdToCmdObject_t;
 SmbCmdToCmdObject_t glSmbCmdToCmdObject;
 
 typedef std::map <jobTsmb2 , c_smb2cmdobject *> CmdToJobObject_t;
-
 
 static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
 {
@@ -93,7 +80,7 @@ static struct smb2cmdobject_table_t SmbCmdToCmdObjectTable[] =
 
 void InitSmbCmdToCmdObjectTable()
 {
-      cout << "*** Initializing SMB2 SmbCmdToCmdObjectTable  *** " << endl;
+  cout_log(LL_INIT) << "*** Initializing SMB2 SmbCmdToCmdObjectTable  *** " << endl;
   for (int i = 0; i < TABLEEXTENT(SmbCmdToCmdObjectTable);i++)
      glSmbCmdToCmdObject[SmbCmdToCmdObjectTable[i].command] = SmbCmdToCmdObjectTable[i].cobject_fetch();
 }
@@ -106,16 +93,19 @@ class InitializeSmb2Tables {
     public:
      InitializeSmb2Tables()
      {
-      cout << "*** Initializing SMB2 client runtime proccessing variables *** " << endl;
-      cout << "***                                                        ***" << endl;
+      cout_log(LL_INIT) << "*** Initializing SMB2 client runtime proccessing variables *** " << endl;
+      cout_log(LL_INIT) << "***                                                        ***" << endl;
       InitSmbCmdToCmdObjectTable();
-      cout << "*** Done Initializing SMB2 client runtime proccessing variables *** " << endl;
+      cout_log(LL_INIT) << "*** Done Initializing SMB2 client runtime proccessing variables *** " << endl;
       include_wiretests();
     }
 };
 InitializeSmb2Tables PerformInitializeSmb2Tables;
+// end static initializer constructor to intitialize run time tables
+// ===============================
 
-
+/// Bind a buffer and tcpip socket for sending
+///   attaches a socket and a legacy smb2_iostream structure which references MID mapped buffer pools, NetStreamBuffer
 void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
 {
   SendBuffer.session_pStream(pStream);
@@ -125,6 +115,9 @@ void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuff
   SendBuffer.attach_sink(&SocketSink);
 }
 
+/// Bind a buffer for receiving.
+///   attaches structure which references MID mapped buffer pools to NetStreamBuffer
+///   For receive sockets are bound in seperate step
 void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
 {
   ReplyBuffer.session_pStream(pStream);
@@ -133,7 +126,6 @@ void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStre
 
 extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
 {
-
 int r = RTSMB_CLI_SSN_RV_OK;
 
   if (glSmbCmdToCmdObject.find(pStream->pJob->smb2_jobtype) != glSmbCmdToCmdObject.end() )
@@ -146,7 +138,7 @@ int r = RTSMB_CLI_SSN_RV_OK;
      if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_send_handler_smb2)
        r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_send_handler_smb2(SendBuffer);
      else
-       r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
+       ; // r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
   }
   return r;
 }
@@ -165,7 +157,7 @@ int r = RTSMB_CLI_SSN_RV_OK;
     if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_receive_handler_smb2)
       r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_receive_handler_smb2(SendBuffer);
     else
-      r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
+      ; // r = glSmbCmdToCmdObject[pStream->InHdr.Command]->receive_handler_smb2(pStream);
   }
   return r;
 }
@@ -183,7 +175,7 @@ int r = RTSMB_CLI_SSN_RV_OK;
    if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_error_handler_smb2)
       r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_error_handler_smb2(SendBuffer);
    else if (glSmbCmdToCmdObject.find(pStream->InHdr.Command) != glSmbCmdToCmdObject.end() )
-     r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
+     ; // r = glSmbCmdToCmdObject[pStream->InHdr.Command]->error_handler_smb2(pStream);
   }
   return r;
 }
@@ -222,6 +214,17 @@ NetSmb2Header Smb2Header;
     Smb2Header.SessionId = SessionId;
     Smb2Header.Signature = (byte *)"IAMTHESIGNATURE";
 }
+
+extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStream)
+{
+  if (pStream->InHdr.Status_ChannelSequenceReserved==0)
+    return TRUE;
+  else if (pStream->InHdr.Status_ChannelSequenceReserved == SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+    return TRUE;
+  else
+    return FALSE;
+}
+
 #endif
 
 extern "C" {

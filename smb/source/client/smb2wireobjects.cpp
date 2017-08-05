@@ -15,8 +15,6 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
-using std::cout;
-using std::endl;
 #include "smb2utils.hpp"
 
 #include "smbdefs.h"

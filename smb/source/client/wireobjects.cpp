@@ -15,8 +15,6 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
-using std::cout;
-using std::endl;
 
 #include "smbdefs.h"
 
@@ -24,6 +22,7 @@ using std::endl;
 
 #if (INCLUDE_RTSMB_CLIENT)
 #include "client.h"
+#include <smb2utils.hpp>
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
 

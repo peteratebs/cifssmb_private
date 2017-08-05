@@ -80,7 +80,7 @@ extern "C" int do_tree_connect_worker(int sid,  byte *share_name, byte *password
 }
 
 
-static int rtsmb2_cli_session_send_treeconnect_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_treeconnect_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 
 static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
@@ -202,10 +202,10 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
 
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
-c_smb2cmdobject treeconnectobject = { rtsmb2_cli_session_send_treeconnect,0, 0,rtsmb2_cli_session_send_treeconnect_error_handler, rtsmb2_cli_session_receive_treeconnect, };
+c_smb2cmdobject treeconnectobject = { rtsmb2_cli_session_send_treeconnect,rtsmb2_cli_session_send_treeconnect_error_handler, rtsmb2_cli_session_receive_treeconnect, };
 c_smb2cmdobject *get_treeconnectobject() { return &treeconnectobject;};
 
-static int rtsmb2_cli_session_send_logoff_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_logoff_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 static int rtsmb2_cli_session_send_logoff (NetStreamBuffer &SendBuffer)
 {
@@ -234,11 +234,11 @@ static int rtsmb2_cli_session_receive_logoff (NetStreamBuffer &ReplyBuffer)
 }
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
-c_smb2cmdobject logoffobject = { rtsmb2_cli_session_send_logoff,0, 0,rtsmb2_cli_session_send_logoff_error_handler, rtsmb2_cli_session_receive_logoff, };
+c_smb2cmdobject logoffobject = { rtsmb2_cli_session_send_logoff,rtsmb2_cli_session_send_logoff_error_handler, rtsmb2_cli_session_receive_logoff, };
 c_smb2cmdobject *get_logoffobject() { return &logoffobject;};
 
 
-static int rtsmb2_cli_session_send_disconnect_error_handler(smb2_iostream  *pStream) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_disconnect_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
 static int rtsmb2_cli_session_send_disconnect (NetStreamBuffer &SendBuffer)
 {
@@ -267,5 +267,5 @@ static int rtsmb2_cli_session_receive_disconnect (NetStreamBuffer &ReplyBuffer)
 }
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
-c_smb2cmdobject disconnectobject = { rtsmb2_cli_session_send_disconnect,0, 0,rtsmb2_cli_session_send_disconnect_error_handler, rtsmb2_cli_session_receive_disconnect, };
+c_smb2cmdobject disconnectobject = { rtsmb2_cli_session_send_disconnect,rtsmb2_cli_session_send_disconnect_error_handler, rtsmb2_cli_session_receive_disconnect, };
 c_smb2cmdobject *get_disconnectobject() { return &disconnectobject;};
