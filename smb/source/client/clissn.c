@@ -62,10 +62,8 @@
 
 
 
-#ifdef SUPPORT_SMB2
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
-#endif
 
 static const byte zero[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
   // Native OS: Mac OS X 10.10
@@ -179,10 +177,8 @@ void Get_Wire_Session_State(int a)
 RTSMB_STATIC rtsmb_char dialect_lanman[]   = {'L', 'A', 'N', 'M', 'A', 'N', '1', '.', '0', '\0'};
 RTSMB_STATIC rtsmb_char dialect_ntlm[]     = {'N', 'T', ' ', 'L', 'M', ' ', '0', '.', '1', '2', '\0'};
 
-#ifdef SUPPORT_SMB2    /* Some branching to SMB2 from this file, no major processing */
 RTSMB_STATIC rtsmb_char srv_dialect_smb2002[] = {'S', 'M', 'B', '2', '.', '0', '0', '2', '\0'};
 /* RTSMB_STATIC rtsmb_char srv_dialect_smb2xxx[] = {'S', 'M', 'B', '2', '.', '?', '?', '?', '\0'};   */
-#endif
 
 
 
@@ -196,9 +192,7 @@ rtsmb_char *spoken_dialects[] =
 {
     dialect_lanman,
     dialect_ntlm,
-#ifdef SUPPORT_SMB2
     srv_dialect_smb2002,
-#endif
 };
 
 /* should be same size as spoken_dialects above   */
@@ -207,9 +201,7 @@ RTSMB_CLI_SESSION_DIALECT dialect_types[] =
 {
     CSSN_DIALECT_PRE_NT,
     CSSN_DIALECT_NT,
-#ifdef SUPPORT_SMB2
     CSSN_DIALECT_SMB2_2002
-#endif
 };
 #define NUM_SPOKEN_DIALECTS (sizeof (spoken_dialects) / sizeof (rtsmb_char *))
 
@@ -259,7 +251,6 @@ RTSMB_STATIC int  rtsmb_cli_session_send_negotiate (PRTSMB_CLI_SESSION pSession,
 
 int rtsmb_cli_wire_cycle (PRTSMB_CLI_SESSION pClientSession, PRTSMB_CLI_WIRE_SESSION pSession, long timeout);
 
-#ifdef SUPPORT_SMB2
 extern int rtsmb2_cli_session_send_negotiate (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_negotiate (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_send_session_setup_error_handler (smb2_iostream  *psmb2stream);
@@ -302,7 +293,6 @@ extern int rtsmb2_cli_session_receive_share_find_first (smb2_iostream  *psmb2str
 extern int rtsmb2_cli_session_send_server_enum (smb2_iostream  *psmb2stream);
 extern int rtsmb2_cli_session_receive_server_enum (smb2_iostream  *psmb2stream);
 extern BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStream);
-#endif
 
 int rtsmb_cli_session_send_session_setup_error_handler (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 RTSMB_STATIC int rtsmb_cli_session_send_session_setup_pre_nt (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
@@ -562,13 +552,11 @@ int rtsmb_cli_session_resolve_name (PFCHAR name, PFBYTE broadcast_ip, PFBYTE ip)
         tc_memcpy (pSession->broadcast_ip, rtsmb_net_get_broadcast_ip (),4);
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         rtsmb_cli_smb2_session_init (pSession);
     }
-#endif
 
     /* -------------------------- */
     /* START NEGOTIATION */
@@ -681,13 +669,11 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
         tc_memcpy (pSession->broadcast_ip, rtsmb_net_get_broadcast_ip (),4);
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         rtsmb_cli_smb2_session_init (pSession);
     }
-#endif
 
     /* -------------------------- */
     /* start Negotiate Protocol - also setups callbacks for
@@ -721,14 +707,12 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
 #endif
 
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV2 server\n");
 //        rtsmb_cli_smb2_session_release (pSession);  /* tbd - move this from below - sprspr */
     }
     else
-#endif
     {
         RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_new_with_ip: Connected to SMBV1 server\n");
     }
@@ -918,13 +902,11 @@ int rtsmb_cli_session_new_with_name (PFCHAR name, BBOOL blocking, PFBYTE broadca
         tc_memcpy (pSession->broadcast_ip, rtsmb_net_get_broadcast_ip (), 4);
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         /* Attach an SMB2 session structure since that is our prefered dialect   */
         rtsmb_cli_smb2_session_init (pSession);
     }
-#endif
 
 #if (INCLUDE_ANON_AUTOMATIC || 1)
     /* -------------------------- */
@@ -1493,7 +1475,6 @@ int rtsmb_cli_session_negotiate (PRTSMB_CLI_SESSION pSession)
 #endif
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_negotiate;
@@ -1501,7 +1482,6 @@ int rtsmb_cli_session_negotiate (PRTSMB_CLI_SESSION pSession)
 //        pJob->receive_handler_smb2 =  rtsmb2_cli_session_receive_negotiate;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_negotiate;
         pJob->receive_handler = rtsmb_cli_session_receive_negotiate;
@@ -1591,7 +1571,6 @@ RTSMB_STATIC int rtsmb_cli_session_connect_ipc (PRTSMB_CLI_SESSION pSession)
     tc_strcpy (pJob->data.tree_connect.share_name, share);
     tc_memset (pJob->data.tree_connect.password, 0, 2);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_tree_connect;
@@ -1599,14 +1578,10 @@ RTSMB_STATIC int rtsmb_cli_session_connect_ipc (PRTSMB_CLI_SESSION pSession)
 //        pJob->error_handler_smb2        = rtsmb2_cli_session_send_tree_connect_error_handler;
 //        pJob->receive_handler_smb2      = rtsmb2_cli_session_receive_tree_connect;
 
-#if (DEBUG_SESSION_ON_WIRE)
-        rtp_printf("PVO set callback to rtsmb_cli_session_connect_ipc_helper == %X\n", (int) rtsmb_cli_session_connect_ipc_helper);
-#endif
         pJob->callback                  = rtsmb_cli_session_connect_ipc_helper;
         pJob->callback_data             = pSession;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_tree_connect;
         pJob->error_handler = rtsmb_cli_session_send_tree_connect_error_handler;
@@ -1711,13 +1686,10 @@ int rtsmb_cli_session_connect_anon (PRTSMB_CLI_SESSION pSession)
         {
             pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
         }
-#ifdef SUPPORT_SMB2
     case CSSN_DIALECT_SMB2_2002:
         break;
-#endif
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_session_setup;
@@ -1725,7 +1697,6 @@ int rtsmb_cli_session_connect_anon (PRTSMB_CLI_SESSION pSession)
 //        pJob->error_handler_smb2   = rtsmb2_cli_session_send_session_setup_error_handler;
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_session_setup;
     }
-#endif
 
     /* We set up a chain of actions here.  First is negotiate, then
        we connect an anonymous user.  Then, we connect to the IPC. */
@@ -1825,13 +1796,10 @@ int rtsmb_cli_session_logon_user_rt (int sid, PFRTCHAR user, PFCHAR password, PF
             pJob->send_handler = rtsmb_cli_session_send_session_setup_nt;
         }
         break;
-#ifdef SUPPORT_SMB2
     case CSSN_DIALECT_SMB2_2002:
         break;
-#endif
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_session_setup;
@@ -1839,7 +1807,6 @@ int rtsmb_cli_session_logon_user_rt (int sid, PFRTCHAR user, PFCHAR password, PF
 //        pJob->error_handler_smb2 = rtsmb2_cli_session_send_session_setup_error_handler;
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_session_setup;
     }
-#endif
     rtsmb_cli_session_user_new (&pSession->user, 1);
 
     rtsmb_cli_session_send_stalled_jobs (pSession);
@@ -1878,13 +1845,11 @@ int rtsmb_cli_session_logoff_user (int sid)
     pJob = rtsmb_cli_session_get_free_job (pSession);
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_logoff;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_logoff;
         pJob->receive_handler = rtsmb_cli_session_receive_logoff;
@@ -2096,13 +2061,11 @@ RTSMB_GET_SESSION_STATE (CSSN_SHARE_STATE_CONNECTING);
     else
         tc_memset (pJob->data.tree_connect.password, 0, 2);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_tree_connect;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_tree_connect;
         pJob->error_handler = rtsmb_cli_session_send_tree_connect_error_handler;
@@ -2143,7 +2106,6 @@ int rtsmb_cli_session_disconnect_share (int sid, PFCHAR share)
     pJob = rtsmb_cli_session_get_free_job (pSession);
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->data.tree_disconnect.tid = pShare->tid;
@@ -2153,7 +2115,6 @@ int rtsmb_cli_session_disconnect_share (int sid, PFCHAR share)
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_tree_disconnect;
     }
     else
-#endif
     {
         pJob->data.tree_disconnect.tid = pShare->tid;
         rtsmb_cli_session_share_close (pShare);
@@ -2206,7 +2167,6 @@ int rtsmb_cli_session_read (int sid, int fid, PFBYTE data, int count, PFINT coun
     pJob->data.read.data = data;
     pJob->data.read.fid_struct = pFid;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_read;
@@ -2214,7 +2174,6 @@ int rtsmb_cli_session_read (int sid, int fid, PFBYTE data, int count, PFINT coun
 //       pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_read;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_read;
         pJob->receive_handler = rtsmb_cli_session_receive_read;
@@ -2266,7 +2225,6 @@ int rtsmb_cli_session_write (int sid, int fid, PFBYTE data, int count, PFINT wri
     pJob->data.writex.bytes_acked = 0;
     pJob->data.writex.data = data;
     pJob->data.writex.fid_struct = pFid;
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_write;
@@ -2274,7 +2232,6 @@ int rtsmb_cli_session_write (int sid, int fid, PFBYTE data, int count, PFINT wri
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_write;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_write;
         pJob->receive_handler = rtsmb_cli_session_receive_write;
@@ -2322,7 +2279,6 @@ int rtsmb_cli_session_open_rt (int sid, PFCHAR share, PFRTCHAR file, int flags, 
     pJob->data.open.mode = mode;
     pJob->data.open.returned_fid = fid;
     pJob->data.open.share_struct = pShare;
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_open;
@@ -2330,7 +2286,6 @@ int rtsmb_cli_session_open_rt (int sid, PFCHAR share, PFRTCHAR file, int flags, 
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_open;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_open;
         pJob->receive_handler = rtsmb_cli_session_receive_open;
@@ -2373,7 +2328,6 @@ int rtsmb_cli_session_close (int sid, int fid)
 
     pJob->data.close.fid_struct = pFid;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_close;
@@ -2381,7 +2335,6 @@ int rtsmb_cli_session_close (int sid, int fid)
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_close;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_close;
         pJob->receive_handler = rtsmb_cli_session_receive_close;
@@ -2440,7 +2393,6 @@ int rtsmb_cli_session_seek (int sid, int fid, long offset, int location, PFLONG 
             break;
     }
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_seek;
@@ -2448,7 +2400,6 @@ int rtsmb_cli_session_seek (int sid, int fid, long offset, int location, PFLONG 
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_seek;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_seek;
         pJob->receive_handler = rtsmb_cli_session_receive_seek;
@@ -2492,7 +2443,6 @@ int rtsmb_cli_session_truncate (int sid, int fid, long offset)
     pJob->data.truncate.fid_struct = pFid;
     pJob->data.truncate.offset = offset;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_truncate;
@@ -2500,7 +2450,6 @@ int rtsmb_cli_session_truncate (int sid, int fid, long offset)
 //        pJob->receive_handler_smb2 = rtsmb2_cli_session_receive_truncate;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_truncate;
         pJob->receive_handler = rtsmb_cli_session_receive_truncate;
@@ -2542,14 +2491,12 @@ int rtsmb_cli_session_flush (int sid, int fid)
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
     pJob->data.flush.fid_struct = pFid;
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_flush;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_flush;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_flush;
     }
@@ -2591,14 +2538,12 @@ int rtsmb_cli_session_rename_rt (int sid, PFCHAR share, PFRTCHAR old_filename, P
     rtsmb_cpy (pJob->data.rename.old_filename, old_filename);
     rtsmb_cpy (pJob->data.rename.new_filename, new_filename);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_rename;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_rename;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_rename;
     }
@@ -2638,14 +2583,12 @@ int rtsmb_cli_session_delete_rt (int sid, PFCHAR share, PFRTCHAR filename)
     pJob->data.delete_args.share_struct = pShare;
     rtsmb_cpy (pJob->data.delete_args.filename, filename);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_delete;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_delete;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_delete;
     }
@@ -2685,14 +2628,12 @@ int rtsmb_cli_session_mkdir_rt (int sid, PFCHAR share, PFRTCHAR filename)
 
     pJob->data.mkdir.share_struct = pShare;
     rtsmb_cpy (pJob->data.mkdir.filename, filename);
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_mkdir;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_mkdir;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_mkdir;
     }
@@ -2732,14 +2673,12 @@ int rtsmb_cli_session_rmdir_rt (int sid, PFCHAR share, PFRTCHAR filename)
     pJob->data.rmdir.share_struct = pShare;
     rtsmb_cpy (pJob->data.rmdir.filename, filename);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_rmdir;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_rmdir;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_rmdir;
     }
@@ -2802,7 +2741,6 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
 #endif
 
     pSearch->raw_buffered_data = 0;  // smb2 has another layer of data buffering associated with the job that we need to be aware of
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->data.findsmb2.search_struct = pSearch;
@@ -2815,7 +2753,6 @@ int rtsmb_cli_session_find_first_rt (int sid, PFCHAR share, PFRTCHAR pattern, PR
 //        pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_find_first;
     }
     else
-#endif
     {
         pJob->data.findfirst.search_struct = pSearch;
         pJob->data.findfirst.answering_dstat = pdstat;
@@ -2974,7 +2911,6 @@ int rtsmb_cli_session_stat_rt (int sid, PFCHAR share, PFRTCHAR file, PRTSMB_CLI_
     pJob->data.stat.share_struct = pShare;
     pJob->data.stat.answering_stat = pfstat;
     rtsmb_cpy (pJob->data.stat.filename, file);
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_stat;
@@ -2982,7 +2918,6 @@ int rtsmb_cli_session_stat_rt (int sid, PFCHAR share, PFRTCHAR file, PRTSMB_CLI_
 //        pJob->receive_handler_smb2   = rtsmb2_cli_session_receive_stat;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_stat;
         pJob->receive_handler = rtsmb_cli_session_receive_stat;
@@ -3025,14 +2960,12 @@ int rtsmb_cli_session_chmode_rt (int sid, PFCHAR share, PFRTCHAR file, int attri
     pJob->data.chmode.attributes = attributes;
     rtsmb_cpy (pJob->data.chmode.filename, file);
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_chmode;
 //        pJob->send_handler_smb2 = rtsmb2_cli_session_send_chmode;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_chmode;
     }
@@ -3078,7 +3011,6 @@ int rtsmb_cli_session_full_server_enum (int sid, dword type, PFCHAR domain, PRTS
     pJob->data.full_server_enum.answering_infos = answering_infos;
     pJob->data.full_server_enum.answering_infos_size = answering_infos_size;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_full_server_enum;
@@ -3086,7 +3018,6 @@ int rtsmb_cli_session_full_server_enum (int sid, dword type, PFCHAR domain, PRTS
 //        pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_full_server_enum;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_full_server_enum;
         pJob->receive_handler = rtsmb_cli_session_receive_full_server_enum;
@@ -3130,7 +3061,6 @@ int rtsmb_cli_session_get_free (int sid, PFCHAR share, PFINT total_units, PFINT 
     pJob->data.getfree.answering_blocks_per_unit = blocks_per_unit;
     pJob->data.getfree.answering_block_size = block_size;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_get_free;
@@ -3138,7 +3068,6 @@ int rtsmb_cli_session_get_free (int sid, PFCHAR share, PFINT total_units, PFINT 
 //        pJob->receive_handler_smb2  = rtsmb2_cli_session_receive_get_free;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_get_free;
         pJob->receive_handler = rtsmb_cli_session_receive_get_free;
@@ -3185,7 +3114,6 @@ int rtsmb_cli_session_share_find_first (int sid, PRTSMB_CLI_SESSION_SSTAT pstat)
     pJob->data.sharefindfirst.search_struct = pSearch;
     pJob->data.sharefindfirst.answering_sstat = pstat;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_share_find_first;
@@ -3193,7 +3121,6 @@ int rtsmb_cli_session_share_find_first (int sid, PRTSMB_CLI_SESSION_SSTAT pstat)
 //        pJob->receive_handler_smb2   = rtsmb2_cli_session_receive_share_find_first;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_share_find_first;
         pJob->receive_handler = rtsmb_cli_session_receive_share_find_first;
@@ -3304,7 +3231,6 @@ int rtsmb_cli_session_server_enum (int sid, PRTSMB_CLI_SESSION_SERVER_SEARCH pSe
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
     pJob->data.serverfind.search_struct = pSearch;
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         pJob->smb2_jobtype = jobTsmb2_server_enum;
@@ -3312,7 +3238,6 @@ int rtsmb_cli_session_server_enum (int sid, PRTSMB_CLI_SESSION_SERVER_SEARCH pSe
 //       pJob->receive_handler_smb2   = rtsmb2_cli_session_receive_server_enum;
     }
     else
-#endif
     {
         pJob->send_handler = rtsmb_cli_session_send_server_enum;
         pJob->receive_handler = rtsmb_cli_session_receive_server_enum;
@@ -4123,7 +4048,7 @@ int rtsmb_cli_session_translate_error (PRTSMB_HEADER pheader)
     return RTSMB_CLI_SSN_RV_SMB_ERROR;
 }
 
-#ifdef SUPPORT_SMB2    // Some branching to SMB2 from this file, no major processing
+// Some branching to SMB2 from this file, no major processing
 RTSMB_STATIC
 int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
@@ -4199,7 +4124,6 @@ int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_S
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_handle_job_smb2: Returnng %d\n", rv);
     return rv;
 }
-#endif
 
 RTSMB_STATIC
 int rtsmb_cli_session_handle_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
@@ -4208,12 +4132,10 @@ int rtsmb_cli_session_handle_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSIO
     int rv;
     int r;
 
-#ifdef SUPPORT_SMB2
     if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
     {
         return rtsmb_cli_session_handle_job_smb2 (pSession, pJob);
     }
-#endif
 
     /* grab header to see what we have */
     r = rtsmb_cli_wire_smb_read_start (&pSession->wire, pJob->mid);
@@ -4289,12 +4211,10 @@ RTSMB_GET_SESSION_JOB_STATE (CSSN_JOB_STATE_STALLED);
     pJob->error_handler = 0;
     pJob->send_handler = 0;
     pJob->receive_handler = 0;
-#ifdef SUPPORT_SMB2
     pJob->smb2_jobtype = jobTsmb2_is_smb1;
 //    pJob->send_handler_smb2    = 0;
 //    pJob->error_handler_smb2   = 0;
 //    pJob->receive_handler_smb2 = 0;
-#endif
     pJob->callback = 0;
     pJob->callback_data = 0;
     pJob->mid = 0;
@@ -4590,7 +4510,6 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
 {
     pJob->send_count += 1;
 
-#ifdef SUPPORT_SMB2
 //    if (pJob->send_handler_smb2)
     if (pJob->smb2_jobtype != jobTsmb2_is_smb1)
     {
@@ -4625,7 +4544,6 @@ int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_
         }
     }
     else
-#endif
     {
         if (pJob->send_handler)
         {

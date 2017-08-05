@@ -23,7 +23,6 @@ using std::endl;
 
 #include "smbdefs.h"
 
-#ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
@@ -56,5 +55,3 @@ int wait_on_job_cpp(int sid, int job)
     }
     return rv;
 }
-
-#endif

@@ -18,11 +18,8 @@
 
 #include "smbdefs.h"
 
-#ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 #include "client.h"
 #include <smb2utils.hpp>
 #include <wireobjects.hpp>
 #include <smb2wireobjects.hpp>
-
-#endif

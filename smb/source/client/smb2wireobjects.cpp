@@ -19,7 +19,6 @@
 
 #include "smbdefs.h"
 
-#ifdef SUPPORT_SMB2   /* exclude rest of file */
 
 //#include "client.h"
 #include <wireobjects.hpp>
@@ -190,4 +189,3 @@ void NetSmb2QuerydirectoryReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(OutputBufferLength);
   BINDPOINTERS(Buffer);
 }
-#endif

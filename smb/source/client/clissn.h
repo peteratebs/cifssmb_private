@@ -3,10 +3,7 @@
 
 #include "smbdefs.h"
 
-#ifdef SUPPORT_SMB2
-//#include "com_smb2.h"
 #include "com_smb2_wiredefs.h"
-#endif
 
 #include "cliwire.h"
 #include "smbnbds.h"
@@ -159,16 +156,10 @@ typedef enum
 {
     CSSN_DIALECT_PRE_NT,
     CSSN_DIALECT_NT,
-#ifdef SUPPORT_SMB2
     CSSN_DIALECT_SMB2_2002,
-#endif
 } RTSMB_CLI_SESSION_DIALECT;
 
-#ifdef SUPPORT_SMB2
 #define RTSMB_ISSMB2_DIALECT(DIALECT) ( (int)DIALECT >= (int)CSSN_DIALECT_SMB2_2002 )
-#else
-#define RTSMB_ISSMB2_DIALECT(DIALECT) (RTSMB_FALSE)
-#endif
 
 int rtsmb_cli_session_resolve_name (PFCHAR name, PFBYTE broadcast_ip, PFBYTE ip);
 
@@ -731,12 +722,10 @@ struct RTSMB_CLI_SESSION_JOB_T
     int (*send_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
     int (*receive_handler) (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, PRTSMB_HEADER pHeader);
 
-#ifdef SUPPORT_SMB2    // Some branching to SMB2 from this file, no major processing
     jobTsmb2 smb2_jobtype;      // used in mappingh c processing routines to cpp objects for each object type.
 //    int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
 //    int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
 //    int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
-#endif
      union sessiondata_u data;
 };
 

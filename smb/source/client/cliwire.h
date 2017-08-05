@@ -181,9 +181,7 @@ typedef struct RTSMB_CLI_WIRE_BUFFER_s
 	PFBYTE buffer;
 
     rtsmb_size allocated_buffer_size; /* Added for SMB2 */
-#ifdef SUPPORT_SMB2
     smb2_iostream smb2stream;
-#endif
 
 } RTSMB_CLI_WIRE_BUFFER;
 typedef RTSMB_CLI_WIRE_BUFFER RTSMB_FAR *PRTSMB_CLI_WIRE_BUFFER;
