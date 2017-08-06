@@ -12,8 +12,10 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include <smb2wireobjects.hpp>
-#include <mswireobjects.hpp>
+#include "smb2wireobjects.hpp"
+#include "smb2session.hpp"
+#include "mswireobjects.hpp"
+
 
 // Classes and methods for negotiate and setup commands.
 //
@@ -72,12 +74,9 @@ private:
 
 extern "C" int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *password)
 {
-  ms_FILE_ID_BOTH_DIR_INFORMATION  compileme;
-
   SmbQuerydirectoryWorker QuerydirectoryWorker(sid, share_name, password);
   return QuerydirectoryWorker.go();
 }
-
 
 static int rtsmb2_cli_session_send_querydirectory_error_handler(NetStreamBuffer &Buffer) {
     cout_log(LL_JUNK)  << "Yo got error :" << endl;

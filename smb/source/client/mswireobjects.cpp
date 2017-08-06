@@ -1,5 +1,5 @@
 //
-// smb2wireobjects.cpp -
+// mswireobjects.cpp -
 //
 // EBS - RTSMB
 //

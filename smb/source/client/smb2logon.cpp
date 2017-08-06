@@ -12,7 +12,7 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include <smb2wireobjects.hpp>
+#include "smb2wireobjects.hpp"
 
 // Classes and methods for negotiate and setup commands.
 //
@@ -27,19 +27,20 @@ extern "C" {
 #include "smbspnego.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
 int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
 void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
-int rtsmb_cli_session_get_free_session (void);
-void rtsmb_cli_session_memclear (PRTSMB_CLI_SESSION pSession);
-void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
 
+#include "smb2session.hpp"
 
 class SmbLogonWorker {
 public:
+  SmbLogonWorker(Smb2Session &Session)
+  {  // Constructor that takes a sesstion
+    _SmbLogonWorker(Session.sid(), Session.user_name(), Session.password(), Session.domain());
+  }
   SmbLogonWorker(int _sid,  byte *_user_name, byte *_password, byte *_domain)
   {
-   ENSURECSTRINGSAFETY(_user_name); ENSURECSTRINGSAFETY(_password); ENSURECSTRINGSAFETY(_domain);
-   sid=_sid;user_name=_user_name;password=_password;domain=_domain;
+   _SmbLogonWorker(_sid, _user_name, _password, _domain);
   };
   int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
   {
@@ -112,6 +113,11 @@ public:
   }
 
 private:
+  void _SmbLogonWorker(int _sid,  byte *_user_name, byte *_password, byte *_domain)
+  {
+   ENSURECSTRINGSAFETY(_user_name); ENSURECSTRINGSAFETY(_password); ENSURECSTRINGSAFETY(_domain);
+   sid=_sid;user_name=_user_name;password=_password;domain=_domain;
+  };
   int sid;
   byte *user_name;
   byte *password;
@@ -119,11 +125,18 @@ private:
 
 };
 
-extern "C" int do_smb2_logon_server_worker(int sid,  byte *user_name, byte *password, byte *domain)
+
+extern int do_smb2_logon_server_worker(Smb2Session &Session)
 {
-  SmbLogonWorker LogonWorker(sid, user_name, password, domain);
+  SmbLogonWorker LogonWorker(Session);
   return LogonWorker.go();
 }
+
+//extern "C" int do_smb2_logon_server_worker(int sid,  byte *user_name, byte *password, byte *domain)
+//{
+//  SmbLogonWorker LogonWorker(sid, user_name, password, domain);
+//  return LogonWorker.go();
+//}
 
 
 static int rtsmb2_cli_session_send_negotiate_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
@@ -235,8 +248,9 @@ private:
 };
 
 
-extern "C" int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession)
+extern int do_smb2_negotiate_worker(Smb2Session &Session)
 {
+  PRTSMB_CLI_SESSION pSession = Session.pSession();
   SmbNegotiateWorker NegotiateWorker(INDEX_OF (prtsmb_cli_ctx->sessions, pSession), pSession);
   return NegotiateWorker.go();
 }
@@ -338,77 +352,4 @@ c_smb2cmdobject setupobject =     { rtsmb2_cli_session_send_setup,   rtsmb2_cli_
 c_smb2cmdobject *get_setupobject() { return &setupobject;};
 c_smb2cmdobject setupphase_2object =     { rtsmb2_cli_session_send_setupphase_2,rtsmb2_cli_session_send_setupphase_2_error_handler, rtsmb2_cli_session_receive_setupphase_2, };
 c_smb2cmdobject *get_setupphase_2object() { return &setupphase_2object;};
-
-
-
-extern "C" int rtsmb2_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blocking, PFINT psid)
-{
-    int sid;
-    PRTSMB_CLI_SESSION pSession;
-    int job_off;
-    int r;
-
-    cout_log(LL_JUNK) << "Yo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
-
-    sid = rtsmb_cli_session_get_free_session ();
-    pSession = rtsmb_cli_session_get_session (sid);
-
-    ASSURE (pSession, RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES);
-
-    rtsmb_cli_session_update_timestamp (pSession);
-
-    rtsmb_cli_session_memclear (pSession);
-
-    pSession->blocking_mode = blocking;
-
-    /* Force speaking over this dialect   */
-    pSession->server_info.dialect = CSSN_DIALECT_SMB2_2002;
-
-    rtp_thread_handle((RTP_HANDLE *) &pSession->owning_thread);
-
-    if (broadcast_ip)
-    {
-        tc_memcpy (pSession->broadcast_ip, broadcast_ip, 4);
-    }
-    else
-    {
-        tc_memcpy (pSession->broadcast_ip, rtsmb_net_get_broadcast_ip (),4);
-    }
-    /* Attach an SMB2 session structure since that is our prefered dialect   */
-    rtsmb_cli_smb2_session_init (pSession);
-    /* -------------------------- */
-    /* start Negotiate Protocol - also setups callbacks for
-       fake job to logon as anonymous */
-    // job_off = rtsmb_cli_session_init (pSession, 0, ip);
-
-    rtsmb_cli_wire_session_new (&pSession->wire, 0, ip, 1);
-    tc_strcpy (pSession->server_name, "");
-
-    tc_memcpy (pSession->server_ip, ip, 4);
-    job_off = do_smb2_negotiate_worker(pSession);
-
-
-    if (job_off < 0)
-    {
-        rtsmb_cli_session_close_session (sid);
-        return RTSMB_CLI_SSN_RV_DEAD;
-    }
-
-    /* -------------------------- */
-    if (psid) *psid = sid;
-
-    /* -------------------------- */
-    if (pSession->blocking_mode)
-    {
-        /* anonymous login not tried */
-        /* wait for Negotiate Protocol to complete */
-        r = rtsmb_cli_session_wait_for_job (pSession, job_off);
-        return(r);
-    }
-    else
-    {
-        return job_off;
-    }
-
-}
 

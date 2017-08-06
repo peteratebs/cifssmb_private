@@ -16,17 +16,16 @@
 #include <iostream>
 #include <string>
 #include <memory>
-#include "smb2utils.hpp"
 
 using std::cout;
 using std::endl;
 
 #include "smbdefs.h"
 
-
-#include <wireobjects.hpp>
-#include <smb2wireobjects.hpp>
-#include <netstreambuffer.hpp>
+#include "smb2utils.hpp"
+#include "wireobjects.hpp"
+#include "smb2wireobjects.hpp"
+#include "netstreambuffer.hpp"
 
 // --------------------------------------------------------
 // extern "C" void mark_rv_cpp (int job, int rv, void *data)

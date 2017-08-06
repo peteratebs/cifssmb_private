@@ -15,7 +15,7 @@
 
 //
 #include "smb2utils.hpp"
-#include <smb2wireobjects.hpp>
+#include "smb2wireobjects.hpp"
 
 
 
@@ -374,4 +374,3 @@ BBOOL (*rtsmb_glue_do_we_have_server_list) (void) = (BBOOL)0;
 PFCHAR (*rtsmb_glue_get_our_server_name) (void) = 0;
 void (*rtsmb_glue_process_nbds_message) (PFCHAR dest_name, byte command, PFVOID origin, PFVOID buf, rtsmb_size size, PRTSMB_HEADER pheader) = 0;
 }
-

@@ -12,7 +12,7 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include <smb2wireobjects.hpp>
+#include "smb2wireobjects.hpp"
 
 // Classes and methods for negotiate and setup commands.
 //
@@ -30,6 +30,9 @@ void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
 void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, int r);
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
+
+#include "smb2session.hpp"
+
 
 RTSMB_STATIC rtsmb_char wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
 
@@ -118,9 +121,10 @@ private:
   byte *password;
 
 };
-extern "C" int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password)
+
+extern int do_smb2_tree_connect_worker(Smb2Session &Session)
 {
-  SmbTreeConnectWorker TreeConnectWorker(sid, share_name, password);
+  SmbTreeConnectWorker TreeConnectWorker( Session.sid(), Session.sharename(), Session.sharepassword());
   return TreeConnectWorker.go();
 }
 
@@ -353,11 +357,10 @@ private:
     }
   }
   int sid;
-
 };
-extern "C" int do_smb2_tree_disconnect_worker(int sid)
+extern int do_smb2_tree_disconnect_worker(Smb2Session &Session)
 {
-  SmbTreeDisconnectWorker TreeDisconnectWorker(sid);
+  SmbTreeDisconnectWorker TreeDisconnectWorker(Session.sid());
   return TreeDisconnectWorker.go();
 }
 

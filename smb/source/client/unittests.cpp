@@ -11,18 +11,11 @@
 // Module description:
 //  SMB2 client session level interface
 //
-#include <map>
-#include <algorithm>
-#include <iostream>
-#include <string>
 #include "smb2utils.hpp"
-
-#include "smbdefs.h"
-
 #include "client.h"
-#include <wireobjects.hpp>
-#include <netstreambuffer.hpp>
-#include <smb2wireobjects.hpp>
+#include "wireobjects.hpp"
+#include "netstreambuffer.hpp"
+#include "smb2wireobjects.hpp"
 
 // Use static initializer constructor to intitialize run time table
 static std::string endr = std::string (15, (char) ' ') + "\r";

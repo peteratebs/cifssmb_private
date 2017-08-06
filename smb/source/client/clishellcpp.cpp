@@ -12,8 +12,8 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include <smb2wireobjects.hpp>
-#include <mswireobjects.hpp>
+#include "smb2wireobjects.hpp"
+#include "mswireobjects.hpp"
 
 static TIME FILETIMETOTIME(ddword T)
 {
