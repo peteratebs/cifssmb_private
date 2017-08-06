@@ -27,54 +27,87 @@
 
 
 
-extern "C" {
-  void rtsmb_cli_session_job_close (PRTSMB_CLI_SESSION_JOB pJob);
+extern "C" void rtsmb_cli_session_job_close (PRTSMB_CLI_SESSION_JOB pJob);
+extern "C" int FormatDirscanToDstat(void *pBuffer);
+extern "C" int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat);
+
+static inline int smb2_ls_function(void *devContext, byte *pData, int size)
+{
+  int esize;
+  esize = FormatDirscanToDstat(pData);
+  cout << " We got ls function with size" << endl;
+  return esize>0?esize:size;
 }
+
+//int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat);
+
 
 class SmbQuerydirectoryWorker {
 public:
-  SmbQuerydirectoryWorker(int _sid,  byte *_sharename, byte *_password)  // ascii
+  SmbQuerydirectoryWorker(int _sid,  byte *_sharename, byte *_pattern)
   {
-   ENSURECSTRINGSAFETY(_sharename); ENSURECSTRINGSAFETY(_password);
-   sharename=_sharename;password=_password;
+   ENSURECSTRINGSAFETY(_sharename); ENSURECSTRINGSAFETY(_pattern);
+   sid=_sid;sharename=_sharename;pattern=_pattern;
   };
   int go()
   {
-#if (0)
-      // Send treeconnect and wait for the response
-      int r = rtsmb_cli_session_logon_user_rt_cpp (sid, user_name, password, domain);
-      if(r < 0) return 0;
-      if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
-      {
-         decoded_NegTokenTarg_challenge_t decoded_targ_token;
-         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
-         if (r == 0)
-         {  // Ssends of the hashed challenge and waits for status
-            r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
-              decoded_targ_token.ntlmserverchallenge,
-              decoded_targ_token.target_info->value_at_offset,
-              decoded_targ_token.target_info->size);
-         }
-         rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server);
-         spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
-         if(r < 0) return 0;
-         r = wait_on_job_cpp(sid, r);
-         if(r < 0) return 0;
-      }
-#endif
-    return(1);
+    return do_ls_command_worker();
   }
 
 private:
   int sid;
   byte *sharename;
-  byte *password;
+  byte *pattern;
+  int do_ls_command_worker()
+  {
+    RTSMB_CLI_SESSION_DSTAT dstat1;
+    int smb2_ls_context;  // not used yet
+    bool doLoop = false;
+    do
+    {
+        // pass callbacks to smb2 stream layer through the stat structure
+        dstat1.sink_function = (void *) smb2_ls_function;
+        dstat1.sink_parameters = (void *) &smb2_ls_context;
+        int r1;
+        r1 = rtsmb_cli_session_find_first(sid, (PFCHAR) sharename, (PFCHAR)pattern, &dstat1);
+        if(r1 < 0)
+        {
+          return 1;
+        }
+        r1 = wait_on_job_cpp(sid, r1);
+        // This is the SMB2 flavor of search continue
+// Cheating, using RTSMB_CLI_SSN_SMB2_COMPUND_INPUT to assume he wants another
+// Should really be RTSMB_CLI_SSN_SMB2_QUERY_MORE
+//        while (r1 == RTSMB_CLI_SSN_SMB2_QUERY_MORE)
+        while (r1 == RTSMB_CLI_SSN_SMB2_COMPUND_INPUT)
+        {
+            r1 = rtsmb_cli_session_find_next(sid, &dstat1);
+            if(r1 < 0)
+            {
+              return 1;
+            }
+            r1 = wait_on_job_cpp(sid, r1);
+        }
+
+        rtsmb_cli_session_find_close(sid, &dstat1);
+    } while(doLoop);
+    return 0;
+}
+
 
 };
 
-extern "C" int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *password)
+
+extern int do_smb2_cli_query_worker(Smb2Session &Session)
 {
-  SmbQuerydirectoryWorker QuerydirectoryWorker(sid, share_name, password);
+  SmbQuerydirectoryWorker QuerydirectoryWorker(Session.sid(), Session.sharename(), Session.searchpattern());
+  return QuerydirectoryWorker.go();
+}
+
+
+extern "C" int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *pattern)
+{
+  SmbQuerydirectoryWorker QuerydirectoryWorker(sid, share_name, pattern);
   return QuerydirectoryWorker.go();
 }
 

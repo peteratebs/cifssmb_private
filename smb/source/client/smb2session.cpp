@@ -31,6 +31,7 @@ extern int do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session);
 extern int do_smb2_tree_disconnect_worker(Smb2Session &Session);
 extern int do_smb2_negotiate_worker(Smb2Session &Session);
+extern int do_smb2_cli_query_worker(Smb2Session &Session);
 
 
 Smb2Session Smb2Sessions[1];
@@ -80,8 +81,15 @@ int Smb2Session::smb2_session_logon_server_worker()
   return do_smb2_logon_server_worker(*this);
 }
 
-
-
+extern "C" int do_smb2_cli_query_worker(int doLoop,int sid, char *sharename,char *pattern)
+{
+  Smb2Sessions[0].rtsmb2_cli_query_parms ((byte*)sharename, (byte*)pattern);
+  return Smb2Sessions[0].smb2_cli_query_worker();
+}
+int Smb2Session::smb2_cli_query_worker()
+{
+  return do_smb2_cli_query_worker(*this);
+}
 int Smb2Session::do_rtsmb2_cli_session_new_with_ip (BBOOL blocking, PFINT psid)
 {
   int job_off;

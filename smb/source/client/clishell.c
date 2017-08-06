@@ -147,6 +147,8 @@ static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSIO
 // done in cpp now
 extern  int do_smb2_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
 extern  int do_smb2_tree_disconnect_worker(int sid);
+extern int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *pattern);
+extern int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password);
 
 
 // static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
@@ -1033,26 +1035,23 @@ int ls_sink_function(void *devContext, byte *pData, int size)
 }
 
 
-
-inline int smb2_ls_function(void *devContext, byte *pData, int size)
-{
-  int esize;
-
-  esize = FormatDirscanToDstat(pData);
-  smb_cli_term_printf(CLI_PROMPT," We got ls function with size %d recordsize:%d \n", size, esize);
-  return esize>0?esize:size;
-}
+static int _do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern);
 
 static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern)
 {
+  if (do_get_session_dialect(sid) >= CSSN_DIALECT_SMB2_2002)
+    return do_smb2_querydirectory_worker(sid,  sharename, pattern);
+  else
+    return _do_ls_command_worker(doLoop, sid,  sharename, pattern);
+}
+static int _do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern)
+{
+
     RTSMB_CLI_SESSION_DSTAT dstat1;
-    int smb2_ls_context;  // not used yet
     smb_cli_term_printf(CLI_ALERT,"performing LS on %s\\%s \n", sharename, pattern);
     do
     {
         // pass callbacks to smb2 stream layer through the stat structure
-        dstat1.sink_function = (void *) smb2_ls_function;
-        dstat1.sink_parameters = (void *) &smb2_ls_context;
         int r1;
         r1 = rtsmb_cli_session_find_first(sid, sharename, pattern, &dstat1);
         if(r1 < 0)
@@ -1061,22 +1060,6 @@ static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *patter
           return 1;
         }
         r1 = wait_on_job(sid, r1);
-        // This is the SMB2 flavor of search continue
-// Cheating, using RTSMB_CLI_SSN_SMB2_COMPUND_INPUT to assume he wants another
-// Should really be RTSMB_CLI_SSN_SMB2_QUERY_MORE
-//        while (r1 == RTSMB_CLI_SSN_SMB2_QUERY_MORE)
-        while (r1 == RTSMB_CLI_SSN_SMB2_COMPUND_INPUT)
-        {
-            r1 = rtsmb_cli_session_find_next(sid, &dstat1);
-            if(r1 < 0)
-            {
-              smb_cli_term_printf(CLI_ALERT,"\n Error getting files\n");
-              return 1;
-            }
-            r1 = wait_on_job(sid, r1);
-        }
-
-        // This is the SMB1 flavor of search continue
         while(r1 == RTSMB_CLI_SSN_RV_SEARCH_DATA_READY)
         {  // SMB1 stuff
             char temp[200];
@@ -1711,7 +1694,6 @@ static int do_logon_server(int sid)
 
 }
 
-extern int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password);
 
 static int do_connect_share(int sid, char *sharename)
 {

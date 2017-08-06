@@ -35,6 +35,12 @@ public:
   int smb2_tree_connect_worker();
 
   int smb2_tree_disconnect_worker();
+  // ignoring sharename for now, only one share at a time
+
+  void rtsmb2_cli_query_parms (byte *_sharename, byte *pattern)     { _p_searchpattern = pattern;};
+
+  int smb2_cli_query_worker ();
+
 
   int go(PFINT psid)
   {
@@ -48,6 +54,7 @@ public:
   byte *domain()       {return _p_domain;    }
   byte *sharename()    {return _p_sharename;    }
   byte *sharepassword(){return _p_sharepassword;    }
+  byte *searchpattern(){return _p_searchpattern;    }
   PRTSMB_CLI_SESSION pSession() {return _p_pSession; }
 private:
   PFBYTE ip;
@@ -61,6 +68,7 @@ private:
   byte *_p_domain;
   byte *_p_sharename;
   byte *_p_sharepassword;
+  byte *_p_searchpattern;
   int do_rtsmb2_cli_session_new_with_ip (BBOOL blocking, PFINT psid);
 };
 
