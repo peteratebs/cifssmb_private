@@ -17,7 +17,7 @@
 // Classes and methods for negotiate and setup commands.
 //
 // public functions
-// do_logon_server_worker()
+// do_smb2_logon_server_worker()
 //  get_negotiateobject()
 //  get_setupobject()
 //  get_setupphase_2object()
@@ -27,6 +27,9 @@ extern "C" {
 #include "smbspnego.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
 int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
 void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
+int rtsmb_cli_session_get_free_session (void);
+void rtsmb_cli_session_memclear (PRTSMB_CLI_SESSION pSession);
+void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
 
@@ -116,7 +119,7 @@ private:
 
 };
 
-extern "C" int do_logon_server_worker(int sid,  byte *user_name, byte *password, byte *domain)
+extern "C" int do_smb2_logon_server_worker(int sid,  byte *user_name, byte *password, byte *domain)
 {
   SmbLogonWorker LogonWorker(sid, user_name, password, domain);
   return LogonWorker.go();
@@ -186,6 +189,58 @@ static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
 }
 
 
+class SmbNegotiateWorker {
+public:
+  SmbNegotiateWorker(int _sid, PRTSMB_CLI_SESSION _pSession)
+  {
+    sid      = _sid;
+    pSession = _pSession;
+  }
+  int rtsmb_cli_session_negotiate ()
+  {
+      PRTSMB_CLI_SESSION_JOB pJob;
+
+      pJob = rtsmb_cli_session_get_free_job (pSession);
+      ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
+
+      pJob->smb2_jobtype = jobTsmb2_negotiate;
+
+#if (INCLUDE_ANON_AUTOMATIC)
+      /* We set up a chain of actions here.  First is negotiate, then
+       we connect an anonymous user.  Then, we connect to the IPC. */
+    pJob->callback = rtsmb_cli_session_negotiate_helper;
+    pJob->callback_data = pSession;
+#endif
+
+    rtsmb_cli_session_send_stalled_jobs (pSession);
+    pSession->state = CSSN_STATE_NEGOTIATED;
+    return INDEX_OF (pSession->jobs, pJob);
+  }
+  int go()
+  {
+      // Send setup and wait for the response which will have a challenge blob
+      int r = rtsmb_cli_session_negotiate();
+      // Return to the to, do_smb2_connect_server_worker() needs rework to run to completion
+      return r;
+
+      if(r < 0) return 0;
+      r = wait_on_job_cpp(sid, r);
+      if(r < 0) return 0;
+      return(1);
+  }
+
+private:
+  int sid;
+  PRTSMB_CLI_SESSION pSession;
+};
+
+
+extern "C" int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession)
+{
+  SmbNegotiateWorker NegotiateWorker(INDEX_OF (prtsmb_cli_ctx->sessions, pSession), pSession);
+  return NegotiateWorker.go();
+}
+
 static int rtsmb2_cli_session_send_setup_with_blob (NetStreamBuffer &SendBuffer, byte *variable_content, dword variable_content_size)
 {
     int send_status;
@@ -230,11 +285,11 @@ static int rtsmb2_cli_session_receive_setup (NetStreamBuffer &ReplyBuffer)
   NetSmb2SetupReply Smb2SetupReply;
   NetSmb2NBSSReply<NetSmb2SetupReply> Smb2NBSSReply(SMB2_SESSION_SETUP, ReplyBuffer,                InNbssHeader,InSmb2Header, Smb2SetupReply);
 
-  cout << "session_receive_setup received packet" << endl;
+   cout_log(LL_JUNK)  << "session_receive_setup received packet" << endl;
 
   if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
   {
-    cout << "didnt get SMB_NT_STATUS_MORE_PROCESSING_REQUIRED" << endl;
+    cout_log(LL_JUNK) << "didnt get SMB_NT_STATUS_MORE_PROCESSING_REQUIRED" << endl;
   }
   if (Smb2SetupReply.SecurityBufferLength()&&Smb2SetupReply.SecurityBufferLength() < 2048)
   {
@@ -258,7 +313,7 @@ static int rtsmb2_cli_session_receive_setupphase_2 (NetStreamBuffer &ReplyBuffer
   NetSmb2NBSSReply<NetSmb2SetupReply> Smb2NBSSReply(SMB2_SESSION_SETUP, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2SetupReply);
 
   if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_SUCCESS)
-    cout << "setup_phase2 didnt get SMB_NT_STATUS_SUCCESS" << endl;
+    cout_log(LL_JUNK) << "setup_phase2 didnt get SMB_NT_STATUS_SUCCESS" << endl;
   // Spnego should be a negTokenTarg completed status but ignore it
   // should be 9 bytes: this sequence a1073005a0030a0100
   // cout << "setup_phase2 spnego reply size is:  " << Smb2SetupReply.SecurityBufferLength() << endl;
@@ -283,3 +338,77 @@ c_smb2cmdobject setupobject =     { rtsmb2_cli_session_send_setup,   rtsmb2_cli_
 c_smb2cmdobject *get_setupobject() { return &setupobject;};
 c_smb2cmdobject setupphase_2object =     { rtsmb2_cli_session_send_setupphase_2,rtsmb2_cli_session_send_setupphase_2_error_handler, rtsmb2_cli_session_receive_setupphase_2, };
 c_smb2cmdobject *get_setupphase_2object() { return &setupphase_2object;};
+
+
+
+extern "C" int rtsmb2_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blocking, PFINT psid)
+{
+    int sid;
+    PRTSMB_CLI_SESSION pSession;
+    int job_off;
+    int r;
+
+    cout_log(LL_JUNK) << "Yo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+
+    sid = rtsmb_cli_session_get_free_session ();
+    pSession = rtsmb_cli_session_get_session (sid);
+
+    ASSURE (pSession, RTSMB_CLI_SSN_RV_NOT_ENOUGH_RESOURCES);
+
+    rtsmb_cli_session_update_timestamp (pSession);
+
+    rtsmb_cli_session_memclear (pSession);
+
+    pSession->blocking_mode = blocking;
+
+    /* Force speaking over this dialect   */
+    pSession->server_info.dialect = CSSN_DIALECT_SMB2_2002;
+
+    rtp_thread_handle((RTP_HANDLE *) &pSession->owning_thread);
+
+    if (broadcast_ip)
+    {
+        tc_memcpy (pSession->broadcast_ip, broadcast_ip, 4);
+    }
+    else
+    {
+        tc_memcpy (pSession->broadcast_ip, rtsmb_net_get_broadcast_ip (),4);
+    }
+    /* Attach an SMB2 session structure since that is our prefered dialect   */
+    rtsmb_cli_smb2_session_init (pSession);
+    /* -------------------------- */
+    /* start Negotiate Protocol - also setups callbacks for
+       fake job to logon as anonymous */
+    // job_off = rtsmb_cli_session_init (pSession, 0, ip);
+
+    rtsmb_cli_wire_session_new (&pSession->wire, 0, ip, 1);
+    tc_strcpy (pSession->server_name, "");
+
+    tc_memcpy (pSession->server_ip, ip, 4);
+    job_off = do_smb2_negotiate_worker(pSession);
+
+
+    if (job_off < 0)
+    {
+        rtsmb_cli_session_close_session (sid);
+        return RTSMB_CLI_SSN_RV_DEAD;
+    }
+
+    /* -------------------------- */
+    if (psid) *psid = sid;
+
+    /* -------------------------- */
+    if (pSession->blocking_mode)
+    {
+        /* anonymous login not tried */
+        /* wait for Negotiate Protocol to complete */
+        r = rtsmb_cli_session_wait_for_job (pSession, job_off);
+        return(r);
+    }
+    else
+    {
+        return job_off;
+    }
+
+}
+

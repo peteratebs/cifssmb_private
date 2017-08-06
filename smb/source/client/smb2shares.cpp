@@ -17,7 +17,7 @@
 // Classes and methods for negotiate and setup commands.
 //
 // public functions
-// do_logon_server_worker()
+// do_smb2_logon_server_worker()
 //  get_negotiateobject()
 //  get_setupobject()
 //  get_setupphase_2object()
@@ -31,49 +31,94 @@ void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESS
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
 
+RTSMB_STATIC rtsmb_char wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
 
 class SmbTreeConnectWorker {
 public:
   SmbTreeConnectWorker(int _sid,  byte *_sharename, byte *_password)  // ascii
   {
    ENSURECSTRINGSAFETY(_sharename); ENSURECSTRINGSAFETY(_password);
-   sharename=_sharename;password=_password;
+   sid=_sid;sharename=_sharename;password=_password;
   };
   int go()
   {
-#if (0)
-      // Send treeconnect and wait for the response
-      int r = rtsmb_cli_session_logon_user_rt_cpp (sid, user_name, password, domain);
-      if(r < 0) return 0;
-      if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
-      {
-         decoded_NegTokenTarg_challenge_t decoded_targ_token;
-         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
-         if (r == 0)
-         {  // Ssends of the hashed challenge and waits for status
-            r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
-              decoded_targ_token.ntlmserverchallenge,
-              decoded_targ_token.target_info->value_at_offset,
-              decoded_targ_token.target_info->size);
-         }
-         rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server);
-         spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
-         if(r < 0) return 0;
-         r = wait_on_job_cpp(sid, r);
-         if(r < 0) return 0;
-      }
-#endif
+  cout_log(LL_JUNK)  << "YOYO !!! GOGOGO !!" << endl;
+     int r = rtsmb_cli_session_connect_share (sid, (PFCHAR)sharename, (PFCHAR)password);
+     if(r < 0) return 0;
+     r = wait_on_job_cpp(sid, r);
+     if(r < 0) return 0;
     return(1);
   }
 
 private:
+  int rtsmb_cli_session_connect_share (int sid, PFCHAR share, PFCHAR password)
+  {
+      PRTSMB_CLI_SESSION_JOB pJob;
+      PRTSMB_CLI_SESSION_SHARE pShare;
+      PRTSMB_CLI_SESSION pSession;
+
+      pSession = rtsmb_cli_session_get_session (sid);
+      ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+      ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+      rtsmb_cli_session_update_timestamp (pSession);
+
+      ASSURE (share, RTSMB_CLI_SSN_RV_BAD_SHARE);
+
+      /* First, see if we alread are connected */
+      pShare = rtsmb_cli_session_get_share (pSession, share);
+      if (pShare && pShare->state != CSSN_SHARE_STATE_DIRTY)
+      {
+          return RTSMB_CLI_SSN_RV_ALREADY_CONNECTED;
+      }
+
+      if (!pShare)
+      {
+          /* find free share */
+          pShare = rtsmb_cli_session_get_free_share (pSession);
+          ASSURE (pShare, RTSMB_CLI_SSN_RV_TOO_MANY_SHARES);
+      }
+      else
+      {
+          pShare->state = CSSN_SHARE_STATE_CONNECTING;
+  #ifdef STATE_DIAGNOSTICS
+  RTSMB_GET_SESSION_STATE (CSSN_SHARE_STATE_CONNECTING);
+  #endif
+      }
+
+      pJob = rtsmb_cli_session_get_free_job (pSession);
+      if (!pJob)
+          rtsmb_cli_session_share_close (pShare);
+      ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
+
+      pJob->data.tree_connect.share_type = wildcard_type; // disk_type;
+      pJob->data.tree_connect.share_struct = pShare;
+      tc_strcpy (pJob->data.tree_connect.share_name, share);
+      if (password)
+          tc_strcpy (pJob->data.tree_connect.password, password);
+      else
+          tc_memset (pJob->data.tree_connect.password, 0, 2);
+
+      pJob->smb2_jobtype = jobTsmb2_tree_connect;
+
+      rtsmb_cli_session_send_stalled_jobs (pSession);
+
+      if (pSession->blocking_mode)
+      {
+          int r;
+          r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
+          return(r);
+      }
+      else
+      {
+          return INDEX_OF (pSession->jobs, pJob);
+      }
+  }
   int sid;
   byte *sharename;
   byte *password;
 
 };
-
-extern "C" int do_tree_connect_worker(int sid,  byte *share_name, byte *password)
+extern "C" int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password)
 {
   SmbTreeConnectWorker TreeConnectWorker(sid, share_name, password);
   return TreeConnectWorker.go();
@@ -81,7 +126,6 @@ extern "C" int do_tree_connect_worker(int sid,  byte *share_name, byte *password
 
 
 static int rtsmb2_cli_session_send_treeconnect_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
-
 
 static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
 {
@@ -198,9 +242,6 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
 }
 
 
-
-
-
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
 c_smb2cmdobject treeconnectobject = { rtsmb2_cli_session_send_treeconnect,rtsmb2_cli_session_send_treeconnect_error_handler, rtsmb2_cli_session_receive_treeconnect, };
 c_smb2cmdobject *get_treeconnectobject() { return &treeconnectobject;};
@@ -265,6 +306,63 @@ static int rtsmb2_cli_session_receive_disconnect (NetStreamBuffer &ReplyBuffer)
   NetSmb2NBSSReply<NetSmb2DisconnectReply> Smb2NBSSReply(SMB2_TREE_DISCONNECT, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2DisconnectReply);
   return  RTSMB_CLI_SSN_RV_OK;
 }
+
+class SmbTreeDisconnectWorker {
+public:
+  SmbTreeDisconnectWorker(int _sid) { sid=_sid; };
+  int go()
+  {
+     int r = rtsmb_cli_session_logoff_user(sid);
+     if(r < 0) return 0;
+     r = wait_on_job_cpp(sid, r);
+     if(r < 0) return 0;
+    return(1);
+  }
+
+private:
+  int rtsmb_cli_session_logoff_user (int sid)
+  {
+      PRTSMB_CLI_SESSION_JOB pJob;
+      PRTSMB_CLI_SESSION pSession;
+
+      pSession = rtsmb_cli_session_get_session (sid);
+      ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+      ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+      rtsmb_cli_session_update_timestamp (pSession);
+
+      if (!(RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect)))
+      {
+          ASSURE (pSession->user.state == CSSN_USER_STATE_LOGGED_ON, RTSMB_CLI_SSN_RV_NO_USER);
+      }
+      pJob = rtsmb_cli_session_get_free_job (pSession);
+      ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
+
+      pJob->smb2_jobtype = jobTsmb2_logoff;
+
+      rtsmb_cli_session_send_stalled_jobs (pSession);
+
+      if (pSession->blocking_mode)
+      {
+          int r;
+          r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
+          return(r);
+      }
+      else
+      {
+          return INDEX_OF (pSession->jobs, pJob);
+    }
+  }
+  int sid;
+
+};
+extern "C" int do_smb2_tree_disconnect_worker(int sid)
+{
+  SmbTreeDisconnectWorker TreeDisconnectWorker(sid);
+  return TreeDisconnectWorker.go();
+}
+
+
+
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
 c_smb2cmdobject disconnectobject = { rtsmb2_cli_session_send_disconnect,rtsmb2_cli_session_send_disconnect_error_handler, rtsmb2_cli_session_receive_disconnect, };

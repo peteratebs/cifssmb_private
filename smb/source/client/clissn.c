@@ -14,7 +14,6 @@
 
 #include "smbdefs.h"
 
-#define HEREHERE
 
 #include "clissn.h"
 #include "cliwire.h"
@@ -64,6 +63,9 @@
 
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
+
+extern int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession);
+extern int rtsmb2_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blocking, PFINT psid);
 
 static const byte zero[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
   // Native OS: Mac OS X 10.10
@@ -383,7 +385,6 @@ RTSMB_STATIC int rtsmb_cli_session_connect_anon (PRTSMB_CLI_SESSION pSession);
 RTSMB_STATIC int rtsmb_cli_session_connect_ipc (PRTSMB_CLI_SESSION pSession);
 
 /* ********************************************************************     */
-RTSMB_STATIC
 int rtsmb_cli_session_get_free_session (void)
 {
     int i;
@@ -447,7 +448,6 @@ PRTSMB_CLI_SESSION rtsmb_cli_session_get_session (int i)
 }
 
 
-RTSMB_STATIC
 void rtsmb_cli_session_memclear (PRTSMB_CLI_SESSION pSession)
 {
     int i;
@@ -609,8 +609,10 @@ int rtsmb_cli_session_init (PRTSMB_CLI_SESSION pSession, PFCHAR name, PFBYTE ip)
     }
 
     tc_memcpy (pSession->server_ip, ip, 4);
-
-    return rtsmb_cli_session_negotiate (pSession);
+    if (RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect))
+      return do_smb2_negotiate_worker(pSession);
+    else
+      return rtsmb_cli_session_negotiate (pSession);
 }
 
 RTSMB_STATIC
@@ -643,6 +645,12 @@ int rtsmb_cli_session_new_with_ip (PFBYTE ip, PFBYTE broadcast_ip, BBOOL blockin
 #endif
     int job_off;
     int r;
+
+    if (dialect >= CSSN_DIALECT_SMB2_2002)
+    {
+      return rtsmb2_cli_session_new_with_ip (ip, broadcast_ip, blocking, psid);
+    }
+
 
     sid = rtsmb_cli_session_get_free_session ();
     pSession = rtsmb_cli_session_get_session (sid);
@@ -3326,7 +3334,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_LOGGING_ON);
 #endif
         pstat->backup_server_index = 0;
-        r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT); // HEREHERE
+        r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT);
         if (r != RTSMB_CLI_SSN_RV_OK)
         {
             // tbd - TONY: "why was this line commented out?"
@@ -3442,7 +3450,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_LOGGING_ON);
 #endif
             pstat->backup_server_index = 0;
-            r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT); // HEREHERE
+            r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT);
             if (r < 0)
             {
                 rtsmb_cli_session_server_enum_close (pstat);
@@ -3495,7 +3503,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_LOGGING_ON);
 #endif
             pstat->backup_server_index = 0;
-            r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT); // HEREHERE
+            r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT);
             if (r < 0)
             {
                 pstat->state = CSSN_SRV_SEARCH_STATE_FINISH;
@@ -3552,7 +3560,7 @@ RTSMB_GET_SESSION_SEARCH_STATE (CSSN_SRV_SEARCH_STATE_FINISH);
 #if(INCLUDE_RTSMB_CLIENT_NBNS)
                 if (rtsmb_nbds_get_backup_server (pstat->domain, backup_server, pstat->backup_server_index) == 0)
                 {
-                    r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT); // HEREHERE
+                    r = rtsmb_cli_session_new_with_name (backup_server, FALSE, pstat->bip, &pstat->ssnid, CSSN_DIALECT_NT);
                     if (r < 0)
                     {
                         pstat->state = CSSN_SRV_SEARCH_STATE_FINISH;

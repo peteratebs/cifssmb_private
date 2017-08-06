@@ -18,7 +18,7 @@
 // Classes and methods for negotiate and setup commands.
 //
 // public functions
-// do_logon_server_worker()
+// do_smb2_logon_server_worker()
 //  get_negotiateobject()
 //  get_setupobject()
 //  get_setupphase_2object()
@@ -70,7 +70,7 @@ private:
 
 };
 
-extern "C" int do_querydirectory_worker(int sid,  byte *share_name, byte *password)
+extern "C" int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *password)
 {
   ms_FILE_ID_BOTH_DIR_INFORMATION  compileme;
 

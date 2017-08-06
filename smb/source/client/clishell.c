@@ -143,7 +143,12 @@ static int do_dir_command(int which_command, char *command);
 static int do_logoff_command(char *command);
 
 static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSION_DIALECT dialect);
-extern  int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain); // done in cpp now
+
+// done in cpp now
+extern  int do_smb2_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
+extern  int do_smb2_tree_disconnect_worker(int sid);
+
+
 // static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
 static int do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern);
 static int do_ls_command(char *command);
@@ -704,7 +709,7 @@ dialectString[0]=0;
             return -1;
         }
         smb_cli_term_printf(CLI_ALERT,"Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
-        if (do_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "domain") < 0)
+        if (do_smb2_logon_server_worker(Clishell.ClishellConnections[ConnectionNo].sid,  Clishell.ClishellConnections[ConnectionNo].userString, Clishell.ClishellConnections[ConnectionNo].passwordString, "domain") < 0)
         {
             smb_cli_term_printf(CLI_ALERT,"Failed Logging on with username: %s password: %s \n",Clishell.ClishellConnections[ConnectionNo].userString,Clishell.ClishellConnections[ConnectionNo].passwordString);
             return -1;
@@ -959,6 +964,7 @@ static const char *month_names[] =
     "Dec"
 };
 
+
 static int do_logoff_command(char *command)
 {
     if (*command==0)
@@ -973,7 +979,10 @@ static int do_logoff_command(char *command)
         if (idNo < 0)
             return 0;
         Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].server_name[0]=0;
-        return rtsmb_cli_session_logoff_user(Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid);
+        if (do_get_session_dialect(Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid) >= CSSN_DIALECT_SMB2_2002)
+          return do_smb2_tree_disconnect_worker(Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid);
+        else
+          return rtsmb_cli_session_logoff_user(Clishell.ClishellConnections[Clishell.ClishellShares[idNo].ConnectionNo].sid);
     }
 }
 
@@ -1688,17 +1697,29 @@ static int do_logon_server(int sid)
     char *user_name;
     char *password;
     char *domain;
+    RTSMB_CLI_SESSION_DIALECT dialect;
     user_name = do_getuser_name();
     password = do_getpassword();
     domain = do_getdomain_name();
-    return do_logon_server_worker(sid,  user_name, password, domain);
+
+    dialect = do_get_session_dialect(sid);
+    if (dialect >= CSSN_DIALECT_SMB2_2002)
+      return do_smb2_logon_server_worker(sid,  user_name, password, domain);
+    else
+    // SMB1 is broken, TBD
+     return do_smb2_logon_server_worker(sid,  user_name, password, domain);
 
 }
+
+extern int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password);
 
 static int do_connect_share(int sid, char *sharename)
 {
     int r1;
 
+    if ( do_get_session_dialect(sid) >= CSSN_DIALECT_SMB2_2002)
+      return do_smb2_tree_connect_worker(sid,  sharename, "");
+    // else use smb1
     r1 = rtsmb_cli_session_connect_share(sid, sharename, "");
     if (r1 < 0)
     {
