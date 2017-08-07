@@ -104,6 +104,7 @@ InitializeSmb2Tables PerformInitializeSmb2Tables;
 // end static initializer constructor to intitialize run time tables
 // ===============================
 
+// === Sending ===
 /// Bind a buffer and tcpip socket for sending
 ///   attaches a socket and a legacy smb2_iostream structure which references MID mapped buffer pools, NetStreamBuffer
 static void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
@@ -114,21 +115,21 @@ static void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStr
   SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
   SendBuffer.attach_sink(&SocketSink);
 
-  pStream->StreamBuffer = (void *) &SendBuffer;
+//  pStream->StreamBuffer = (void *) &SendBuffer;
 //   ((NetStreamBuffer *)pStream->StreamBuffer)->XXX
 }
 
 /// Bind a buffer for receiving.
 ///   attaches structure which references MID mapped buffer pools to NetStreamBuffer
 ///   For receive sockets are bound in seperate step
-void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
+static void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &ReplyBuffer)
 {
   ReplyBuffer.session_pStream(pStream);
   ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size,pStream->pSession->wire.total_read);
-  pStream->StreamBuffer = (void *) &ReplyBuffer;
+// ??  pStream->StreamBuffer = (void *) &ReplyBuffer;
 }
 
-extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
+static int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
 {
 int r = RTSMB_CLI_SSN_RV_OK;
 
@@ -146,6 +147,8 @@ int r = RTSMB_CLI_SSN_RV_OK;
   }
   return r;
 }
+// === End Sending ===
+
 
 extern "C" int rtsmb_cli_wire_receive_handler_smb2(smb2_iostream  *pStream)     //  Called from rtsmb_cli_session_handle_job_smb2
 {
@@ -233,7 +236,7 @@ extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStrea
 
 extern "C" {
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+//smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
 
@@ -260,9 +263,8 @@ void rtsmb_cli_smb2_session_release (PRTSMB_CLI_SESSION pSession)
 {
 }
 
-//rtsmb2_cli_session_send_job -> rtsmb_cli_wire_smb2_iostream_construct -> rtsmb_cli_wire_smb2_send_handler
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+static smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
     PRTSMB_CLI_WIRE_BUFFER pBuffer;
     BBOOL EncryptMessage = FALSE;
@@ -314,9 +316,28 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSess
 
 extern "C" int rtsmb_cli_session_translate_error32 (dword status);
 
+static int rtsmb_cli_wire_smb2_send_handler(NetStreamBuffer &SendBuffer, smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
+{
+int r = RTSMB_CLI_SSN_RV_OK;
+
+  if (glSmbCmdToCmdObject.find(pStream->pJob->smb2_jobtype) != glSmbCmdToCmdObject.end() )
+  {
+     struct             SocketContext sockContext;
+     DataSinkDevtype SocketSink(socket_sink_function, (void *)&sockContext);
+     rtsmb2_smb2_iostream_to_streambuffer(pStream, SendBuffer, sockContext, SocketSink);
+
+     if (glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_send_handler_smb2)
+       r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->new_send_handler_smb2(SendBuffer);
+     else
+       ; // r = glSmbCmdToCmdObject[pStream->pJob->smb2_jobtype]->send_handler_smb2(pStream);
+  }
+  return r;
+}
+
 extern "C" int  rtsmb2_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
 smb2_iostream *pStream;
+NetStreamBuffer    SendBuffer;
 
     pJob->send_count += 1;
     pStream = rtsmb_cli_wire_smb2_iostream_construct (pSession, pJob);
@@ -327,7 +348,7 @@ smb2_iostream *pStream;
         pJob->mid = (word) pStream->pBuffer->mid;
 
         // maps pJob->smb2_jobtype to sendhandler and sends
-        r = rtsmb_cli_wire_smb2_send_handler(pStream);
+        r = rtsmb_cli_wire_smb2_send_handler(SendBuffer,pStream);
 
         if (r == RTSMB_CLI_SSN_RV_SENT)
            return  RTSMB_CLI_SSN_RV_OK;        // was sent by the lower layer
