@@ -14,6 +14,7 @@
 #include "smb2utils.hpp"
 #include "smb2wireobjects.hpp"
 #include "smb2session.hpp"
+#include "netstreambuffer.hpp"
 
 
 
@@ -37,6 +38,7 @@ extern int do_smb2_cli_query_worker(Smb2Session &Session);
 
 Smb2Session Smb2Sessions[1];
 
+Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer){ return &Smb2Sessions[0];}
 
 
 extern "C" int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession)

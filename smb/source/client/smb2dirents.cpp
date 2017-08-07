@@ -15,6 +15,7 @@
 #include "smb2wireobjects.hpp"
 #include "smb2session.hpp"
 #include "mswireobjects.hpp"
+Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
 
 
 // Classes and methods for negotiate and setup commands.
@@ -123,8 +124,12 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
   NetSmb2QuerydirectoryCmd Smb2QuerydirectoryCmd;
-  if (SendBuffer.job_data()->findsmb2.pattern)
-    variable_content_size   = (word)rtp_wcslen (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
+
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
+
+
+  if (pSmb2Session->job_data()->findsmb2.pattern)
+    variable_content_size   = (word)rtp_wcslen (pSmb2Session->job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
   else
     variable_content_size  = 0;
 
@@ -133,23 +138,23 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {
-    OutSmb2Header.TreeId = (ddword) SendBuffer.job_data()->findsmb2.search_struct->share_struct->tid;
+    OutSmb2Header.TreeId = (ddword) pSmb2Session->job_data()->findsmb2.search_struct->share_struct->tid;
     Smb2QuerydirectoryCmd.StructureSize        =  Smb2QuerydirectoryCmd.FixedStructureSize();
     Smb2QuerydirectoryCmd.FileInformationClass    = SMB2_QUERY_FileIdBothDirectoryInformation; // SMB2_QUERY_FileNamesInformation;
     Smb2QuerydirectoryCmd.FileIndex               = 0;
     Smb2QuerydirectoryCmd.Flags                   = 0; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
 
-    if (SendBuffer.job_data()->findsmb2.search_struct->has_continue==FALSE)
+    if (pSmb2Session->job_data()->findsmb2.search_struct->has_continue==FALSE)
       Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS;
 //    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
 
     cout_log(LL_JUNK)  << "YOYO Flags1: " << (int)Smb2QuerydirectoryCmd.Flags() << "Flags2: " << (int)Smb2QuerydirectoryCmd.Flags() << endl;
 
-    Smb2QuerydirectoryCmd.FileId =  SendBuffer.job_data()->findsmb2.search_struct->SMB2FileId;
+    Smb2QuerydirectoryCmd.FileId =  pSmb2Session->job_data()->findsmb2.search_struct->SMB2FileId;
     Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize()+Smb2QuerydirectoryCmd.StructureSize()-1);
 
-    if (SendBuffer.job_data()->findsmb2.pattern)
-      Smb2QuerydirectoryCmd.FileNameLength   = (word)rtp_wcslen (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
+    if (pSmb2Session->job_data()->findsmb2.pattern)
+      Smb2QuerydirectoryCmd.FileNameLength   = (word)rtp_wcslen (pSmb2Session->job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
     else
       Smb2QuerydirectoryCmd.FileNameLength   = 0;
    /* Tell the server that the maximum we can accept is what remains in our read buffer */
@@ -158,7 +163,7 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
 
     if (Smb2QuerydirectoryCmd.FileNameLength() != 0)
     {
-      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, SendBuffer.job_data()->findsmb2.pattern, Smb2QuerydirectoryCmd.FileNameLength());
+      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, pSmb2Session->job_data()->findsmb2.pattern, Smb2QuerydirectoryCmd.FileNameLength());
       RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_send_find_first: Call encode \n");
       Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
       if (Smb2QuerydirectoryCmd.push_output(SendBuffer) != NetStatusOk)
@@ -181,6 +186,8 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
 
   // The headers are actually in memory already but this should go before instantiate in case we
   NetSmb2NBSSReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
+
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(ReplyBuffer);
 
   if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_INFO_LENGTH_MISMATCH)
   {
@@ -214,8 +221,8 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
 
   // Now sink the rest to to the shell callback
   DataSinkDevtype ShellCallbackSink(
-     (pDeviceSendFn_t)ReplyBuffer.job_data()->findsmb2.answering_dstat->sink_function,
-     ReplyBuffer.job_data()->findsmb2.answering_dstat->sink_parameters);
+     (pDeviceSendFn_t)pSmb2Session->job_data()->findsmb2.answering_dstat->sink_function,
+     pSmb2Session->job_data()->findsmb2.answering_dstat->sink_parameters);
   ReplyBuffer.attach_sink(&ShellCallbackSink);
 
   dword bytes_pulled=0;
@@ -229,7 +236,7 @@ static int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuff
       bytes_pulled += _bytes_pulled;
   }
   // Remember the search ID
-  ReplyBuffer.job_data()->findsmb2.answering_dstat->sid = ReplyBuffer.job_data()->findsmb2.search_struct->sid;
+  pSmb2Session->job_data()->findsmb2.answering_dstat->sid = pSmb2Session->job_data()->findsmb2.search_struct->sid;
   if (InSmb2Header.NextCommand())
   {
     cout_log(LL_JUNK)  << "Yo next :" << InSmb2Header.NextCommand() << "Stream view: " << ReplyBuffer.get_smb2_read_pointer() << endl;

@@ -82,6 +82,7 @@ public:
   }
   PRTSMB_CLI_SESSION_JOB pJob() { return _p_pJob; }
 
+  union sessiondata_u    *job_data()                       { return  &_p_pJob->data; }
 
   int  sid()           {return _p_sid;       }
   byte *user_name()    {return _p_user_name; }
@@ -110,5 +111,7 @@ private:
   byte *_p_searchpattern;
   int do_rtsmb2_cli_session_new_with_ip (BBOOL blocking, PFINT psid);
 };
+
+#include "netstreambuffer.hpp"
 
 #endif // include_smb2session

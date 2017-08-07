@@ -161,6 +161,43 @@ RTSMB2_SET_INFO_R response;
         }
         break; // Success
     }
+    else if (command.FileInfoClass==SMB2_0_FileBasicInformation)
+    {
+        MSFSCC_FILE_BASIC_FILE_INFORMATION *pInfo = (MSFSCC_FILE_BASIC_FILE_INFORMATION *)pStream->ReadBufferParms[0].pBuffer;
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
+        word fidflags=0;
+        dword smb2flags;
+
+       // Set the status to success
+        int fid = SMBU_GetInternalFid (pStream->pSmbCtx, externalFid, FID_FLAG_ALL, &fidflags, &smb2flags);
+        if (fid >= 0)
+        {
+        byte * pFileId = RTSmb2_mapWildFileId(pStream, command.FileId);
+        word externalFid = RTSmb2_get_externalFid(pFileId);
+        PFRTCHAR filename = SMBU_GetFileNameFromFid (pStream->pSmbCtx, externalFid);
+
+
+          if (pInfo->low_last_access_time || pInfo->high_last_access_time)
+        //       time_t actime;       /* access time */
+           {} ;
+          if (pInfo->low_creation_time || pInfo->high_creation_time)
+           {} ;
+          if (pInfo->low_last_write_time || pInfo->high_last_write_time)
+        //       time_t modtime;      /* modification time */
+           {} ;
+          if (pInfo->low_change_time || pInfo->high_change_time)
+           {} ;   // chmod will set
+          if (pInfo->extended_file_attributes)
+          {      //
+//          FILE_ATTRIBUTE_ARCHIVE 0x00000020
+//           FILE_ATTRIBUTE_NORMAL 0x00000080
+//          FILE_ATTRIBUTE_READONLY            0x00000001
+           SMBFIO_Chmode (pStream->pSmbCtx, pStream->pSmbCtx->tid, filename, rtsmb_util_smb_to_rtsmb_attributes (pInfo->extended_file_attributes));
+          }
+        }
+        break; // Success
+    }
     else
     {
        // Fake success for other operations.

@@ -32,6 +32,8 @@ void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESS
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
 
 #include "smb2session.hpp"
+// Can't embedd this in smb2session.hpp
+Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
 
 
 RTSMB_STATIC rtsmb_char wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
@@ -137,6 +139,7 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
   int send_status;
   byte *path=0;
   rtsmb_char lshare_name [RTSMB_NB_NAME_SIZE + RTSMB_MAX_SHARENAME_SIZE + 4]; /* 3 for '\\'s and 1 for null */
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
   tc_memset (lshare_name, 0, sizeof (lshare_name));
 //  if (tc_strcmp (SendBuffer.session_server_name(), (byte *) "") != 0)
@@ -154,7 +157,7 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
 
       lshare_name [rtp_wcslen (lshare_name)] = '\\';
   }
-  rtsmb_util_ascii_to_rtsmb (SendBuffer.job_data()->tree_connect.share_name, &lshare_name[rtp_wcslen (lshare_name)], CFG_RTSMB_USER_CODEPAGE);
+  rtsmb_util_ascii_to_rtsmb (pSmb2Session->job_data()->tree_connect.share_name, &lshare_name[rtp_wcslen (lshare_name)], CFG_RTSMB_USER_CODEPAGE);
 
   rtsmb_util_string_to_upper (lshare_name, CFG_RTSMB_USER_CODEPAGE);
   dword pathlen = (rtp_wcslen(lshare_name)+1)*sizeof(rtsmb_char);
@@ -172,7 +175,7 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
     Smb2TreeconnectCmd.PathLength = pathlen;
     Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
 
-    SendBuffer.job_data()->tree_connect.share_struct->connect_mid = (word) OutSmb2Header.MessageId();
+    pSmb2Session->job_data()->tree_connect.share_struct->connect_mid = (word) OutSmb2Header.MessageId();
 
     tc_memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1,lshare_name, Smb2TreeconnectCmd.PathLength());
     if (Smb2TreeconnectCmd.push_output(SendBuffer) != NetStatusOk)
@@ -183,6 +186,9 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
   }
   return Smb2NBSSCmd.status;
 }
+
+
+
 static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
 {
   dword in_variable_content_size = 0;
@@ -202,14 +208,25 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
   PRTSMB_CLI_SESSION_SHARE pShare;
   int r = 0;
 
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(ReplyBuffer);
+
+
+
     for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
     {
-      if (ReplyBuffer.session_shares()[r].state != CSSN_SHARE_STATE_UNUSED &&
-       ReplyBuffer.session_shares()[r].connect_mid == (word) InSmb2Header.MessageId())
+      if (pSmb2Session->pSession()->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
+       pSmb2Session->pSession()->shares[r].connect_mid == (word) InSmb2Header.MessageId())
       {
-        pShare = &ReplyBuffer.session_shares()[r];
+        pShare = &pSmb2Session->pSession()->shares[r];
         break;
       }
+
+//      if (ReplyBuffer.session_shares()[r].state != CSSN_SHARE_STATE_UNUSED &&
+//       ReplyBuffer.session_shares()[r].connect_mid == (word) InSmb2Header.MessageId())
+//      {
+//        pShare = &ReplyBuffer.session_shares()[r];
+//        break;
+//      }
     }
    	if (!pShare)
     {
@@ -221,8 +238,8 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
 #ifdef STATE_DIAGNOSTICS
 RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
 #endif
-    tc_strcpy (pShare->share_name, ReplyBuffer.job_data()->tree_connect.share_name);
-    tc_strcpy (pShare->password, ReplyBuffer.job_data()->tree_connect.password);
+    tc_strcpy (pShare->share_name, pSmb2Session->job_data()->tree_connect.share_name);
+    tc_strcpy (pShare->password, pSmb2Session->job_data()->tree_connect.password);
 
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_TRACE_LVL, "rtsmb2_cli_session_receive_tree_connect: Share found: Names == %s\n",pShare->share_name);
 
@@ -231,16 +248,19 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
     if (tc_strcmp (pShare->share_name, "IPC$") == 0)
     {
       /* To denote this, we find the pseudo-job that was waiting on this and finish it. */
+
+
       for (r = 0; r < prtsmb_cli_ctx->max_jobs_per_session; r++)
       {
-        if (ReplyBuffer.session_jobs()[r].state == CSSN_JOB_STATE_FAKE)
-          rtsmb_cli_session_job_cleanup (ReplyBuffer.session_pSession(), &ReplyBuffer.session_jobs()[r], RTSMB_CLI_SSN_RV_OK);
+        if (pSmb2Session->pSession()->jobs[r].state == CSSN_JOB_STATE_FAKE)
+//        if (ReplyBuffer.session_jobs()[r].state == CSSN_JOB_STATE_FAKE)
+          rtsmb_cli_session_job_cleanup (pSmb2Session->pSession(), &pSmb2Session->pSession()->jobs[r], RTSMB_CLI_SSN_RV_OK);
       }
     }
 
     if (pSession->state == CSSN_STATE_RECOVERY_TREE_CONNECTING)
     {
-     ReplyBuffer.session_pSession()->state = CSSN_STATE_RECOVERY_TREE_CONNECTED;
+     pSmb2Session->session_state(CSSN_STATE_RECOVERY_TREE_CONNECTED);
     }
 
     return  RTSMB_CLI_SSN_RV_OK;
@@ -258,9 +278,11 @@ static int rtsmb2_cli_session_send_logoff (NetStreamBuffer &SendBuffer)
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
   NetSmb2LogoffCmd    Smb2LogoffCmd;
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
   NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
-  OutSmb2Header.TreeId =  (ddword)SendBuffer.job_data()->tree_disconnect.tid;
+
+  OutSmb2Header.TreeId =  (ddword)pSmb2Session->job_data()->tree_disconnect.tid;
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {
@@ -293,7 +315,9 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamBuffer &SendBuffer)
   NetSmb2DisconnectCmd    Smb2DisconnectCmd;
   NetSmb2NBSSCmd<NetSmb2DisconnectCmd> Smb2NBSSCmd(SMB2_TREE_DISCONNECT, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2DisconnectCmd, 0);
 
-  OutSmb2Header.TreeId = (ddword) SendBuffer.job_data()->tree_disconnect.tid;
+  Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
+
+  OutSmb2Header.TreeId = (ddword) pSmb2Session->job_data()->tree_disconnect.tid;
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {

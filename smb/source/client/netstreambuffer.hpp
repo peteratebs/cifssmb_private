@@ -16,6 +16,7 @@
 
 #include "smb2utils.hpp"
 
+
 extern "C" {
 #include "rtpnet.h"
 // #include "smbnet.h"     // clisn needs these net_read_/write
@@ -202,6 +203,8 @@ private:
   dword bytes_buffered;
 };
 
+
+
 /// Stream abstraction with buffering and installable data source and sinks
 class NetStreamBuffer     {
 public:
@@ -320,24 +323,7 @@ public:
   byte *peek_input()                                       { return read_buffer_pointer(); };
   byte *peek_input(dword & valid_byte_count)               { valid_byte_count = read_buffer_count(); return read_buffer_pointer(); }
 
-  // interface to legacy session / user / job structure
-  union sessiondata_u    *job_data()                       { return  &pStream->pJob->data; }
-  RTSMB_CLI_SESSION_SERVER_INFO * session_server_info()    {  return  &pStream->pSession->server_info; }
-  char *session_server_name()                              { return   pStream->pSession->server_name; }
-  RTSMB_CLI_SESSION_USER * session_user()                  {    return  &pStream->pSession->user;  }
-  RTSMB_CLI_SESSION_SHARE *session_shares()                {  return  pStream->pSession->shares; }
-
-
-  RTSMB_CLI_SESSION_JOB   *session_jobs()                  {  return  pStream->pSession->jobs; }
-
-//HEREHERE - do them this way
-//    return  pSmb2Session->user_structure();
-  // Test
-  Smb2Session    *pSmb2xxSession;
-  RTSMB_CLI_SESSION_JOB   *xxsession_jobs()                  {  return  pSmb2xxSession->pSession()->jobs; }
-
-
-  RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
+//  RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
   smb2_iostream           *session_pStream()               {  return  pStream; }
   void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
   dword get_smb2_read_pointer() {return (smb2_read_pointer);}
@@ -458,14 +444,17 @@ private:
 
 };
 
+Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
+
 inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBuffer)
 {
     dword valid_byte_count;
+    Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
     TURN_ON (SendBuffer.session_pStream()->pBuffer->flags, INFO_CAN_TIMEOUT);
 
-    if (SendBuffer.session_pSession()->wire.state == CONNECTED)
-//    if (pSession->state == CONNECTED)
+
+    if (pSmb2Session->pSession()->wire.state == CONNECTED)
     {
         SendBuffer.session_pStream()->pBuffer->state = WAITING_ON_US;
     }
