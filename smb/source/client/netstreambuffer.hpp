@@ -30,6 +30,7 @@ extern "C" {
 #define INFO_CAN_TIMEOUT	     0x0001  /* can this request time out? */
 #include "rtptime.h"
 }
+#include "smb2session.hpp"
 
 /// Propogate status conditions up from the lowest failure level with these constants
 enum NetStatus {
@@ -323,9 +324,19 @@ public:
   union sessiondata_u    *job_data()                       { return  &pStream->pJob->data; }
   RTSMB_CLI_SESSION_SERVER_INFO * session_server_info()    {  return  &pStream->pSession->server_info; }
   char *session_server_name()                              { return   pStream->pSession->server_name; }
-  RTSMB_CLI_SESSION_USER * session_user()                  {  return  &pStream->pSession->user; }
+  RTSMB_CLI_SESSION_USER * session_user()                  {    return  &pStream->pSession->user;  }
   RTSMB_CLI_SESSION_SHARE *session_shares()                {  return  pStream->pSession->shares; }
+
+
   RTSMB_CLI_SESSION_JOB   *session_jobs()                  {  return  pStream->pSession->jobs; }
+
+//HEREHERE - do them this way
+//    return  pSmb2Session->user_structure();
+  // Test
+  Smb2Session    *pSmb2xxSession;
+  RTSMB_CLI_SESSION_JOB   *xxsession_jobs()                  {  return  pSmb2xxSession->pSession()->jobs; }
+
+
   RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
   smb2_iostream           *session_pStream()               {  return  pStream; }
   void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }

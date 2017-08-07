@@ -68,6 +68,7 @@ typedef struct smb2_iostream_s {
 //xx    rtsmb_size InBodySize;
 //xx	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
+    PFVOID   StreamBuffer;
 } PACK_ATTRIBUTE smb2_iostream;
 PACK_PRAGMA_POP
 

@@ -106,13 +106,16 @@ InitializeSmb2Tables PerformInitializeSmb2Tables;
 
 /// Bind a buffer and tcpip socket for sending
 ///   attaches a socket and a legacy smb2_iostream structure which references MID mapped buffer pools, NetStreamBuffer
-void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
+static void rtsmb2_smb2_iostream_to_streambuffer (smb2_iostream  *pStream,NetStreamBuffer &SendBuffer, struct SocketContext &sockContext, DataSinkDevtype &SocketSink)
 {
   SendBuffer.session_pStream(pStream);
   sockContext.socket = pStream->pSession->wire.socket;
 
   SendBuffer.attach_buffer((byte *)pStream->write_origin, pStream->write_buffer_size);
   SendBuffer.attach_sink(&SocketSink);
+
+  pStream->StreamBuffer = (void *) &SendBuffer;
+//   ((NetStreamBuffer *)pStream->StreamBuffer)->XXX
 }
 
 /// Bind a buffer for receiving.
@@ -122,6 +125,7 @@ void rtsmb2_smb2_iostream_to_input_streambuffer (smb2_iostream  *pStream,NetStre
 {
   ReplyBuffer.session_pStream(pStream);
   ReplyBuffer.attach_buffer((byte *)pStream->read_origin, pStream->read_buffer_size,pStream->pSession->wire.total_read);
+  pStream->StreamBuffer = (void *) &ReplyBuffer;
 }
 
 extern "C" int rtsmb_cli_wire_smb2_send_handler(smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
@@ -256,6 +260,8 @@ void rtsmb_cli_smb2_session_release (PRTSMB_CLI_SESSION pSession)
 {
 }
 
+//rtsmb2_cli_session_send_job -> rtsmb_cli_wire_smb2_iostream_construct -> rtsmb_cli_wire_smb2_send_handler
+
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
     PRTSMB_CLI_WIRE_BUFFER pBuffer;
@@ -306,6 +312,40 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSess
     return &pBuffer->smb2stream;
 }
 
+extern "C" int rtsmb_cli_session_translate_error32 (dword status);
+
+extern "C" int  rtsmb2_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+{
+smb2_iostream *pStream;
+
+    pJob->send_count += 1;
+    pStream = rtsmb_cli_wire_smb2_iostream_construct (pSession, pJob);
+
+    if (pStream)
+    {
+        int r;
+        pJob->mid = (word) pStream->pBuffer->mid;
+
+        // maps pJob->smb2_jobtype to sendhandler and sends
+        r = rtsmb_cli_wire_smb2_send_handler(pStream);
+
+        if (r == RTSMB_CLI_SSN_RV_SENT)
+           return  RTSMB_CLI_SSN_RV_OK;        // was sent by the lower layer
+        else if (r == RTSMB_CLI_SSN_RV_DEAD)
+           return RTSMB_CLI_SSN_RV_DEAD;
+        else if (r == RTSMB_CLI_SSN_RV_OK)
+        {
+           return  RTSMB_CLI_SSN_RV_OK;
+        }
+    }
+    else
+    {
+        RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler deferred, stream construct failed. !!!!!!!!!!! \n");
+        return RTSMB_CLI_SSN_RV_LATER;
+    }
+    return  RTSMB_CLI_SSN_RV_OK;
+}
+
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid)
 {
     PRTSMB_CLI_WIRE_BUFFER pBuffer;
@@ -316,6 +356,78 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSessio
     }
     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_wire_smb2_iostream_get: rtsmb_cli_wire_get_buffer Failed !!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
     return 0;
+}
+
+// Some branching to SMB2 from this file, no major processing
+extern "C" int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+{
+    int rv=RTSMB_CLI_SSN_RV_OK;
+//    if (pJob->smb2_jobtype != jobTsmb2_is_smb1)
+    {
+        smb2_iostream *pStream;
+        PFVOID SMB2_message_origin = 0;
+        pStream = rtsmb_cli_wire_smb2_iostream_get (&pSession->wire, pJob->mid);
+
+        if (pStream)
+        {
+           BBOOL stay_in; // HEREHERE - Stay in if it is a compound packet
+           SMB2_message_origin = pStream->read_origin; // the header has been pulled already
+           do //             while stay_in == TRUE; // HEREHERE - Stay in if it is a compound packet
+           {
+             stay_in = FALSE; // Stay in if it is a compound packet
+// xx NEW
+             rv = rtsmb_cli_wire_receive_handler_smb2(pStream);   // maps pJob->smb2_jobtype to receive_handler and sends
+//             rv = (*pJob->receive_handler_smb2) (pStream);
+             RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_handle_job_smb2: *pJob->receive_handler_smb2 returned rv == %d\n",rv);
+             // HERERE - comparing ddword with word
+             if (pStream->InHdr.MessageId != pJob->mid)
+             {
+                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: Job and header message ID's do not match!!!!!!!!!!!!!!!!!\n");
+                 rv = RTSMB_CLI_SSN_RV_MALICE;
+             }
+             else if (pStream->InHdr.Status_ChannelSequenceReserved && pStream->InHdr.Status_ChannelSequenceReserved && pStream->InHdr.Status_ChannelSequenceReserved != SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+             {
+                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: error passed in header returned %X\n", (int)pStream->InHdr.Status_ChannelSequenceReserved);
+                 /* an error occurred */
+                 pJob->error = pStream->InHdr.Status_ChannelSequenceReserved;
+                 rv = RTSMB_CLI_SSN_RV_INVALID_RV;
+// xx NEW
+                 rv = rtsmb_cli_wire_error_handler_smb2(pStream);   // maps pJob->smb2_jobtype to receive_handler and sends
+                 RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "*pJob->error_handler_smb2: return error == %X\n", rv);
+                 /* if the error handler overrode it, we return new error */
+                 if (rv == RTSMB_CLI_SSN_RV_INVALID_RV)
+                 {
+                     rv = rtsmb_cli_session_translate_error32 (pStream->InHdr.Status_ChannelSequenceReserved);
+                     RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_translate_error32: return error == %X\n", rv);
+                 }
+             }
+             else if (pStream->read_buffer_remaining > sizeof(RTSMB2_HEADER))
+             {
+//                  HEREHERE - handle comound statments right, check
+                  if (pStream->InHdr.Flags & SMB2_FLAGS_RELATED_OPERATIONS && pStream->InHdr.NextCommand+sizeof(RTSMB2_HEADER) >= pStream->read_buffer_remaining)
+                  {
+                    dword NextCommand = pStream->InHdr.NextCommand;
+                    pStream->pInBuf    = PADD(SMB2_message_origin,NextCommand);
+                    // HEREHERE check enf
+                    SMB2_message_origin = pStream->pInBuf;
+                    pStream->InHdr     = *((RTSMB2_HEADER *) pStream->pInBuf);
+                    pStream->pInBuf    = PADD(pStream->pInBuf,sizeof(RTSMB2_HEADER));
+                    pStream->read_buffer_remaining -= (NextCommand+sizeof(RTSMB2_HEADER));
+                    stay_in = TRUE; // Check signature ? Stay in if it is a compound packet
+                  }
+             }
+           } while (stay_in);
+        }
+        else
+        {
+            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_ERROR_LVL, "rtsmb_cli_session_handle_job_smb2: No resource. LATER !!!!\n");
+            rv = RTSMB_CLI_SSN_RV_LATER;
+        }
+    }
+    /*  Release the buffer we used for this job */
+    rtsmb_cli_wire_smb_read_end (&pSession->wire, pJob->mid);
+    RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_handle_job_smb2: Returnng %d\n", rv);
+    return rv;
 }
 
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2)

@@ -39,9 +39,7 @@ public:
   {  // Constructor that takes a sesstion
     pSmb2Session = &_Session;
     _SmbLogonWorker();
-//    _SmbLogonWorker(pSmb2Session->sid(), pSmb2Session->user_name(), pSmb2Session->password(), pSmb2Session->domain());
   }
-//  int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
   int rtsmb_cli_session_logon_user_rt_cpp ()
   {
     PRTSMB_CLI_SESSION_JOB pJob;
@@ -50,16 +48,9 @@ public:
     dualstringdecl(domain_string);                 //    dualstring user_string(3);
     dualstringdecl(show_user_string);
 
-//    *user_string     = user    ;
-//    *password_string = password;
-//    *domain_string    = domain ;
-
     *user_string     = pSmb2Session->user_name();
     *password_string = pSmb2Session->password() ;
     *domain_string    =pSmb2Session->domain()   ;
-
-
-//    pSmb2Session->pSession();
 
     if (user_string->input_length() > (CFG_RTSMB_MAX_USERNAME_SIZE - 1))
         return RTSMB_CLI_SSN_RV_BAD_ARGS;
@@ -78,13 +69,13 @@ public:
     pJob = pSmb2Session->get_free_job ();
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
-    pSmb2Session->pSession()->user.uid = 0;
+    pSmb2Session->user_structure()->uid = 0;
 
-    pJob->data.session_setup.user_struct = &pSmb2Session->pSession()->user;
+// ??    pJob->data.session_setup.user_struct = pSmb2Session->user_structure();
     rtp_wcscpy (pJob->data.session_setup.account_name, user_string->utf16());
     tc_strcpy (pJob->data.session_setup.password, (char *) password_string->ascii());
     rtp_wcscpy (pJob->data.session_setup.domain_name, domain_string->utf16());
-    rtsmb_cli_session_user_new (&pSmb2Session->pSession()->user, 1);
+    rtsmb_cli_session_user_new (pSmb2Session->user_structure(), 1);
 
     pJob->error_handler    =   0;   pJob->receive_handler =    0;   pJob->send_handler    =    0;
     pJob->smb2_jobtype = jobTsmb2_session_setup;
@@ -101,7 +92,9 @@ public:
       if (pSmb2Session->user_state() == CSSN_USER_STATE_CHALLENGED)
       {
          decoded_NegTokenTarg_challenge_t decoded_targ_token;
-         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, pSmb2Session->pSession()->user.spnego_blob_from_server, pSmb2Session->pSession()->user.spnego_blob_size_from_server);
+         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
+                     pSmb2Session->user_structure()->spnego_blob_from_server,
+                     pSmb2Session->user_structure()->spnego_blob_size_from_server);
          if (r == 0)
          {  // Ssends of the hashed challenge and waits for status
             r = rtsmb_cli_session_ntlm_auth (pSmb2Session->sid(), pSmb2Session->user_name(), pSmb2Session->password(), pSmb2Session->domain(),
@@ -109,7 +102,7 @@ public:
               decoded_targ_token.target_info->value_at_offset,
               decoded_targ_token.target_info->size);
          }
-         rtp_free(pSmb2Session->pSession()->user.spnego_blob_from_server);
+         rtp_free(pSmb2Session->user_structure()->spnego_blob_from_server);
          spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
          if(r < 0) return 0;
          r = wait_on_job_cpp(pSmb2Session->sid(), r);
@@ -158,7 +151,8 @@ static int rtsmb2_cli_session_send_negotiate (NetStreamBuffer &SendBuffer)
       if (Smb2NegotiateCmd.push_output(SendBuffer) != NetStatusOk)
          return RTSMB_CLI_SSN_RV_DEAD;
     }
-    SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
+// ??   SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
+//    SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
     Smb2NBSSCmd.flush();
     return Smb2NBSSCmd.status;
 }
@@ -174,9 +168,11 @@ static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
   if (Smb2NegotiateReply.SecurityBufferLength())
   {
     // Hack it isn't set up yet
-    ReplyBuffer.session_user()->uid = 0;
+   ReplyBuffer.session_user()->uid = 0;
    // This is the ignore rfc xx comment, no need to save it
-   ReplyBuffer.job_data()->session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
+
+   ReplyBuffer.session_user()->state = CSSN_USER_STATE_CHALLENGED;
+//   ReplyBuffer.job_data()->session_setup.user_struct->state = CSSN_USER_STATE_CHALLENGED;
   }
   ReplyBuffer.session_server_info()->dialect =  (RTSMB_CLI_SESSION_DIALECT)Smb2NegotiateReply.DialectRevision();
 
@@ -198,30 +194,31 @@ static int rtsmb2_cli_session_receive_negotiate (NetStreamBuffer &ReplyBuffer)
 
 class SmbNegotiateWorker {
 public:
-  SmbNegotiateWorker(int _sid, PRTSMB_CLI_SESSION _pSession)
-  {
-    sid      = _sid;
-    pSession = _pSession;
+  SmbNegotiateWorker(Smb2Session &_Session)
+  {  // Constructor that takes a sesstion
+    pSmb2Session = &_Session;
   }
   int rtsmb_cli_session_negotiate ()
   {
       PRTSMB_CLI_SESSION_JOB pJob;
 
-      pJob = rtsmb_cli_session_get_free_job (pSession);
+      pJob = pSmb2Session->get_free_job ();
       ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
-
       pJob->smb2_jobtype = jobTsmb2_negotiate;
 
 #if (INCLUDE_ANON_AUTOMATIC)
       /* We set up a chain of actions here.  First is negotiate, then
        we connect an anonymous user.  Then, we connect to the IPC. */
-    pJob->callback = rtsmb_cli_session_negotiate_helper;
-    pJob->callback_data = pSession;
+
+//    pJob->callback = rtsmb_cli_session_negotiate_helper;
+//    pJob->callback_data = pSmb2Session->pSession();         INCLUDE_ANON_AUTOMATIC is off
 #endif
 
-    rtsmb_cli_session_send_stalled_jobs (pSession);
-    pSession->state = CSSN_STATE_NEGOTIATED;
-    return INDEX_OF (pSession->jobs, pJob);
+    pSmb2Session->send_stalled_jobs();
+    pSmb2Session->session_state(CSSN_STATE_NEGOTIATED);
+    return pSmb2Session->current_jobindex();
+//    INDEX_OF (pSmb2Session->pSession()->jobs, pJob);
+//    return INDEX_OF (pSmb2Session->pSession()->jobs, pJob);
   }
   int go()
   {
@@ -231,21 +228,20 @@ public:
       return r;
 
       if(r < 0) return 0;
-      r = wait_on_job_cpp(sid, r);
+      r = wait_on_job_cpp(pSmb2Session->sid(), r);
       if(r < 0) return 0;
       return(1);
   }
 
 private:
-  int sid;
-  PRTSMB_CLI_SESSION pSession;
+  Smb2Session *pSmb2Session;
+
 };
 
 
 extern int do_smb2_negotiate_worker(Smb2Session &Session)
 {
-  PRTSMB_CLI_SESSION pSession = Session.pSession();
-  SmbNegotiateWorker NegotiateWorker(INDEX_OF (prtsmb_cli_ctx->sessions, pSession), pSession);
+  SmbNegotiateWorker NegotiateWorker(Session); //
   return NegotiateWorker.go();
 }
 
@@ -305,7 +301,7 @@ static int rtsmb2_cli_session_receive_setup (NetStreamBuffer &ReplyBuffer)
     ReplyBuffer.session_user()->spnego_blob_from_server = (byte *)rtp_malloc(Smb2SetupReply.SecurityBufferLength());
     ReplyBuffer.session_user()->state = CSSN_USER_STATE_CHALLENGED;
     tc_memcpy( ReplyBuffer.session_user()->spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), Smb2SetupReply.SecurityBufferLength());
-    ReplyBuffer.job_data()->session_setup.user_struct = ReplyBuffer.session_user();
+    // ??    ReplyBuffer.job_data()->session_setup.user_struct = ReplyBuffer.session_user();
   }
   return RTSMB_CLI_SSN_RV_OK;
 }

@@ -61,7 +61,6 @@
 
 
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
 smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
 
 extern int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession);
@@ -4057,8 +4056,7 @@ int rtsmb_cli_session_translate_error (PRTSMB_HEADER pheader)
 }
 
 // Some branching to SMB2 from this file, no major processing
-RTSMB_STATIC
-int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+RTSMB_STATIC int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
     int rv;
     if (pJob->smb2_jobtype != jobTsmb2_is_smb1)
@@ -4513,46 +4511,18 @@ void rtsmb_cli_session_send_stalled_jobs (PRTSMB_CLI_SESSION pSession)
 }
 
 /* precondition: |pJob| has been initialized. */
-RTSMB_STATIC
-int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
+
+extern int  rtsmb2_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
+
+RTSMB_STATIC int rtsmb_cli_session_send_job (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob)
 {
-    pJob->send_count += 1;
 
 //    if (pJob->send_handler_smb2)
     if (pJob->smb2_jobtype != jobTsmb2_is_smb1)
-    {
-    smb2_iostream *pStream;
-
-
-        pStream = rtsmb_cli_wire_smb2_iostream_construct (pSession, pJob);
-
-        if (pStream)
-        {
-            int r;
-            pJob->mid = (word) pStream->pBuffer->mid;
-
-// xx NEW
-            r = rtsmb_cli_wire_smb2_send_handler(pStream);   // maps pJob->smb2_jobtype to sendhandler and sends
-//            r = (*pJob->send_handler_smb2) (pStream);
-
-            if (r == RTSMB_CLI_SSN_RV_SENT)
-               return  RTSMB_CLI_SSN_RV_OK;        // was sent by the lower layer
-            else if (r == RTSMB_CLI_SSN_RV_DEAD)
-               return RTSMB_CLI_SSN_RV_DEAD;
-            else if (r == RTSMB_CLI_SSN_RV_OK)
-            {
-               return  RTSMB_CLI_SSN_RV_OK;
-            }
-        }
-        else
-        {
-            RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL, "rtsmb_cli_session_send_job: Send handler deferred, stream construct failed. !!!!!!!!!!! \n");
-            return RTSMB_CLI_SSN_RV_LATER;
-
-        }
-    }
+      return rtsmb2_cli_session_send_job (pSession, pJob);
     else
     {
+        pJob->send_count += 1;
         if (pJob->send_handler)
         {
             return (*pJob->send_handler) (pSession, pJob);

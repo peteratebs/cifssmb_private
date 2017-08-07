@@ -17,6 +17,9 @@
 
 
 
+extern int wait_on_job_cpp(int sid, int job);
+
+
 class Smb2Session {
 public:
   Smb2Session() {};
@@ -49,14 +52,26 @@ public:
 
 
   RTSMB_CLI_SESSION_STATE session_state()    { return _p_pSession->state; }
+  void session_state(RTSMB_CLI_SESSION_STATE _state)    { _p_pSession->state=_state; }
   RTSMB_CLI_SESSION_USER_STATE user_state()  { return _p_pSession->user.state; }
+
+  PRTSMB_CLI_SESSION_USER user_structure()  { return &_p_pSession->user; }
+  int current_jobindex()                    {   return INDEX_OF (_p_pSession->jobs, _p_pJob); }
+
 
 
   void update_timestamp()                    { rtsmb_cli_session_update_timestamp(_p_pSession); }
   void send_stalled_jobs()                   { rtsmb_cli_session_send_stalled_jobs (_p_pSession);  }
+  int current_job_index()                    { return INDEX_OF (_p_pSession->jobs, _p_pJob); }
   int wait_on_job(PRTSMB_CLI_SESSION_JOB pJob)
   {
     int r =  INDEX_OF (_p_pSession->jobs, pJob);
+    if(r < 0) return r;
+    return wait_on_job_cpp(_p_sid, r);
+  }
+  int wait_on_current_job()
+  {
+    int r =  INDEX_OF (_p_pSession->jobs, _p_pJob);
     if(r < 0) return r;
     return wait_on_job_cpp(_p_sid, r);
   }
@@ -78,6 +93,8 @@ public:
   byte *sharepassword(){return _p_sharepassword;    }
   byte *searchpattern(){return _p_searchpattern;    }
   PRTSMB_CLI_SESSION pSession() {return _p_pSession; }
+  PRTSMB_CLI_SESSION_SHARE get_share(char *share) {  return rtsmb_cli_session_get_share (_p_pSession, share);}
+
 private:
   PFBYTE ip;
   PFBYTE broadcast_ip;

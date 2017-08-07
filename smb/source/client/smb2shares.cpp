@@ -38,17 +38,16 @@ RTSMB_STATIC rtsmb_char wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'}
 
 class SmbTreeConnectWorker {
 public:
-  SmbTreeConnectWorker(int _sid,  byte *_sharename, byte *_password)  // ascii
+  SmbTreeConnectWorker(Smb2Session &Smb2Session)
   {
-   ENSURECSTRINGSAFETY(_sharename); ENSURECSTRINGSAFETY(_password);
-   sid=_sid;sharename=_sharename;password=_password;
-  };
+   pSmb2Session = &Smb2Session;
+  }
   int go()
   {
   cout_log(LL_JUNK)  << "YOYO !!! GOGOGO !!" << endl;
-     int r = rtsmb_cli_session_connect_share (sid, (PFCHAR)sharename, (PFCHAR)password);
+     int r = rtsmb_cli_session_connect_share ( pSmb2Session->sid(), (PFCHAR)pSmb2Session->sharename(), (PFCHAR)pSmb2Session->password());
      if(r < 0) return 0;
-     r = wait_on_job_cpp(sid, r);
+     r = pSmb2Session->wait_on_current_job();
      if(r < 0) return 0;
     return(1);
   }
@@ -58,17 +57,19 @@ private:
   {
       PRTSMB_CLI_SESSION_JOB pJob;
       PRTSMB_CLI_SESSION_SHARE pShare;
-      PRTSMB_CLI_SESSION pSession;
 
-      pSession = rtsmb_cli_session_get_session (sid);
-      ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
-      ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-      rtsmb_cli_session_update_timestamp (pSession);
+      //PRTSMB_CLI_SESSION pSession;
+      //pSession = rtsmb_cli_session_get_session (sid);
+      //ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
+
+      ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+      pSmb2Session->update_timestamp ();
 
       ASSURE (share, RTSMB_CLI_SSN_RV_BAD_SHARE);
 
       /* First, see if we alread are connected */
-      pShare = rtsmb_cli_session_get_share (pSession, share);
+      pShare = pSmb2Session->get_share(share);
+
       if (pShare && pShare->state != CSSN_SHARE_STATE_DIRTY)
       {
           return RTSMB_CLI_SSN_RV_ALREADY_CONNECTED;
@@ -77,7 +78,7 @@ private:
       if (!pShare)
       {
           /* find free share */
-          pShare = rtsmb_cli_session_get_free_share (pSession);
+          pShare = rtsmb_cli_session_get_free_share (pSmb2Session->pSession());
           ASSURE (pShare, RTSMB_CLI_SSN_RV_TOO_MANY_SHARES);
       }
       else
@@ -88,7 +89,7 @@ private:
   #endif
       }
 
-      pJob = rtsmb_cli_session_get_free_job (pSession);
+      pJob = pSmb2Session->get_free_job ();
       if (!pJob)
           rtsmb_cli_session_share_close (pShare);
       ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
@@ -103,28 +104,28 @@ private:
 
       pJob->smb2_jobtype = jobTsmb2_tree_connect;
 
-      rtsmb_cli_session_send_stalled_jobs (pSession);
+      pSmb2Session->send_stalled_jobs();
 
-      if (pSession->blocking_mode)
+      if (pSmb2Session->pSession()->blocking_mode)
       {
-          int r;
-          r = rtsmb_cli_session_wait_for_job (pSession, INDEX_OF (pSession->jobs, pJob));
-          return(r);
+           pSmb2Session->wait_on_current_job();
       }
       else
       {
-          return INDEX_OF (pSession->jobs, pJob);
+          return pSmb2Session->current_job_index(); //  INDEX_OF (pSession->jobs, pJob);
       }
   }
-  int sid;
-  byte *sharename;
-  byte *password;
+  Smb2Session *pSmb2Session;
+//  int sid;
+//  byte *sharename;
+//  byte *password;
 
 };
 
 extern int do_smb2_tree_connect_worker(Smb2Session &Session)
 {
-  SmbTreeConnectWorker TreeConnectWorker( Session.sid(), Session.sharename(), Session.sharepassword());
+  SmbTreeConnectWorker TreeConnectWorker( Session );
+//  SmbTreeConnectWorker TreeConnectWorker( Session.sid(), Session.sharename(), Session.sharepassword());
   return TreeConnectWorker.go();
 }
 
