@@ -48,8 +48,30 @@ public:
   }
 
 
+  RTSMB_CLI_SESSION_STATE session_state()    { return _p_pSession->state; }
+  RTSMB_CLI_SESSION_USER_STATE user_state()  { return _p_pSession->user.state; }
+
+
+  void update_timestamp()                    { rtsmb_cli_session_update_timestamp(_p_pSession); }
+  void send_stalled_jobs()                   { rtsmb_cli_session_send_stalled_jobs (_p_pSession);  }
+  int wait_on_job(PRTSMB_CLI_SESSION_JOB pJob)
+  {
+    int r =  INDEX_OF (_p_pSession->jobs, pJob);
+    if(r < 0) return r;
+    return wait_on_job_cpp(_p_sid, r);
+  }
+  PRTSMB_CLI_SESSION_JOB get_free_job ()
+  {
+    _p_pJob = rtsmb_cli_session_get_free_job(_p_pSession);
+    return _p_pJob;
+  }
+  PRTSMB_CLI_SESSION_JOB pJob() { return _p_pJob; }
+
+
   int  sid()           {return _p_sid;       }
   byte *user_name()    {return _p_user_name; }
+
+
   byte *password()     {return _p_password;  }
   byte *domain()       {return _p_domain;    }
   byte *sharename()    {return _p_sharename;    }
@@ -61,7 +83,7 @@ private:
   PFBYTE broadcast_ip;
   PRTSMB_CLI_SESSION _p_pSession;
   RTSMB_CLI_SESSION_DIALECT _p_dialect;
-
+  PRTSMB_CLI_SESSION_JOB    _p_pJob;
   int   _p_sid;
   byte *_p_user_name;
   byte *_p_password;
