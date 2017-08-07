@@ -18,16 +18,6 @@
 
 
 
-extern "C" {
-#include "smbspnego.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-#include "rtpthrd.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-//int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
-//void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
-int rtsmb_cli_session_get_free_session (void);
-void rtsmb_cli_session_memclear (PRTSMB_CLI_SESSION pSession);
-void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
-
-}
 
 extern int do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session);
@@ -39,7 +29,6 @@ extern int do_smb2_cli_query_worker(Smb2Session &Session);
 Smb2Session Smb2Sessions[1];
 
 Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer){ return &Smb2Sessions[0];}
-
 
 extern "C" int do_smb2_negotiate_worker(PRTSMB_CLI_SESSION pSession)
 {

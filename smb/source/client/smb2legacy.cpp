@@ -234,17 +234,6 @@ extern "C" BBOOL rtsmb2_smb2_check_response_status_valid (smb2_iostream  *pStrea
 
 #endif
 
-extern "C" {
-
-//smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob);
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid);
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
-
-void rtsmb_cli_smb2_session_init (PRTSMB_CLI_SESSION pSession);
-
-int rtsmb_cli_wire_smb2_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid);
-
-} // extern C
 
 
 typedef int (* pVarEncodeFn_t) (smb2_iostream *pStream, PFVOID origin, PFVOID buf, rtsmb_size size,PFVOID pItem);
@@ -314,7 +303,6 @@ static smb2_iostream  *rtsmb_cli_wire_smb2_iostream_construct (PRTSMB_CLI_SESSIO
     return &pBuffer->smb2stream;
 }
 
-extern "C" int rtsmb_cli_session_translate_error32 (dword status);
 
 static int rtsmb_cli_wire_smb2_send_handler(NetStreamBuffer &SendBuffer, smb2_iostream  *pStream)        //  Called from rtsmb_cli_session_send_job  if pJob->smb2_jobtype
 {
@@ -465,11 +453,9 @@ smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSe
 }
 
 
-extern "C" {
-
-// These are either duplicated from server files or they are derived from functions in the server's com_smb2_wire.c
-// implementaion. sm2_stream structure that handles both server and client, these functions allow us to exclude
-// the smb2_stream declaration and use the smb2_iostream declaration which is excludes server specific fields
+extern "C" { // These are either duplicated from server files or they are derived from functions in the server's com_smb2_wire.c
+             // implementaion. sm2_stream structure that handles both server and client, these functions allow us to exclude
+             // the smb2_stream declaration and use the smb2_iostream declaration which is excludes server specific fields
 
 /* Unpacks a 64 byte SMB2 header from a stream.
     Updates:

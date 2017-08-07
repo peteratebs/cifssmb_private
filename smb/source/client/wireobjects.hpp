@@ -16,10 +16,6 @@
 #define include_wireobjects
 #include "netstreambuffer.hpp"
 
-extern "C" {
-// #include "client.h"   // prtsmb_cli_ctx, ctx->sessions[session].jobs[job].state
-}
-
 
 #define HTONETWORD(D)   tc_memcpy(raw_address, &D, sizeof(word))
 #define NETTOHWORD(D)   tc_memcpy(&D, raw_address, sizeof(word))

@@ -20,11 +20,6 @@ static TIME FILETIMETOTIME(ddword T)
   return *((TIME *)&T);
 }
 
-extern "C" {
-  void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat);
-}
-
-
 // Format the dstat in C++ with alignment independent classes and call back to the shell to display
 extern "C" int FormatDirscanToDstat(void *pBuffer)
 {
@@ -53,10 +48,6 @@ extern "C" int FormatDirscanToDstat(void *pBuffer)
                   //    int sid;
    DisplayDirscan(pstat);
    return BothDirInfoIterator.NextEntryOffset();
-}
-
-extern "C" {
- #include "client.h"   // prtsmb_cli_ctx, ctx->sessions[session].jobs[job].state
 }
 
 // Clean up what we can after completing a command

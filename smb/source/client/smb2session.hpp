@@ -53,9 +53,22 @@ public:
 
   RTSMB_CLI_SESSION_STATE session_state()    { return _p_pSession->state; }
   void session_state(RTSMB_CLI_SESSION_STATE _state)    { _p_pSession->state=_state; }
-  RTSMB_CLI_SESSION_USER_STATE user_state()  { return _p_pSession->user.state; }
 
-  PRTSMB_CLI_SESSION_USER user_structure()  { return &_p_pSession->user; }
+  RTSMB_CLI_SESSION_USER_STATE user_state()  { return _p_pSession->user.state; }
+  void  user_state(RTSMB_CLI_SESSION_USER_STATE s)  { _p_pSession->user.state=s; }
+
+  // This  is Used once an casted to RTSMB_CLI_SESSION_USER
+  void *user_structure()  { return (void *)&_p_pSession->user; }
+
+  void user_uid(int uid)  { _p_pSession->user.uid = uid;}
+
+
+  byte *spnego_blob_from_server()           { return _p_pSession->user.spnego_blob_from_server; }
+  int  spnego_blob_size_from_server()       { return _p_pSession->user.spnego_blob_size_from_server; }
+
+  void spnego_blob_from_server(byte *blob)      { _p_pSession->user.spnego_blob_from_server = blob; }
+  void spnego_blob_size_from_server(int size)    { _p_pSession->user.spnego_blob_size_from_server = size; }
+
   int current_jobindex()                    {   return INDEX_OF (_p_pSession->jobs, _p_pJob); }
 
 

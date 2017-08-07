@@ -17,8 +17,7 @@
 #include "netstreambuffer.hpp"
 
 // --------------------------------------------------------
-// extern "C" void mark_rv_cpp (int job, int rv, void *data)
-extern "C" {
+extern "C" { // extern "C" void mark_rv_cpp (int job, int rv, void *data)
 static void mark_rv_cpp (int job, int rv, void *data)
 {
     int *idata = (int *)data;

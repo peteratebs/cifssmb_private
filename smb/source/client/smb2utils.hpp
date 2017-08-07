@@ -36,21 +36,7 @@ using std::endl;
 // Macro for now but convert to a class for a better outcome
 #define cout_log(level) cout
 
-
-extern "C" {
-#include "smbdefs.h"
-#include "rtpmem.h"
-#include "smbutil.h"
-#if (0)
-void rtsmb_util_ascii_to_rtsmb (PFCHAR str, PFRTCHAR dest, int codepage);
-void rtsmb_util_rtsmb_to_ascii (PFRTCHAR str, PFCHAR dest, int codepage);
-ddword rtsmb_util_get_current_filetime    (void);
-PFRTCHAR rtsmb_util_string_to_upper (PFRTCHAR string, int codepage);
-#define ASSURE(A, B)    {if (!(A))	return B;}
-#endif
-#include "clicfg.h"
-#include "rtpwcs.h"
-}
+#include "smb2legacyheaders.hpp"
 #include "netstreambuffer.hpp"
 
 

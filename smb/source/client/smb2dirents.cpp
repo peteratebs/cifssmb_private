@@ -28,9 +28,6 @@ Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
 
 
 
-extern "C" void rtsmb_cli_session_job_close (PRTSMB_CLI_SESSION_JOB pJob);
-extern "C" int FormatDirscanToDstat(void *pBuffer);
-extern "C" int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat);
 
 static inline int smb2_ls_function(void *devContext, byte *pData, int size)
 {

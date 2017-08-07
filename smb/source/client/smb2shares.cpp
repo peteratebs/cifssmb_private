@@ -23,13 +23,7 @@
 //  get_setupphase_2object()
 
 
-extern "C" {
-#include "smbspnego.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
-void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
-void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, int r);
-}
-// static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
+
 
 #include "smb2session.hpp"
 // Can't embedd this in smb2session.hpp
@@ -197,20 +191,11 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
   NetSmb2TreeconnectReply Smb2TreeconnectReply;
   NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
-//  NetWireword  Smb2TreeconnectReply.StructureSize;
-//  NetWirebyte  Smb2TreeconnectReply.ShareType;
-//  NetWirebyte  Smb2TreeconnectReply.Reserved;
-//  NetWiredword Smb2TreeconnectReply.ShareFlags;
-//  NetWiredword Smb2TreeconnectReply.Capabilities;
-//  NetWiredword Smb2TreeconnectReply.MaximalAccess;
-
   PRTSMB_CLI_SESSION pSession ;
   PRTSMB_CLI_SESSION_SHARE pShare;
   int r = 0;
 
   Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(ReplyBuffer);
-
-
 
     for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
     {
@@ -220,13 +205,6 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
         pShare = &pSmb2Session->pSession()->shares[r];
         break;
       }
-
-//      if (ReplyBuffer.session_shares()[r].state != CSSN_SHARE_STATE_UNUSED &&
-//       ReplyBuffer.session_shares()[r].connect_mid == (word) InSmb2Header.MessageId())
-//      {
-//        pShare = &ReplyBuffer.session_shares()[r];
-//        break;
-//      }
     }
    	if (!pShare)
     {
