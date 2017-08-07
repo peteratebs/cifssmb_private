@@ -15,17 +15,10 @@
 #define include_mswireobjects
 
 extern "C" {
-#include "client.h"
 }
-
+#include "smb2utils.hpp"
 #include "netstreambuffer.hpp"
 #include "wireobjects.hpp"
-
-#include <map>
-#include <algorithm>
-#include <iostream>
-using std::cout;
-using std::endl;
 
 // Returned structures Borrowed from server code for now, need to fix
 

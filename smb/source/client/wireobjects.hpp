@@ -17,14 +17,8 @@
 #include "netstreambuffer.hpp"
 
 extern "C" {
-#include "client.h"
+// #include "client.h"   // prtsmb_cli_ctx, ctx->sessions[session].jobs[job].state
 }
-
-#include <map>
-#include <algorithm>
-#include <iostream>
-using std::cout;
-using std::endl;
 
 
 #define HTONETWORD(D)   tc_memcpy(raw_address, &D, sizeof(word))

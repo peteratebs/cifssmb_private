@@ -11,15 +11,6 @@
 // Module description:
 //  SMB2 client session level interface
 //
-#include <map>
-#include <algorithm>
-#include <iostream>
-#include <string>
-
-#include "smbdefs.h"
-
-
-#include "client.h"
-#include <smb2utils.hpp>
-#include <wireobjects.hpp>
-#include <smb2wireobjects.hpp>
+#include "smb2utils.hpp"
+#include "wireobjects.hpp"
+#include "smb2wireobjects.hpp"

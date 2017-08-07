@@ -19,6 +19,7 @@
 
 extern "C" {
 #include "smbspnego.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
+#include "rtpthrd.h" // void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
 //int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
 //void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
 int rtsmb_cli_session_get_free_session (void);

@@ -124,7 +124,7 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
   NetSmb2Header       OutSmb2Header;
   NetSmb2QuerydirectoryCmd Smb2QuerydirectoryCmd;
   if (SendBuffer.job_data()->findsmb2.pattern)
-    variable_content_size   = (word)rtsmb_len (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
+    variable_content_size   = (word)rtp_wcslen (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
   else
     variable_content_size  = 0;
 
@@ -149,7 +149,7 @@ static int rtsmb2_cli_session_send_querydirectory (NetStreamBuffer &SendBuffer)
     Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize()+Smb2QuerydirectoryCmd.StructureSize()-1);
 
     if (SendBuffer.job_data()->findsmb2.pattern)
-      Smb2QuerydirectoryCmd.FileNameLength   = (word)rtsmb_len (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
+      Smb2QuerydirectoryCmd.FileNameLength   = (word)rtp_wcslen (SendBuffer.job_data()->findsmb2.pattern)*sizeof(rtsmb_char);
     else
       Smb2QuerydirectoryCmd.FileNameLength   = 0;
    /* Tell the server that the maximum we can accept is what remains in our read buffer */

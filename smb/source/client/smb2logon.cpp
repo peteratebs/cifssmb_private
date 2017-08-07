@@ -30,30 +30,36 @@ void rtsmb_cli_session_user_new (PRTSMB_CLI_SESSION_USER pUser, word uid);
 }
 // static int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain);
 
+#include "smb2utils.hpp"
 #include "smb2session.hpp"
 
 class SmbLogonWorker {
 public:
-  SmbLogonWorker(Smb2Session &Session)
+  SmbLogonWorker(Smb2Session &_Session)
   {  // Constructor that takes a sesstion
-    _SmbLogonWorker(Session.sid(), Session.user_name(), Session.password(), Session.domain());
+    pSmb2Session = &_Session;
+    _SmbLogonWorker();
+//    _SmbLogonWorker(pSmb2Session->sid(), pSmb2Session->user_name(), pSmb2Session->password(), pSmb2Session->domain());
   }
-  SmbLogonWorker(int _sid,  byte *_user_name, byte *_password, byte *_domain)
-  {
-   _SmbLogonWorker(_sid, _user_name, _password, _domain);
-  };
-  int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
+//  int rtsmb_cli_session_logon_user_rt_cpp (int sid, byte * user, byte * password, byte *domain)
+  int rtsmb_cli_session_logon_user_rt_cpp ()
   {
     PRTSMB_CLI_SESSION_JOB pJob;
-    PRTSMB_CLI_SESSION pSession;
     dualstringdecl(user_string);                   //    dualstring user_string;
     dualstringdecl(password_string);               //    std::auto_ptr<dualstring> user_string(new(dualstring));
     dualstringdecl(domain_string);                 //    dualstring user_string(3);
     dualstringdecl(show_user_string);
 
-    *user_string = user;
-    *password_string = password;
-    *domain_string = domain;
+//    *user_string     = user    ;
+//    *password_string = password;
+//    *domain_string    = domain ;
+
+    *user_string     = pSmb2Session->user_name();
+    *password_string = pSmb2Session->password() ;
+    *domain_string    =pSmb2Session->domain()   ;
+
+
+//    pSmb2Session->pSession();
 
     if (user_string->input_length() > (CFG_RTSMB_MAX_USERNAME_SIZE - 1))
         return RTSMB_CLI_SSN_RV_BAD_ARGS;
@@ -61,68 +67,62 @@ public:
         return RTSMB_CLI_SSN_RV_BAD_ARGS;
     if (domain_string->input_length() > (CFG_RTSMB_MAX_DOMAIN_NAME_SIZE - 1))
         return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    pSession = rtsmb_cli_session_get_session (sid);
-    ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
-    ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-    rtsmb_cli_session_update_timestamp (pSession);
+    ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
 
-    // State must be CSSN_USER_STATE_UNUSED otherwise only CSSN_USER_STATE_CHALLENGED allowed through as a legal state. it will be cleared later.
-    if (pSession->user.state != CSSN_USER_STATE_CHALLENGED)
-    { ASSURE (pSession->user.state == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);  }
-    pJob = rtsmb_cli_session_get_free_job (pSession);
+    pSmb2Session->update_timestamp();
+
+
+    if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
+    { ASSURE (pSmb2Session->user_state() == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);  }
+
+    pJob = pSmb2Session->get_free_job ();
     ASSURE (pJob, RTSMB_CLI_SSN_RV_TOO_MANY_JOBS);
 
-    pSession->user.uid = 0;
-    pJob->data.session_setup.user_struct = &pSession->user;
-    rtsmb_cpy (pJob->data.session_setup.account_name, user_string->utf16());
+    pSmb2Session->pSession()->user.uid = 0;
+
+    pJob->data.session_setup.user_struct = &pSmb2Session->pSession()->user;
+    rtp_wcscpy (pJob->data.session_setup.account_name, user_string->utf16());
     tc_strcpy (pJob->data.session_setup.password, (char *) password_string->ascii());
-    rtsmb_cpy (pJob->data.session_setup.domain_name, domain_string->utf16());
-    rtsmb_cli_session_user_new (&pSession->user, 1);
+    rtp_wcscpy (pJob->data.session_setup.domain_name, domain_string->utf16());
+    rtsmb_cli_session_user_new (&pSmb2Session->pSession()->user, 1);
 
     pJob->error_handler    =   0;   pJob->receive_handler =    0;   pJob->send_handler    =    0;
     pJob->smb2_jobtype = jobTsmb2_session_setup;
 
-    rtsmb_cli_session_send_stalled_jobs (pSession);
-    int r =  INDEX_OF (pSession->jobs, pJob);
-    if(r < 0) return r;
-    return wait_on_job_cpp(sid, r);
+    pSmb2Session->send_stalled_jobs();       // Call rtsmb2_cli_session_send_negotiate
+
+    return  pSmb2Session->wait_on_job(pJob);  // Wait for rtsmb2_cli_session_receive_negotiate
   }
   int go()
   {
       // Send setup and wait for the response which will have a challenge blob
-      int r = rtsmb_cli_session_logon_user_rt_cpp (sid, user_name, password, domain);
+      int r = rtsmb_cli_session_logon_user_rt_cpp ();
       if(r < 0) return 0;
-      if (prtsmb_cli_ctx->sessions[sid].user.state == CSSN_USER_STATE_CHALLENGED)
+      if (pSmb2Session->user_state() == CSSN_USER_STATE_CHALLENGED)
       {
          decoded_NegTokenTarg_challenge_t decoded_targ_token;
-         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server, prtsmb_cli_ctx->sessions[sid].user.spnego_blob_size_from_server);
+         int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token, pSmb2Session->pSession()->user.spnego_blob_from_server, pSmb2Session->pSession()->user.spnego_blob_size_from_server);
          if (r == 0)
          {  // Ssends of the hashed challenge and waits for status
-            r = rtsmb_cli_session_ntlm_auth (sid, user_name, password, domain,
+            r = rtsmb_cli_session_ntlm_auth (pSmb2Session->sid(), pSmb2Session->user_name(), pSmb2Session->password(), pSmb2Session->domain(),
               decoded_targ_token.ntlmserverchallenge,
               decoded_targ_token.target_info->value_at_offset,
               decoded_targ_token.target_info->size);
          }
-         rtp_free(prtsmb_cli_ctx->sessions[sid].user.spnego_blob_from_server);
+         rtp_free(pSmb2Session->pSession()->user.spnego_blob_from_server);
          spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
          if(r < 0) return 0;
-         r = wait_on_job_cpp(sid, r);
+         r = wait_on_job_cpp(pSmb2Session->sid(), r);
          if(r < 0) return 0;
       }
     return(1);
   }
 
 private:
-  void _SmbLogonWorker(int _sid,  byte *_user_name, byte *_password, byte *_domain)
+  void _SmbLogonWorker()
   {
-   ENSURECSTRINGSAFETY(_user_name); ENSURECSTRINGSAFETY(_password); ENSURECSTRINGSAFETY(_domain);
-   sid=_sid;user_name=_user_name;password=_password;domain=_domain;
   };
-  int sid;
-  byte *user_name;
-  byte *password;
-  byte *domain;
-
+  Smb2Session *pSmb2Session;
 };
 
 
@@ -131,12 +131,6 @@ extern int do_smb2_logon_server_worker(Smb2Session &Session)
   SmbLogonWorker LogonWorker(Session);
   return LogonWorker.go();
 }
-
-//extern "C" int do_smb2_logon_server_worker(int sid,  byte *user_name, byte *password, byte *domain)
-//{
-//  SmbLogonWorker LogonWorker(sid, user_name, password, domain);
-//  return LogonWorker.go();
-//}
 
 
 static int rtsmb2_cli_session_send_negotiate_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}

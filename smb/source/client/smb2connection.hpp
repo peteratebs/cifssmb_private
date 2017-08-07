@@ -14,9 +14,6 @@
 #ifndef include_smb2connection
 #define include_smb2connection
 
-#include <algorithm>
-#include <climits>
-
 #if (0)
 class TcpConnection :    {
 public:

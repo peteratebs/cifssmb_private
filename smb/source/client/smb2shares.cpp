@@ -151,12 +151,12 @@ static int rtsmb2_cli_session_send_treeconnect (NetStreamBuffer &SendBuffer)
         &lshare_name[2],
         CFG_RTSMB_USER_CODEPAGE);
 
-      lshare_name [rtsmb_len (lshare_name)] = '\\';
+      lshare_name [rtp_wcslen (lshare_name)] = '\\';
   }
-  rtsmb_util_ascii_to_rtsmb (SendBuffer.job_data()->tree_connect.share_name, &lshare_name[rtsmb_len (lshare_name)], CFG_RTSMB_USER_CODEPAGE);
+  rtsmb_util_ascii_to_rtsmb (SendBuffer.job_data()->tree_connect.share_name, &lshare_name[rtp_wcslen (lshare_name)], CFG_RTSMB_USER_CODEPAGE);
 
   rtsmb_util_string_to_upper (lshare_name, CFG_RTSMB_USER_CODEPAGE);
-  dword pathlen = (rtsmb_len(lshare_name)+1)*sizeof(rtsmb_char);
+  dword pathlen = (rtp_wcslen(lshare_name)+1)*sizeof(rtsmb_char);
   dword variable_content_size = pathlen;  // Needs to be known before Smb2NBSSCmd is instantiated
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;

@@ -12,7 +12,6 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include "smbdefs.h"
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 #include "netstreambuffer.hpp"

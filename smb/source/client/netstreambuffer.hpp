@@ -14,16 +14,20 @@
 #ifndef include_netstreambuffer
 #define include_netstreambuffer
 
-#include <algorithm>
-#include <climits>
 #include "smb2utils.hpp"
 
 extern "C" {
 #include "rtpnet.h"
-#include "smbnet.h"
-#include "cliwire.h"
-#include "clissn.h"
-#include "smbutil.h"
+// #include "smbnet.h"     // clisn needs these net_read_/write
+  int rtsmb_net_read (RTP_SOCKET sock, PFVOID  buf, dword bufsize, dword size);
+  int rtsmb_net_write (RTP_SOCKET sock, PFVOID pData, int size);
+  byte *rtsmb_net_get_broadcast_ip (void);
+
+#include "clissn.h"    // lot of stuff
+// From #include "smbutil.h"   // TURN_ON, INFO_CAN_TIMEOUT
+#define TURN_ON(A, B)	{(A) |= (B);}
+// From cliwire.h (159)
+#define INFO_CAN_TIMEOUT	     0x0001  /* can this request time out? */
 #include "rtptime.h"
 }
 

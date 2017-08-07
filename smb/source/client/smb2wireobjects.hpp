@@ -15,17 +15,11 @@
 #define include_smb2wireobjects
 
 extern "C" {
-#include "client.h"
 }
 
 #include "netstreambuffer.hpp"
 #include "wireobjects.hpp"
-
-#include <map>
-#include <algorithm>
-#include <iostream>
-using std::cout;
-using std::endl;
+#include "smb2utils.hpp"
 
 
 class NetNbssHeader  : public NetWireStruct   {
