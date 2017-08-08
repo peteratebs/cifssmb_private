@@ -12,9 +12,9 @@
 //  SMB2 client session level interface
 //
 #include "smb2utils.hpp"
-#include <netstreambuffer.hpp>
-#include <wireobjects.hpp>
-#include <mswireobjects.hpp>
+#include "netstreambuffer.hpp"
+#include "wireobjects.hpp"
+#include "mswireobjects.hpp"
 void ms_FILE_ID_BOTH_DIR_INFORMATION::BindAddressesToBuffer(byte *base)
 {
   BindNetWireArgs A(base);

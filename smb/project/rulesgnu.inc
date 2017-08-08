@@ -55,7 +55,7 @@ $(shell mkdir $(OBJDIR))
 ### RULES ############################################################
 ifeq ($(compiler),GNUCOMPILER)
 %.$(lib):
-	echo ARCHIVING $@
+	echo ARCHIVING $@ $^
 	@ar ru $@ $^
 
 

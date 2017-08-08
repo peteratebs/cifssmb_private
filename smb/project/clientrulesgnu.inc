@@ -1,5 +1,5 @@
 
-$(OBJDIR)/%.$(obj): $(lib_to_rtsmb_client_path)/%.cpp $(clienthpfiles)
+$(OBJDIR)/%.$(obj): $(lib_to_rtsmb2_client_path)/%.cpp $(clienthpfiles)
 #$(OBJDIR)/%.$(obj): $(lib_to_rtsmb_client_path)/%.cpp
 	@echo COMPILING SMB2 CLIENT CODE for CPP $<
 	@echo List is $(clienthpfiles)

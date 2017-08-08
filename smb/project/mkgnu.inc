@@ -26,6 +26,7 @@ lib_to_rtsmb_server_path      = $(SMB_PATH)/source/server
 lib_to_rtsmb_nbserver_path    = $(SMB_PATH)/source/servernb
 lib_to_rtsmb_server_demo_path = $(SMB_PATH)/source/serverexample
 lib_to_rtsmb_client_path      = $(SMB_PATH)/source/client
+lib_to_rtsmb2_client_path      = $(SMB_PATH)/source/client/smb2
 lib_to_rtsmb_boostclient_path = $(SMB_PATH)/source/boostclient
 lib_to_rtsmb_client_demo_path = $(SMB_PATH)/demo
 #clib_to_rtsmb_client_demo_path = $(SMB_PATH)/source/clientexample
@@ -42,6 +43,7 @@ lib_to_rtsmb_commonnb_include = $(SMB_PATH)/source/commonnb
 lib_to_rtsmb_server_include   = $(SMB_PATH)/source/server
 lib_to_rtsmb_nbserver_include = $(SMB_PATH)/source/servernb
 lib_to_rtsmb_client_include   = $(SMB_PATH)/source/client
+lib_to_rtsmb_client2_include   = $(SMB_PATH)/source/client/smb2
 lib_to_rtptarget_include      = $(SMB_PATH)/../rtplatform/include/linux
 lib_to_rtpgeneric_include     = $(SMB_PATH)/../rtplatform/include
 
