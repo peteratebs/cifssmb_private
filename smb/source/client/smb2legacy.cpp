@@ -355,7 +355,7 @@ NetStreamBuffer    SendBuffer;
     return  RTSMB_CLI_SSN_RV_OK;
 }
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid)
+extern "C" smb2_iostream  *rtsmb_cli_wire_smb2_iostream_get(PRTSMB_CLI_WIRE_SESSION pSession, word mid)
 {
     PRTSMB_CLI_WIRE_BUFFER pBuffer;
     pBuffer = rtsmb_cli_wire_get_buffer (pSession, mid);
@@ -439,7 +439,7 @@ extern "C" int rtsmb_cli_session_handle_job_smb2 (PRTSMB_CLI_SESSION pSession, P
     return rv;
 }
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2)
+extern "C" smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2)
 {
     smb2_iostream  *pStream = rtsmb_cli_wire_smb2_iostream_get(pSession, mid);
 
@@ -492,4 +492,39 @@ BBOOL (*rtsmb_glue_are_other_workgroups) (void) = (BBOOL)0;
 BBOOL (*rtsmb_glue_do_we_have_server_list) (void) = (BBOOL)0;
 PFCHAR (*rtsmb_glue_get_our_server_name) (void) = 0;
 void (*rtsmb_glue_process_nbds_message) (PFCHAR dest_name, byte command, PFVOID origin, PFVOID buf, rtsmb_size size, PRTSMB_HEADER pheader) = 0;
+}
+
+#include "smb2session.hpp"
+#include "clicfg.h"
+
+// Clean up what we can after completing a command
+extern "C" void cpp_cleanup_after_command()
+{
+  int job; int session=0;
+  for (job = 0; job < prtsmb_cli_ctx->max_jobs_per_session; job++)  prtsmb_cli_ctx->sessions[session].jobs[job].state = CSSN_JOB_STATE_UNUSED;
+}
+
+PRTSMB_CLI_SESSION_SHARE find_connecting_share(Smb2Session *pSmb2Session, ddword MessageId)
+{
+  for (int r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
+  {
+    if (pSmb2Session->pSession()->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
+     pSmb2Session->pSession()->shares[r].connect_mid == (word) MessageId)
+    {
+      return &pSmb2Session->pSession()->shares[r];
+      break;
+    }
+  }
+  return 0;
+}
+
+extern "C" void rtsmb_cli_session_job_cleanup (PRTSMB_CLI_SESSION pSession, PRTSMB_CLI_SESSION_JOB pJob, int r);
+
+void  clear_fake_jobs_after_connecting_share(Smb2Session *pSmb2Session)
+{
+  for (int r = 0; r < prtsmb_cli_ctx->max_jobs_per_session; r++)
+  {
+    if (pSmb2Session->pSession()->jobs[r].state == CSSN_JOB_STATE_FAKE)
+      rtsmb_cli_session_job_cleanup (pSmb2Session->pSession(), &pSmb2Session->pSession()->jobs[r], RTSMB_CLI_SSN_RV_OK);
+  }
 }

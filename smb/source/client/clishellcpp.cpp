@@ -49,10 +49,3 @@ extern "C" int FormatDirscanToDstat(void *pBuffer)
    DisplayDirscan(pstat);
    return BothDirInfoIterator.NextEntryOffset();
 }
-
-// Clean up what we can after completing a command
-extern "C" void cpp_cleanup_after_command()
-{
-  int job; int session=0;
-  for (job = 0; job < prtsmb_cli_ctx->max_jobs_per_session; job++)  prtsmb_cli_ctx->sessions[session].jobs[job].state = CSSN_JOB_STATE_UNUSED;
-}

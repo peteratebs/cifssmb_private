@@ -28,6 +28,9 @@
 #include "smb2session.hpp"
 // Can't embedd this in smb2session.hpp
 Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
+PRTSMB_CLI_SESSION_SHARE find_connecting_share(Smb2Session *pSmb2Session, ddword MessageId); // smb2legacy.cpp
+void  clear_fake_jobs_after_connecting_share(Smb2Session *pSmb2Session);
+
 
 
 RTSMB_STATIC rtsmb_char wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
@@ -197,15 +200,16 @@ static int rtsmb2_cli_session_receive_treeconnect (NetStreamBuffer &ReplyBuffer)
 
   Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(ReplyBuffer);
 
-    for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
-    {
-      if (pSmb2Session->pSession()->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
-       pSmb2Session->pSession()->shares[r].connect_mid == (word) InSmb2Header.MessageId())
-      {
-        pShare = &pSmb2Session->pSession()->shares[r];
-        break;
-      }
-    }
+  pShare = find_connecting_share(pSmb2Session, InSmb2Header.MessageId());
+//    for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
+//    {
+//      if (pSmb2Session->pSession()->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
+//       pSmb2Session->pSession()->shares[r].connect_mid == (word) InSmb2Header.MessageId())
+//      {
+//        pShare = &pSmb2Session->pSession()->shares[r];
+//        break;
+//      }
+//    }
    	if (!pShare)
     {
         return RTSMB_CLI_SSN_RV_MALFORMED;
@@ -227,13 +231,12 @@ RTSMB_GET_SESSION_SHARE_STATE (CSSN_SHARE_STATE_CONNECTED);
     {
       /* To denote this, we find the pseudo-job that was waiting on this and finish it. */
 
-
-      for (r = 0; r < prtsmb_cli_ctx->max_jobs_per_session; r++)
-      {
-        if (pSmb2Session->pSession()->jobs[r].state == CSSN_JOB_STATE_FAKE)
-//        if (ReplyBuffer.session_jobs()[r].state == CSSN_JOB_STATE_FAKE)
-          rtsmb_cli_session_job_cleanup (pSmb2Session->pSession(), &pSmb2Session->pSession()->jobs[r], RTSMB_CLI_SSN_RV_OK);
-      }
+      clear_fake_jobs_after_connecting_share(pSmb2Session);
+//      for (r = 0; r < prtsmb_cli_ctx->max_jobs_per_session; r++)
+//      {
+//        if (pSmb2Session->pSession()->jobs[r].state == CSSN_JOB_STATE_FAKE)
+//          rtsmb_cli_session_job_cleanup (pSmb2Session->pSession(), &pSmb2Session->pSession()->jobs[r], RTSMB_CLI_SSN_RV_OK);
+//      }
     }
 
     if (pSession->state == CSSN_STATE_RECOVERY_TREE_CONNECTING)

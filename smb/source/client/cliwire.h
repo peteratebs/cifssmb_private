@@ -34,7 +34,6 @@ typedef RTSMB2_BUFFER_PARM RTSMB_FAR *PRTSMB2_BUFFER_PARM;
 
 extern const char *DebugSMB2CommandToString(int command);
 
-PACK_PRAGMA_ONE
 typedef struct smb2_iostream_s {
      // Signing rules. Set by calling smb2_stream_set_signing_rule
     byte     *SigningKey;                           // For writes, the key for signing, For reads the key for checking the signature
@@ -69,8 +68,7 @@ typedef struct smb2_iostream_s {
 //xx	PFVOID   saved_read_origin;
     PFVOID   pInBuf;
 //    PFVOID   StreamBuffer;
-} PACK_ATTRIBUTE smb2_iostream;
-PACK_PRAGMA_POP
+} smb2_iostream;
 
 #define RTSMB2_NBSS_TRANSFORM_HEADER_SIZE 52
 

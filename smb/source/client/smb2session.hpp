@@ -22,6 +22,10 @@ extern int wait_on_job_cpp(int sid, int job);
 
 class Smb2Session {
 public:
+
+// - Use these istead of smb1 structures
+//  RTSMB2_CLI_SESSION_USER  user;
+//  RTSMB2_CLI_SESSION_SHARE share;
   Smb2Session() {};
 
   void rtsmb2_cli_session_new_with_ip (PFBYTE _ip, PFBYTE _broadcast_ip) { ip=_ip; broadcast_ip=_broadcast_ip;}
