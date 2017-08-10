@@ -17,9 +17,60 @@
 extern "C" {
 }
 
-#include "netstreambuffer.hpp"
-#include "wireobjects.hpp"
-#include "smb2utils.hpp"
+#define SMB2_NEGOTIATE_SIGNING_ENABLED  0x0001   // When set, indicates that security signatures are enabled on the server.
+#define SMB2_NEGOTIATE_SIGNING_REQUIRED 0x0002   // When set, indicates that security signatures are required by the server.
+#define SMB2_SESSION_FLAG_BINDING       0x01     //  When set, indicates that the request is to bind an existing session to a new connection.
+
+#define SMB2_DIALECT_2002  0x0202
+#define SMB2_DIALECT_2100  0x0210
+#define SMB2_DIALECT_3000  0x0300
+#define SMB2_DIALECT_3002  0x0302
+#define SMB2_DIALECT_WILD  0x02FF
+
+
+/* SMB2 Header structure command values and flag vlues. See  2.2.1.2, page 30 */
+#define SMB2_NEGOTIATE          0x0000
+#define SMB2_SESSION_SETUP      0x0001
+#define SMB2_LOGOFF             0x0002
+#define SMB2_TREE_CONNECT       0x0003
+#define SMB2_TREE_DISCONNECT    0x0004
+#define SMB2_CREATE             0x0005
+#define SMB2_CLOSE              0x0006
+#define SMB2_FLUSH              0x0007
+#define SMB2_READ               0x0008
+#define SMB2_WRITE              0x0009
+#define SMB2_LOCK               0x000A
+#define SMB2_IOCTL              0x000B
+#define SMB2_CANCEL             0x000C
+#define SMB2_ECHO               0x000D
+#define SMB2_QUERY_DIRECTORY    0x000E
+#define SMB2_CHANGE_NOTIFY      0x000F
+#define SMB2_QUERY_INFO         0x0010
+#define SMB2_SET_INFO           0x0011
+#define SMB2_OPLOCK_BREAK       0x0012
+
+
+#define SMB2_NT_STATUS_SUCCESS                  0x00000000
+#define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
+#define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
+#define SMB_NT_STATUS_MORE_PROCESSING_REQUIRED  0xC0000016
+
+
+
+
+/* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
+#define SMB2_QUERY_FileDirectoryInformation 0x01        /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
+#define SMB2_QUERY_FileFullDirectoryInformation 0x02    /*  Full information about a file or directory. Full information is defined as all the basic information plus extended attribute size. */
+#define SMB2_QUERY_FileIdFullDirectoryInformation 0x26  /*  Full information plus volume file ID about a file or directory. A volume file ID is defined as a number assigned by the underlying object store that uniquely identifies a file within a volume. */
+#define SMB2_QUERY_FileBothDirectoryInformation 0x03    /*  Basic information plus extended attribute size and short name about a file or directory. */
+#define SMB2_QUERY_FileIdBothDirectoryInformation 0x25  /*  FileBothDirectoryInformation plus volume file ID about a file or directory. */
+#define SMB2_QUERY_FileNamesInformation 0x0C            /*  Detailed information on the names of files and directories in a directory. */
+/* RTSMB2_QUERY_DIRECTORY_C.Flags */
+#define SMB2_QUERY_RESTART_SCANS          0x01     /*  The server MUST restart the enumeration from the beginning, but the search pattern is not changed. */
+#define SMB2_QUERY_RETURN_SINGLE_ENTRY    0x02     /*  The server MUST only return the first entry of the search results. */
+#define SMB2_QUERY_INDEX_SPECIFIED        0x04     /*  The server SHOULD<64> return entries beginning at the byte number specified by FileIndex. */
+#define SMB2_QUERY_REOPEN                 0x10     /*  The server MUST restart the enumeration from the beginning, and the search pattern MUST be changed to the provided value. This often involves silently closing and reopening the directory on the server side. */
+
 
 
 class NetNbssHeader  : public NetWireStruct   {
@@ -359,6 +410,62 @@ private:
   void BindAddressClose(BindNetWireArgs & args) {};
   void BindAddressesToBuffer(byte *base);
 };
+#if (0)
+template <class T>
+class NetSmb2NBSSReply {
+public:
+  NetSmb2NBSSReply(word command, NewSmb2Session &_Smb2Session, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
+  {
+    Smb2Session=&_Smb2Session; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
+    isvariable = false; base_address=0; variablesize=0;
+    byte *nbsshead =  _Smb2Session.ReplyBuffer.peek_input();
+    byte *nbsstail  = nbsshead+4;
+    byte *cmdtail =   bindpointers(nbsshead);
+
+    status=RTSMB_CLI_SSN_RV_OK;
+
+
+//    if (nbss->push_output(*ReplyBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+//    if (smb2->push_output(*ReplyBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+
+
+//    if (nbss->pull_output(*SendBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+//    if (smb2->pull_output(*SendBuffer) != NetStatusOk)
+//      status = RTSMB_CLI_SSN_RV_DEAD;
+
+  }
+  int status;
+  // Cloned from NetWireStruct()
+  int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  reply->FixedStructureSize();};
+  void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
+  NetStatus push_output(NetStreamBuffer  &StreamBuffer)
+  {
+    return StreamBuffer.push_output(base_address, objectsize+variablesize);
+  }
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       byte *nbsshead = Smb2Session->ReplyBuffer.session_wire_incoming_nbss_header;
+       byte *nbsstail =nbss->bindpointers(nbsshead);
+       byte *smbtail = smb2->bindpointers(base_address);
+       byte *replytail = reply->bindpointers(smbtail);
+       Smb2Session->ReplyBuffer.attach_nbss(nbss->nbss_packet_size());     // Log the size of the new frame
+       return _raw_address+FixedStructureSize();}
+  byte *FixedStructureAddress() { return base_address; };
+
+  private:
+     T                  *reply;
+     NewSmb2Session     *Smb2Session;
+     NetNbssHeader       *nbss;
+     NetSmb2Header       *smb2;
+     byte *base_address;
+     bool isvariable;
+     dword objectsize;
+     dword variablesize;
+};
+#endif
 
 template <class T>
 class NetSmb2NBSSReply {
@@ -396,7 +503,7 @@ public:
   }
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
-       byte *nbsshead = ReplyBuffer->session_pStream()->pSession->wire.incoming_nbss_header;
+       byte *nbsshead = ReplyBuffer->session_wire_incoming_nbss_header;
        byte *nbsstail =nbss->bindpointers(nbsshead);
        byte *smbtail = smb2->bindpointers(base_address);
        byte *replytail = reply->bindpointers(smbtail);
@@ -446,7 +553,7 @@ public:
     ddword SessionId = 0;
 
     status = RTSMB_CLI_SSN_RV_OK;
-    smb2->Initialize(command,(ddword) SendBuffer->session_pStream()->pBuffer->mid, SessionId);
+    smb2->Initialize(command,(ddword) SendBuffer->stream_buffer_mid, SessionId);
 
     if (nbss->push_output(*SendBuffer) != NetStatusOk)
       status = RTSMB_CLI_SSN_RV_DEAD;

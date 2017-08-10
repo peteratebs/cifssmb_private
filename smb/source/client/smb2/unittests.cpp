@@ -11,10 +11,14 @@
 // Module description:
 //  SMB2 client session level interface
 //
-#include "smb2utils.hpp"
-#include "wireobjects.hpp"
+#include "smb2defs.hpp"
+#include "smb2socks.hpp"
 #include "netstreambuffer.hpp"
+#include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
+#include "mswireobjects.hpp"
+#include "session.hpp"
+#include "smb2socks.hpp"
 
 // Use static initializer constructor to intitialize run time table
 static std::string endr = std::string (15, (char) ' ') + "\r";
@@ -202,7 +206,7 @@ static void _TestBufferingType(int test_buffertype)
         break;
       }
 }
-      if (tc_memcmp(pull_buffer, s, bytes_pulled) != 0)
+      if (memcmp(pull_buffer, s, bytes_pulled) != 0)
       {
         cout_log(LL_TESTS)  << "*** pullr compare failed *** " << endl;
         break;

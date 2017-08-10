@@ -14,7 +14,6 @@
 //
 #ifndef include_wireobjects
 #define include_wireobjects
-#include "netstreambuffer.hpp"
 
 
 #define HTONETWORD(D)   tc_memcpy(raw_address, &D, sizeof(word))
@@ -89,7 +88,7 @@ class NetWirebyte  : public NetWire {
 class NetWireword  : public NetWire {
   public:
     NetWireword() {blob_size=2;};
-    void operator =(word d)  { HTONETWORD(d); }; // tc_memcpy(raw_address, &d, sizeof(word));}
+    void operator =(word d)  { HTONETWORD(d); }; // memcpy(raw_address, &d, sizeof(word));}
     word operator()() { return get(); }
    private:
     word get()  { word v; NETTOHWORD(v);return v;}
@@ -98,7 +97,7 @@ class NetWireword  : public NetWire {
 class NetWiredword  : public NetWire {
   public:
     NetWiredword() {blob_size=4;}
-    void operator =(dword d)  { HTONETDWORD(d);}; // tc_memcpy(raw_address, &d, sizeof(dword));}
+    void operator =(dword d)  { HTONETDWORD(d);}; // memcpy(raw_address, &d, sizeof(dword));}
     dword operator()() { return get(); }
    private:
     dword get()  { dword v; NETTOHDWORD(v);return v;}
@@ -108,7 +107,7 @@ class NetWireddword  : public NetWire {
   public:
     NetWireddword() {blob_size=8;}
     ddword operator()() { return get(); }
-    void operator =(ddword d)  { HTONETDDWORD(d); }; // tc_memcpy(raw_address, &d, sizeof(ddword));}
+    void operator =(ddword d)  { HTONETDDWORD(d); }; // memcpy(raw_address, &d, sizeof(ddword));}
    private:
     ddword get()  { ddword v; NETTOHDDWORD(v);return v;}
 };
@@ -117,7 +116,7 @@ class NetWireFileTime  : public NetWire {
   public:
     NetWireFileTime() {blob_size=8;};
     ddword operator()() { return get(); }
-    void operator =(ddword d)  { HTONETDDWORD(d); } // tc_memcpy(raw_address, &d, sizeof(ddword));}
+    void operator =(ddword d)  { HTONETDDWORD(d); } // memcpy(raw_address, &d, sizeof(ddword));}
    private:
     ddword get()   { ddword v; NETTOHDDWORD(v);return v;}
 };
@@ -178,7 +177,7 @@ class NetWireFileId  : public NetWireblob {
 class NetWire24bitword  : public NetWireblob {
 public:
     NetWire24bitword() {blob_size=3;};
-    void operator =(dword d)  { set(d); }; // tc_memcpy(raw_address, &d, sizeof(ddword));}
+    void operator =(dword d)  { set(d); }; // memcpy(raw_address, &d, sizeof(ddword));}
     dword operator()() { return get(); }
 private:
     dword get()  {

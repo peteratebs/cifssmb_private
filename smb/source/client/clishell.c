@@ -25,7 +25,7 @@ static int select_linux_interface(unsigned char *pip, unsigned char *pmask_ip);
 
 extern char *CommandProcessorGets(char *to, int max_count);
 extern void CommandProcessorPuts(char *buffer);
-extern void cpp_cleanup_after_command();
+extern int do_cpp_net_command(char *command);
 
 // --------------------------------------------------------
 #define HISTORY_MODE 1 /* Set to one, to remember parts of Url zero to prompt for all elements of URL */
@@ -145,10 +145,10 @@ static int do_logoff_command(char *command);
 static int do_connect_server_worker(int *sid,char *server_name, RTSMB_CLI_SESSION_DIALECT dialect);
 
 // done in cpp now
-extern  int do_smb2_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
-extern  int do_smb2_tree_disconnect_worker(int sid);
-extern int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *pattern);
-extern int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password);
+int do_smb2_logon_server_worker(int sid,  char *user_name, char *password, char *domain) {return -1;};
+int do_smb2_tree_disconnect_worker(int sid) {return -1;};
+int do_smb2_querydirectory_worker(int sid,  byte *share_name, byte *pattern) {return -1;};
+int do_smb2_tree_connect_worker(int sid,  byte *share_name, byte *password) {return -1;};
 
 
 // static int do_logon_server_worker(int sid,  char *user_name, char *password, char *domain);
@@ -420,7 +420,6 @@ static void smb_cli_shell_proc(char *command_buffer)
     do_setuser_command();
    else if (rtp_strcmp(command_buffer, setpassword_cmd) == 0)
     do_setpassword_command();
-   cpp_cleanup_after_command();
 
 }
 
@@ -498,6 +497,12 @@ int idNo=-1;
   return idNo;
 }
 
+extern int do_cpp_net_command(char *command);
+static int do_net_command(char *command)
+{
+  return do_cpp_net_command(command);
+}
+#if(0)
 // --------------------------------------------------------
 // NET USE d: \\192.168.1.7\share0 /user:ebs /password:password /dialect:1
 static int do_net_command(char *command)
@@ -508,6 +513,7 @@ int ConnectionNo=0;
 BBOOL DoOpenConnection=FALSE;
 char dialectString[20];
 dialectString[0]=0;
+
 
 
     strcpy(command, "USE d: \\\\192.168.1.2\\share0 /user:notebs /password:notpassword /dialect:2");
@@ -745,7 +751,7 @@ dialectString[0]=0;
     /* USE ID */
     /* USE ID /delete */
 }
-
+#endif
 // --------------------------------------------------------
 /* Helpers, see shel and test */
 void mark_rv (int job, int rv, void *data)
@@ -1019,20 +1025,6 @@ void DisplayDirscan(PRTSMB_CLI_SESSION_DSTAT pstat)
 }
 
 
-
-/// Protototype "device for sinking bytes from a stream.
-/// This memcopies to a location stored in device context.
-int ls_sink_function(void *devContext, byte *pData, int size)
-{
-//  tc_memcpy( ((struct memcpydevContext *)devContext)->pData, pData,size);
-//  ((struct memcpydevContext *)devContext)->pData += size;
-//  ((struct memcpydevContext *)devContext)->bytes_left -= size;
-
-  rtp_printf("ls_sink_function size = %d\n", size);
-  int fmt_size = FormatDirscanToDstat(pData);
-  rtp_printf("ls_sink_function size = %d %d \n", size, fmt_size);
-  return fmt_size;
-}
 
 
 static int _do_ls_command_worker(int doLoop,int sid, char *sharename,char *pattern);

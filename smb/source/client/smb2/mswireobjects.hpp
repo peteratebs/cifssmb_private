@@ -16,9 +16,9 @@
 
 extern "C" {
 }
-#include "smb2utils.hpp"
-#include "netstreambuffer.hpp"
-#include "wireobjects.hpp"
+//#include "smb2utils.hpp"
+//#include "netstreambuffer.hpp"
+//#include "wireobjects.hpp"
 
 // Returned structures Borrowed from server code for now, need to fix
 

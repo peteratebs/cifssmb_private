@@ -14,23 +14,6 @@
 #ifndef include_netstreambuffer
 #define include_netstreambuffer
 
-#include "smb2utils.hpp"
-
-#include "smb2legacyheaders.hpp"
-#include "smb2session.hpp"
-
-/// Propogate status conditions up from the lowest failure level with these constants
-enum NetStatus {
-    NetStatusnbsseof           = 2,
-    NetStatusNextsmb2Message   = 1,
-    NetStatusOk                = 0,
-    NetStatusFailed            = -1,
-    NetStatusFull              = -2,
-    NetStatusEmpty             = -3,
-    NetStatusDeviceRecvFailed  = -4,
-    NetStatusBadCallParms      = -5
-};
-
 struct SocketContext{
     RTP_SOCKET socket;
 };
@@ -58,17 +41,16 @@ inline int null_sink_function(void *devContext, byte *pData, int size)
 /// device for sinking bytes to tcp stream.
 inline int socket_sink_function(void *devContext, byte *pData, int size)
 {
-   if (rtsmb_net_write( ((struct SocketContext *)devContext)->socket, pData,size)==0)
+   if (rtsmb2_net_write( ((struct SocketContext *)devContext)->socket, pData,size)==0)
     return size;
    else
      return -1;
 }
 
-
 /// device for sourcing bytes from tcp stream.
 inline int socket_source_function(void *devContext, byte *pData, int size)
 {
-   int r = rtsmb_net_read ( ((struct SocketContext *)devContext)->socket, pData, size, size);
+   int r = rtsmb2_net_read ( ((struct SocketContext *)devContext)->socket, pData, size, size);
    return r;
 }
 
@@ -310,11 +292,18 @@ public:
   byte *peek_input(dword & valid_byte_count)               { valid_byte_count = read_buffer_count(); return read_buffer_pointer(); }
 
 //  RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
-  smb2_iostream           *session_pStream()               {  return  pStream; }
-  void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
+//  smb2_iostream           *session_pStream()               {  return  pStream; }
+//  void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
   dword get_smb2_read_pointer() {return (smb2_read_pointer);}
+
+
+  int stream_session_wire_state;
+  int stream_buffer_flags;
+  int stream_buffer_state;
+  dword stream_buffer_end_time_base;
+  ddword stream_buffer_mid;
+  byte session_wire_incoming_nbss_header[4];
 private:
-  smb2_iostream  *pStream;
   StreamBufferDataSource * data_sourcer;
   /// All read pointer updates go through here.
   //  updates input pointer, also advances nbss and smb2 seek pointers.
@@ -389,7 +378,7 @@ private:
        bytes_sunk += this_bytes_sunk;
 //       read_pointer += this_bytes_sunk;
        consume_input(this_bytes_sunk);
- #warning do this
+// #warning do this
      }  while (byte_count);
      return NetStatusOk;
   }
@@ -421,7 +410,7 @@ private:
         if (status != NetStatusOk)
           return status;
       }
-//       if (data && r)  tc_memcpy(data, pdata,r);
+//       if (data && r)  memcpy(data, pdata,r);
        consume_input(bytes_sunk);
        bytes_pulled += r;
      }
@@ -437,21 +426,21 @@ inline int rtsmb_cli_wire_smb2_iostream_flush_sendbuffer(NetStreamBuffer &SendBu
     dword valid_byte_count;
     Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
-    TURN_ON (SendBuffer.session_pStream()->pBuffer->flags, INFO_CAN_TIMEOUT);
+    TURN_ON (SendBuffer.stream_buffer_flags, INFO_CAN_TIMEOUT);
 
 
-    if (pSmb2Session->pSession()->wire.state == CONNECTED)
+    if (pSmb2Session->session_wire_state == CONNECTED)
     {
-        SendBuffer.session_pStream()->pBuffer->state = WAITING_ON_US;
+        SendBuffer.stream_buffer_state = WAITING_ON_US;
     }
     else
     {
-        SendBuffer.session_pStream()->pBuffer->end_time_base = rtp_get_system_msec ();
+        SendBuffer.stream_buffer_end_time_base = rtp_get_system_msec ();
         if (SendBuffer.flush() != NetStatusOk)
         {
             return -2;
         }
-        SendBuffer.session_pStream()->pBuffer->state = WAITING_ON_SERVER;
+        SendBuffer.stream_buffer_state = WAITING_ON_SERVER;
     }
     return 0;
 }
@@ -462,21 +451,21 @@ inline int rtsmb_cli_wire_smb2_iostream_flush_sendbufferptr(NetStreamBuffer *Sen
 {
     dword valid_byte_count;
 
-    TURN_ON (SendBuffer->session_pStream()->pBuffer->flags, INFO_CAN_TIMEOUT);
+    TURN_ON (SendBuffer->stream_buffer_flags, INFO_CAN_TIMEOUT);
 
-    if (SendBuffer->session_pStream()->pSession->wire.state == CONNECTED)
+    if (SendBuffer->stream_session_wire_state == CONNECTED)
 //    if (pSession->state == CONNECTED)
     {
-        SendBuffer->session_pStream()->pBuffer->state = WAITING_ON_US;
+        SendBuffer->stream_buffer_state = WAITING_ON_US;
     }
     else
     {
-        SendBuffer->session_pStream()->pBuffer->end_time_base = rtp_get_system_msec ();
+        SendBuffer->stream_buffer_end_time_base = rtp_get_system_msec ();
         if (SendBuffer->flush() != NetStatusOk)
         {
             return -2;
         }
-        SendBuffer->session_pStream()->pBuffer->state = WAITING_ON_SERVER;
+        SendBuffer->stream_buffer_state = WAITING_ON_SERVER;
     }
     return 0;
 }

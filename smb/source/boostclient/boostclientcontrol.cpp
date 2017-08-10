@@ -154,10 +154,9 @@ private:
   SMBCommandProcessor *SMBShell_;
 };
 
-extern "C" void smb_cli_shell(void);
+extern "C" void smb2_cli_shell(void);
 void runsmbclient()
 {
-  smb_cli_shell();
+  smb2_cli_shell();
 }
-
 

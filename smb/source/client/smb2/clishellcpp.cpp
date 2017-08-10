@@ -11,41 +11,63 @@
 // Module description:
 //  SMB2 client session level interface
 //
-#include "smb2utils.hpp"
-#include "smb2wireobjects.hpp"
+
+#include "smb2defs.hpp"
+#include "smb2socks.hpp"
+#include "netstreambuffer.hpp"
+#include "wireobjects.hpp"
 #include "mswireobjects.hpp"
+#include "session.hpp"
 
-static TIME FILETIMETOTIME(ddword T)
+
+
+extern "C" int smb2_cli_shell()
 {
-  return *((TIME *)&T);
+    cout << "Godbye cruel world ;-)" << endl;
+    return 0;
 }
-
 // Format the dstat in C++ with alignment independent classes and call back to the shell to display
-extern "C" int FormatDirscanToDstat(void *pBuffer)
+extern int FormatDirscanToDstat(void *pBuffer)
 {
   ms_FILE_ID_BOTH_DIR_INFORMATION  BothDirInfoIterator;
 
   BothDirInfoIterator.bindpointers((byte *)pBuffer);
 
-  RTSMB_CLI_SESSION_DSTAT mystat;
-  PRTSMB_CLI_SESSION_DSTAT pstat = &mystat;
+  NEWRTSMB_CLI_SESSION_DSTAT mystat;
+  NEWRTSMB_CLI_SESSION_DSTAT *pstat = &mystat;
   tc_memcpy (pstat->filename,
     BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.FixedStructureSize()-1,
     BothDirInfoIterator.FileNameLength());
-//  tc_memcpy (pstat->filename,BothDirInfoIterator->FileName,BothDirInfoIterator->directory_information_base.FileNameLength);
-//   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength) = 0;
-//   * ((char *) (&pstat->filename)+BothDirInfoIterator->directory_information_base.FileNameLength+1) = 0;
-   pstat->unicode = 1;           //    char unicode;   /* will be zero if filename is ascii, non-zero if unicode */
    pstat->fattributes = (unsigned short) BothDirInfoIterator.FileAttributes();    //    unsigned short fattributes;
-   pstat->fatime64=FILETIMETOTIME(BothDirInfoIterator.LastAccessTime());              //    TIME           fatime64; /* last access time */
-   pstat->fatime64= FILETIMETOTIME(BothDirInfoIterator.LastAccessTime());              //    TIME           fatime64; /* last access time */
-   pstat->fwtime64=FILETIMETOTIME(BothDirInfoIterator.LastWriteTime());              //    TIME           fwtime64; /* last write time */
-   pstat->fctime64=FILETIMETOTIME(BothDirInfoIterator.CreationTime());              //    TIME           fctime64; /* last create time */
-   pstat->fhtime64=FILETIMETOTIME(BothDirInfoIterator.ChangeTime());              //    TIME           fhtime64; /* last change time */
-   pstat->fsize = (dword) BothDirInfoIterator.EndofFile();                 //    unsigned long fsize;
-   pstat->fsizehi =(dword) (BothDirInfoIterator.EndofFile()>>32);                 //    unsigned long fsize;
-//   pstat->sid =  pSearch->sid;
-                  //    int sid;
-   DisplayDirscan(pstat);
+   pstat->fatime64= BothDirInfoIterator.LastAccessTime();
+   pstat->fatime64= BothDirInfoIterator.LastAccessTime();
+   pstat->fwtime64= BothDirInfoIterator.LastWriteTime();
+   pstat->fctime64= BothDirInfoIterator.CreationTime();
+   pstat->fhtime64= BothDirInfoIterator.ChangeTime();
+   pstat->fsize = (dword) BothDirInfoIterator.EndofFile();
+//   DisplayDirscan(pstat);
    return BothDirInfoIterator.NextEntryOffset();
 }
+
+typedef int (*lscbfn)(void *params);
+
+extern "C" int smbclient_session();
+extern "C" int do_connect_command(int session_id, byte *ip_addres, byte *ip_mask, int portnumber);
+extern "C" int do_disconnect_command(int session_id);
+extern "C" int do_logon_command(int session_id, char *username, char *password, char *domain);
+extern "C" int do_logoff_command(int session_id);
+extern "C" int do_share_command(int session_id, char *share);
+extern "C" int do_noshare_command(int share_id);               // share_id == (session_id<<8|share)
+extern "C" int do_ls_command(int share_id, byte *path, byte *pattern, lscbfn callbackFn);
+
+
+int smbclient_session() {return -1;};
+int do_connect_command(int session_id, byte *ip_addres, byte *ip_mask, int portnumber) {return -1;};
+int do_disconnect_command(int session_id) {return -1;};
+int do_logon_command(int session_id, char *username, char *password, char *domain) {return -1;};
+int do_logoff_command(int session_id) {return -1;};
+int do_share_command(int session_id, char *share) {return -1;};
+int do_noshare_command(int share_id) {return -1;};               // share_id == (session_id<<8|share {return -1;})
+int do_ls_command(int share_id, byte *path, byte *pattern, lscbfn callbackFn) {return -1;};
+
+extern "C" int do_cpp_net_command(char *command) {return -1;};

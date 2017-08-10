@@ -15,8 +15,6 @@
 #include "smbdefs.h"
 #include "cliwire.h"
 
-smb2_iostream  *rtsmb_cli_wire_smb2_iostream_attach (PRTSMB_CLI_WIRE_SESSION pSession, word mid, int header_length, RTSMB2_HEADER *pheader_smb2);
-
 
 #include "cliwire.h"
 #include "smbutil.h"
@@ -37,7 +35,7 @@ RTSMB_STATIC int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSess
 
 int rtsmb_cli_wire_start_connect (PRTSMB_CLI_WIRE_SESSION pSession);
 
-extern int rtsmb_nbss_fill_header_cpp (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
+extern int rtsmb_nbss_fill_header (PFVOID buf, rtsmb_size size, PRTSMB_NBSS_HEADER pStruct);
 
 /**
  * This file contains the "wire" abstraction -- clients to this
@@ -597,7 +595,7 @@ void rtsmb_debug_echo(PRTSMB_CLI_WIRE_SESSION pSession, byte *p, int nbytes)
     RTSMB_NBSS_HEADER header;
     header.type = RTSMB_NBSS_COM_MESSAGE;
     header.size = (word) nbytes; /* - RTSMB_NBSS_HEADER_SIZE); */
-    rtsmb_nbss_fill_header_cpp (mybuff, RTSMB_NBSS_HEADER_SIZE, &header);
+    rtsmb_nbss_fill_header (mybuff, RTSMB_NBSS_HEADER_SIZE, &header);
     tc_memcpy(&mybuff[RTSMB_NBSS_HEADER_SIZE], p, (unsigned)nbytes);
     mybuff[56] ='X';
     mybuff[57] ='Y';
@@ -625,14 +623,14 @@ RTSMB_STATIC int rtsmb_cli_wire_send_nbss_request (PRTSMB_CLI_WIRE_SESSION pSess
     rtsmb_util_make_netbios_name (request.calling, RTSMB_NB_DEFAULT_NAME, RTSMB_NB_NAME_TYPE_WORKSTATION);
     rtsmb_util_make_netbios_name (request.called, pSession->server_name, RTSMB_NB_NAME_TYPE_SERVER);
 
-    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header_cpp (pBuffer,
+    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header (pBuffer,
         prtsmb_cli_ctx->buffer_size, &header), -3);
     pBuffer = PADD (pBuffer, RTSMB_NBSS_HEADER_SIZE);
     DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_request (pBuffer,
         prtsmb_cli_ctx->buffer_size - RTSMB_NBSS_HEADER_SIZE, &request), -3);
 
     header.size = (dword)r;
-    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header_cpp (pSession->temp_buffer,
+    DO_OR_DIE_AND_KEEP (r, rtsmb_nbss_fill_header (pSession->temp_buffer,
         prtsmb_cli_ctx->buffer_size, &header), -3);
 
     pSession->temp_end_time_base = rtp_get_system_msec ();
@@ -669,27 +667,6 @@ int rtsmb_cli_wire_awaken_requests (PRTSMB_CLI_WIRE_SESSION pSession)
 
 
 
-/* Start decryption. Called on a stream from the top level dispatch if the session is set up and known to be encrypted.
-   Wraps the stream in a buffer with an SMB2 transform header prepended. The message finalize process will encrypt the outgoing messge.
-
-   call smb2_iostream_stop_decryption(smb2_iostream *pstream, RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2)
-
-*/
-
-int rtsmb2_decrypt (PFVOID to, PFVOID from, RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2, int max_buffer_size)
-{
-int i;
-byte *Dest = (byte *) to;
-byte *Source = (byte *) from;
-
-    /* Fake decrypt by taking every other byte   */
-    for(i =0; i < MIN((int)ptransform_header_smb2->OriginalMessageSize,max_buffer_size); i++)
-    {
-        *Dest++=*Source++;
-        Source++;
-    }
-    return MIN((int)ptransform_header_smb2->OriginalMessageSize,max_buffer_size);
-}
 
 /**
  * precondition: pSession->temp_buffer is full of |size| data.
@@ -701,10 +678,6 @@ byte *Source = (byte *) from;
 RTSMB_STATIC
 int rtsmb_cli_wire_handle_message (PRTSMB_CLI_WIRE_SESSION pSession, rtsmb_size size)
 {
-    RTSMB2_HEADER header_smb2;
-    RTSMB2_TRANSFORM_HEADER *ptransform_header_smb2,transform_header_smb2;
-
-    int smb2_header_length = -1;
     RTSMB_HEADER header;
     int i;
     word mid;
@@ -716,36 +689,12 @@ int rtsmb_cli_wire_handle_message (PRTSMB_CLI_WIRE_SESSION pSession, rtsmb_size 
         return RTSMB_CLI_WIRE_ERROR_BAD_STATE;
     }
 
-    ptransform_header_smb2 = 0;
-    smb2_header_length = -1;
-
     /* Check if the message is encrypted   */
 
-    if (pSession->temp_buffer[0] == 0xFD)
-    {
-
-        smb2_header_length = cmd_read_transform_header_smb2 (pSession->temp_buffer,pSession->temp_buffer,prtsmb_cli_ctx->buffer_size, &transform_header_smb2);
-        if (smb2_header_length > 0)
-        {
-            ptransform_header_smb2 = &transform_header_smb2;
-            mid = (word)transform_header_smb2.SessionId;
-        }
-    } if (pSession->temp_buffer[0] == 0xFE)
-    {
-        smb2_header_length = cmd_read_header_raw_smb2 (pSession->temp_buffer,pSession->temp_buffer,prtsmb_cli_ctx->buffer_size, &header_smb2);
-        if (smb2_header_length > 0)
-        {
-            mid = (word) header_smb2.MessageId;
-        }
-    }
-
-    if (smb2_header_length < 0)
-    {
-        DO_OR_DIE (cli_cmd_read_header (pSession->temp_buffer,
-            pSession->temp_buffer,
-            prtsmb_cli_ctx->buffer_size, &header), -1);
-        mid = header.mid;
-    }
+   DO_OR_DIE (cli_cmd_read_header (pSession->temp_buffer,
+          pSession->temp_buffer,
+           prtsmb_cli_ctx->buffer_size, &header), -1);
+    mid = header.mid;
 
     for (i = 0; i < prtsmb_cli_ctx->max_buffers_per_wire; i++)
     {
@@ -759,45 +708,8 @@ int rtsmb_cli_wire_handle_message (PRTSMB_CLI_WIRE_SESSION pSession, rtsmb_size 
             pSession->buffers[i].state = DONE;
             used_size = (int) (MIN (size, prtsmb_cli_ctx->buffer_size));
 
-            if (smb2_header_length > 0)
-            {
-                /* if (ptransform_header_smb2) then smb2_header_length is the transform header that has been read in.
-                   else smb2_header_length is the smb2 header in the structure header_smb2
-                   size is the amount of data in temp buffer
-                   used_size is the count of valid bytes
-                */
-                if (ptransform_header_smb2)
-                {
-                    /* Decrypt the message from the temporary buffer into the session buffer   */
-                    pSession->buffers[i].buffer_size = (dword)rtsmb2_decrypt (pSession->buffers[i].buffer,
-                    PADD(pSession->temp_buffer, smb2_header_length),
-                    ptransform_header_smb2,
-                    used_size-smb2_header_length);
-
-                    /* Now read the header from the temprory buffer so we can pass it to the next layer   */
-                    smb2_header_length = cmd_read_header_raw_smb2 (pSession->buffers[i].buffer,pSession->buffers[i].buffer,pSession->buffers[i].buffer_size, &header_smb2);
-                    if (smb2_header_length < 0)
-                        return -i;
-                }
-                else
-                {
-                    /* Copy the message from temp buffer to the session buffer  */
-                    tc_memcpy (pSession->buffers[i].buffer, pSession->temp_buffer, (unsigned)used_size);
-                }
-
-                /* Set up the Stream buffer,
-                    Finds the stream associted with the MID in header.
-                    Copy the header to the stream's inHdr structure.
-                    Set the stream buffer point and size to reflect that the NBSS and SMB headers have been consumed */
-                RTP_DEBUG_OUTPUT_SYSLOG(SYSLOG_INFO_LVL,"rtsmb_cli_wire_handle_message: recieved SMB2 message calling: rtsmb_cli_wire_smb2_iostream_attach\n");
-                rtsmb_cli_wire_smb2_iostream_attach (pSession, mid, smb2_header_length-RTSMB_NBSS_HEADER_SIZE, &header_smb2);
-                return 1;
-            }
-            else
-            {
-                tc_memcpy (pSession->buffers[i].buffer, pSession->temp_buffer, (unsigned) used_size);
-                pSession->buffers[i].buffer_size = (rtsmb_size) used_size;
-            }
+            tc_memcpy (pSession->buffers[i].buffer, pSession->temp_buffer, (unsigned) used_size);
+            pSession->buffers[i].buffer_size = (rtsmb_size) used_size;
             return 1;
 
         }
@@ -1043,40 +955,6 @@ RTSMB_CLI_MESSAGE_STATE rtsmb_cli_wire_check_message (PRTSMB_CLI_WIRE_SESSION pS
 }
 
 
-/*
-
-    Same as rtsmb_cli_wire_smb_add_start_smb2 but does not change buffer_end to include the NBSS header
-
-
-*/
-int rtsmb_cli_wire_smb2_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid)
-{
-    PRTSMB_CLI_WIRE_BUFFER pBuffer;
-
-    pBuffer = rtsmb_cli_wire_get_free_buffer (pSession);
-
-    if (!pBuffer)
-    {
-        return RTSMB_CLI_WIRE_TOO_MANY_REQUESTS;
-    }
-
-    if (mid)
-    {
-        pBuffer->mid = mid;
-    }
-
-    pBuffer->last_section = 0;
-    pBuffer->buffer_end = PADD (pBuffer->buffer_end, RTSMB_NBSS_HEADER_SIZE);
-
-    pBuffer->state = BEING_FILLED;
-#ifdef STATE_DIAGNOSTICS
-Get_Wire_Buffer_State(BEING_FILLED);
-#endif
-
-    pBuffer->buffer_size = (rtsmb_size) PDIFF(pBuffer->buffer_end, pBuffer->buffer);
-
-    return pBuffer->mid;
-}
 
 int rtsmb_cli_wire_smb_add_start (PRTSMB_CLI_WIRE_SESSION pSession, word mid)
 {
@@ -1170,7 +1048,7 @@ int rtsmb_cli_wire_smb_add_end (PRTSMB_CLI_WIRE_SESSION pSession, word mid)
     }
   #endif
 
-    rtsmb_nbss_fill_header_cpp (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
+    rtsmb_nbss_fill_header (pBuffer->buffer, RTSMB_NBSS_HEADER_SIZE, &header);
 
     TURN_ON (pBuffer->flags, INFO_CAN_TIMEOUT);
 
