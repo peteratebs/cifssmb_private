@@ -23,9 +23,38 @@
 
 extern "C" int smb2_cli_shell()
 {
-    cout << "Godbye cruel world ;-)" << endl;
+    NewSmb2Session ShellSession;
+    char *ip   = "192.168.1.2";
+    byte mask[] = {255,255,255,0};
+
+    ShellSession.set_connection_parameters(ip, mask, 445);
+    ShellSession.set_user_parameters("notebs", "notpassword", "domain");
+    ShellSession.set_share_parameters("\\\\SHARE0",0);
+
+     cout_log(LL_JUNK)  << "Call socket connect" << endl;
+    if (ShellSession.connect_socket())
+    {
+       cout_log(LL_JUNK)  << "Socket connect worked" << endl;
+      if (ShellSession.connect_buffers())
+      {
+         cout_log(LL_JUNK)  << "connect_buffers worked" << endl;
+         if (ShellSession.connect_server())
+         {
+           cout_log(LL_JUNK)  << "connect_buffers worked" << endl;
+           if (ShellSession.connect_user())
+          {
+             cout_log(LL_JUNK)  << "connect user worked" << endl;
+            if (ShellSession.connect_share(0))
+            {
+               cout_log(LL_JUNK)  << "connect share worked" << endl;
+            }
+         }
+         }
+      }
+    }
     return 0;
 }
+
 // Format the dstat in C++ with alignment independent classes and call back to the shell to display
 extern int FormatDirscanToDstat(void *pBuffer)
 {

@@ -177,7 +177,7 @@ int result;
 *************************************************************************/
 int  WebCReadData(char *p, int buffersize);
 
-int smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_bytes, webcIdleFn idle_func, byte * idle_data)
+long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_bytes, smbIdleFn idle_func, byte * idle_data)
 {
 
   RTP_FD_SET f_read;
@@ -249,7 +249,7 @@ int smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_by
 
 int rtsmb2_net_read(RTP_SOCKET sd, byte *pData, int size, int minsize)
 {
-webcIdleFn idle_func=0; byte * idle_data=0;
+smbIdleFn idle_func=0; byte * idle_data=0;
    return  smb_recv_at_least (sd, pData, minsize, size, idle_func, idle_data);
 }
 
@@ -263,7 +263,7 @@ webcIdleFn idle_func=0; byte * idle_data=0;
 
  Returns: number of bytes sent on success, < 0 on error
 *************************************************************************/
-int smb_send (RTP_SOCKET sd, byte * buffer, long size, webcIdleFn idle_func, byte * idle_data)
+long smb_send (RTP_SOCKET sd, byte * buffer, long size, smbIdleFn idle_func, byte * idle_data)
 {
 
   RTP_FD_SET f_write;
@@ -347,7 +347,7 @@ int smb_send (RTP_SOCKET sd, byte * buffer, long size, webcIdleFn idle_func, byt
 /// device for sinking bytes to tcp stream.
 int rtsmb2_net_write(RTP_SOCKET sd, byte *pData, int size)
 {
-byte * idle_data =0; webcIdleFn idle_fn = 0;
+byte * idle_data =0; smbIdleFn idle_fn = 0;
    return smb_send (sd, pData, size, idle_fn, idle_data);
 }
 
@@ -360,7 +360,7 @@ byte * idle_data =0; webcIdleFn idle_fn = 0;
 
  Returns: 0 on success, SMB_EDNSFAILED (<0) on error
 *************************************************************************/
-int smb_gethostipaddr (byte * ipaddr, char * name)
+int smb_gethostipaddr (byte * ipaddr, const char * name)
 {
   int type;
 
@@ -380,8 +380,7 @@ int smb_gethostipaddr (byte * ipaddr, char * name)
       return (0);
     }
   }
-
-  return (rtp_net_gethostbyname(ipaddr, &type, name));
+  return (rtp_net_gethostbyname(ipaddr, &type, (char *)name));
 }
 
 
@@ -428,17 +427,20 @@ int n;
  Returns: ipaddr
 *************************************************************************/
 
-byte * smb_str_to_ip(byte * ipaddr, char * ipstr)
+byte * smb_str_to_ip(byte * ipaddr, const char * _ipstr)
 {
 char * ptr;
 char savech;
 int n;
+char ncipstr[32];   // non-const
 
+  strncpy(ncipstr,_ipstr,sizeof(ncipstr));
+  char *ipstr = ncipstr;
   memset(ipaddr, 0, 4);
 
   for (n=0; n<4; n++)
   {
-    ptr = ipstr;
+    ptr = ipstr; // ipstr;
     while (*ptr != '.' && *ptr != '\0')
     {
       ptr++;
@@ -497,7 +499,7 @@ int smb_socket_has_data_to_read (RTP_SOCKET sd, long usec_tmo)
 
 int smb_poll_socket (
     RTP_SOCKET sd,
-    webcIdleFn idle_func,
+    smbIdleFn idle_func,
     byte * idle_data,
     dword untilMsec,
     int pollMode)

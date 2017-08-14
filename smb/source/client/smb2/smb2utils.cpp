@@ -146,3 +146,48 @@ ddword r;
     r = (ddword)t.high_time<<32|t.low_time;
     return r;
 }
+void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w)
+{
+  dualstringdecl(converted_string);                   //    dualstring user_string;
+  *converted_string     =  ascii_string;
+  if (w != 2*converted_string->input_length())
+    cout_log(LL_JUNK)  << "spego::: oops (w != 2*converted_string->input_length() w: " << w << " len: " << 2*converted_string->input_length() << endl;
+  else
+    cout_log(LL_JUNK)  << "spego::: Yeah (w == 2*converted_string->input_length()" << endl;
+  memcpy(unicode_string,converted_string->utf16(), w);
+}
+/* See RFC4122 */
+void rtsmb_util_guid(byte *_pGuid)
+{
+ddword t;
+dword *pdw;
+word  *pw;
+byte   *pb;
+byte node_address[6];
+word clock_seq;
+
+static byte lguid[16];
+static byte *pGuid=0;
+
+  if (!pGuid)
+  {
+    pGuid = lguid;
+    std::srand(rtsmb_util_get_current_filetime()); // use current time as seed for random generator
+    int random_variable = std::rand();
+    clock_seq = (word) random_variable;
+
+    rtp_net_get_node_address (node_address);
+    pdw = (dword *) pGuid;
+    t = rtsmb_util_get_current_filetime();
+    *pdw++ = (dword) t;     /* [32] Time low */
+    pw = (word *) pdw;                     /* [16] Time hi & version */
+    *pw++ = (word) (t>>32) & 0xFFFF;       /* [16] Time mid */
+    *pw  = (word) (t>>48) & 0x0FFF;        /* [16] Time hi & version */
+    *pw++  |= (1<<12);
+    pb  =  (byte *) pw;                     /* [16] clock_seq_hi & reserved */
+    *pb =  (byte) ((clock_seq & 0x3F00) >> 8);
+    *pb++ |= 0x80;
+    memcpy(pb, node_address, sizeof (node_address) );
+  }
+    memcpy(_pGuid, pGuid, 16);
+}

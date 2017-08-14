@@ -11,8 +11,8 @@
 // Module description:
 //
 //
-#ifndef include_smbutils
-#define include_smbutils
+#ifndef include_smb2utils
+#define include_smb2utils
 
 
 
@@ -36,15 +36,8 @@ using std::endl;
 // Macro for now but convert to a class for a better outcome
 #define cout_log(level) cout
 
-#include "smb2legacyheaders.hpp"
-#include "netstreambuffer.hpp"
-
-
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
-#define ENSURECSTRINGSAFETY(S) S=S?(byte *)S:(byte *)""
-
 #define LARGEST_STRING 255
-
 
 /// dualstring string container can be intialized with ascii or utf16 and then be dereferenced by either type utf16() or the ascii() methods.
 /// Uses dynamic memory so use dualstringdecl(stringname) to ensure that the destrcutor is called to free memory.
@@ -69,17 +62,6 @@ private:
   byte *asciiview;
 };
 
-extern int wait_on_job_cpp(int sid, int job);
-
-typedef struct c_smb2cmdobject_t
-{
-  int (*new_send_handler_smb2)(NetStreamBuffer &SendBuffer);
-//  int (*send_handler_smb2)    (smb2_iostream  *psmb2stream);
-  int (*new_error_handler_smb2) (NetStreamBuffer &SendBuffer);
-//  int (*error_handler_smb2)   (smb2_iostream  *psmb2stream);
-  int (*new_receive_handler_smb2) (NetStreamBuffer &SendBuffer);
-//  int (*receive_handler_smb2) (smb2_iostream  *psmb2stream);
-} c_smb2cmdobject;
 
 
 #endif // include_smbutils

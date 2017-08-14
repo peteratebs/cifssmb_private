@@ -43,12 +43,22 @@ public:
 //  RTSMB2_CLI_SESSION_USER  user;
 //  RTSMB2_CLI_SESSION_SHARE share;
 //  NewSmb2Session() ;
-  NewSmb2Session() {  _p_sid = 0;  };
+  NewSmb2Session()
+  {
+    _p_sid = 0;
+    session_state(CSSN_STATE_DEAD);
+    user_state(CSSN_USER_STATE_UNUSED);
+  }
 
-
-  void set_connection_parameters(byte *ip, byte *mask, int port) ;
+  void set_connection_parameters(const char *ip, byte *mask, int port);
   void set_user_parameters(char *_username, char *_password, char *_domain) ;
   void set_share_parameters(char *share_name, int sharenumber=0) ;
+
+  bool connect_socket();
+  void disconnect_socket();
+
+  bool connect_buffers() ;
+  bool disconnect_buffers() ;
 
   bool connect_server() ;
   bool disconnect_server() ;
@@ -59,16 +69,19 @@ public:
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
 
+  int wait_on_job();
 
-  void  session_state(int state) { _p_session_state = state;}
+
+  void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
   int  sid()           {return _p_sid;       }
   char *user_name()    {return _p_username; }
   char *password()     {return _p_password;  }
   char *domain()       {return _p_domain;    }
+  char *workstation()       {return "workstation";    }
   void user_uid(ddword uid) { _p_uid = uid; }
   void update_timestamp()   { _p_timestamp = rtp_get_system_msec (); };
-  void logon_mid(ddword mid) { _p_logon_mid = mid; }
+  ddword next_message_id() { return _p_session_mid++; }
 
   void user_state(RTSMB_CLI_SESSION_USER_STATE user_state) { _p_user_state=user_state; }
   RTSMB_CLI_SESSION_USER_STATE user_state() { return _p_user_state; }
@@ -83,12 +96,12 @@ public:
   NewSmb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
 
 
-    RTSMB_CLI_SESSION_DIALECT session_server_info_dialect;
-    dword session_server_info_capabilities;
-    dword session_server_info_buffer_size;
-    dword session_server_info_raw_size;
-    ddword session_server_info_smb2_session_id;
-    byte   session_server_info_challenge [8];
+  RTSMB_CLI_SESSION_DIALECT session_server_info_dialect;
+  dword session_server_info_capabilities;
+  dword session_server_info_buffer_size;
+  dword session_server_info_raw_size;
+  ddword session_server_info_smb2_session_id;
+  byte   session_server_info_challenge [8];
 
 
 private:
@@ -97,19 +110,29 @@ private:
   byte             * _p_spnego_blob_from_server;
   int                _p_spnego_blob_size_from_server;
   dword              _p_timestamp;
-  ddword              _p_logon_mid;  // Smb legacy should be
+  ddword              _p_session_mid;  // Smb legacy should be
   word               _p_uid;        // A little confused abiut this one still
+
+  int _p_reply_buffer_size;
+  int _p_send_buffer_size;
+  byte *_p_send_buffer_raw;
+  byte *_p_reply_buffer_raw;
 
   RTSMB_CLI_SESSION_USER_STATE _p_user_state;
   char               _p_groupname [RTSMB_CFG_MAX_GROUPNAME_SIZE  ];
   char               _p_username  [RTSMB_CFG_MAX_USERNAME_SIZE   ];
   char               _p_password  [RTSMB_CFG_MAX_PASSWORD_SIZE   ];
   char               _p_domain    [RTSMB_CFG_MAX_DOMAIN_NAME_SIZE];
-  byte host_ip [4];
-  byte ip_mask [4];
-  int  portnumber;
-  RTP_SOCKET socket;
+  SmbSocket_c        SmbSocket;
+  StreamBufferDataSource SocketSource;
+  struct SocketContext sourcesockContext;
+  DataSinkDevtype     SocketSink;
+  struct SocketContext sinksockContext;
 
+//  byte host_ip [4];
+//  byte ip_mask [4];
+//  int  portnumber;
+//  RTP_SOCKET socket;
 
   //dialect
   //connection_state

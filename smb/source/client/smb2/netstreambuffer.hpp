@@ -41,10 +41,7 @@ inline int null_sink_function(void *devContext, byte *pData, int size)
 /// device for sinking bytes to tcp stream.
 inline int socket_sink_function(void *devContext, byte *pData, int size)
 {
-   if (rtsmb2_net_write( ((struct SocketContext *)devContext)->socket, pData,size)==0)
-    return size;
-   else
-     return -1;
+   return (int)rtsmb2_net_write( ((struct SocketContext *)devContext)->socket, pData,size);
 }
 
 /// device for sourcing bytes from tcp stream.
@@ -62,6 +59,8 @@ public:
   DataSinkDevtype() {}
   /// Constructor assigns a send function and a device context for the send function.
   DataSinkDevtype(pDeviceSendFn_t _DeviceSendFn,void *_DeviceContext) {DeviceSendFn=_DeviceSendFn;DeviceContext= _DeviceContext;}
+
+  void AssignSendFunction(pDeviceSendFn_t _DeviceSendFn,void *_DeviceContext) {DeviceSendFn=_DeviceSendFn;DeviceContext= _DeviceContext;}
 
 
   /// The sink function. Call this to send bytes to the device via the device callback
@@ -176,7 +175,7 @@ private:
 /// Stream abstraction with buffering and installable data source and sinks
 class NetStreamBuffer     {
 public:
-   NetStreamBuffer()                              {   pdevice_sink=0;pmemory_sink=0; };
+   NetStreamBuffer()                              {   pdevice_sink=0;pmemory_sink=0; data_sourcer=0; };
    ~NetStreamBuffer()                             {};
 //   smb2_iostream  *pStream;
    ///  Assign a chunk of memory to the stream for internal buffering.
@@ -185,7 +184,6 @@ public:
 
    ///  Tell the buffer how large the nbss frame is.
    void attach_nbss (dword nbss_size) {_attach_nbss(nbss_size);}
-
 
    /// Assign a data source for the stream, this object is configurable to source from a memory array or from a device.
    void attach_source(StreamBufferDataSource & _data_source){ data_sourcer = &_data_source; }
@@ -200,7 +198,7 @@ public:
      dword bytes_free;
      byte *to= get_write_buffer_pointer(bytes_free);
 
-     // Flush rthe output if we are full
+     // Flush the output if we are full
      if (bytes_free < byte_count)
      {
        dword bytes_pulled;
@@ -219,15 +217,13 @@ public:
    {
       if (pdevice_sink)
         return  pull_input(pdevice_sink, byte_count, bytes_pulled);
-      if (pmemory_sink)
+      else if (pmemory_sink)
         return pull_input(pmemory_sink, byte_count, bytes_pulled, min_byte_count);
       return NetStatusBadCallParms;
    }
-
    NetStatus toss_input(dword toss_count)
    {
      NetStatus s = NetStatusOk;
-
      DataSinkDevtype *_device_sink = pdevice_sink;
      DataSinkDevtype NullSink( null_sink_function,  0);
      attach_sink(&NullSink);
@@ -241,30 +237,10 @@ public:
      }
      attach_sink(_device_sink);
      return s;
-  }
-
-  /// Seek to the next logical element in the input stream
-  ///   NetStatusnbsseof          - finished the frame
-  ///    NetStatusNextsmb2Message  - we are at another smb2message and we've leftjustified if needed and pulled to guarantee header:command are contiguous and they fit
-  ///    NetStatusFailed
-  //NetStatus seek_input()
-  //{
-  //
-  //}
-  NetStatus flush()
-  {
-     dword buffered_byte_count=0;
-     dword bytes_pulled;
-     byte *pdata = peek_input(buffered_byte_count);
-     if (buffered_byte_count ==0)
-       return NetStatusOk;
-     else     // Pulling exactly what is in the buffer will push that much oout the pipe
-      return  pull_input(buffered_byte_count, bytes_pulled, buffered_byte_count);
-  }
-
-  /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
-  NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
-  {
+   }
+   /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
+   NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
+   {
      bytes_pulled =0;
      while (bytes_pulled < min_byte_count)
      {
@@ -288,6 +264,34 @@ public:
      }
      return NetStatusOk;
   }
+
+  /// Seek to the next logical element in the input stream
+  ///   NetStatusnbsseof          - finished the frame
+  ///    NetStatusNextsmb2Message  - we are at another smb2message and we've leftjustified if needed and pulled to guarantee header:command are contiguous and they fit
+  ///    NetStatusFailed
+  //NetStatus seek_input()
+  //{
+  //
+  //}
+  NetStatus flush()
+  {
+     dword buffered_byte_count=0;
+     dword bytes_pulled=0;
+     byte *pdata = peek_input(buffered_byte_count);
+     if (buffered_byte_count ==0)
+       return NetStatusOk;
+
+     NetStatus s = NetStatusOk;
+     while (bytes_pulled < buffered_byte_count && s==NetStatusOk)
+     {
+       dword _bytes_pulled;
+       s = pull_input(buffered_byte_count-bytes_pulled,_bytes_pulled);
+       if (s==NetStatusOk)
+         bytes_pulled += _bytes_pulled;
+     }
+     return s;
+  }
+
   byte *peek_input()                                       { return read_buffer_pointer(); };
   byte *peek_input(dword & valid_byte_count)               { valid_byte_count = read_buffer_count(); return read_buffer_pointer(); }
 

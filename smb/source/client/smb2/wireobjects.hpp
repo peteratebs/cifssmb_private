@@ -76,30 +76,33 @@ protected:
 class NetWirebyte  : public NetWire {
   public:
     NetWirebyte() {blob_size=1;}
-    void operator =(byte d)  { *((byte *)raw_address) = d;}; // override equal operator
+    void operator =(byte d)  { *((byte *)raw_address) = d;rv=d;}; // override equal operator
 
     byte operator()() {
         return get();
     }
    private:
+    byte rv;
     byte get()  { return (byte)*raw_address;}
 };
 
 class NetWireword  : public NetWire {
   public:
     NetWireword() {blob_size=2;};
-    void operator =(word d)  { HTONETWORD(d); }; // memcpy(raw_address, &d, sizeof(word));}
+    void operator =(word d)  { HTONETWORD(d);rv=d; }; // memcpy(raw_address, &d, sizeof(word));}
     word operator()() { return get(); }
    private:
+    word rv;
     word get()  { word v; NETTOHWORD(v);return v;}
 };
 
 class NetWiredword  : public NetWire {
   public:
     NetWiredword() {blob_size=4;}
-    void operator =(dword d)  { HTONETDWORD(d);}; // memcpy(raw_address, &d, sizeof(dword));}
+    void operator =(dword d)  { HTONETDWORD(d);rv=d;}; // memcpy(raw_address, &d, sizeof(dword));}
     dword operator()() { return get(); }
    private:
+    dword rv;
     dword get()  { dword v; NETTOHDWORD(v);return v;}
 };
 
@@ -107,8 +110,9 @@ class NetWireddword  : public NetWire {
   public:
     NetWireddword() {blob_size=8;}
     ddword operator()() { return get(); }
-    void operator =(ddword d)  { HTONETDDWORD(d); }; // memcpy(raw_address, &d, sizeof(ddword));}
+    void operator =(ddword d)  { HTONETDDWORD(d); rv=d;}; // memcpy(raw_address, &d, sizeof(ddword));}
    private:
+    ddword rv;
     ddword get()  { ddword v; NETTOHDDWORD(v);return v;}
 };
 
@@ -116,8 +120,9 @@ class NetWireFileTime  : public NetWire {
   public:
     NetWireFileTime() {blob_size=8;};
     ddword operator()() { return get(); }
-    void operator =(ddword d)  { HTONETDDWORD(d); } // memcpy(raw_address, &d, sizeof(ddword));}
+    void operator =(ddword d)  { HTONETDDWORD(d); rv=d;} // memcpy(raw_address, &d, sizeof(ddword));}
    private:
+    ddword rv;
     ddword get()   { ddword v; NETTOHDDWORD(v);return v;}
 };
 

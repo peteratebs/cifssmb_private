@@ -35,6 +35,13 @@
 #define STUB(X) 0
 #define SMB_TIMEOUT_SEC 30  // TBD general timeout failure on a socket
 
+#define SMB_HTOIW(A)  A     // Usage of this mean it should be using a smart field.
+#define SMB_HTOID(A)  A
+#define SMB_HTOIDD(A) A
+#define SMB_ITOHW(A)  A
+#define SMB_ITOHD(A)  A
+#define SMB_ITOHDD(A) A
+
 
 #define rtp_malloc_auto_freed rtp_malloc
 #define rtp_free_auto_free rtp_free
@@ -58,12 +65,7 @@ typedef unsigned long   dword;  //32-bit
 typedef unsigned long long ddword;  //32-bit
 
 
-//extern int rtsmb2_net_write( RTP_SOCKET socket, byte *pData, int size);
-//extern int rtsmb2_net_read ( RTP_SOCKET socket, byte *pData, int size, int minsize);
-extern ddword rtsmb_util_get_current_filetime(void);
-
 #define LARGEST_STRING 255
-
 
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
 /// dualstring string container can be intialized with ascii or utf16 and then be dereferenced by either type utf16() or the ascii() methods.
@@ -108,6 +110,9 @@ private:
 #define RTSMB_CFG_MAX_PASSWORD_SIZE    128  // the maximum size of passwords (must be at least 24 when using encryption)
 #define RTSMB_CFG_MAX_DOMAIN_NAME_SIZE 128  // the maximum size of domain names
 
+
+#define RTSMB_CFG_MAX_BUFFER_SIZE     32768    // The physical buffer size we stream through
+
 #define RTSMB_CFG_MAX_FILENAME_SIZE    255   // the maximum size of file name in utf16
 
 
@@ -117,8 +122,8 @@ typedef enum
     CSSN_STATE_UNUSED,                   /* absolutely free to be used by someone */
     CSSN_STATE_DEAD,                     /* untenable, but needs to be free'd */
 //    CSSN_STATE_QUERYING,                 /* in the process of finding server by name */
-//    CSSN_STATE_CONNECTING,               /* we know the name/address mapping, and are connecting */
-//    CSSN_STATE_UNCONNECTED,              /* haven't yet formed a session */
+    CSSN_STATE_CONNECTING,               /* we know the name/address mapping, and are connecting */
+    CSSN_STATE_CONNECTED,                /* conneted but haven't yet formed a session */
     CSSN_STATE_NEGOTIATED,               /* we've started a full session and are go */
 //    CSSN_STATE_RECOVERY_QUERYING,        /* we're trying to recover from a bad connection */
 //    CSSN_STATE_RECOVERY_NEGOTIATING,     /* we're trying to recover from a bad connection */
@@ -199,19 +204,10 @@ typedef struct decoded_NegTokenTarg_challenge_s {
     SecurityBuffer_t *target_info;
 } decoded_NegTokenTarg_challenge_t;
 
-extern "C" int rtsmb_cli_session_ntlm_auth (int sid, byte * user, byte * password, byte *domain, byte * serverChallenge, byte *serverInfoblock, int serverInfoblock_length);
 
 // void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
 int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-// int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
-// void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
-// int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
-// int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
-// void spnego_get_Guid(byte *pGuid);
-// int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
-// int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
-// void spnego_init_extended_security(void);
 
 
 typedef int (* lssinkFn_t) (void *devContext, byte *pData, int size);
@@ -313,7 +309,10 @@ typedef struct smb2_iostream_s {
 #endif
 } smb2_iostream;
 
-
+void rtsmb_util_guid(byte *_pGuid);
+extern ddword rtsmb_util_get_current_filetime(void);
+void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w);
+void rtsmb_util_guid(byte *_pGuid);
 
 
 #endif // include_smb2defs
