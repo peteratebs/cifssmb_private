@@ -170,7 +170,46 @@ private:
   dword bytes_buffered;
 };
 
-
+class NetStreamOutputBuffer     {
+public:
+   NetStreamOutputBuffer()                              {};
+   ~NetStreamOutputBuffer()                             {};
+  void attach_buffer(byte *data, dword byte_count){ buffer_base=data; buffer_size=byte_count; bytes_buffered = 0;}
+  byte *output_buffer_address(dword &bytes_available_for_sending)
+  {
+    bytes_available_for_sending = buffer_size-bytes_buffered;
+    return buffer_base+bytes_buffered;
+  }
+  NetStatus push_to_buffer(byte *output, dword byte_count)
+  {
+     dword bytes_available_for_sending;
+     byte *to = output_buffer_address(bytes_available_for_sending);
+     memcpy(to, output, byte_count);
+     bytes_buffered += byte_count;
+     return NetStatusOk;
+  }
+  NetStatus push_output()
+  {
+    if (bytes_buffered == 0 || SmbSocket->send(buffer_base, bytes_buffered) == bytes_buffered)
+    {
+        bytes_buffered = 0;
+        return NetStatusOk;
+    }
+    else
+        return NetStatusDeviceSendFailed;
+  }
+  void attach_socket(SmbSocket_c  &_SmbSocket) {SmbSocket = &_SmbSocket; };
+  int stream_session_wire_state;
+  int stream_buffer_flags;
+  int stream_buffer_state;
+  dword stream_buffer_end_time_base;
+  ddword stream_buffer_mid;
+private:
+  SmbSocket_c  *SmbSocket;
+  byte *buffer_base;
+  dword buffer_size;
+  dword bytes_buffered;
+};
 
 /// Stream abstraction with buffering and installable data source and sinks
 class NetStreamBuffer     {
@@ -184,7 +223,6 @@ public:
 
    ///  Tell the buffer how large the nbss frame is.
    void attach_nbss (dword nbss_size) {_attach_nbss(nbss_size);}
-
    /// Assign a data source for the stream, this object is configurable to source from a memory array or from a device.
    void attach_source(StreamBufferDataSource & _data_source){ data_sourcer = &_data_source; }
    /// Attach a device oriented destination to the stream.
@@ -193,139 +231,112 @@ public:
    /// Attach a memory oriented destination to the stream.
    /// Data from the source is passed to this buffer as it is pulled from the source.
    class NetStreamBuffer *attach_sink(MemoryDataSink *_memory_sink)   { pdevice_sink=0; pmemory_sink = _memory_sink; return this;}
-   NetStatus push_output(byte *output, dword byte_count)
+
+   /// Get location and number of bytes in the input buffer
+   byte *buffered_data_pointer(dword &bytes_ready) { bytes_ready = buffered_count(); return buffered_data_pointer();}
+   byte *buffered_data_pointer() { return buffer_base+write_pointer;}
+   dword buffered_count() {return input_pointer-write_pointer;}
+
+   // Push data to the output buuffer, flush first if necessary too make room
+   NetStatus push_to_buffer(byte *output, dword byte_count)
    {
+     NetStatus r = make_room_in_buffer_out(byte_count);
+     if (r != NetStatusOk)
+       return r;
      dword bytes_free;
      byte *to= get_write_buffer_pointer(bytes_free);
-
-     // Flush the output if we are full
      if (bytes_free < byte_count)
-     {
-       dword bytes_pulled;
-       if (pdevice_sink)
-          pull_input(pdevice_sink, byte_count, bytes_pulled);
-       to= get_write_buffer_pointer(bytes_free);
-       if (bytes_free < byte_count)
          return NetStatusFull;
-     }
-     tc_memcpy(to, output, byte_count);
+     memcpy(to, output, byte_count);
      discard_write_buffer_bytes(byte_count);
      return NetStatusOk;
    }
-   /// "Cycle" by pulling bytes from the input and pass them to the output.
-   NetStatus pull_input(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
+
+   // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
+   NetStatus pull_new_nbss_frame(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
    {
-      if (pdevice_sink)
-        return  pull_input(pdevice_sink, byte_count, bytes_pulled);
-      else if (pmemory_sink)
-        return pull_input(pmemory_sink, byte_count, bytes_pulled, min_byte_count);
-      return NetStatusBadCallParms;
+     empty();
+     NetStatus r = NetStatusDeviceRecvFailed;
+     dword sourced_byte_count=0;
+     if (data_sourcer)
+        r = data_sourcer->source_data(input_buffer_pointer(),byte_count, sourced_byte_count);
+     if (r == NetStatusOk)
+        bytes_pulled = sourced_byte_count;
+     else
+        bytes_pulled = 0;
+      advance_input_buffer_bytes(bytes_pulled);
+      return r;
    }
-   NetStatus toss_input(dword toss_count)
+   // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
+   NetStatus purge_socket_input(dword byte_count)
    {
-     NetStatus s = NetStatusOk;
-     DataSinkDevtype *_device_sink = pdevice_sink;
-     DataSinkDevtype NullSink( null_sink_function,  0);
-     attach_sink(&NullSink);
-     dword bytes_tossed  = 0;
-     while (bytes_tossed < toss_count && s==NetStatusOk)
+     empty();
+     if (!data_sourcer)
+       return NetStatusOk;
+     while(byte_count)
      {
-       dword _bytes_pulled;
-       s = pull_input(toss_count-bytes_tossed,_bytes_pulled);
-       if (s==NetStatusOk)
-         bytes_tossed += _bytes_pulled;
+       dword sourced_byte_count=0;
+       NetStatus r = NetStatusOk;
+       r = data_sourcer->source_data(input_buffer_pointer(),byte_count, sourced_byte_count);
+       if (r == NetStatusOk)
+         byte_count -= sourced_byte_count;
+       else
+         return r;
+       empty();
      }
-     attach_sink(_device_sink);
-     return s;
+     return NetStatusOk;
    }
+
    /// "Cycle" by pulling bytes from the input and returning them instead of passing them to the output.
    NetStatus pull_input(byte *data, dword byte_count, dword &bytes_pulled, dword min_byte_count=1)
    {
      bytes_pulled =0;
+     cout_log(LL_JUNK)  << "pulling top count: " << byte_count << endl;
+
      while (bytes_pulled < min_byte_count)
      {
        dword buffered_byte_count=0;
        byte *pdata = peek_input(buffered_byte_count);
+       cout_log(LL_JUNK)  << "buffered_byte_counts: " << buffered_byte_count << endl;
        dword r = std::min (buffered_byte_count,byte_count);
        if (data && r)  tc_memcpy(data, pdata,r);
        if (r)
        {
          consume_input(r);
+         cout_log(LL_JUNK)  << "pulled r new bytes to app: " << r << endl;
          bytes_pulled += r;
        }
        if (bytes_pulled  < min_byte_count)
        {
          dword sourced_byte_count;
-         NetStatus status = data_sourcer->source_data(read_buffer_pointer(),std::min(byte_count,read_buffer_free()), sourced_byte_count);
+         NetStatus status = data_sourcer->source_data(input_buffer_pointer(),std::min(byte_count,input_buffer_free()), sourced_byte_count);
          if (status != NetStatusOk)
            return status;
+         cout_log(LL_JUNK)  << "pulled n new bytes: " << sourced_byte_count << endl;
          write_pointer += sourced_byte_count;
        }
+
      }
      return NetStatusOk;
   }
 
-  /// Seek to the next logical element in the input stream
-  ///   NetStatusnbsseof          - finished the frame
-  ///    NetStatusNextsmb2Message  - we are at another smb2message and we've leftjustified if needed and pulled to guarantee header:command are contiguous and they fit
-  ///    NetStatusFailed
-  //NetStatus seek_input()
-  //{
-  //
-  //}
   NetStatus flush()
   {
-     dword buffered_byte_count=0;
-     dword bytes_pulled=0;
-     byte *pdata = peek_input(buffered_byte_count);
-     if (buffered_byte_count ==0)
-       return NetStatusOk;
-
-     NetStatus s = NetStatusOk;
-     while (bytes_pulled < buffered_byte_count && s==NetStatusOk)
-     {
-       dword _bytes_pulled;
-       s = pull_input(buffered_byte_count-bytes_pulled,_bytes_pulled);
-       if (s==NetStatusOk)
-         bytes_pulled += _bytes_pulled;
-     }
-     return s;
+    return make_room_in_buffer_out(buffer_size+1);
   }
 
-  byte *peek_input()                                       { return read_buffer_pointer(); };
-  byte *peek_input(dword & valid_byte_count)               { valid_byte_count = read_buffer_count(); return read_buffer_pointer(); }
+  byte *peek_input()                                       { return input_buffer_pointer(); };
+  byte *peek_input(dword & valid_byte_count)               { valid_byte_count = input_buffer_count(); return input_buffer_pointer(); }
 
-//  RTSMB_CLI_SESSION       *session_pSession()              {  return  pStream->pSession; }
-//  smb2_iostream           *session_pStream()               {  return  pStream; }
-//  void                    session_pStream(smb2_iostream * _pStream) {  pStream = _pStream; }
   dword get_smb2_read_pointer() {return (smb2_read_pointer);}
-
 
   int stream_session_wire_state;
   int stream_buffer_flags;
   int stream_buffer_state;
   dword stream_buffer_end_time_base;
   ddword stream_buffer_mid;
-  byte session_wire_incoming_nbss_header[4];
 private:
   StreamBufferDataSource * data_sourcer;
-  /// All read pointer updates go through here.
-  //  updates input pointer, also advances nbss and smb2 seek pointers.
-  void consume_input (dword byte_count)
-  {
-    nbss_read_pointer += byte_count;
-    smb2_read_pointer += byte_count;
-    read_pointer += byte_count;
-    if (read_pointer == write_pointer) read_pointer = write_pointer=0;
-  }
-  byte *get_write_buffer_pointer(dword & byte_count) { byte_count=buffer_size-write_pointer; return buffer_base+write_pointer;}
-  byte *write_buffer_pointer() { return buffer_base+write_pointer;}
-  void discard_write_buffer_bytes(dword byte_count) { write_pointer+=byte_count;}
-
-
-  byte *read_buffer_pointer() { return buffer_base+read_pointer;}
-  dword read_buffer_free() {return buffer_size-read_pointer;}
-  dword read_buffer_count() {return write_pointer-read_pointer;}
   DataSinkDevtype *pdevice_sink;
   MemoryDataSink  *pmemory_sink;
 
@@ -333,17 +344,68 @@ private:
   dword buffer_size;
   byte *buffer_base;
   dword write_pointer;
-  dword read_pointer;
-
+  dword input_pointer;
   // logical view
   dword nbss_frame_size;
   dword smb2_frame_size;
   dword nbss_read_pointer;
   dword smb2_read_pointer;
 
+
+  void empty() { write_pointer=input_pointer=0; }
+
+  /// Flush data out if needed to make room for more in the output buffer
+  NetStatus make_room_in_buffer_out(dword byte_count)
+  {
+    dword free_count=0;
+    byte *pfreedata = get_write_buffer_pointer(free_count);
+    if (byte_count > free_count)
+    {
+      dword this_bytes_sunk=0;
+      dword valid_byte_count=0;
+      byte *psenddata = peek_input(valid_byte_count);
+      NetStatus r = NetStatusOk;
+      if (pdevice_sink)
+         r = pdevice_sink->sink_bytes_to_device(psenddata, valid_byte_count,this_bytes_sunk);
+      else if (pmemory_sink)
+         r = pmemory_sink->sink_data(psenddata, valid_byte_count,this_bytes_sunk);
+      if (r != NetStatusOk)
+       return r;
+      consume_input (this_bytes_sunk);
+    }
+    return NetStatusOk;
+  }
+
+
+  byte *outut_buffer_pointer() { return buffer_base+write_pointer;}
+  dword output_buffer_free()   {return buffer_size-write_pointer;}
+
+  ///
+  byte *input_buffer_pointer() { return buffer_base+input_pointer;}
+  dword input_buffer_free() {return buffer_size-input_pointer;}
+  dword input_buffer_count() {return write_pointer-input_pointer;}
+
+
+  /// All read pointer updates go through here.
+  //  updates input pointer, also advances nbss and smb2 seek pointers.
+  void consume_input (dword byte_count)
+  {
+    nbss_read_pointer += byte_count;
+    smb2_read_pointer += byte_count;
+    input_pointer += byte_count;
+    if (input_pointer == write_pointer) input_pointer = write_pointer=0;
+  }
+  byte *get_write_buffer_pointer(dword & byte_count) { byte_count=buffer_size-write_pointer; return buffer_base+write_pointer;}
+  byte *write_buffer_pointer() { return buffer_base+write_pointer;}
+  void discard_write_buffer_bytes(dword byte_count) { write_pointer+=byte_count;}
+  void advance_input_buffer_bytes(dword byte_count) {input_pointer+=byte_count;} ;
+
+
+
+
   void _attach_buffer(byte *_buffer_base, dword _buffer_size, dword preload_count)
   {
-   buffer_base=_buffer_base;buffer_size=_buffer_size;write_pointer=preload_count; read_pointer=0;
+   buffer_base=_buffer_base;buffer_size=_buffer_size;write_pointer=preload_count; input_pointer=0;
   // no logical view yet
    nbss_frame_size=smb2_frame_size=nbss_read_pointer=smb2_read_pointer=0;
   }
@@ -364,7 +426,7 @@ private:
        if (buffered_byte_count==0)
        {
          dword sourced_byte_count=0;
-         NetStatus status = data_sourcer->source_data(read_buffer_pointer(),std::min(byte_count,read_buffer_free()), sourced_byte_count);
+         NetStatus status = data_sourcer->source_data(input_buffer_pointer(),std::min(byte_count,input_buffer_free()), sourced_byte_count);
          if (status != NetStatusOk)
            return status;
          write_pointer += sourced_byte_count;
@@ -396,7 +458,7 @@ private:
       if (buffered_byte_count==0)
       {
         dword sourced_byte_count=0;
-        NetStatus status = data_sourcer->source_data(read_buffer_pointer(),std::min(byte_count,read_buffer_free()), sourced_byte_count);
+        NetStatus status = data_sourcer->source_data(input_buffer_pointer(),std::min(byte_count,input_buffer_free()), sourced_byte_count);
         if (status != NetStatusOk)
           return status;
          write_pointer += sourced_byte_count;

@@ -47,8 +47,8 @@ bool NewSmb2Session::connect_buffers()
 
   sinksockContext.socket = SmbSocket.socket();
   SocketSink.AssignSendFunction(socket_sink_function, (void *)&sinksockContext);
-  SendBuffer.attach_sink(&SocketSink);
-
+  SendBuffer.attach_socket(SmbSocket);
+  return true;
 }
 
 void NewSmb2Session::set_share_parameters(char *_share_name, int sharenumber)
@@ -95,6 +95,7 @@ bool NewSmb2Session::connect_socket()
     cout_log(LL_JUNK)  << "Socket connect failed, back to dead" << endl;
     session_state(CSSN_STATE_DEAD);
   }
+  return true;
 }
 void NewSmb2Session::disconnect_socket()
 {

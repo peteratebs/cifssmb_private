@@ -100,7 +100,7 @@ typedef enum
 } ConnectionState_t;
 
 public:
-  SmbSocket_c()                         {_p_ipvalid=false; connection_state=NoSocket; }
+  SmbSocket_c()                         {_p_ipvalid=false; connection_state=NoSocket; idle_func = 0;}
   int connect()
   {
     int r = -1;

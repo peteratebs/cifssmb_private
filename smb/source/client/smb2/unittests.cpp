@@ -20,6 +20,11 @@
 #include "session.hpp"
 #include "smb2socks.hpp"
 
+void include_wiretests()
+{
+}
+#if(0)
+
 // Use static initializer constructor to intitialize run time table
 static std::string endr = std::string (15, (char) ' ') + "\r";
 class NetTestObject  : public NetWireStruct   {
@@ -214,3 +219,4 @@ static void _TestBufferingType(int test_buffertype)
       s += bytes_pulled;
     } while (bytes_pulled!=0);
 }
+#endif

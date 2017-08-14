@@ -78,10 +78,11 @@ public:
   char *user_name()    {return _p_username; }
   char *password()     {return _p_password;  }
   char *domain()       {return _p_domain;    }
-  char *workstation()       {return "workstation";    }
+  char *workstation()       {return (char *)"workstation";    }
   void user_uid(ddword uid) { _p_uid = uid; }
   void update_timestamp()   { _p_timestamp = rtp_get_system_msec (); };
-  ddword next_message_id() { return _p_session_mid++; }
+  ddword unconnected_message_id() { _p_session_mid=0; return _p_session_mid;}
+  ddword next_message_id() { return ++_p_session_mid; }
 
   void user_state(RTSMB_CLI_SESSION_USER_STATE user_state) { _p_user_state=user_state; }
   RTSMB_CLI_SESSION_USER_STATE user_state() { return _p_user_state; }
@@ -90,8 +91,8 @@ public:
   int  spnego_blob_size_from_server()  { return _p_spnego_blob_size_from_server ; }
   void spnego_blob_size_from_server(int size)  { _p_spnego_blob_size_from_server =size; }
 
-  NetStreamBuffer    SendBuffer;
-  NetStreamBuffer    ReplyBuffer;
+  NetStreamOutputBuffer    SendBuffer;
+  NetStreamBuffer          ReplyBuffer;
 
   NewSmb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
 

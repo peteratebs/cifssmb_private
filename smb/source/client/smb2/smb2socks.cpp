@@ -250,7 +250,11 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
 int rtsmb2_net_read(RTP_SOCKET sd, byte *pData, int size, int minsize)
 {
 smbIdleFn idle_func=0; byte * idle_data=0;
-   return  smb_recv_at_least (sd, pData, minsize, size, idle_func, idle_data);
+
+
+   int r = smb_recv_at_least (sd, pData, minsize, size, idle_func, idle_data);
+   cout_log(LL_JUNK) << "rtsmb2_net_read Read n bytes: "  << r << " to : " << std::hex << (ddword) pData << endl;
+   return r;
 }
 
 /*************************************************************************

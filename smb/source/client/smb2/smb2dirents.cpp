@@ -1,3 +1,5 @@
+#if(0)
+
 //
 // smb2dirents.cpp -
 //
@@ -110,7 +112,7 @@ private:
     } while(doLoop);
     return 0;
   }
-int rtsmb2_cli_session_send_querydirectory_method (NetStreamBuffer &SendBuffer)
+int rtsmb2_cli_session_send_querydirectory_method (NetStreamOutputBuffer &SendBuffer)
 {
   dword variable_content_size = 0;  // Needs to be known before Smb2NBSSCmd is instantiated
   NetNbssHeader       OutNbssHeader;
@@ -200,7 +202,7 @@ int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuffer)
   ReplyBuffer.attach_source(SocketSource);
   // pull the bytes we processed already .
   // easier to do outside the template for now.
-  s = ReplyBuffer.toss_input(InSmb2Header.FixedStructureSize()+Smb2QuerydirectoryReply.FixedStructureSize()-1);
+//  s = ReplyBuffer.toss_input(InSmb2Header.FixedStructureSize()+Smb2QuerydirectoryReply.FixedStructureSize()-1);
   if (s != NetStatusOk)
   {
     return RTSMB_CLI_SSN_RV_DEAD;
@@ -218,7 +220,7 @@ int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuffer)
   while (bytes_pulled < byte_count && s==NetStatusOk)
   {
     dword _bytes_pulled;
-    s = ReplyBuffer.pull_input(byte_count,_bytes_pulled);
+// XX    s = ReplyBuffer.pull_input(byte_count,_bytes_pulled);
     if (s==NetStatusOk)
       bytes_pulled += _bytes_pulled;
   }
@@ -239,3 +241,5 @@ extern int do_smb2_querydirectory_worker(int sid,  byte *share_name, word *patte
   SmbQuerydirectoryWorker QuerydirectoryWorker(sid, share_name, pattern);
   return QuerydirectoryWorker.go();
 }
+
+#endif

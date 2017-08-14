@@ -132,7 +132,11 @@ class NetWireblob  : public NetWire {
     NetWireblob() {blob_size=0;}
     NetWireblob(int size) {blob_size=size;}
 protected:
-    void get(void *p)  { tc_memcpy(p, raw_address, blob_size);}
+    void get(void *p)
+    {
+cout_log(LL_JUNK) << "get blob n bytes: "  << blob_size << " from : " << std::hex << (ddword) raw_address << endl;
+         tc_memcpy(p, raw_address, blob_size);
+    }
 private:
 };
 
@@ -208,7 +212,7 @@ public:
   NetWireStruct() { isvariable = false; base_address=0; variablesize=0;};
   virtual int  FixedStructureSize()  { return (int)objectsize; };
   virtual void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
-  virtual NetStatus push_output(NetStreamBuffer  &StreamBuffer)  {    return StreamBuffer.push_output(base_address, objectsize+variablesize); }
+  virtual NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)  {    return StreamBuffer.push_to_buffer(base_address, objectsize+variablesize); }
 
 
 protected:
