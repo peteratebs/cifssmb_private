@@ -121,5 +121,6 @@ int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t b
 int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
 void spnego_init_extended_security(void);
 
+int spnego_get_client_ntlmv2_response_blob(byte *pblob);
 
 #endif /* __SMBSPNEGO_H__ */

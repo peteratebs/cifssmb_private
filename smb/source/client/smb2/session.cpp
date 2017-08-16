@@ -76,12 +76,6 @@ void NewSmb2Session::set_share_parameters(char *_share_name, int sharenumber)
 
 extern int do_smb2_logon_server_worker(NewSmb2Session &Session);
 
-// Basically need to poll the socket for input here and then call the recv handler
-int NewSmb2Session::wait_on_job()
-{
-  return RTSMB_CLI_SSN_RV_OK;
-
-}
 bool NewSmb2Session::connect_socket()
 {
   session_state(CSSN_STATE_CONNECTING);

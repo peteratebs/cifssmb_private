@@ -63,7 +63,7 @@ typedef unsigned char   byte;   //8-bit
 typedef unsigned short  word;   //16-bit
 typedef unsigned long   dword;  //32-bit
 typedef unsigned long long ddword;  //32-bit
-
+typedef ptrdiff_t RTP_ADDR;
 
 #define LARGEST_STRING 255
 
@@ -253,7 +253,6 @@ typedef struct
 int rtsmb_cli_session_find_first(int sid, char *sharename, char *pattern, NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 int rtsmb_cli_session_find_next(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 void rtsmb_cli_session_find_close(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
-int wait_on_job_cpp(int sid, int job);
 
 class Smb2Session {
 public:

@@ -139,9 +139,9 @@ private:
 
 #if(0) // Need to adapt the code below for logoff support
 
-static int rtsmb2_cli_session_send_logoff_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_logoff_error_handler(NetStreamInputBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
-static int rtsmb2_cli_session_send_logoff (NetStreamBuffer &SendBuffer)
+static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
 {
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
@@ -160,7 +160,7 @@ static int rtsmb2_cli_session_send_logoff (NetStreamBuffer &SendBuffer)
   }
   return Smb2NBSSCmd.status;
 }
-static int rtsmb2_cli_session_receive_logoff (NetStreamBuffer &ReplyBuffer)
+static int rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &ReplyBuffer)
 {
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
@@ -174,9 +174,9 @@ c_smb2cmdobject logoffobject = { rtsmb2_cli_session_send_logoff,rtsmb2_cli_sessi
 c_smb2cmdobject *get_logoffobject() { return &logoffobject;};
 
 
-static int rtsmb2_cli_session_send_disconnect_error_handler(NetStreamBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
+static int rtsmb2_cli_session_send_disconnect_error_handler(NetStreamInputBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
 
-static int rtsmb2_cli_session_send_disconnect (NetStreamBuffer &SendBuffer)
+static int rtsmb2_cli_session_send_disconnect (NetStreamInputBuffer &SendBuffer)
 {
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
@@ -195,7 +195,7 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamBuffer &SendBuffer)
   }
   return Smb2NBSSCmd.status;
 }
-static int rtsmb2_cli_session_receive_disconnect (NetStreamBuffer &ReplyBuffer)
+static int rtsmb2_cli_session_receive_disconnect (NetStreamInputBuffer &ReplyBuffer)
 {
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
@@ -210,8 +210,6 @@ public:
   int go()
   {
      int r = rtsmb_cli_session_logoff_user(sid);
-     if(r < 0) return 0;
-     r = wait_on_job_cpp(sid, r);
      if(r < 0) return 0;
     return(1);
   }

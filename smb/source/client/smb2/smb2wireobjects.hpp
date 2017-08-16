@@ -78,7 +78,7 @@ class NetNbssHeader  : public NetWireStruct   {
    NetNbssHeader() {objectsize=4;}
    NetWirebyte       nbss_packet_type;
    NetWire24bitword  nbss_packet_size;
-   byte *FixedStructureAddress() { return 0; };
+   byte *FixedStructureAddress() { return base_address; };
    int  FixedStructureSize()  { return objectsize; };
    void SetDefaults()  { };
    unsigned char *bindpointers(byte *_raw_address) {
@@ -89,6 +89,13 @@ class NetNbssHeader  : public NetWireStruct   {
     NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
     {
      return StreamBuffer.push_to_buffer(base_address, objectsize);
+    }
+    void show_contents()
+    {
+        long psize = nbss_packet_size();
+        ddword d=(ddword)FixedStructureAddress();
+        cout << ":::::: Incoming NetNbssHeader at : " << std::hex << d << endl;
+        cout << "::::::::: of Size: " << std::dec << psize << endl;
     }
 private:
   void BindAddressOpen(BindNetWireArgs & args) {};
@@ -141,6 +148,23 @@ public:
   NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
     return StreamBuffer.push_to_buffer(base_address, FixedStructureSize());
+  }
+  void show_contents()
+  {
+    ddword d=(ddword)FixedStructureAddress();
+     cout << ":::::: NetSmb2Header At: " << std::hex << d << endl;
+    char c[4]; c[0] = ProtocolId()[1]; c[1] = ProtocolId()[2]; c[2] = ProtocolId()[3]; c[3] = 0;
+     cout << ":::::: NetSmb2Header Proto         : " <<  ProtocolId() << endl;
+     cout << ":::::: NetSmb2Header size          : " << StructureSize() << endl;
+     cout << ":::::: NetSmb2Header CreditCharge  : " << CreditCharge() << endl;
+     cout << ":::::: NetSmb2Header Status        : " << Status_ChannelSequenceReserved() << endl;
+     cout << ":::::: NetSmb2Header Command       : " << Command() << endl;
+     cout << ":::::: NetSmb2Header CreditResponse: " << CreditRequest_CreditResponse() << endl;
+     cout << ":::::: NetSmb2Header Flags         : " << std::hex << Flags() << std::dec << endl;
+     cout << ":::::: NetSmb2Header NextCommand   : " << NextCommand() << endl;
+     cout << ":::::: NetSmb2Header MessageId     : " << MessageId() << endl;
+     cout << ":::::: NetSmb2Header TreeId        : " << TreeId() << endl;
+     cout << ":::::: NetSmb2Header SessionId     : " << SessionId() << endl;
   }
 
 private:
@@ -426,7 +450,7 @@ private:
 template <class T>
 class NetSmb2NBSSReply {
 public:
-  NetSmb2NBSSReply(word command, NetStreamBuffer &_ReplyBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
+  NetSmb2NBSSReply(word command, NetStreamInputBuffer &_ReplyBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
   {
     ReplyBuffer=&_ReplyBuffer; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
     isvariable = false; base_address=0; variablesize=0;
@@ -448,15 +472,14 @@ public:
        base_address = _raw_address;
        byte *nbsshead = _raw_address; // Was this in earklier build. ReplyBuffer->session_wire_incoming_nbss_header;
        byte *nbsstail =nbss->bindpointers(nbsshead);
-       byte *smbtail = smb2->bindpointers(base_address);
+       byte *smbtail = smb2->bindpointers(nbsstail);
        byte *replytail = reply->bindpointers(smbtail);
-       ReplyBuffer->attach_nbss(nbss->nbss_packet_size());     // Log the size of the new frame
        return _raw_address+FixedStructureSize();}
   byte *FixedStructureAddress() { return base_address; };
 
   private:
      T                  *reply;
-     NetStreamBuffer    *ReplyBuffer;
+     NetStreamInputBuffer    *ReplyBuffer;
      NetNbssHeader       *nbss;
      NetSmb2Header       *smb2;
      byte *base_address;

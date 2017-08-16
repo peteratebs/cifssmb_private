@@ -230,19 +230,19 @@ void spnego_free_extended_security(void)
 {
   if (target_config_unicode.target_name)
   {
-    rtp_free(target_config_unicode.target_name            );
-    rtp_free(target_config_unicode.netbios_domain_name    );
-    rtp_free(target_config_unicode.netbios_computer_name  );
-    rtp_free(target_config_unicode.dns_domain_name        );
-    rtp_free(target_config_unicode.dns_computer_name      );
+    rtp_free(target_config_unicode.target_name            );  // exit_level but not used
+    rtp_free(target_config_unicode.netbios_domain_name    );  // exit_level but not used
+    rtp_free(target_config_unicode.netbios_computer_name  );  // exit_level but not used
+    rtp_free(target_config_unicode.dns_domain_name        );  // exit_level but not used
+    rtp_free(target_config_unicode.dns_computer_name      );  // exit_level but not used
   }
 }
 
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
 {
-  if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);
-  if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);
+  if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);         // command_level
+  if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);     // command_level
 }
 
 
@@ -382,8 +382,8 @@ static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *pre
 {
   if (presource) {
     if (presource->value_at_offset)
-      rtp_free(presource->value_at_offset);
-    rtp_free(presource);
+      rtp_free(presource->value_at_offset);                                // command_level
+    rtp_free(presource);                                                   // command_level
   }
 }
 

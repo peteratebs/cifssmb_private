@@ -69,9 +69,6 @@ public:
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
 
-  int wait_on_job();
-
-
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
   int  sid()           {return _p_sid;       }
@@ -92,7 +89,7 @@ public:
   void spnego_blob_size_from_server(int size)  { _p_spnego_blob_size_from_server =size; }
 
   NetStreamOutputBuffer    SendBuffer;
-  NetStreamBuffer          ReplyBuffer;
+  NetStreamInputBuffer          ReplyBuffer;
 
   NewSmb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
 

@@ -22,7 +22,7 @@
 #include "smb2wireobjects.hpp"
 #include "mswireobjects.hpp"
 
-Smb2Session *smb2_reply_buffer_to_session(NetStreamBuffer &ReplyBuffer);
+Smb2Session *smb2_reply_buffer_to_session(NetStreamInputBuffer &ReplyBuffer);
 extern int FormatDirscanToDstat(void *pBuffer);
 
 
@@ -93,7 +93,6 @@ private:
         {
           return 1;
         }
-        r1 = wait_on_job_cpp(sid, r1);
         // This is the SMB2 flavor of search continue
 // Cheating, using RTSMB_CLI_SSN_SMB2_COMPUND_INPUT to assume he wants another
 // Should really be RTSMB_CLI_SSN_SMB2_QUERY_MORE
@@ -105,7 +104,6 @@ private:
             {
               return 1;
             }
-            r1 = wait_on_job_cpp(sid, r1);
         }
 
         rtsmb_cli_session_find_close(sid, &dstat1);
@@ -166,7 +164,7 @@ int rtsmb2_cli_session_send_querydirectory_method (NetStreamOutputBuffer &SendBu
   return Smb2NBSSCmd.status;
 }
 
-int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuffer)
+int rtsmb2_cli_session_receive_querydirectory (NetStreamInputBuffer &ReplyBuffer)
 {
   dword in_variable_content_size = 0;
   NetNbssHeader       InNbssHeader;
@@ -228,7 +226,6 @@ int rtsmb2_cli_session_receive_querydirectory (NetStreamBuffer &ReplyBuffer)
 //  pSmb2Session->job_data()->findsmb2.answering_dstat->sid = pSmb2Session->job_data()->findsmb2.search_struct->sid;
   if (InSmb2Header.NextCommand())
   {
-    cout_log(LL_JUNK)  << "Yo next :" << InSmb2Header.NextCommand() << "Stream view: " << ReplyBuffer.get_smb2_read_pointer() << endl;
     return RTSMB_CLI_SSN_SMB2_QUERY_MORE;
   }
   return  RTSMB_CLI_SSN_RV_OK;

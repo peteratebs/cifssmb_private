@@ -156,9 +156,9 @@ static void _TestBufferingType(int test_buffertype)
 //    std::for_each(nums.begin(), nums.end(), [](int &n, &index){ n = index++; });
     for(dword i=0;i<TESTBUFFER_SIZE_D;i++) source_pattern[i]=i;
 
-    cout_log(LL_TESTS)  << "*** Testing NetStreamBuffer object *** type: " << test_buffertype << endl;
-    NetStreamBuffer  TestBuffer;
-    cout_log(LL_TESTS)  << "*** Filling NetStreamBuffer object *** " << endl;
+    cout_log(LL_TESTS)  << "*** Testing NetStreamInputBuffer object *** type: " << test_buffertype << endl;
+    NetStreamInputBuffer  TestBuffer;
+    cout_log(LL_TESTS)  << "*** Filling NetStreamInputBuffer object *** " << endl;
     StreamBufferDataSource TestDataSource;
 
     memcpydevContext cpydevContext = {(byte *) source_pattern,TESTBUFFER_SIZE };
