@@ -36,14 +36,14 @@ public:
 
 
 
-class NewSmb2Session {
+class Smb2Session {
 public:
 
 // - Use these istead of smb1 structures
 //  RTSMB2_CLI_SESSION_USER  user;
 //  RTSMB2_CLI_SESSION_SHARE share;
-//  NewSmb2Session() ;
-  NewSmb2Session()
+//  Smb2Session() ;
+  Smb2Session()
   {
     _p_sid = 0;
     session_state(CSSN_STATE_DEAD);

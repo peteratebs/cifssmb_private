@@ -17,7 +17,7 @@
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "session.hpp"
+#include "smb2session.hpp"
 #include "smb2socks.hpp"
 #include "smb2spnego.hpp"
 
@@ -47,31 +47,6 @@ static const byte KERBV5[] =  {0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0
 static const byte KERBV5L[] = {0x06, 0x09, 0x2a, 0x86, 0x48, 0x82, 0xf7, 0x12, 0x01, 0x02, 0x02}; // 1.2.840.48018.1.2.2
 static const byte NTLMSSP[] = {0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x02, 0x02, 0x0a};   // 1.3.6.1.4.1.311.2.2.10
 
-#define MAX_OBJECT_PER_OUTPUT_STREAM 64
-
-// Stream data type for encoding output buffer into streams and substreams and for fixing up variable length width fields
-typedef struct spnego_output_stream_s {
-  void  *context;
-  bool resolving_widths;              // If true we are enumerating to calculate widths
-  int  object_index;                  // index at this level of who we are
-  int   object_count;                  // If resolving_widths phase is completed this is the maximum depth
-#define OBJECT_WIDTH_UNRESOLVED 0x8000ul // ored in if we don't know it yet.
-  dword  object_widths[MAX_OBJECT_PER_OUTPUT_STREAM];
-  byte  *stream_base;
-  byte  *stream_pointer;
-  byte  *stream_end;
-} spnego_output_stream_t;
-
-#define SPNEGO_PACKET_TOO_LARGE -1
-#define SPNEGO_OBJCOUNT_TOO_DEEP -2
-
-// Stream data type for decoding input buffer into streams and substreams a pouplating decoded_toke structure from stream content.
-typedef struct decode_token_stream_s {
-  void  *decoded_token;  // Actually of typ decoded_init_token_t *.
-  byte  *stream_base;
-  byte  *stream_pointer;
-  byte  *stream_next;
-} decode_token_stream_t;
 
 
 // NTLM_RESP_FLAGS
@@ -156,30 +131,12 @@ static /*const*/ byte ntlm_reserved[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0
 static /*const*/ byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x0f};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
 
-static int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b);
-static int decode_token_stream_fetch_length(decode_token_stream_t *pstream, size_t *l);
-static int decode_token_stream_fetch_oid(decode_token_stream_t *pstream, byte *poid);
-static int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b);
-static unsigned long asn1_decode_length(unsigned char **ppbuffer);
-static size_t asn1_calculate_width_of_width_field(unsigned long l);
-static oid_t oid_string_to_oid_t(byte *pbuffer);
-static unsigned char *asn1_encode_length(unsigned char *pbuffer,unsigned long l);
-static void decode_token_stream_constructor(decode_token_stream_t *pstream,void  *decoded_token,byte  *stream_base, size_t stream_len);
-static int decode_token_stream_fetch(decode_token_stream_t *pstream,byte  *fetch_buffer, size_t fetch_count);
-static int decode_token_stream_fetch_obj(decode_token_stream_t *pstream, void *prv, asn1_objtype_t objtype);
-static int decode_token_stream_fetch_flags(decode_token_stream_t *pstream, dword *pFlags);
-static word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string);
-static int decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *w);
-static int decode_token_stream_fetch_dword(decode_token_stream_t *pstream, dword *dw);
-static int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
-static int _spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 
 int SpnegoClient::spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
   return _spnego_decode_NegTokenTarg_challenge(decoded_targ_token, pinbuffer, buffer_length);
 }
 
-static int _spnego_get_client_ntlmv2_response_blob(byte *pblob);
 int SpnegoClient::spnego_get_client_ntlmv2_response_blob(byte *pblob)
 {
  return _spnego_get_client_ntlmv2_response_blob(pblob);
@@ -188,8 +145,8 @@ int SpnegoClient::spnego_get_client_ntlmv2_response_blob(byte *pblob)
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
 {
-  if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);         // command_level
-  if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);     // command_level
+  if (decoded_token->mechToken) rtp_freed_from_object(decoded_token->mechToken);         // command_level
+  if (decoded_token->mechListMic) rtp_freed_from_object(decoded_token->mechListMic);     // command_level
 }
 
 //  This function is called by ProcSetupAndx when command.capabilities & CAP_EXTENDED_SECURITY is true and it is not an NTLMSSP security request
@@ -208,7 +165,7 @@ void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_toke
 //      size_t mechListMicSize;  // 0 to start
 //     } decoded_NegTokenInit_t;
 
-int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length)
+int SpnegoClient::spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length)
 {
   byte b;
   size_t l;
@@ -302,14 +259,14 @@ int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token
       case 0xa2: //      mechToken     [2]  OCTET STRING  OPTIONAL,   Security token to use in the challenge if we support the the protocol in mechTypes[0]. This is called optimistic token and is sent in the hope that server will also select the same mechanism as client.
         if (decode_token_stream_fetch_byte  (&decode_context_stream, &b) <=0 || b != 0x4) return SPNEGO_MALFORMED_PACKET; // BER octet string followed by length of mechToken
         if (decode_token_stream_fetch_length(&decode_context_stream, &l)<=0)             return SPNEGO_MALFORMED_PACKET;
-        decoded_init_token->mechToken = (byte*)rtp_malloc(l);
+        decoded_init_token->mechToken = (byte*)local_rtp_malloc(l);
         if (!decoded_init_token->mechToken)
           return SPNEGO_SYSTEM_ERROR;
         decoded_init_token->mechTokenSize = l;
         memcpy(decoded_init_token->mechToken, decode_context_stream.stream_pointer, l);
         break;
       case 0xa3: //      mechListMIC   [3]  OCTET STRING  OPTIONAL    probably this for NTLM tbd "not_defined_in_rfc4178@please_ignore"  Mechanism List Message Integrity Code, Used for signing
-        decoded_init_token->mechListMic = (byte*)rtp_malloc(l_current_context);
+        decoded_init_token->mechListMic = (byte*)local_rtp_malloc(l_current_context);
         if (!decoded_init_token->mechListMic)
           return SPNEGO_SYSTEM_ERROR;
         memcpy(decoded_init_token->mechListMic, decode_context_stream.stream_pointer, l_current_context);
@@ -323,35 +280,10 @@ int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token
   return 0;
 }
 
-static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *presource)
-{
-  if (presource) {
-    if (presource->value_at_offset)
-      rtp_free(presource->value_at_offset);                                // command_level
-    rtp_free(presource);                                                   // command_level
-  }
-}
-
-void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_targ_token)
-{
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->lm_response);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->ntlm_response);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->user_name);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->domain_name);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->host_name);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->session_key);
-}
-
-void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token)
-{
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->target_name);
-  decode_token_stream_security_buffer_destructor(decoded_targ_token->target_info);
-}
-
 
 // Extract a resurce object length, max_length and offset from a stream.
 // Allocate and copy in the rest
-static int decode_token_stream_fetch_security_buffer(decode_token_stream_t *pstream, byte *blob_base, SecurityBuffer_t **_presource)
+int SpnegoClient::decode_token_stream_fetch_security_buffer(decode_token_stream_t *pstream, byte *blob_base, SecurityBuffer_t **_presource)
 {
 dword dw;
 word length_w, max_w;
@@ -368,18 +300,18 @@ word length_w, max_w;
     return SPNEGO_SYSTEM_ERROR;
   if (length_w)
   {
-    SecurityBuffer_t *presource = (SecurityBuffer_t *)rtp_malloc(sizeof(SecurityBuffer_t));
+    SecurityBuffer_t *presource = (SecurityBuffer_t *)local_rtp_malloc(sizeof(SecurityBuffer_t));
     if (!presource)
       return SPNEGO_SYSTEM_ERROR;
     *_presource = presource;
     presource->size = length_w;
     presource->offset = (word) dw;
     // allocate the buffer, add 2 bytes so we can null terminate in case it's a string since strings are not terminated in the packet
-    presource->value_at_offset = (byte *)rtp_malloc(length_w+2);
+    presource->value_at_offset = (byte *)local_rtp_malloc(length_w+2);
     if (!presource->value_at_offset)
     {
       *_presource = 0;
-      rtp_free(presource);
+      rtp_freed_from_object(presource);
       return SPNEGO_SYSTEM_ERROR;
     }
     byte *data_at_offset = blob_base + dw;
@@ -392,7 +324,7 @@ word length_w, max_w;
 }
 
 // decode a length field and return the value, update the buffer address
-static unsigned long asn1_decode_length(unsigned char **ppbuffer)
+unsigned long SpnegoClient::asn1_decode_length(unsigned char **ppbuffer)
 {
 unsigned long l = 0;
 unsigned char c;
@@ -420,7 +352,7 @@ unsigned char *pbuffer = *ppbuffer;
 }
 
 // Extract the oid field from a buffer and advance the buffer, return the oid type if it is known
-static oid_t oid_string_to_oid_t(byte *pbuffer)
+oid_t SpnegoClient::oid_string_to_oid_t(byte *pbuffer)
 {
  oid_t r = oid_none;
  if (*pbuffer == 0x06)
@@ -474,7 +406,7 @@ static oid_t oid_string_to_oid_t(byte *pbuffer)
 //   } decoded_NegTokenTarg__challenge_t;
 
 
-static int _spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
+int SpnegoClient::_spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
   byte b;
   size_t l;
@@ -593,7 +525,7 @@ static int _spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_
 //   return SPNEGO_OBJCOUNT_TOO_DEEP if too many objects.
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width(1) if all is well
-static int decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte b)
+int SpnegoClient::decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte b)
 {
   if (pstream->resolving_widths)
   {
@@ -619,7 +551,7 @@ static int decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte
 //   return SPNEGO_OBJCOUNT_TOO_DEEP if too many objects.
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width if all is well
-static int decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, void *_pb, size_t width)
+int SpnegoClient::decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, void *_pb, size_t width)
 {
   byte *pb = (byte *)_pb;
   if (pstream->resolving_widths)
@@ -647,7 +579,7 @@ static int decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, voi
 //   return SPNEGO_OBJCOUNT_TOO_DEEP if too many objects.
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width if all is well
-static int decode_token_stream_encode_length(spnego_output_stream_t *pstream, dword l)
+int SpnegoClient::decode_token_stream_encode_length(spnego_output_stream_t *pstream, dword l)
 {
 dword _l;
 int extra_width=0;
@@ -763,7 +695,7 @@ int width=1;
 
 #endif
 //  After pass 1 completes, Resolve foreward references to unknown length values for containers.
-static void decode_token_stream_encode_fixup_lengths(spnego_output_stream_t *pstream)
+void SpnegoClient::decode_token_stream_encode_fixup_lengths(spnego_output_stream_t *pstream)
 {
  int object_index;
  dword inner_l=0;
@@ -796,7 +728,7 @@ static void decode_token_stream_encode_fixup_lengths(spnego_output_stream_t *pst
 //   return SPNEGO_PACKET_TOO_LARGE  if stream buffer is too small
 //   return width if all is well
 
-static int decode_token_stream_encode_app_container(spnego_output_stream_t *pstream, byte Token)
+int SpnegoClient::decode_token_stream_encode_app_container(spnego_output_stream_t *pstream, byte Token)
 {
 int lwidth;
 int r;
@@ -820,7 +752,7 @@ int r;
 }
 
 // Initialize an output stream or substream starting at stream_base with length stream_len do not zero width accumulators when resolving_widths == false
-static void spnego_output_stream_stream_constructor(spnego_output_stream_t *pstream,void  *context,byte  *stream_base, size_t stream_len,bool resolving_widths)
+void SpnegoClient::spnego_output_stream_stream_constructor(spnego_output_stream_t *pstream,void  *context,byte  *stream_base, size_t stream_len,bool resolving_widths)
 {
   if (resolving_widths)
      rtp_memset(pstream,0,sizeof(*pstream));
@@ -832,19 +764,19 @@ static void spnego_output_stream_stream_constructor(spnego_output_stream_t *pstr
   pstream->stream_end=stream_base+stream_len;
 }
 
-static word rtsmb_util_unicode_strlen(void *_str)
+word SpnegoClient::rtsmb_util_unicode_strlen(void *_str)
 {
 word l=0;
 word *str = (word *) _str;
   while (str[l]) l++;
   return l;
 }
-static word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string)
+word *SpnegoClient::rtsmb_util_malloc_ascii_to_unicode (char *ascii_string)
 {
 word *p;
 size_t w;
   w=rtp_strlen(ascii_string)*2+2;
-  p=(word*)rtp_malloc(w);
+  p=(word*)local_rtp_malloc(w);
   rtsmb_util_ascii_to_unicode (ascii_string ,p , w);
   return (p);
 }
@@ -864,7 +796,7 @@ typedef struct resource_strings_s {
 static const byte spnego_client_ntlmssp_response_blob[] = {0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00}; // 0x0101000 00000000
 static byte mystamp[] = {0x11,0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
 static byte mynonce[] = {0x88,0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
-static int _spnego_get_client_ntlmv2_response_blob(byte *pblob)
+int SpnegoClient::_spnego_get_client_ntlmv2_response_blob(byte *pblob)
 {
     memcpy(pblob, spnego_client_ntlmssp_response_blob, sizeof (spnego_client_ntlmssp_response_blob) );
     ddword *pddw= (ddword *)(pblob+8);
@@ -878,7 +810,7 @@ static int _spnego_get_client_ntlmv2_response_blob(byte *pblob)
 }
 
 // encode a type 3 NTLM response in response to to a server's challenge into outbuffer and return the length
-int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
+int SpnegoClient::spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
 {
 // DATA                    // Challenge data
 bool doing_size = true;
@@ -1030,7 +962,7 @@ int r;
 
 // encode length field and return the pointer to the next byte in the stream.
 #define MAX_LENGTHFIELD_WIDTH 32
-static unsigned char *asn1_encode_length(unsigned char *pbuffer,unsigned long l)
+unsigned char *SpnegoClient::asn1_encode_length(unsigned char *pbuffer,unsigned long l)
 {
 //unsigned char c;
 //  c = *pbuffer;
@@ -1058,7 +990,7 @@ static unsigned char *asn1_encode_length(unsigned char *pbuffer,unsigned long l)
   return pbuffer;
 }
 
-static size_t asn1_calculate_width_of_width_field(unsigned long l)
+size_t SpnegoClient::asn1_calculate_width_of_width_field(unsigned long l)
 {
 unsigned char buffer[MAX_LENGTHFIELD_WIDTH];
 unsigned char *p = asn1_encode_length(buffer,l);
@@ -1066,7 +998,7 @@ unsigned char *p = asn1_encode_length(buffer,l);
 }
 
 // Initialize a stream or substream starting at stream_base with length stream_len
-static void decode_token_stream_constructor(decode_token_stream_t *pstream,void  *decoded_token,byte  *stream_base, size_t stream_len)
+void SpnegoClient::decode_token_stream_constructor(decode_token_stream_t *pstream,void  *decoded_token,byte  *stream_base, size_t stream_len)
 {
   rtp_memset(pstream,0,sizeof(*pstream));
   pstream->decoded_token = decoded_token;
@@ -1078,7 +1010,7 @@ static void decode_token_stream_constructor(decode_token_stream_t *pstream,void 
 
 // Extract as many as fetch_count bytes from the stream up to the number of bytes left in the stream.
 // return number of bytes consumed, < 0 error, 0 means past end of stream
-static int decode_token_stream_fetch(decode_token_stream_t *pstream,byte  *fetch_buffer, size_t fetch_count)
+int SpnegoClient::decode_token_stream_fetch(decode_token_stream_t *pstream,byte  *fetch_buffer, size_t fetch_count)
 {
   if (pstream->stream_pointer<pstream->stream_next)
   {
@@ -1095,7 +1027,7 @@ static int decode_token_stream_fetch(decode_token_stream_t *pstream,byte  *fetch
 
 // Extract an asn1 encoded length value from a stream
 // return number of bytes consumed, < 0 error, 0 means past end of stream
-static int decode_token_stream_fetch_obj(decode_token_stream_t *pstream, void *prv, asn1_objtype_t objtype)
+int SpnegoClient::decode_token_stream_fetch_obj(decode_token_stream_t *pstream, void *prv, asn1_objtype_t objtype)
 {
   int r=SPNEGO_MALFORMED_PACKET;
   byte  *saved_stream_pointer = pstream->stream_pointer;
@@ -1159,7 +1091,7 @@ static int decode_token_stream_fetch_obj(decode_token_stream_t *pstream, void *p
 
 // Extract an asn1 encoded bitfield limited to 4 bytes from a stream
 // return number of bytes consumed, < 0 error, 0 means past end of stream
-static int decode_token_stream_fetch_flags(decode_token_stream_t *pstream, dword *pFlags)
+int SpnegoClient::decode_token_stream_fetch_flags(decode_token_stream_t *pstream, dword *pFlags)
 {
 byte  *saved_stream_pointer = pstream->stream_pointer;
 size_t l, unused_bits;
@@ -1193,20 +1125,20 @@ decode_token_stream_t decode_bitstream_stream;
 
 // Extract an asn1 encoded length value from a stream
 // return number of bytes consumed, < 0 error, 0 means past end of stream
-static int decode_token_stream_fetch_length(decode_token_stream_t *pstream, size_t *l)
+int SpnegoClient::decode_token_stream_fetch_length(decode_token_stream_t *pstream, size_t *l)
 {
   return decode_token_stream_fetch_obj(pstream, (void *)l, objtype_length);
 }
 
 // Fetch an asn1 encoded oid from a stream
 // return number of bytes consumed, < 0 error, 0 means past end of stream
-static int decode_token_stream_fetch_oid(decode_token_stream_t *pstream, byte *poid)
+int SpnegoClient::decode_token_stream_fetch_oid(decode_token_stream_t *pstream, byte *poid)
 {
   return decode_token_stream_fetch_obj(pstream, (void *)poid, objtype_oid);
 }
 // Fetch an asn1 encoded length value from a stream
 // return 1, < 0 means past end of stream
-static int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b)
+int SpnegoClient::decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b)
 {
   int r=SPNEGO_MALFORMED_PACKET;
   if (pstream->stream_pointer < pstream->stream_next)   // don't go past stream
@@ -1219,7 +1151,7 @@ static int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *
 
 // Fetch a word from the stream convert to host byte order, reetur <= 0 of error
 // return 1, < 0 means past end of stream
-static int decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *w)
+int SpnegoClient::decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *w)
 {
   int r=SPNEGO_MALFORMED_PACKET;
   if (pstream->stream_pointer+1 < pstream->stream_next)   // don't go past stream
@@ -1233,7 +1165,7 @@ static int decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *
 }
 
 // Fetch a dword from the stream convert to host byte order, reetur <= 0 of error
-static int decode_token_stream_fetch_dword(decode_token_stream_t *pstream, dword *dw)
+int SpnegoClient::decode_token_stream_fetch_dword(decode_token_stream_t *pstream, dword *dw)
 {
   int r=SPNEGO_MALFORMED_PACKET;
   if (pstream->stream_pointer+3 < pstream->stream_next)   // don't go past stream

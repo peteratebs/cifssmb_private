@@ -46,6 +46,7 @@
 
 #define rtp_malloc_auto_freed rtp_malloc
 #define rtp_free_auto_free rtp_free
+#define rtp_freed_from_object             // does nothing just a marker where rtp_free is replaced by the localallocator destructor.
 
 #define rtp_wcslen_bytes(S) (rtp_wcslen((S))*2)
 
@@ -282,12 +283,14 @@ int rtsmb_cli_session_find_first(int sid, char *sharename, char *pattern, NEWRTS
 int rtsmb_cli_session_find_next(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 void rtsmb_cli_session_find_close(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 
+#if(0)
 class Smb2Session {
 public:
   Smb2Session() {}
 #define CONNECTED 1
   int session_wire_state;
 };
+#endif
 
 typedef struct smb2_iostream_s {
   int xx;

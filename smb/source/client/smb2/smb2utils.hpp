@@ -44,7 +44,7 @@ using std::endl;
 class dualstring {
 public:
   dualstring(int _maxlen=LARGEST_STRING) {buflen=0;maxlen=_maxlen; utf16view=0; asciiview=0;};
-  ~dualstring() { if (utf16view) rtp_free(utf16view); if (asciiview) rtp_free(asciiview); };
+  ~dualstring() { if (utf16view) rtp_free(utf16view); if (asciiview) free_auto_free(asciiview); };
 //  word *utf16() { return (word *)((wchar_t *)utf16view.c_str()); }
   byte *ascii()  { return (byte *) asciiview;}
   word  *utf16() { return utf16view;}

@@ -17,12 +17,12 @@
 #include "netstreambuffer.hpp"
 #include "wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "session.hpp"
+#include "smb2session.hpp"
 
 
 extern "C" int smb2_cli_shell()
 {
-    NewSmb2Session ShellSession;
+    Smb2Session ShellSession;
     char *ip   = "192.168.1.2";
     byte mask[] = {255,255,255,0};
 

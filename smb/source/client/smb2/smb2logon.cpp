@@ -35,7 +35,7 @@ static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0
 
 class SmbLogonWorker : public local_allocator {
 public:
-  SmbLogonWorker(NewSmb2Session &_Session)
+  SmbLogonWorker(Smb2Session &_Session)
   {
     pSmb2Session = &_Session; do_setup_phase_two=false;
     spnego_blob_from_server = response_to_challenge=0;
@@ -89,7 +89,7 @@ private:
     byte   *spnego_blob_from_server;
     int    spnego_blob_size_from_server;
 
-    NewSmb2Session *pSmb2Session;
+    Smb2Session *pSmb2Session;
 
   int send_negotiate ()
   {
@@ -307,7 +307,7 @@ private:
 };
 
 
-extern int do_smb2_logon_server_worker(NewSmb2Session &Session)
+extern int do_smb2_logon_server_worker(Smb2Session &Session)
 {
   SmbLogonWorker LogonWorker(Session);
   return LogonWorker.do_logon_commands();
@@ -317,7 +317,6 @@ extern int do_smb2_logon_server_worker(NewSmb2Session &Session)
 static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
 
 
-int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
 
 int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length)
 {
@@ -366,9 +365,8 @@ rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2 output: ", output, 16,
 
 
 //    *response_to_challenge=(byte *)rtp_malloc(2048);;
-
     size_t ntlm_response_blob_size=
-            spnego_encode_ntlm2_type3_packet(
+            spnegoWorker.spnego_encode_ntlm2_type3_packet(
               (byte *)response_to_challenge,
               (size_t)MAXBLOB, // ntlm_response_blob_size,
               (byte *)ntlm_response_buffer_ram,

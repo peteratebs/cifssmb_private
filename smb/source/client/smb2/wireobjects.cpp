@@ -17,4 +17,4 @@
 #include "netstreambuffer.hpp"
 #include "wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "session.hpp"
+#include "smb2session.hpp"

@@ -17,7 +17,7 @@
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "session.hpp"
+#include "smb2session.hpp"
 #include "smb2socks.hpp"
 
 

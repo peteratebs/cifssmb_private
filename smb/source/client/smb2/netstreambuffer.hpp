@@ -303,7 +303,5 @@ private:
   }
 };
 
-Smb2Session *smb2_reply_buffer_to_session(NetStreamInputBuffer &ReplyBuffer);
-
 
 #endif // include_netstreambuffer

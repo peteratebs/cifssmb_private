@@ -27,7 +27,7 @@
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "session.hpp"
+#include "smb2session.hpp"
 #include "smb2socks.hpp"
 
 
@@ -37,7 +37,7 @@ static const word wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
 
 class SmbTreeConnectWorker {
 public:
-  SmbTreeConnectWorker(NewSmb2Session &_pSmb2Session)
+  SmbTreeConnectWorker(Smb2Session &_pSmb2Session)
   {
     pSmb2Session = &_pSmb2Session;
   }
@@ -49,7 +49,7 @@ public:
   }
 
 private:
-  NewSmb2Session *pSmb2Session;
+  Smb2Session *pSmb2Session;
   int share_number;
   int rtsmb_cli_session_connect_share (int _share_number=0)
   {
