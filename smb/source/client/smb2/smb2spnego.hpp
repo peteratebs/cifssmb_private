@@ -108,19 +108,35 @@ typedef struct ntlmv2_response_s {
 
 
 
+class SpnegoClient : public local_allocator {
+public:
+  SpnegoClient() {}
+  ~SpnegoClient() {}
+public:
+  int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
+  int spnego_get_client_ntlmv2_response_blob(byte *pblob);
+private:
+};
 
 
-void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
-int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
-void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
-void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
-int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
-int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
-int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
-int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
-void spnego_init_extended_security(void);
-
-int spnego_get_client_ntlmv2_response_blob(byte *pblob);
+//void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
+// int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
+//void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
+//int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+//void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
+//int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
+//int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
+//int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
+//int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+//void spnego_init_extended_security(void);
+// int spnego_get_client_ntlmv2_response_blob(byte *pblob);
+//void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
+//int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+//void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
+//int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
+//int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
+//int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
+//int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+//void spnego_init_extended_security(void);
 
 #endif /* __SMBSPNEGO_H__ */

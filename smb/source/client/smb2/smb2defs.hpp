@@ -24,6 +24,7 @@
 #include <memory>
 #include <cstddef>
 #include <cstring>
+#include <vector>
 #include "rtpstr.h"  // rtp_memcpy
 #include "rtptime.h"  // rtp_get_system_msec ();
 #include "rtpwcs.h"  // rtp_wcslen
@@ -58,6 +59,13 @@ using std::endl;
 // Macro for now but convert to a class for a better outcome
 #define cout_log(level) cout
 
+// Legacy code for dumping buffers doesn't work standalone for now, requires SMB1 package.
+#define DUMPBIN     0
+#define DUMPASCII   1
+#define DUMPUNICODE 2
+extern "C" void rtsmb_dump_bytes(const char *prompt, void *pbytes, int length, int format);
+
+
 
 typedef unsigned char   byte;   //8-bit
 typedef unsigned short  word;   //16-bit
@@ -69,19 +77,19 @@ typedef ptrdiff_t RTP_ADDR;
 
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
 /// dualstring string container can be intialized with ascii or utf16 and then be dereferenced by either type utf16() or the ascii() methods.
-/// Uses dynamic memory so use dualstringdecl(stringname) to ensure that the destrcutor is called to free memory.
+/// Uses dynamic memory that is freed by its destructror.
+/// For extra safety use the dualstringdecl(stringname) to ensure that the destuctor is called to free memory.
 class dualstring {
 public:
   dualstring(int _maxlen=LARGEST_STRING) {buflen=0;maxlen=_maxlen; utf16view=0; asciiview=0;};
   ~dualstring() { if (utf16view) rtp_free_auto_free(utf16view); if (asciiview) rtp_free_auto_free(asciiview); };
-//  word *utf16() { return (word *)((wchar_t *)utf16view.c_str()); }
-  byte *ascii()  { return (byte *) asciiview;}
+  char *ascii()  { return asciiview;}
   word  *utf16() { return utf16view;}
   int   utf16_length() { return strlen*2; }
   int   ascii_length() { return strlen; }
   bool  istoolong() {return (strlen > maxlen);}
-  void operator =(char *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
-  void operator =(word *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
+  void operator =(char *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (char *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
+  void operator =(word *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (char *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
 private:
   int maxlen;
   int buflen;
@@ -89,7 +97,26 @@ private:
   int arglen(char *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen; }
   int arglen(word *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen;}
   word *utf16view;
-  byte *asciiview;
+  char *asciiview;
+};
+
+typedef struct {void *ptr; size_t size;} allocated_item_t;
+inline void free_item(allocated_item_t &item) {  if (item.ptr)  { cout << "free item sized: " << std::dec << item.size << endl;   void *p = item.ptr;    rtp_free_auto_free(p);  } }
+/// Inheret this class to auto free heap data allocated with local_rtp_malloc(size_t nbytes) when the object's destructor runs
+class local_allocator {
+public:
+  local_allocator() {};
+  ~local_allocator() { std::for_each (allocated_items.begin(), allocated_items.end(), free_item);}
+  void *local_rtp_malloc(size_t nbytes)
+  {
+     allocated_item_t r;
+     r.size=nbytes;
+     r.ptr = rtp_malloc_auto_freed(nbytes);
+     allocated_items.push_back(r);
+     return r.ptr;
+  }
+private:
+  std::vector<allocated_item_t> allocated_items;
 };
 
 

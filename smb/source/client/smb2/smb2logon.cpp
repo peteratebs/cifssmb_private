@@ -14,20 +14,43 @@
 #include "smb2clientincludes.hpp"
 #include "smb2spnego.hpp"
 
-static int do_smb2_extended_setup_server_worker(NewSmb2Session *Session, decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-// This is fixed negTokeninit, mechType1 to evoke a challenge from the server ... see wireshark for decode
+//void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
+//int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
+//void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
+//int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+//void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
+//int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
+//int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
+//int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
+//int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+//void spnego_init_extended_security(void);
+//int spnego_get_client_ntlmv2_response_blob(byte *pblob);
+
+// This is fixed negTokeninit, mechType1 sent by setup to evoke a challenge from the server ... see wireshark for decode
 static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,
 0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0xd7,0x3a,0x00,0x00,0x00,0x0f};
 
-static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output);
-static int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte **allocated_blob_address);
-
-static byte ntlm_response_buffer_ram[1024];
+#define MAXBLOB 4096
 
 
-class SmbLogonWorker {
+class SmbLogonWorker : public local_allocator {
 public:
-  SmbLogonWorker(NewSmb2Session &_Session)        {     pSmb2Session = &_Session; do_setup_phase_two=false;  }
+  SmbLogonWorker(NewSmb2Session &_Session)
+  {
+    pSmb2Session = &_Session; do_setup_phase_two=false;
+    spnego_blob_from_server = response_to_challenge=0;
+    spnego_blob_from_server = (byte *)local_rtp_malloc(MAXBLOB);
+    response_to_challenge=(byte *)local_rtp_malloc(MAXBLOB);
+
+  }
+  ~SmbLogonWorker()
+  {
+  }
+
+  /// Send negotiate and wait for the response which will have dialect, capabilities and buffer sizes and a generic security blob
+  /// Send setup and wait for the response which will have a challenge blob
+  /// Encode the ntlm security blob from the callenge plus name, domain and UIDand send another setup
+  /// Set tate to logged in.
   int do_logon_commands()
   {
     // Send negotiate and wait for the response which will have a server challenge
@@ -54,6 +77,19 @@ public:
       r = receive_negotiate ();
     return r;
   }
+private:
+    int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length);
+    byte *cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output);
+    byte ntlm_response_buffer_ram[1024];
+    byte *response_to_challenge;
+
+    bool do_setup_phase_two;
+    byte *setup_blob;
+    dword setup_blob_size;
+    byte   *spnego_blob_from_server;
+    int    spnego_blob_size_from_server;
+
+    NewSmb2Session *pSmb2Session;
 
   int send_negotiate ()
   {
@@ -100,24 +136,15 @@ public:
     cout_log(LL_JUNK)  << "rtsmb2_cli_session_receive_negotiate received packet pulled #: " << bytes_pulled << endl;
     NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session->ReplyBuffer, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
 
-    InNbssHeader.show_contents();
-    InSmb2Header.show_contents();
-
-    cout_log(LL_JUNK) << " Negotiate InNbssHeader size: " << (int) InNbssHeader.nbss_packet_size() << endl;
-    cout_log(LL_JUNK) << " SMB StructureSize 65 ???: " << (int) InSmb2Header.StructureSize() << endl;
-    cout_log(LL_JUNK) << " Reply StructureSize 65 ???: " << (int) Smb2NegotiateReply.StructureSize() << endl;
-
-    cout_log(LL_JUNK) << " Need to purge:  " << InNbssHeader.nbss_packet_size() - bytes_pulled << endl;
-
-
+//    InNbssHeader.show_contents();
+//    InSmb2Header.show_contents();
     pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-
 
     if (Smb2NegotiateReply.SecurityBufferLength())
     {
-     pSmb2Session->user_uid(0);   // Hack it isn't set up yet
-     // This is the ignore rfc xx comment, no need to save it
-     pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
+       pSmb2Session->user_uid(0);   // Hack it isn't set up yet
+       // This is the ignore rfc xx comment, no need to save it
+       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
     }
     pSmb2Session->session_server_info_dialect =  (RTSMB_CLI_SESSION_DIALECT)Smb2NegotiateReply.DialectRevision();
 
@@ -132,7 +159,6 @@ public:
       pSmb2Session->session_server_info_raw_size   =   maxsize;
       // HEREHERE -  ReplyBuffer.session_server_info()->smb2_session_id = InSmb2Header->Smb2NegotiateReply???
      }
-  //   ReplyBuffer.session_pStream()->read_buffer_remaining = 0;   // Fore the top layer to stop.
      return RTSMB_CLI_SSN_RV_OK;
   }
 
@@ -229,20 +255,21 @@ public:
         return RTSMB_CLI_SSN_RV_DEAD;
       if (Smb2SetupReply.SecurityBufferLength() != security_bytes_pulled)
         return RTSMB_CLI_SSN_RV_DEAD;
-      pSmb2Session->spnego_blob_size_from_server(Smb2SetupReply.SecurityBufferLength());
-      pSmb2Session->spnego_blob_from_server((byte *)rtp_malloc(Smb2SetupReply.SecurityBufferLength()));
+      spnego_blob_size_from_server = std::max(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
-      memcpy( pSmb2Session->spnego_blob_from_server(), InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), Smb2SetupReply.SecurityBufferLength());
+      memcpy( spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), spnego_blob_size_from_server);
     }
     return RTSMB_CLI_SSN_RV_OK;
   }
   int do_extended_setup_command()
   {
+    class SpnegoClient spnegoWorker;
+
     do_setup_phase_two=true;
     decoded_NegTokenTarg_challenge_t decoded_targ_token;
-    int r = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
-                 pSmb2Session->spnego_blob_from_server(),
-                 pSmb2Session->spnego_blob_size_from_server());
+    int r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
+                 spnego_blob_from_server,
+                 spnego_blob_size_from_server);
 
 //    decoded_targ_token.Flags;
 //    decoded_targ_token.ntlmserverchallenge[8];
@@ -252,21 +279,19 @@ public:
 
 //typedef struct SecurityBuffer_s {  dword size;  word  offset;  byte  *value_at_offset;
 
- byte *allocated_blob_address=0;
  int blob_length = rtsmb_cli_session_ntlm_auth (
     pSmb2Session->user_name(),
     pSmb2Session->password(),
     pSmb2Session->domain(),
     decoded_targ_token.ntlmserverchallenge,
     decoded_targ_token.target_info->value_at_offset,
-    decoded_targ_token.target_info->size, &allocated_blob_address);
+    decoded_targ_token.target_info->size);
 
-    if (setup_blob_size &&  allocated_blob_address)
+    if (setup_blob_size &&  response_to_challenge)
     {
-      setup_blob = (byte *) allocated_blob_address;
+      setup_blob = (byte *) response_to_challenge;
       setup_blob_size = blob_length;
       r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
-      rtp_free(allocated_blob_address);
     }
     else
       r= RTSMB_CLI_SSN_RV_DEAD;
@@ -274,16 +299,10 @@ public:
         r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
     return r;
 
-     rtp_free(pSmb2Session->spnego_blob_from_server());
      spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
      return r;
   }
 
-  private:
-    bool do_setup_phase_two;
-    byte *setup_blob;
-    dword setup_blob_size;
-    NewSmb2Session *pSmb2Session;
 
 };
 
@@ -294,35 +313,13 @@ extern int do_smb2_logon_server_worker(NewSmb2Session &Session)
   return LogonWorker.do_logon_commands();
 }
 
-// The server sent a setup reply with a challenge, we create a security blob from the challagne and reply with another setup request
-static int do_smb2_extended_setup_server_worker(NewSmb2Session *Session, decoded_NegTokenTarg_challenge_t *decoded_targ_token)
-{
-   return -1;
-//   decoded_targ_token.ntlmserverchallenge,
-//   decoded_targ_token.target_info->value_at_offset,
-//   decoded_targ_token.target_info->size
-}
-
-byte ntlm_response_buffer[] = {0xbc,0xd3,0x40,0x6e,0x8f,0x2e,0x83,0x5f,0xc2,0xd2,0x35,0xe1,0x1d,0xeb,0x06,0x37,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0b,0xf4,0xcb,0xd2,0x34,0xd1,0x01,0x36,0xc3,0x0c,0x2d,0xfc,0x9b,0x47,0xe5,0x00,0x00,0x00,0x00,0x01,0x00,
-0x26,0x00,0x55,0x00,0x42,0x00,0x55,0x00,0x4e,0x00,0x54,0x00,0x55,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x56,0x00,0x49,0x00,0x52,0x00,0x54,0x00,0x55,0x00,0x41,0x00,0x4c,0x00,0x42,0x00,0x4f,0x00,0x58,0x00,0x02,0x00,0x26,0x00,0x55,0x00,
-0x42,0x00,0x55,0x00,0x4e,0x00,0x54,0x00,0x55,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x56,0x00,0x49,0x00,0x52,0x00,0x54,0x00,0x55,0x00,0x41,0x00,0x4c,0x00,0x42,0x00,0x4f,0x00,0x58,0x00,0x03,0x00,0x26,0x00,0x75,0x00,0x62,0x00,0x75,0x00,
-0x6e,0x00,0x74,0x00,0x75,0x00,0x31,0x00,0x34,0x00,0x2d,0x00,0x76,0x00,0x69,0x00,0x72,0x00,0x74,0x00,0x75,0x00,0x61,0x00,0x6c,0x00,0x62,0x00,0x6f,0x00,0x78,0x00,0x04,0x00,0x00,0x00,0x06,0x00,0x04,0x00,0x02,0x00,0x00,0x00,0x09,0x00,
-0x20,0x00,0x63,0x00,0x69,0x00,0x66,0x00,0x73,0x00,0x2f,0x00,0x31,0x00,0x39,0x00,0x32,0x00,0x2e,0x00,0x31,0x00,0x36,0x00,0x38,0x00,0x2e,0x00,0x31,0x00,0x2e,0x00,0x37,0x00,0x0a,0x00,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 
 static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
 
 
 int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
 
-byte fix_skey[] = {0x00,0x80,0x2d,0x1a,0x13,0x14,0xd3,0x11,0x00,0x80,0x2d,0x1a,0x13,0x14,0xd3,0x11};
-
-#define DUMPBIN     0
-#define DUMPASCII   1
-#define DUMPUNICODE 2
-extern "C" void rtsmb_dump_bytes(const char *prompt, void *pbytes, int length, int format);
-
-int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte **allocated_blob_address)
+int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length)
 {
     byte session_key[16];
     rtsmb_util_guid(&session_key[0]);
@@ -341,8 +338,9 @@ int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, b
     // Prepend the 8 byte server challenge
     memcpy(pclient_blob, serverChallenge,8);
     pclient_blob += 8;
+    class SpnegoClient spnegoWorker;
     // Append the 28 byte blob containing the client nonce
-    spnego_get_client_ntlmv2_response_blob(pclient_blob);
+    spnegoWorker.spnego_get_client_ntlmv2_response_blob(pclient_blob);
     pclient_blob += 28;
     // Append the target information block pqassed from the server
     memcpy(pclient_blob, serverInfoblock,serverInfoblock_length);
@@ -361,30 +359,23 @@ int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, b
 
 rtsmb_dump_bytes("new ntlm_response_buffer before cli_util_client_encrypt_password_ntlmv2: ", ntlm_response_buffer_ram, ntlm_response_buffer_size, DUMPBIN);
 
-    cli_util_client_encrypt_password_ntlmv2 (
-      (word *) user_name,
-      (char *) password,
-      (word *) domain_name,
-      (byte *)serverChallenge,
-      (byte *)pclient_blob,
-      (size_t) client_blob_size,
-      (char *) output);
+    cli_util_client_encrypt_password_ntlmv2 (user_name, password, domain_name, serverChallenge, pclient_blob, client_blob_size, (char *) output);
 rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2 output: ", output, 16, DUMPBIN);
 
     memcpy(&ntlm_response_buffer_ram[0],output,16);
 
 
-    *allocated_blob_address=(byte *)rtp_malloc(2048);;
+//    *response_to_challenge=(byte *)rtp_malloc(2048);;
 
     size_t ntlm_response_blob_size=
             spnego_encode_ntlm2_type3_packet(
-              (byte *)*allocated_blob_address,
-              (size_t)2048, // ntlm_response_blob_size,
+              (byte *)response_to_challenge,
+              (size_t)MAXBLOB, // ntlm_response_blob_size,
               (byte *)ntlm_response_buffer_ram,
               (int)ntlm_response_buffer_size,
-              (byte *)domain_name, (byte *)user_name, (byte *)workstation_name, (byte *)fix_skey); // session_key);
+              (byte *)domain_name, (byte *)user_name, (byte *)workstation_name, (byte *) session_key);
 
-rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", allocated_blob_address, ntlm_response_blob_size, DUMPBIN);
+rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", response_to_challenge, ntlm_response_blob_size, DUMPBIN);
     return ntlm_response_blob_size;
 }
 
@@ -393,8 +384,7 @@ rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", allocated_blob_add
 extern unsigned char *RTSMB_MD4(const unsigned char *d, unsigned long n, unsigned char *md); //   { return 0; }
 extern void hmac_md5( unsigned char*  text, int text_len, unsigned char*  key,int  key_len, unsigned char *digest); //  {}
 
-
-static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output)
+byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output)
 {
   byte nameDomainname[(RTSMB_CFG_MAX_USERNAME_SIZE + 1) * 4];
   byte p21 [21];

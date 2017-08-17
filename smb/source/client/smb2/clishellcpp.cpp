@@ -20,7 +20,6 @@
 #include "session.hpp"
 
 
-
 extern "C" int smb2_cli_shell()
 {
     NewSmb2Session ShellSession;
@@ -28,7 +27,10 @@ extern "C" int smb2_cli_shell()
     byte mask[] = {255,255,255,0};
 
     ShellSession.set_connection_parameters(ip, mask, 445);
-    ShellSession.set_user_parameters("notebs", "notpassword", "domain");
+    ShellSession.set_user_parameters(
+      "notebs",
+      "notpassword",
+      "domain");
     ShellSession.set_share_parameters("\\\\SHARE0",0);
 
      cout_log(LL_JUNK)  << "Call socket connect" << endl;

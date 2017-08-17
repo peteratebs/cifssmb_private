@@ -156,48 +156,6 @@ static /*const*/ byte ntlm_reserved[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0
 static /*const*/ byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x0f};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
 
-// ================================================================================================================================
-//
-// Temporary solution for EXTENDED security passwords domain names etc. TBD
-//
-typedef struct target_config_unicode_str_s
-{
-  word *target_name;
-  word *netbios_domain_name;
-  word *netbios_computer_name;
-  word *dns_domain_name;
-  word *dns_computer_name;
-} target_config_unicode_str_t;
-
-typedef struct target_config_ascii_str_s
-{
-  char *target_name;
-  char *netbios_domain_name;
-  char *netbios_computer_name;
-  char *dns_domain_name;
-  char *dns_computer_name;
-} target_config_ascii_str_t;
-
-#define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"
-#define HARDWIRED_NBDOMAIN_NAME     "DOMAIN"
-#define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
-#define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
-#define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"
-
-target_config_ascii_str_t target_config_ascii =
-{
-  (char *)HARDWIRED_TARGET_NAME     ,
-  (char *)HARDWIRED_NBDOMAIN_NAME   ,
-  (char *)HARDWIRED_NBCOMPUTER_NAME ,
-  (char *)HARDWIRED_DNSDOMAIN_NAME  ,
-  (char *)HARDWIRED_DNSCOMPUTER_NAME,
-};
-
-target_config_unicode_str_t target_config_unicode;
-
-// ================================================================================================================================
-
-
 static int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b);
 static int decode_token_stream_fetch_length(decode_token_stream_t *pstream, size_t *l);
 static int decode_token_stream_fetch_oid(decode_token_stream_t *pstream, byte *poid);
@@ -213,30 +171,19 @@ static int decode_token_stream_fetch_flags(decode_token_stream_t *pstream, dword
 static word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string);
 static int decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *w);
 static int decode_token_stream_fetch_dword(decode_token_stream_t *pstream, dword *dw);
+static int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+static int _spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 
-
-
-// Make sure the unicode versions name, domain etc of are loaded and any other extended security initialization
-void spnego_init_extended_security(void)
+int SpnegoClient::spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
-  target_config_unicode.target_name            =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.target_name          );
-  target_config_unicode.netbios_domain_name    =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.netbios_domain_name  );
-  target_config_unicode.netbios_computer_name  =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.netbios_computer_name);
-  target_config_unicode.dns_domain_name        =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.dns_domain_name      );
-  target_config_unicode.dns_computer_name      =  rtsmb_util_malloc_ascii_to_unicode (target_config_ascii.dns_computer_name    );
+  return _spnego_decode_NegTokenTarg_challenge(decoded_targ_token, pinbuffer, buffer_length);
 }
 
-void spnego_free_extended_security(void)
+static int _spnego_get_client_ntlmv2_response_blob(byte *pblob);
+int SpnegoClient::spnego_get_client_ntlmv2_response_blob(byte *pblob)
 {
-  if (target_config_unicode.target_name)
-  {
-    rtp_free(target_config_unicode.target_name            );  // exit_level but not used
-    rtp_free(target_config_unicode.netbios_domain_name    );  // exit_level but not used
-    rtp_free(target_config_unicode.netbios_computer_name  );  // exit_level but not used
-    rtp_free(target_config_unicode.dns_domain_name        );  // exit_level but not used
-    rtp_free(target_config_unicode.dns_computer_name      );  // exit_level but not used
-  }
-}
+ return _spnego_get_client_ntlmv2_response_blob(pblob);
+};
 
 // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
 void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
@@ -244,7 +191,6 @@ void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_toke
   if (decoded_token->mechToken) rtp_free(decoded_token->mechToken);         // command_level
   if (decoded_token->mechListMic) rtp_free(decoded_token->mechListMic);     // command_level
 }
-
 
 //  This function is called by ProcSetupAndx when command.capabilities & CAP_EXTENDED_SECURITY is true and it is not an NTLMSSP security request
 //  returns 0 on succes < 0 (SPNEGO_MALFORMED_PACKET, SPNEGO_NOT_INIT_PACKET etc ) for failure.
@@ -375,7 +321,6 @@ int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token
     }
   }
   return 0;
-
 }
 
 static void decode_token_stream_security_buffer_destructor(SecurityBuffer_t *presource)
@@ -529,7 +474,7 @@ static oid_t oid_string_to_oid_t(byte *pbuffer)
 //   } decoded_NegTokenTarg__challenge_t;
 
 
-int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
+static int _spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
   byte b;
   size_t l;
@@ -919,7 +864,7 @@ typedef struct resource_strings_s {
 static const byte spnego_client_ntlmssp_response_blob[] = {0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00}; // 0x0101000 00000000
 static byte mystamp[] = {0x11,0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
 static byte mynonce[] = {0x88,0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
-int spnego_get_client_ntlmv2_response_blob(byte *pblob)
+static int _spnego_get_client_ntlmv2_response_blob(byte *pblob)
 {
     memcpy(pblob, spnego_client_ntlmssp_response_blob, sizeof (spnego_client_ntlmssp_response_blob) );
     ddword *pddw= (ddword *)(pblob+8);
