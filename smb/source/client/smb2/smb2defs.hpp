@@ -77,16 +77,17 @@ public:
 //  word *utf16() { return (word *)((wchar_t *)utf16view.c_str()); }
   byte *ascii()  { return (byte *) asciiview;}
   word  *utf16() { return utf16view;}
-  int   input_length() { return inlen; }
-  bool  istoolong() {return (inlen > maxlen);}
-  void operator =(char *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(buflen+1); asciiview[buflen]=0; utf16view[buflen]=0; for (int i=0;i<buflen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
-  void operator =(word *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(buflen+1); asciiview[buflen]=0; utf16view[buflen]=0; for (int i=0;i<buflen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
+  int   utf16_length() { return strlen*2; }
+  int   ascii_length() { return strlen; }
+  bool  istoolong() {return (strlen > maxlen);}
+  void operator =(char *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
+  void operator =(word *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (byte *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
 private:
   int maxlen;
   int buflen;
-  int inlen;
-  int arglen(char *s)  { inlen=0; buflen=0; while(s[inlen++]);  buflen = std::min(inlen,maxlen); return buflen; }
-  int arglen(word *s)  { inlen=0; buflen=0; while(s[inlen++]); buflen = std::min(inlen,maxlen); return buflen;}
+  int strlen;
+  int arglen(char *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen; }
+  int arglen(word *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen;}
   word *utf16view;
   byte *asciiview;
 };

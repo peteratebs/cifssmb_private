@@ -150,10 +150,10 @@ void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size
 {
   dualstringdecl(converted_string);                   //    dualstring user_string;
   *converted_string     =  ascii_string;
-  if (w != 2*converted_string->input_length())
-    cout_log(LL_JUNK)  << "spego::: oops (w != 2*converted_string->input_length() w: " << w << " len: " << 2*converted_string->input_length() << endl;
+  if (w !=  converted_string->utf16_length())
+    cout_log(LL_JUNK)  << "spego::: oops (w != 2*converted_string->utf16_length() w: " << w << " len: " << 2*converted_string->utf16_length() << endl;
   else
-    cout_log(LL_JUNK)  << "spego::: Yeah (w == 2*converted_string->input_length()" << endl;
+    cout_log(LL_JUNK)  << "spego::: Yeah (w == 2*converted_string->utf16_length(()" << endl;
   memcpy(unicode_string,converted_string->utf16(), w);
 }
 /* See RFC4122 */

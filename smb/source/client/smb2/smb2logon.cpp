@@ -15,18 +15,15 @@
 #include "smb2spnego.hpp"
 
 static int do_smb2_extended_setup_server_worker(NewSmb2Session *Session, decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-// This is fixed negTokeninit, mechType1 ... see wireshark for decode
+// This is fixed negTokeninit, mechType1 to evoke a challenge from the server ... see wireshark for decode
 static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,
 0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0xd7,0x3a,0x00,0x00,0x00,0x0f};
 
-
-static const byte setup_blob_phase_two[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,
-0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0xd7,0x3a,0x00,0x00,0x00,0x0f};
-
 static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output);
-static int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length);
+static int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte **allocated_blob_address);
 
 static byte ntlm_response_buffer_ram[1024];
+
 
 class SmbLogonWorker {
 public:
@@ -149,9 +146,9 @@ public:
     dualstringdecl(password_string);*password_string = pSmb2Session->password() ;
     dualstringdecl(domain_string)  ;*domain_string    =pSmb2Session->domain()   ;
 
-    if (user_string->input_length() > (RTSMB_CFG_MAX_USERNAME_SIZE - 1))  return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    if (password_string->input_length() > (RTSMB_CFG_MAX_PASSWORD_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    if (domain_string->input_length() > (RTSMB_CFG_MAX_DOMAIN_NAME_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
+    if (user_string->ascii_length() > (RTSMB_CFG_MAX_USERNAME_SIZE - 1))  return RTSMB_CLI_SSN_RV_BAD_ARGS;
+    if (password_string->ascii_length() > (RTSMB_CFG_MAX_PASSWORD_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
+    if (domain_string->ascii_length() > (RTSMB_CFG_MAX_DOMAIN_NAME_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
     ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
     if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED) { ASSURE (pSmb2Session->user_state() == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);  }
 
@@ -255,19 +252,24 @@ public:
 
 //typedef struct SecurityBuffer_s {  dword size;  word  offset;  byte  *value_at_offset;
 
-
+ byte *allocated_blob_address=0;
  int blob_length = rtsmb_cli_session_ntlm_auth (
     pSmb2Session->user_name(),
     pSmb2Session->password(),
     pSmb2Session->domain(),
     decoded_targ_token.ntlmserverchallenge,
     decoded_targ_token.target_info->value_at_offset,
-    decoded_targ_token.target_info->size);
+    decoded_targ_token.target_info->size, &allocated_blob_address);
 
-    setup_blob = (byte *) ntlm_response_buffer_ram; // setup_blob_phase_two;
-    setup_blob_size = blob_length;
-
-    r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
+    if (setup_blob_size &&  allocated_blob_address)
+    {
+      setup_blob = (byte *) allocated_blob_address;
+      setup_blob_size = blob_length;
+      r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
+      rtp_free(allocated_blob_address);
+    }
+    else
+      r= RTSMB_CLI_SSN_RV_DEAD;
     if (r==RTSMB_CLI_SSN_RV_OK)
         r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
     return r;
@@ -313,7 +315,14 @@ static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         /
 
 int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
 
-int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length)
+byte fix_skey[] = {0x00,0x80,0x2d,0x1a,0x13,0x14,0xd3,0x11,0x00,0x80,0x2d,0x1a,0x13,0x14,0xd3,0x11};
+
+#define DUMPBIN     0
+#define DUMPASCII   1
+#define DUMPUNICODE 2
+extern "C" void rtsmb_dump_bytes(const char *prompt, void *pbytes, int length, int format);
+
+int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte **allocated_blob_address)
 {
     byte session_key[16];
     rtsmb_util_guid(&session_key[0]);
@@ -350,6 +359,8 @@ int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, b
     int ntlm_response_buffer_size = 16 + 28 + serverInfoblock_length + 4;
     byte output[16];
 
+rtsmb_dump_bytes("new ntlm_response_buffer before cli_util_client_encrypt_password_ntlmv2: ", ntlm_response_buffer_ram, ntlm_response_buffer_size, DUMPBIN);
+
     cli_util_client_encrypt_password_ntlmv2 (
       (word *) user_name,
       (char *) password,
@@ -358,17 +369,22 @@ int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, b
       (byte *)pclient_blob,
       (size_t) client_blob_size,
       (char *) output);
+rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2 output: ", output, 16, DUMPBIN);
+
     memcpy(&ntlm_response_buffer_ram[0],output,16);
 
-    byte *ntlm_response_blob=(byte *)rtp_malloc(2048);;
+
+    *allocated_blob_address=(byte *)rtp_malloc(2048);;
 
     size_t ntlm_response_blob_size=
             spnego_encode_ntlm2_type3_packet(
-              (byte *)ntlm_response_blob,
+              (byte *)*allocated_blob_address,
               (size_t)2048, // ntlm_response_blob_size,
               (byte *)ntlm_response_buffer_ram,
               (int)ntlm_response_buffer_size,
-              (byte *)domain_name, (byte *)user_name, (byte *)workstation_name, (byte *)session_key);
+              (byte *)domain_name, (byte *)user_name, (byte *)workstation_name, (byte *)fix_skey); // session_key);
+
+rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", allocated_blob_address, ntlm_response_blob_size, DUMPBIN);
     return ntlm_response_blob_size;
 }
 
@@ -388,33 +404,33 @@ static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * passw
 
   // The NTLM password hash is obtained, this is the MD4 digest of the Unicode mixed-case password).
   // Convert the password to unicode
-  std::string s_password;
-  s_password = password;
-  // Store it in upper case
-  std::transform(s_password.begin(), s_password.end(), s_password.begin(), toupper);
-  std::string s_password2 = s_password;  // Copy to make sure c_str is contiguous
   dualstringdecl(upassword);   //   use a dualstring to convert the password to unicode
-  *upassword = (char *)s_password2.c_str();
+  *upassword = (char *)password;
+
 
    // p21 is actually p16 with 5 null bytes appended.  we just null it now
    // and fill it as if it were p16
    memset (&p21[16], 0, 5);
+	// Convert the password to unicode
    // get md4 of password.  This is the 16-byte NTLM hash
+   dst = upassword->utf16_length();
    RTSMB_MD4 ((const unsigned char *)upassword->utf16(), (dword)dst, p21);
+
+    // The Unicode uppercase username is concatenated with the Unicode authentication target
+    // (the domain or server name specified in the Target Name field of the Type 3 message).
+    // Note that this calculation always uses the Unicode representation, even if OEM encoding
+    // has been negotiated; also note that the username is converted to uppercase,
+    // while the authentication target is case-sensitive and must match the case presented in the Target Name field.
+   dualstringdecl(aname);   //   use a dualstring to convert the name to uppercase
+   *aname = name;
+   std::string s_name;
+   s_name = (char *)aname->ascii();
+   std::transform(s_name.begin(), s_name.end(), s_name.begin(), toupper);
+   dualstringdecl(uname);   //   use a dualstring to convert the name to a string
+   *uname = (char *)s_name.c_str();
 
    dualstringdecl(udomain);   //   use a dualstring to convert the domain to upper
    *udomain = domainname;
-   std::string s_domain;
-   s_domain = (char *)udomain->ascii();
-   std::transform(s_domain.begin(), s_domain.end(), s_domain.begin(), toupper);
-   std::string s_domain2 = s_domain;  // Copy to make sure c_str is contiguous
-   dualstringdecl(udomain_upper);   //   use a dualstring to convert the domain to upper
-   *udomain_upper = (char *)s_domain2.c_str();
-
-   dualstringdecl(uname);   //   use a dualstring to convert the name to a string
-   *uname = name;
-   std::string s_name;
-   s_name = (char *)uname->ascii();
 
     // The Unicode uppercase username is concatenated with the Unicode authentication target
     // (the domain or server name specified in the Target Name field of the Type 3 message).
@@ -422,14 +438,15 @@ static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * passw
     // has been negotiated; also note that the username is converted to uppercase,
     // while the authentication target is case-sensitive and must match the case presented in the Target Name field.
 //   ndLen = 2*rtsmb_util_wlen((PFWCS)name) + 2*rtsmb_util_wlen((PFWCS)domainname);
-    ndLen = 2 * (s_name.length() + s_domain.length());
+    ndLen = (uname->utf16_length() + udomain->utf16_length());
    // concatenate the uppercase username with the domainname
-    memcpy((char *) nameDomainname, uname->utf16(), 2*s_name.length() );
-    memcpy((char *) &nameDomainname[2*s_name.length()], udomain_upper->utf16(), 2*s_domain.length() );
+    memcpy((char *) nameDomainname, uname->utf16(), uname->utf16_length() );
+    memcpy((char *) &nameDomainname[uname->utf16_length()], udomain->utf16(), udomain->utf16_length() );
 
    // The HMAC-MD5 message authentication code algorithm is applied to
    // the unicode (username,domainname) using the 16-byte NTLM hash as the key.
    // This results in a 16-byte value - the NTLMv2 hash.
+rtsmb_dump_bytes("hmac_md5 1 nameDomainname: ", nameDomainname, ndLen, DUMPBIN);
    hmac_md5(nameDomainname,    /* pointer to data stream */
                ndLen,				/* length of data stream */
                p21,             /* pointer to remote authentication key */
@@ -443,10 +460,13 @@ static byte * cli_util_client_encrypt_password_ntlmv2 (word * name, char * passw
 
     memcpy(concatChallenge, serverChallenge, 8);
     memcpy(&concatChallenge[8], ntlm_response_blob, ntlm_response_blob_length);
+rtsmb_dump_bytes("hmac_md5 hash input  : ", NTLMv2_Hash, 16, DUMPBIN);
+rtsmb_dump_bytes("hmac_md5 hash concatChallenge input: ", concatChallenge+8, ntlm_response_blob_length, DUMPBIN);
     hmac_md5(concatChallenge+8,	/* pointer to data stream */
                ntlm_response_blob_length,		/* length of data stream */
                NTLMv2_Hash,		/* pointer to remote authentication key */
                16,				/* length of authentication key */
                (byte * ) output);
+rtsmb_dump_bytes("hmac_md5 hash output  : ", output, 16, DUMPBIN);
     return (byte * )output;
 }
