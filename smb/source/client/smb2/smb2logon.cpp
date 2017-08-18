@@ -41,7 +41,8 @@ public:
     spnego_blob_from_server = response_to_challenge=0;
     spnego_blob_from_server = (byte *)local_rtp_malloc(MAXBLOB);
     response_to_challenge=(byte *)local_rtp_malloc(MAXBLOB);
-
+    ntlm_response_buffer_ram=(byte *)local_rtp_malloc(MAXBLOB);
+    concatChallenge =(byte *)local_rtp_malloc(MAXBLOB);
   }
   ~SmbLogonWorker()
   {
@@ -78,10 +79,11 @@ public:
     return r;
   }
 private:
-    int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length);
+    int rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length, byte *session_key);
     byte *cli_util_client_encrypt_password_ntlmv2 (word * name, char * password, word * domainname, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, char * output);
-    byte ntlm_response_buffer_ram[1024];
+    byte *ntlm_response_buffer_ram;
     byte *response_to_challenge;
+    byte *concatChallenge;
 
     bool do_setup_phase_two;
     byte *setup_blob;
@@ -99,6 +101,7 @@ private:
       NetSmb2Header       OutSmb2Header;
       NetSmb2NegotiateCmd Smb2NegotiateCmd;
       pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
+
       NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session->SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
       if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
       {
@@ -117,6 +120,15 @@ private:
       }
   // ??   SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
   //    SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
+      // Pass the session so we can sign the message, need to refactor the Template to take pSmb2Session as an argument
+//      Smb2NBSSCmd.flush(pSmb2Session);
+
+      byte signature[16];
+      size_t length=0;
+      byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+      calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+
+      OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
       return Smb2NBSSCmd.status;
   }
@@ -285,7 +297,7 @@ private:
     pSmb2Session->domain(),
     decoded_targ_token.ntlmserverchallenge,
     decoded_targ_token.target_info->value_at_offset,
-    decoded_targ_token.target_info->size);
+    decoded_targ_token.target_info->size, pSmb2Session->session_key());
 
     if (setup_blob_size &&  response_to_challenge)
     {
@@ -302,8 +314,6 @@ private:
      spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
      return r;
   }
-
-
 };
 
 
@@ -317,18 +327,17 @@ extern int do_smb2_logon_server_worker(Smb2Session &Session)
 static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
 
 
-
-int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length)
+int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte *session_key)
 {
-    byte session_key[16];
+
     rtsmb_util_guid(&session_key[0]);
     rtsmb_util_guid(&session_key[8]);
     word workstation_name[32];
-    rtsmb_util_ascii_to_unicode ("workstation" ,workstation_name, (strlen("workstation")+1)*2 );
+    rtsmb_util_ascii_to_unicode ("workstation" ,workstation_name, std::max((size_t)32,(strlen("workstation")+1)*2) );
     word user_name[32];
-    rtsmb_util_ascii_to_unicode (user, user_name, 2*(strlen(user)+1));
+    rtsmb_util_ascii_to_unicode (user, user_name, std::max((size_t)32,2*(strlen(user)+1)));
     word domain_name[32];
-    rtsmb_util_ascii_to_unicode (domain, domain_name, 2*(strlen(domain)+1));
+    rtsmb_util_ascii_to_unicode (domain, domain_name, std::max((size_t)32,2*(strlen(domain)+1)));
     byte *pclient_blob;
 
     pclient_blob = &ntlm_response_buffer_ram[8];
@@ -356,15 +365,10 @@ int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, 
     int ntlm_response_buffer_size = 16 + 28 + serverInfoblock_length + 4;
     byte output[16];
 
-rtsmb_dump_bytes("new ntlm_response_buffer before cli_util_client_encrypt_password_ntlmv2: ", ntlm_response_buffer_ram, ntlm_response_buffer_size, DUMPBIN);
-
     cli_util_client_encrypt_password_ntlmv2 (user_name, password, domain_name, serverChallenge, pclient_blob, client_blob_size, (char *) output);
-rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2 output: ", output, 16, DUMPBIN);
 
     memcpy(&ntlm_response_buffer_ram[0],output,16);
 
-
-//    *response_to_challenge=(byte *)rtp_malloc(2048);;
     size_t ntlm_response_blob_size=
             spnegoWorker.spnego_encode_ntlm2_type3_packet(
               (byte *)response_to_challenge,
@@ -373,7 +377,6 @@ rtsmb_dump_bytes("cli_util_client_encrypt_password_ntlmv2 output: ", output, 16,
               (int)ntlm_response_buffer_size,
               (byte *)domain_name, (byte *)user_name, (byte *)workstation_name, (byte *) session_key);
 
-rtsmb_dump_bytes("spnego_encode_ntlm2_type3_packet output: ", response_to_challenge, ntlm_response_blob_size, DUMPBIN);
     return ntlm_response_blob_size;
 }
 
@@ -399,7 +402,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    // p21 is actually p16 with 5 null bytes appended.  we just null it now
    // and fill it as if it were p16
    memset (&p21[16], 0, 5);
-	// Convert the password to unicode
+  // Convert the password to unicode
    // get md4 of password.  This is the 16-byte NTLM hash
    dst = upassword->utf16_length();
    RTSMB_MD4 ((const unsigned char *)upassword->utf16(), (dword)dst, p21);
@@ -434,13 +437,11 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    // The HMAC-MD5 message authentication code algorithm is applied to
    // the unicode (username,domainname) using the 16-byte NTLM hash as the key.
    // This results in a 16-byte value - the NTLMv2 hash.
-rtsmb_dump_bytes("hmac_md5 1 nameDomainname: ", nameDomainname, ndLen, DUMPBIN);
    hmac_md5(nameDomainname,    /* pointer to data stream */
-               ndLen,				/* length of data stream */
+               ndLen,        /* length of data stream */
                p21,             /* pointer to remote authentication key */
                16,              /* length of authentication key */
                NTLMv2_Hash);    /* caller digest to be filled in */
-    byte concatChallenge[1024];
     byte output_value[16];
     // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
     // (calculated in step 2) as the key. This results in a 16-byte output value.
@@ -448,13 +449,10 @@ rtsmb_dump_bytes("hmac_md5 1 nameDomainname: ", nameDomainname, ndLen, DUMPBIN);
 
     memcpy(concatChallenge, serverChallenge, 8);
     memcpy(&concatChallenge[8], ntlm_response_blob, ntlm_response_blob_length);
-rtsmb_dump_bytes("hmac_md5 hash input  : ", NTLMv2_Hash, 16, DUMPBIN);
-rtsmb_dump_bytes("hmac_md5 hash concatChallenge input: ", concatChallenge+8, ntlm_response_blob_length, DUMPBIN);
-    hmac_md5(concatChallenge+8,	/* pointer to data stream */
-               ntlm_response_blob_length,		/* length of data stream */
-               NTLMv2_Hash,		/* pointer to remote authentication key */
-               16,				/* length of authentication key */
+    hmac_md5(concatChallenge+8,  /* pointer to data stream */
+               ntlm_response_blob_length,    /* length of data stream */
+               NTLMv2_Hash,    /* pointer to remote authentication key */
+               16,        /* length of authentication key */
                (byte * ) output);
-rtsmb_dump_bytes("hmac_md5 hash output  : ", output, 16, DUMPBIN);
     return (byte * )output;
 }

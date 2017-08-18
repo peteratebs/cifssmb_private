@@ -75,7 +75,9 @@ public:
   char *user_name()    {return _p_username; }
   char *password()     {return _p_password;  }
   char *domain()       {return _p_domain;    }
-  char *workstation()       {return (char *)"workstation";    }
+  char *workstation()  {return (char *)"workstation";    }
+  byte *session_key()  {return _p_session_key;    }
+
   void user_uid(ddword uid) { _p_uid = uid; }
   void update_timestamp()   { _p_timestamp = rtp_get_system_msec (); };
   ddword unconnected_message_id() { _p_session_mid=0; return _p_session_mid;}
@@ -83,10 +85,6 @@ public:
 
   void user_state(RTSMB_CLI_SESSION_USER_STATE user_state) { _p_user_state=user_state; }
   RTSMB_CLI_SESSION_USER_STATE user_state() { return _p_user_state; }
-  void spnego_blob_from_server(byte *s)     { _p_spnego_blob_from_server = s;     }
-  byte * spnego_blob_from_server()     { return _p_spnego_blob_from_server;       }
-  int  spnego_blob_size_from_server()  { return _p_spnego_blob_size_from_server ; }
-  void spnego_blob_size_from_server(int size)  { _p_spnego_blob_size_from_server =size; }
 
   NetStreamOutputBuffer    SendBuffer;
   NetStreamInputBuffer          ReplyBuffer;
@@ -105,11 +103,10 @@ public:
 private:
   int                _p_session_state;
   int                _p_sid;
-  byte             * _p_spnego_blob_from_server;
-  int                _p_spnego_blob_size_from_server;
   dword              _p_timestamp;
   ddword              _p_session_mid;  // Smb legacy should be
   word               _p_uid;        // A little confused abiut this one still
+  byte               _p_session_key[16];
 
   int _p_reply_buffer_size;
   int _p_send_buffer_size;
@@ -131,6 +128,8 @@ private:
 //  byte ip_mask [4];
 //  int  portnumber;
 //  RTP_SOCKET socket;
+
+// servinfo
 
   //dialect
   //connection_state

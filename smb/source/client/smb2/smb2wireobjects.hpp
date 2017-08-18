@@ -505,6 +505,7 @@ public:
 template <class T>
 class NetSmb2NBSSCmd {
 public:
+  int status;
   NetSmb2NBSSCmd(word command, NetStreamOutputBuffer &_SendBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_cmd, dword _variable_size=0)
   {
     SendBuffer=&_SendBuffer; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
@@ -522,23 +523,21 @@ public:
     status = RTSMB_CLI_SSN_RV_OK;
     smb2->Initialize(command,(ddword) SendBuffer->stream_buffer_mid, SessionId);
 
-    if (nbss->push_output(*SendBuffer) != NetStatusOk)
+    if (nbss->push_output(*SendBuffer) != NetStatusOk)   // nbss to buffer in net byte order
       status = RTSMB_CLI_SSN_RV_DEAD;
-    if (smb2->push_output(*SendBuffer) != NetStatusOk)
+    if (smb2->push_output(*SendBuffer) != NetStatusOk)   // smb header to buffer in net byte order
       status = RTSMB_CLI_SSN_RV_DEAD;
-
   }
-  int status;
-  void flush() {
+  void flush()
+  {
     if (SendBuffer->push_output()==NetStatusOk)
       status=RTSMB_CLI_SSN_RV_SENT;
     else
       status=RTSMB_CLI_SSN_RV_DEAD;
-
   }
-
   // Cloned from NetWireStruct()
-  int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();};
+  int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();}
+  byte *RangeRequiringSigning(size_t &length)  { length = variablesize + smb2->FixedStructureSize()+cmd->FixedStructureSize();return smb2->FixedStructureAddress();}
   void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize; };
   NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
   {

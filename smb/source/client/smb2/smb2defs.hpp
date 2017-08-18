@@ -238,7 +238,7 @@ typedef struct decoded_NegTokenTarg_challenge_s {
 // void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
 int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-
+void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
 
 typedef int (* lssinkFn_t) (void *devContext, byte *pData, int size);
 

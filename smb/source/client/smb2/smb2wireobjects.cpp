@@ -21,6 +21,7 @@
 #include "smb2socks.hpp"
 
 
+
 void NetNbssHeader::BindAddressesToBuffer(byte *base)
 {
   BindNetWireArgs A(base);

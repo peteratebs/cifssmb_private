@@ -14,14 +14,8 @@
 #ifndef include_netstreambuffer
 #define include_netstreambuffer
 
-struct SocketContext{
-    RTP_SOCKET socket;
-};
-
-struct memcpydevContext{
-    byte *pData;
-    dword bytes_left;
-};
+struct SocketContext{  RTP_SOCKET socket;};
+struct memcpydevContext{ byte *pData; dword bytes_left;};
 /// "device for sinking bytes from a stream.
 /// This memcopies to a location stored in device context.
 inline int memcpy_sink_function(void *devContext, byte *pData, int size)
@@ -51,7 +45,6 @@ inline int socket_source_function(void *devContext, byte *pData, int size)
    return r;
 }
 
-
 typedef int (* pDeviceSendFn_t) (void *devContext, byte *pData, int size);
 /// Attach this to NetStreamInputBuffer to sink streamdata to a device
 class DataSinkDevtype {
@@ -61,7 +54,6 @@ public:
   DataSinkDevtype(pDeviceSendFn_t _DeviceSendFn,void *_DeviceContext) {DeviceSendFn=_DeviceSendFn;DeviceContext= _DeviceContext;}
 
   void AssignSendFunction(pDeviceSendFn_t _DeviceSendFn,void *_DeviceContext) {DeviceSendFn=_DeviceSendFn;DeviceContext= _DeviceContext;}
-
 
   /// The sink function. Call this to send bytes to the device via the device callback
   NetStatus sink_bytes_to_device(byte *to, dword bytes_to_sink, dword &bytes_sunk)
@@ -87,7 +79,7 @@ private:
 
 /// Attach this to NetStreamInputBuffer to sink streaming data to a memory device
 /// Another method is also available in cases where all pull data fits in the buffer.
-//  In that case you can call pull_input(byte *data, dword byte_count, dword &bytes_pulled); to recieve into the buffer
+///  In that case you can call pull_input(byte *data, dword byte_count, dword &bytes_pulled); to recieve into the buffer
 class MemoryDataSink {
 public:
   MemoryDataSink() { }
@@ -247,18 +239,6 @@ public:
    {
      empty();
      return pull_nbss_data(byte_count, bytes_pulled);
-#if(0)
-     NetStatus r = NetStatusDeviceRecvFailed;
-     dword sourced_byte_count=0;
-     if (data_sourcer)
-        r = data_sourcer->source_data(input_buffer_pointer(),byte_count, sourced_byte_count);
-     if (r == NetStatusOk)
-        bytes_pulled = sourced_byte_count;
-     else
-        bytes_pulled = 0;
-      advance_input_buffer_bytes(bytes_pulled);
-      return r;
-#endif
    }
    // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
    NetStatus purge_socket_input(dword byte_count)
