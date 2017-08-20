@@ -46,6 +46,8 @@ public:
   Smb2Session()
   {
     _p_sid = 0;
+    _p_session_key_valid=false;
+    session_server_info_smb2_session_id=0;
     session_state(CSSN_STATE_DEAD);
     user_state(CSSN_USER_STATE_UNUSED);
   }
@@ -75,7 +77,9 @@ public:
   char *user_name()    {return _p_username; }
   char *password()     {return _p_password;  }
   char *domain()       {return _p_domain;    }
-  char *workstation()  {return (char *)"workstation";    }
+//  char *workstation()  {return (char *)"workstation";    }
+  void session_key(byte *p)  {memcpy(_p_session_key,p,8); _p_session_key_valid = true;}
+  bool session_key_valid()  { return _p_session_key_valid;    }
   byte *session_key()  {return _p_session_key;    }
 
   void user_uid(ddword uid) { _p_uid = uid; }
@@ -107,7 +111,7 @@ private:
   ddword              _p_session_mid;  // Smb legacy should be
   word               _p_uid;        // A little confused abiut this one still
   byte               _p_session_key[16];
-
+  bool               _p_session_key_valid;
   int _p_reply_buffer_size;
   int _p_send_buffer_size;
   byte *_p_send_buffer_raw;
@@ -137,5 +141,8 @@ private:
   //current_share
 };
 
+
+bool checkSessionSigned();
+void setCurrentActiveSession(Smb2Session *CurrentActiveSession);
 
 #endif // include_smb2session

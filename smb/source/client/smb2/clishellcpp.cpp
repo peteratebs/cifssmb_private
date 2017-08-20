@@ -28,13 +28,20 @@ extern "C" int smb2_cli_shell()
 
     ShellSession.set_connection_parameters(ip, mask, 445);
     ShellSession.set_user_parameters(
+//      "peter",
+//      "542Lafayette",
+//      "vboxubuntu");
+//      "VBOXUNBUNTU");
       "notebs",
       "notpassword",
       "domain");
-    ShellSession.set_share_parameters("\\\\SHARE0",0);
+     ShellSession.set_share_parameters("\\\\SHARE0",0);
+//   ShellSession.set_share_parameters("\\\\peter",0);
+    setCurrentActiveSession(&ShellSession);
+
 
      cout_log(LL_JUNK)  << "Call socket connect" << endl;
-    if (ShellSession.connect_socket())
+  if (ShellSession.connect_socket())
     {
        cout_log(LL_JUNK)  << "Socket connect worked" << endl;
       if (ShellSession.connect_buffers())

@@ -63,8 +63,9 @@ $(OBJDIR)/%.$(obj): %.cpp
 	@echo rule based COMPILING for CPP $<
 	@g++ -x c++ $(cflags)  $(defines:%=-D%) $(includes:%=-I%) -c $<	-o $(OBJDIR)/$(notdir $@)
 
+ifeq ($(doclient),"Y")
 include ../clientrulesgnu.inc
-
+endif
 # bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
 $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c
 	@echo COMPILING for CPP $<

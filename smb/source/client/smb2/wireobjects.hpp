@@ -4,7 +4,7 @@
 //
 // EBS - RTSMB
 //
-// Copyright EBS Inc. , 2018
+// Copyright EBS Inc. , 2017
 // All rights reserved.
 // This code may not be redistributed in source or linkable object form
 // without the consent of its author.

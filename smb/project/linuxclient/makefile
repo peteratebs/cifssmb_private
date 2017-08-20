@@ -7,6 +7,8 @@
 ########################################################################
 incpath = .
 
+doclient = "Y"
+
 cflags += -D SUPPORT_SMB2 -D BUILDING_CLIENT
 
 ## SET SMB_PATH for mkgnu to find it

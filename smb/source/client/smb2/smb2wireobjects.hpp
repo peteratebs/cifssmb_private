@@ -14,6 +14,9 @@
 #ifndef include_smb2wireobjects
 #define include_smb2wireobjects
 
+// Cuurent layering cant access the session from her
+extern ddword getCurrentActiveSession_session_id();
+
 extern "C" {
 }
 
@@ -48,6 +51,14 @@ extern "C" {
 #define SMB2_QUERY_INFO         0x0010
 #define SMB2_SET_INFO           0x0011
 #define SMB2_OPLOCK_BREAK       0x0012
+
+
+#define SMB2_FLAGS_SERVER_TO_REDIR      0x00000001
+#define SMB2_FLAGS_ASYNC_COMMAND        0x00000002
+#define SMB2_FLAGS_RELATED_OPERATIONS   0x00000004
+#define SMB2_FLAGS_SIGNED               0x00000008
+#define SMB2_FLAGS_DFS_OPERATIONS       0x10000000
+#define SMB2_FLAGS_REPLAY_OPERATION     0x20000000
 
 
 #define SMB2_NT_STATUS_SUCCESS                  0x00000000
@@ -133,7 +144,7 @@ public:
     Status_ChannelSequenceReserved = 0; /*  (4 bytes): */
     Command = command;
     CreditRequest_CreditResponse = 0;
-    Flags = 0;
+    Flags = 0;         // All client messages are signed
     NextCommand = 0;
     MessageId = mid;
     Reserved = 0;
@@ -502,6 +513,8 @@ public:
 ///      NetSmb2NegotiateCmd Smb2NegotiateCmd;  The command to be templated.
 ///      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
 
+bool checkSessionSigned();
+
 template <class T>
 class NetSmb2NBSSCmd {
 public:
@@ -518,10 +531,18 @@ public:
 
     nbss->nbss_packet_type = RTSMB_NBSS_COM_MESSAGE;
     nbss->nbss_packet_size = PDIFF(cmdtail,nbsstail);
-    ddword SessionId = 0;
+    ddword SessionId = getCurrentActiveSession_session_id(); // getCurrentActiveSession()->session_server_info_smb2_session_id;
 
     status = RTSMB_CLI_SSN_RV_OK;
     smb2->Initialize(command,(ddword) SendBuffer->stream_buffer_mid, SessionId);
+
+//    if (getCurrentActiveSession()->session_key_valid())
+    if (checkSessionSigned())
+    {
+       dword Flags = smb2->Flags();
+       Flags += SMB2_FLAGS_SIGNED;
+       smb2->Flags = Flags;
+    }
 
     if (nbss->push_output(*SendBuffer) != NetStatusOk)   // nbss to buffer in net byte order
       status = RTSMB_CLI_SSN_RV_DEAD;

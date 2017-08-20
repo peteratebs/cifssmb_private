@@ -130,6 +130,7 @@ static /*const*/ char ntlmssp_str[] = "NTLMSSP";
 static /*const*/ byte ntlm_reserved[] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
 static /*const*/ byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x0f};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
+static /*const*/ byte ntlm_mic[] = {0x1f ,0xce ,0x09 ,0x06 ,0x22 ,0xb7 ,0xde, 0xfa, 0x91, 0xe3, 0xf9, 0x00, 0xb1, 0x51, 0xdb, 0xb9};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
 
 int SpnegoClient::spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
@@ -311,7 +312,7 @@ word length_w, max_w;
     if (!presource->value_at_offset)
     {
       *_presource = 0;
-      rtp_freed_from_object(presource);
+      (void)rtp_freed_from_object(presource);
       return SPNEGO_SYSTEM_ERROR;
     }
     byte *data_at_offset = blob_base + dw;
@@ -809,6 +810,7 @@ int SpnegoClient::_spnego_get_client_ntlmv2_response_blob(byte *pblob)
     return 28;
 }
 
+
 // encode a type 3 NTLM response in response to to a server's challenge into outbuffer and return the length
 int SpnegoClient::spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
 {
@@ -836,7 +838,19 @@ int r;
     // On the second pass fixup the place holders
     if (!doing_size)
       decode_token_stream_encode_fixup_lengths(&outstream);
+
+//const byte captured_negtokeninit[] = {
+//0xa1,0x81,0x99,0x30,0x81,0x96,0xa2,0x81,0x93,0x04,0x81,0x90,0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,0x03,0x00,0x00,0x00,0x00,
+//0x00,0x00,0x00,0x58,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x58,0x00,0x00,0x00,0x12,0x00,0x12,0x00,0x58,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x6a,
+//0x00,0x00,0x00,0x16,0x00,0x16,0x00,0x6a,0x00,0x00,0x00,0x10,0x00,0x10,0x00,0x80,0x00,0x00,0x00,0x15,0x8a,0x00,0x62,0x06,0x01,0x00,0x00,0x00,
+//0x00,0x00,0x0f,0xad,0x5f,0x2c,0x11,0xee,0xfb,0x52,0xf7,0xbf,0x97,0x0d,0xb7,0xf4,0x9c,0x0f,0xb1,0x57,0x00,0x4f,0x00,0x52,
+//0x00,0x4b,0x00,0x47,0x00,0x52,0x00,0x4f,0x00,0x55,0x00,0x50,0x00,0x56,0x00,0x42,0x00,0x4f,0x00,0x58,0x00,0x55,0x00,0x4e,0x00,0x42,0x00,0x55,
+//0x00,0x4e,0x00,0x54,0x00,0x55,0x00,0x24,0xde,0x63,0x5b,0x98,0x52,0xf3,0x03,0x46,0x31,0x52,0x81,0xbd,0x68,0x96,0x57};
+
+
+
   // 0xA1, len NegTokenTarg
+//     r = decode_token_stream_encode_app_container(&outstream, 0xA1); if (r < 0) return r;
     r = decode_token_stream_encode_app_container(&outstream, 0xA1); if (r < 0) return r;
     // The length returned for the outer capsule is the wire length
   // 0x30 len  Sequence length
@@ -910,6 +924,7 @@ int r;
     //   resource_string Host name: workstation            unicode
     w = rtsmb_util_unicode_strlen(workstation_name)*2+2;  // item_string null is terminator record
     iw = SMB_HTOIW((word) w);
+w=iw=0; // send null for forkstation name
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
     resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;
@@ -958,7 +973,35 @@ int r;
 
 }
 
+int SpnegoClient::spnego_encode_NegTokenInit_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
+{
+bool doing_size = true;
+spnego_output_stream_t outstream;
+int i;
+int r;
 
+  for(i=0; i < 2; i++, doing_size = !doing_size)
+  {
+    int saved_object_count=0;
+    int fixups = 0;
+    int wire_length=0;
+    int i;
+    dword dw;
+    word  w,iw;
+    // On the second pass remember the object count so we can enumerate the size place holders
+    spnego_output_stream_stream_constructor(&outstream,0, outbuffer, buffer_length,doing_size);
+    // On the second pass fixup the place holders
+    if (!doing_size)
+      decode_token_stream_encode_fixup_lengths(&outstream);
+  // 0xA1, len NegTokenTarg
+//     r = decode_token_stream_encode_app_container(&outstream, 0xA1); if (r < 0) return r;
+    r = decode_token_stream_encode_app_container(&outstream, 0x60); if (r < 0) return r;   // ASN1_APPLICATION(0)
+//    r = decode_token_stream_encode_app_container(&outstream, 0xA0); if (r < 0) return r;   //  ASN1_CONTEXT(0)
+    //{0x06, 0x06, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x02};
+    r = decode_token_stream_encode_bytes(&outstream, (void *)SPNEGO,  sizeof(SPNEGO)); if (r < 0) return r;
+  }
+  return (int) PDIFF (outstream.stream_pointer, outstream.stream_base);
+}
 
 // encode length field and return the pointer to the next byte in the stream.
 #define MAX_LENGTHFIELD_WIDTH 32

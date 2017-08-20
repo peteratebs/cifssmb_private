@@ -124,10 +124,14 @@ private:
 //      Smb2NBSSCmd.flush(pSmb2Session);
 
       byte signature[16];
-      size_t length=0;
-      byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-      calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-
+      if (pSmb2Session->session_key_valid())
+      {
+        size_t length=0;
+        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+      }
+      else
+       memset (signature, 0 , 16);
       OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
       return Smb2NBSSCmd.status;
@@ -213,7 +217,7 @@ private:
       byte *variable_content = (byte *) setup_blob;
       dword variable_content_size = setup_blob_size;
 
-      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
+      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
       NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session->SendBuffer,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
       if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
       {
@@ -231,6 +235,17 @@ private:
         if (Smb2SetupCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
            return RTSMB_CLI_SSN_RV_DEAD;
       }
+
+      byte signature[16];
+      if (pSmb2Session->session_key_valid())
+      {
+        size_t length=0;
+        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+      }
+      else
+       memset (signature, 0 , 16);
+      OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
       return RTSMB_CLI_SSN_RV_OK;
   }
@@ -259,6 +274,7 @@ private:
       return RTSMB_CLI_SSN_RV_DEAD;
     }
 
+    pSmb2Session->session_server_info_smb2_session_id = InSmb2Header.SessionId();
     if (Smb2SetupReply.SecurityBufferLength()&&Smb2SetupReply.SecurityBufferLength() < 2048)
     {
       dword security_bytes_pulled;
@@ -290,17 +306,18 @@ private:
 //    decoded_targ_tokentarget_info;
 
 //typedef struct SecurityBuffer_s {  dword size;  word  offset;  byte  *value_at_offset;
-
+    byte session_key[16];
  int blob_length = rtsmb_cli_session_ntlm_auth (
     pSmb2Session->user_name(),
     pSmb2Session->password(),
     pSmb2Session->domain(),
     decoded_targ_token.ntlmserverchallenge,
     decoded_targ_token.target_info->value_at_offset,
-    decoded_targ_token.target_info->size, pSmb2Session->session_key());
+    decoded_targ_token.target_info->size, session_key);
 
-    if (setup_blob_size &&  response_to_challenge)
+    if (blob_length && response_to_challenge)
     {
+      pSmb2Session->session_key(session_key);     // Save the session key
       setup_blob = (byte *) response_to_challenge;
       setup_blob_size = blob_length;
       r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
@@ -325,7 +342,8 @@ extern int do_smb2_logon_server_worker(Smb2Session &Session)
 
 
 static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
-
+char *myworkstation = "workstation";
+// char *myworkstation = "VBOXUNBUNTU";
 
 int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte *session_key)
 {
@@ -333,7 +351,7 @@ int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, 
     rtsmb_util_guid(&session_key[0]);
     rtsmb_util_guid(&session_key[8]);
     word workstation_name[32];
-    rtsmb_util_ascii_to_unicode ("workstation" ,workstation_name, std::max((size_t)32,(strlen("workstation")+1)*2) );
+    rtsmb_util_ascii_to_unicode (myworkstation ,workstation_name, std::max((size_t)32,(strlen(myworkstation)+1)*2) );
     word user_name[32];
     rtsmb_util_ascii_to_unicode (user, user_name, std::max((size_t)32,2*(strlen(user)+1)));
     word domain_name[32];
