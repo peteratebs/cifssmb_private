@@ -15,6 +15,7 @@
 #define include_smb2clientincludes
 
 #include "smb2defs.hpp"
+#include "smb2diagnostics.hpp"
 #include "smb2socks.hpp"
 #include "netstreambuffer.hpp"
 #include "wireobjects.hpp"
@@ -22,5 +23,4 @@
 #include "mswireobjects.hpp"
 #include "smb2session.hpp"
 #include "smb2socks.hpp"
-
 #endif // include_smb2clientincludes

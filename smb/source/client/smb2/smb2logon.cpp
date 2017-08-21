@@ -14,18 +14,6 @@
 #include "smb2clientincludes.hpp"
 #include "smb2spnego.hpp"
 
-//void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
-//int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
-//void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
-//int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
-//void spnego_decoded_NegTokenTarg_destructor(decoded_NegTokenTarg_t *decoded_token);
-//int spnego_decode_NegTokenTarg_packet(decoded_NegTokenTarg_t *decoded_token, unsigned char *pinbuffer, size_t buffer_length);
-//int spnego_get_negotiate_ntlmssp_blob(byte **pblob);
-//int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length,byte *challenge);
-//int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
-//void spnego_init_extended_security(void);
-//int spnego_get_client_ntlmv2_response_blob(byte *pblob);
-
 // This is fixed negTokeninit, mechType1 sent by setup to evoke a challenge from the server ... see wireshark for decode
 static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0x05,0x05,0x02,0xa0,0x3e,0x30,0x3c,0xa0,0x0e,0x30,0x0c,0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a,0xa2,0x2a,0x04,0x28,0x4e,0x54,0x4c,0x4d,0x53,
 0x53,0x50,0x00,0x01,0x00,0x00,0x00,0x97,0x82,0x08,0xe2,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0a,0x00,0xd7,0x3a,0x00,0x00,0x00,0x0f};
@@ -33,10 +21,12 @@ static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0
 #define MAXBLOB 4096
 
 
-class SmbLogonWorker : public local_allocator {
+class SmbLogonWorker : private local_allocator,private smb_diagnostics {
 public:
   SmbLogonWorker(Smb2Session &_Session)
   {
+    set_diag_level(DIAG_DISABLED);
+    set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
     pSmb2Session = &_Session; do_setup_phase_two=false;
     spnego_blob_from_server = response_to_challenge=0;
     spnego_blob_from_server = (byte *)local_rtp_malloc(MAXBLOB);
@@ -54,6 +44,8 @@ public:
   /// Set tate to logged in.
   int do_logon_commands()
   {
+    diag_printf(DIAG_INFORMATIONAL, "I am a printf clone %c %X %d\n", 'a', 255, 999);
+    diag_printf(DIAG_INFORMATIONAL, "I am unicode %ls\n", L"printf UNICDESTRING");
     // Send negotiate and wait for the response which will have a server challenge
     int r = do_negotiate_command();
     if(r < 0) return 0;
@@ -124,7 +116,7 @@ private:
 //      Smb2NBSSCmd.flush(pSmb2Session);
 
       byte signature[16];
-      if (pSmb2Session->session_key_valid())
+      if (checkSessionSigned())
       {
         size_t length=0;
         byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
@@ -237,11 +229,12 @@ private:
       }
 
       byte signature[16];
-      if (pSmb2Session->session_key_valid())
+      if (checkSessionSigned())
       {
         size_t length=0;
         byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
         calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+//       memset (signature, 0xaa , 16);
       }
       else
        memset (signature, 0 , 16);
@@ -349,7 +342,7 @@ int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, 
 {
 
     rtsmb_util_guid(&session_key[0]);
-    rtsmb_util_guid(&session_key[8]);
+//    rtsmb_util_guid(&session_key[8]);
     word workstation_name[32];
     rtsmb_util_ascii_to_unicode (myworkstation ,workstation_name, std::max((size_t)32,(strlen(myworkstation)+1)*2) );
     word user_name[32];
@@ -423,7 +416,9 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
   // Convert the password to unicode
    // get md4 of password.  This is the 16-byte NTLM hash
    dst = upassword->utf16_length();
+   diag_dump_bin(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed passwd: ", upassword->utf16(), dst);
    RTSMB_MD4 ((const unsigned char *)upassword->utf16(), (dword)dst, p21);
+   diag_dump_bin(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed pwhash: ", p21, 16);
 
     // The Unicode uppercase username is concatenated with the Unicode authentication target
     // (the domain or server name specified in the Target Name field of the Type 3 message).
@@ -451,6 +446,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    // concatenate the uppercase username with the domainname
     memcpy((char *) nameDomainname, uname->utf16(), uname->utf16_length() );
     memcpy((char *) &nameDomainname[uname->utf16_length()], udomain->utf16(), udomain->utf16_length() );
+    diag_dump_bin(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
 
    // The HMAC-MD5 message authentication code algorithm is applied to
    // the unicode (username,domainname) using the 16-byte NTLM hash as the key.
@@ -464,13 +460,17 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
     // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
     // (calculated in step 2) as the key. This results in a 16-byte output value.
     // pntlmv2_blob = (ntlmv2_blob_t *) ntlm_response_blob;
+    diag_dump_bin(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 v2 hash: ", NTLMv2_Hash, 16);
 
     memcpy(concatChallenge, serverChallenge, 8);
     memcpy(&concatChallenge[8], ntlm_response_blob, ntlm_response_blob_length);
+    diag_dump_bin(DIAG_DEBUG,"NTLMv2 concatChallenge: ", concatChallenge+8, ntlm_response_blob_length);
     hmac_md5(concatChallenge+8,  /* pointer to data stream */
                ntlm_response_blob_length,    /* length of data stream */
                NTLMv2_Hash,    /* pointer to remote authentication key */
                16,        /* length of authentication key */
                (byte * ) output);
+
+    diag_dump_bin(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed md5hash: ", output, 16);
     return (byte * )output;
 }

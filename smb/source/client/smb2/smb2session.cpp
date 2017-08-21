@@ -114,5 +114,5 @@ static Smb2Session *glCurrentActiveSession=0;
 void setCurrentActiveSession(Smb2Session *CurrentActiveSession) {glCurrentActiveSession=CurrentActiveSession;}
 ddword getCurrentActiveSession_session_id() { return glCurrentActiveSession->session_server_info_smb2_session_id;}
 Smb2Session *getCurrentActiveSession() {return glCurrentActiveSession;}
-//bool checkSessionSigned( ) { return glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };
+// bool checkSessionSigned( ) { return glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };
 bool checkSessionSigned( ) { return false; }// glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };

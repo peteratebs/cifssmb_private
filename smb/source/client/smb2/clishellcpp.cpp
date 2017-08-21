@@ -23,18 +23,31 @@
 extern "C" int smb2_cli_shell()
 {
     Smb2Session ShellSession;
-    char *ip   = "192.168.1.2";
+//    char *ip   = "192.168.1.2";
+    char *ip   = "192.168.1.12";
     byte mask[] = {255,255,255,0};
 
     ShellSession.set_connection_parameters(ip, mask, 445);
     ShellSession.set_user_parameters(
-//      "peter",
-//      "542Lafayette",
-//      "vboxubuntu");
+#define DOLINUX 0
+#define DOWINDOWS 1
+#define DOEBS     0
+#if(DOLINUX)
+     "peter",
+     "542Lafayette",
+     "vboxubuntu");
 //      "VBOXUNBUNTU");
+#endif
+#if(DOWINDOWS)
+     "peterv",
+     "542Lafayette",
+     "workgroup");
+#endif
+#if(DOEBS)
       "notebs",
       "notpassword",
       "domain");
+#endif
      ShellSession.set_share_parameters("\\\\SHARE0",0);
 //   ShellSession.set_share_parameters("\\\\peter",0);
     setCurrentActiveSession(&ShellSession);
