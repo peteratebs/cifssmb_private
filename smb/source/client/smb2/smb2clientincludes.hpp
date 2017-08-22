@@ -18,9 +18,9 @@
 #include "smb2diagnostics.hpp"
 #include "smb2socks.hpp"
 #include "netstreambuffer.hpp"
+#include "smb2session.hpp"
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 #include "mswireobjects.hpp"
-#include "smb2session.hpp"
 #include "smb2socks.hpp"
 #endif // include_smb2clientincludes

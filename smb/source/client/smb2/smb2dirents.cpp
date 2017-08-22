@@ -14,13 +14,7 @@
 //  SMB2 client session level interface
 //
 
-#include "smb2defs.hpp"
-#include "smb2socks.hpp"
-#include "netstreambuffer.hpp"
-#include "session.hpp"
-#include "wireobjects.hpp"
-#include "smb2wireobjects.hpp"
-#include "mswireobjects.hpp"
+#include "smb2clientincludes.hpp"
 
 Smb2Session *smb2_reply_buffer_to_session(NetStreamInputBuffer &ReplyBuffer);
 extern int FormatDirscanToDstat(void *pBuffer);
@@ -125,7 +119,7 @@ int rtsmb2_cli_session_send_querydirectory_method (NetStreamOutputBuffer &SendBu
     variable_content_size  = 0;
 
 
-  NetSmb2NBSSCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
+  NetSmb2NBSSCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {

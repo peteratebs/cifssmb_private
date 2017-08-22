@@ -12,68 +12,93 @@
 //  SMB2 client session level interface
 //
 
-#include "smb2defs.hpp"
-#include "smb2socks.hpp"
-#include "netstreambuffer.hpp"
-#include "wireobjects.hpp"
-#include "mswireobjects.hpp"
-#include "smb2session.hpp"
+
+#include "smb2clientincludes.hpp"
+
+using namespace std;
 
 
-extern "C" int smb2_cli_shell()
-{
-    Smb2Session ShellSession;
-//    char *ip   = "192.168.1.2";
-    char *ip   = "192.168.1.12";
+class SmbShellWorker : private local_allocator,smb_diagnostics {
+public:
+  SmbShellWorker()
+  {
+    set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
+  }
+  void go()
+  {
+    char *ip   = "192.168.1.2";
+//    char *ip   = "192.168.1.12";
     byte mask[] = {255,255,255,0};
 
     ShellSession.set_connection_parameters(ip, mask, 445);
     ShellSession.set_user_parameters(
-#define DOLINUX 0
-#define DOWINDOWS 1
-#define DOEBS     0
-#if(DOLINUX)
+    #define DOLINUX   1
+    #define DOWINDOWS 0
+    #define DOEBS     0
+     #if(DOLINUX)
      "peter",
      "542Lafayette",
      "vboxubuntu");
-//      "VBOXUNBUNTU");
-#endif
-#if(DOWINDOWS)
+     #endif
+     #if(DOWINDOWS)
      "peterv",
      "542Lafayette",
      "workgroup");
-#endif
+     #endif
+     #if(DOEBS)
+     "notebs",
+     "notpassword",
+     "domain");
+     #endif
 #if(DOEBS)
-      "notebs",
-      "notpassword",
-      "domain");
-#endif
      ShellSession.set_share_parameters("\\\\SHARE0",0);
-//   ShellSession.set_share_parameters("\\\\peter",0);
+#endif
+#if(DOLINUX)
+   ShellSession.set_share_parameters("\\\\192.168.1.2\\peter",0);
+#endif
+    // Using a global accessor, may not need it anymore
     setCurrentActiveSession(&ShellSession);
 
+    diag_printf(DIAG_INFORMATIONAL, "Call socket connect\n");
 
-     cout_log(LL_JUNK)  << "Call socket connect" << endl;
-  if (ShellSession.connect_socket())
+    if (ShellSession.connect_socket())
     {
-       cout_log(LL_JUNK)  << "Socket connect worked" << endl;
-      if (ShellSession.connect_buffers())
+      diag_printf(DIAG_INFORMATIONAL, "connect socket worked\ncalling connect server to establish a session with the user\n");
+      if (ShellSession.connect_server())
       {
-         cout_log(LL_JUNK)  << "connect_buffers worked" << endl;
-         if (ShellSession.connect_server())
+         diag_printf(DIAG_INFORMATIONAL, "connect user  worked\ncalling connect share\n");
+         if (ShellSession.connect_share(0))
          {
-           cout_log(LL_JUNK)  << "connect_buffers worked" << endl;
-           if (ShellSession.connect_user())
-          {
-             cout_log(LL_JUNK)  << "connect user worked" << endl;
-            if (ShellSession.connect_share(0))
-            {
-               cout_log(LL_JUNK)  << "connect share worked" << endl;
-            }
-         }
+           diag_printf(DIAG_INFORMATIONAL, "connect share worked\n");
+           goconnected();
          }
       }
     }
+   }
+   void goconnected()
+   {
+     for (;;)
+     {
+       cout << "CMD>";
+       cin >> current_command;
+       if (current_command == "quit" || current_command == "QUIT")
+       {
+         cout << "bye";
+         break;
+       }
+
+     }
+   }
+private:
+   string      current_command;
+   Smb2Session ShellSession;
+};
+
+extern "C" int smb2_cli_shell()
+{
+    SmbShellWorker ShellWorker;
+
+    ShellWorker.go();
     return 0;
 }
 

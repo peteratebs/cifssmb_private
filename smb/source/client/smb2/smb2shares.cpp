@@ -21,14 +21,7 @@
 //  get_setupphase_2object()
 
 
-#include "smb2defs.hpp"
-#include "smb2socks.hpp"
-#include "netstreambuffer.hpp"
-#include "wireobjects.hpp"
-#include "smb2wireobjects.hpp"
-#include "mswireobjects.hpp"
-#include "smb2session.hpp"
-#include "smb2socks.hpp"
+#include "smb2clientincludes.hpp"
 
 
 // Can't embedd this in smb2session.hpp
@@ -37,9 +30,10 @@ static const word wildcard_type[]        = {'?', '?', '?', '?', '?', '\0'};
 
 class SmbTreeConnectWorker {
 public:
-  SmbTreeConnectWorker(Smb2Session &_pSmb2Session)
+  SmbTreeConnectWorker(Smb2Session &_pSmb2Session,int _sharenumber)
   {
     pSmb2Session = &_pSmb2Session;
+    share_number = _sharenumber;
   }
   int go()
   {
@@ -51,13 +45,10 @@ public:
 private:
   Smb2Session *pSmb2Session;
   int share_number;
-  int rtsmb_cli_session_connect_share (int _share_number=0)
+  int rtsmb_cli_session_connect_share()
   {
-
-      share_number=_share_number;
-
       ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-      pSmb2Session->update_timestamp ();
+      pSmb2Session->update_timestamp();
 
       if (pSmb2Session->Shares[share_number].share_state != CSSN_SHARE_STATE_DIRTY)
           return RTSMB_CLI_SSN_RV_ALREADY_CONNECTED;
@@ -85,7 +76,8 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2TreeconnectCmd Smb2TreeconnectCmd;
 
-    NetSmb2NBSSCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session->SendBuffer,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
+    pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
+    NetSmb2NBSSCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
     if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
     {
       Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
@@ -99,6 +91,16 @@ private:
       memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
       if (Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
         return RTSMB_CLI_SSN_RV_DEAD;
+      byte signature[16];
+      if (checkSessionSigned())
+      {
+        size_t length=0;
+        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+      }
+      else
+       memset (signature, 0 , 16);
+      OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
     }
     return Smb2NBSSCmd.status;
@@ -109,7 +111,7 @@ private:
     NetNbssHeader       InNbssHeader;
     NetSmb2Header       InSmb2Header;
     NetSmb2TreeconnectReply Smb2TreeconnectReply;
-    NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session->ReplyBuffer, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
+    NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
      int r = 0;
 // HAVE TO PULL OR TIMEOUT
@@ -137,6 +139,12 @@ private:
 
 };
 
+extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber)
+{
+  SmbTreeConnectWorker TreeConnectWorker(Session,sharenumber);
+  return TreeConnectWorker.go();
+}
+
 #if(0) // Need to adapt the code below for logoff support
 
 static int rtsmb2_cli_session_send_logoff_error_handler(NetStreamInputBuffer &Buffer) {return RTSMB_CLI_SSN_RV_INVALID_RV;}
@@ -148,7 +156,7 @@ static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
   NetSmb2LogoffCmd    Smb2LogoffCmd;
   Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
-  NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
+  NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
 
   OutSmb2Header.TreeId =  (ddword)pSmb2Session->job_data()->tree_disconnect.tid;
 

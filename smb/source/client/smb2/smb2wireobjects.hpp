@@ -14,6 +14,8 @@
 #ifndef include_smb2wireobjects
 #define include_smb2wireobjects
 
+// #include "smb2session.hpp"
+
 // Cuurent layering cant access the session from her
 extern ddword getCurrentActiveSession_session_id();
 
@@ -22,7 +24,7 @@ extern "C" {
 
 #define SMB2_NEGOTIATE_SIGNING_ENABLED  0x0001   // When set, indicates that security signatures are enabled on the server.
 #define SMB2_NEGOTIATE_SIGNING_REQUIRED 0x0002   // When set, indicates that security signatures are required by the server.
-#define SMB2_SESSION_FLAG_BINDING       0x01     //  When set, indicates that the request is to bind an existing session to a new connection.
+#define SMB2_SESSION_FLAG_BINDING         0x01   //  When set, indicates that the request is to bind an existing session to a new connection.
 
 #define SMB2_DIALECT_2002  0x0202
 #define SMB2_DIALECT_2100  0x0210
@@ -53,12 +55,12 @@ extern "C" {
 #define SMB2_OPLOCK_BREAK       0x0012
 
 
-#define SMB2_FLAGS_SERVER_TO_REDIR      0x00000001
-#define SMB2_FLAGS_ASYNC_COMMAND        0x00000002
-#define SMB2_FLAGS_RELATED_OPERATIONS   0x00000004
-#define SMB2_FLAGS_SIGNED               0x00000008
-#define SMB2_FLAGS_DFS_OPERATIONS       0x10000000
-#define SMB2_FLAGS_REPLAY_OPERATION     0x20000000
+#define SMB2_FLAGS_SERVER_TO_REDIR              0x00000001
+#define SMB2_FLAGS_ASYNC_COMMAND                0x00000002
+#define SMB2_FLAGS_RELATED_OPERATIONS           0x00000004
+#define SMB2_FLAGS_SIGNED                       0x00000008
+#define SMB2_FLAGS_DFS_OPERATIONS               0x10000000
+#define SMB2_FLAGS_REPLAY_OPERATION             0x20000000
 
 
 #define SMB2_NT_STATUS_SUCCESS                  0x00000000
@@ -70,12 +72,12 @@ extern "C" {
 
 
 /* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
-#define SMB2_QUERY_FileDirectoryInformation 0x01        /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
-#define SMB2_QUERY_FileFullDirectoryInformation 0x02    /*  Full information about a file or directory. Full information is defined as all the basic information plus extended attribute size. */
+#define SMB2_QUERY_FileDirectoryInformation       0x01  /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
+#define SMB2_QUERY_FileFullDirectoryInformation   0x02  /*  Full information about a file or directory. Full information is defined as all the basic information plus extended attribute size. */
 #define SMB2_QUERY_FileIdFullDirectoryInformation 0x26  /*  Full information plus volume file ID about a file or directory. A volume file ID is defined as a number assigned by the underlying object store that uniquely identifies a file within a volume. */
-#define SMB2_QUERY_FileBothDirectoryInformation 0x03    /*  Basic information plus extended attribute size and short name about a file or directory. */
+#define SMB2_QUERY_FileBothDirectoryInformation   0x03  /*  Basic information plus extended attribute size and short name about a file or directory. */
 #define SMB2_QUERY_FileIdBothDirectoryInformation 0x25  /*  FileBothDirectoryInformation plus volume file ID about a file or directory. */
-#define SMB2_QUERY_FileNamesInformation 0x0C            /*  Detailed information on the names of files and directories in a directory. */
+#define SMB2_QUERY_FileNamesInformation           0x0C  /*  Detailed information on the names of files and directories in a directory. */
 /* RTSMB2_QUERY_DIRECTORY_C.Flags */
 #define SMB2_QUERY_RESTART_SCANS          0x01     /*  The server MUST restart the enumeration from the beginning, but the search pattern is not changed. */
 #define SMB2_QUERY_RETURN_SINGLE_ENTRY    0x02     /*  The server MUST only return the first entry of the search results. */
@@ -164,8 +166,8 @@ public:
   {
     ddword d=(ddword)FixedStructureAddress();
      cout << ":::::: NetSmb2Header At: " << std::hex << d << endl;
-    char c[4]; c[0] = ProtocolId()[1]; c[1] = ProtocolId()[2]; c[2] = ProtocolId()[3]; c[3] = 0;
-     cout << ":::::: NetSmb2Header Proto         : " <<  ProtocolId() << endl;
+     char c[4]; c[0] = ProtocolId()[1]; c[1] = ProtocolId()[2]; c[2] = ProtocolId()[3]; c[3] = 0;
+     cout << ":::::: NetSmb2Header Proto         : " <<  c << endl;
      cout << ":::::: NetSmb2Header size          : " << StructureSize() << endl;
      cout << ":::::: NetSmb2Header CreditCharge  : " << CreditCharge() << endl;
      cout << ":::::: NetSmb2Header Status        : " << Status_ChannelSequenceReserved() << endl;
@@ -461,12 +463,12 @@ private:
 template <class T>
 class NetSmb2NBSSReply {
 public:
-  NetSmb2NBSSReply(word command, NetStreamInputBuffer &_ReplyBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
+  NetSmb2NBSSReply(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
   {
-    ReplyBuffer=&_ReplyBuffer; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
+    pSmb2Session=_pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
     isvariable = false; base_address=0; variablesize=0;
     dword bytes_ready;
-    byte *nbsshead =  ReplyBuffer->buffered_data_pointer(bytes_ready);
+    byte *nbsshead =  pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
     byte *nbsstail  = nbsshead+4;
     byte *cmdtail =   bindpointers(nbsshead);
     status=RTSMB_CLI_SSN_RV_OK;
@@ -489,10 +491,10 @@ public:
   byte *FixedStructureAddress() { return base_address; };
 
   private:
-     T                  *reply;
-     NetStreamInputBuffer    *ReplyBuffer;
-     NetNbssHeader       *nbss;
-     NetSmb2Header       *smb2;
+     T                     *reply;
+     Smb2Session           *pSmb2Session;
+     NetNbssHeader         *nbss;
+     NetSmb2Header         *smb2;
      byte *base_address;
      bool isvariable;
      dword objectsize;
@@ -515,16 +517,17 @@ public:
 
 bool checkSessionSigned();
 
+
 template <class T>
 class NetSmb2NBSSCmd {
 public:
   int status;
-  NetSmb2NBSSCmd(word command, NetStreamOutputBuffer &_SendBuffer, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_cmd, dword _variable_size=0)
+  NetSmb2NBSSCmd(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header &_smb2,  T &_cmd, dword _variable_size=0)
   {
-    SendBuffer=&_SendBuffer; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
+    pSmb2Session = _pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
     isvariable = false; base_address=0; variablesize=_variable_size;
     dword bytes_available_for_sending;
-    byte *nbsshead = SendBuffer->output_buffer_address(bytes_available_for_sending);
+    byte *nbsshead = pSmb2Session->SendBuffer.output_buffer_address(bytes_available_for_sending);
     byte *nbsstail  = nbsshead+4;
     byte *cmdtail = bindpointers(nbsshead);
     cmdtail  += _variable_size;   // Add in 2 variable words, not good
@@ -534,7 +537,7 @@ public:
     ddword SessionId = getCurrentActiveSession_session_id(); // getCurrentActiveSession()->session_server_info_smb2_session_id;
 
     status = RTSMB_CLI_SSN_RV_OK;
-    smb2->Initialize(command,(ddword) SendBuffer->stream_buffer_mid, SessionId);
+    smb2->Initialize(command,(ddword) pSmb2Session->SendBuffer.stream_buffer_mid, SessionId);
 
 //    if (getCurrentActiveSession()->session_key_valid())
     if (checkSessionSigned())
@@ -544,14 +547,14 @@ public:
        smb2->Flags = Flags;
     }
 
-    if (nbss->push_output(*SendBuffer) != NetStatusOk)   // nbss to buffer in net byte order
+    if (nbss->push_output(pSmb2Session->SendBuffer) != NetStatusOk)   // nbss to buffer in net byte order
       status = RTSMB_CLI_SSN_RV_DEAD;
-    if (smb2->push_output(*SendBuffer) != NetStatusOk)   // smb header to buffer in net byte order
+    if (smb2->push_output(pSmb2Session->SendBuffer) != NetStatusOk)   // smb header to buffer in net byte order
       status = RTSMB_CLI_SSN_RV_DEAD;
   }
   void flush()
   {
-    if (SendBuffer->push_output()==NetStatusOk)
+    if (pSmb2Session->SendBuffer.push_output()==NetStatusOk)
       status=RTSMB_CLI_SSN_RV_SENT;
     else
       status=RTSMB_CLI_SSN_RV_DEAD;
@@ -574,8 +577,8 @@ public:
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
   private:
-     T                  *cmd;
-     NetStreamOutputBuffer  *SendBuffer;
+     Smb2Session            *pSmb2Session;
+     T                      *cmd;
      NetNbssHeader          *nbss;
      NetSmb2Header          *smb2;
      byte *base_address;

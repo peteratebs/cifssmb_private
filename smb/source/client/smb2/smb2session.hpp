@@ -24,9 +24,9 @@ typedef enum
 } RTSMB_CLI_SESSION_SHARE_STATE;
 
 
-class NewSmb2Share {
+class Smb2Share {
 public:
-  NewSmb2Share() {};
+  Smb2Share() {share_state = CSSN_SHARE_STATE_DIRTY;}
   int share_state;
   word connect_mid;
   dword tid;
@@ -59,9 +59,6 @@ public:
   bool connect_socket();
   void disconnect_socket();
 
-  bool connect_buffers() ;
-  bool disconnect_buffers() ;
-
   bool connect_server() ;
   bool disconnect_server() ;
 
@@ -93,7 +90,7 @@ public:
   NetStreamOutputBuffer    SendBuffer;
   NetStreamInputBuffer          ReplyBuffer;
 
-  NewSmb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
+  Smb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
 
 
   RTSMB_CLI_SESSION_DIALECT session_server_info_dialect;
@@ -127,6 +124,11 @@ private:
   struct SocketContext sourcesockContext;
   DataSinkDevtype     SocketSink;
   struct SocketContext sinksockContext;
+
+  bool connect_buffers() ;
+  bool disconnect_buffers() ;
+
+
 
 //  byte host_ip [4];
 //  byte ip_mask [4];

@@ -25,7 +25,6 @@ class SmbLogonWorker : private local_allocator,private smb_diagnostics {
 public:
   SmbLogonWorker(Smb2Session &_Session)
   {
-    set_diag_level(DIAG_DISABLED);
     set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
     pSmb2Session = &_Session; do_setup_phase_two=false;
     spnego_blob_from_server = response_to_challenge=0;
@@ -94,7 +93,7 @@ private:
       NetSmb2NegotiateCmd Smb2NegotiateCmd;
       pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
 
-      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session->SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
+      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session, OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
       if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
       {
         Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
@@ -142,7 +141,7 @@ private:
     dword bytes_ready;
     byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
     cout_log(LL_JUNK)  << "rtsmb2_cli_session_receive_negotiate received packet pulled #: " << bytes_pulled << endl;
-    NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session->ReplyBuffer, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
+    NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
 
 //    InNbssHeader.show_contents();
 //    InSmb2Header.show_contents();
@@ -210,7 +209,7 @@ private:
       dword variable_content_size = setup_blob_size;
 
       pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
-      NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session->SendBuffer,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
+      NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
       if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
       {
         dword in_variable_content_size    =  Smb2SetupCmd.SecurityBufferLength();    // not sure if this is right
@@ -255,7 +254,7 @@ private:
     int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.FixedStructureSize()-1, bytes_pulled);
     if (r != NetStatusOk)
       return RTSMB_CLI_SSN_RV_DEAD;
-    NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session->ReplyBuffer, InNbssHeader,InSmb2Header, Smb2SetupReply);
+    NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
 
     InNbssHeader.show_contents();
     InSmb2Header.show_contents();

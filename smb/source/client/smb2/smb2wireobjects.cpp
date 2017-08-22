@@ -11,15 +11,7 @@
 // Module description:
 //  SMB2 client session level interface
 //
-#include "smb2defs.hpp"
-#include "smb2socks.hpp"
-#include "netstreambuffer.hpp"
-#include "wireobjects.hpp"
-#include "smb2wireobjects.hpp"
-#include "mswireobjects.hpp"
-#include "smb2session.hpp"
-#include "smb2socks.hpp"
-
+#include "smb2clientincludes.hpp"
 
 
 void NetNbssHeader::BindAddressesToBuffer(byte *base)
