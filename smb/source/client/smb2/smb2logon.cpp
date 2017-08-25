@@ -43,8 +43,6 @@ public:
   /// Set tate to logged in.
   int do_logon_commands()
   {
-    diag_printf(DIAG_INFORMATIONAL, "I am a printf clone %c %X %d\n", 'a', 255, 999);
-    diag_printf(DIAG_INFORMATIONAL, "I am unicode %ls\n", L"printf UNICDESTRING");
     // Send negotiate and wait for the response which will have a server challenge
     int r = do_negotiate_command();
     if(r < 0) return 0;
@@ -137,15 +135,16 @@ private:
     dword bytes_pulled;
 
     pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.FixedStructureSize() ,bytes_pulled);
-    cout_log(LL_JUNK)  << "rtsmb2_cli_session_receive_negotiate received packet pulled #: " << bytes_pulled << endl;
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE pulled: %d \n", bytes_pulled);
     dword bytes_ready;
     byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
-    cout_log(LL_JUNK)  << "rtsmb2_cli_session_receive_negotiate received packet pulled #: " << bytes_pulled << endl;
     NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
+
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE framesize %d \n", InNbssHeader.nbss_packet_size()+4);
 
 //    InNbssHeader.show_contents();
 //    InSmb2Header.show_contents();
-    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+
 
     if (Smb2NegotiateReply.SecurityBufferLength())
     {
@@ -164,8 +163,9 @@ private:
         maxsize = Smb2NegotiateReply.MaxTransactSize();
       pSmb2Session->session_server_info_buffer_size =  maxsize;
       pSmb2Session->session_server_info_raw_size   =   maxsize;
-      // HEREHERE -  ReplyBuffer.session_server_info()->smb2_session_id = InSmb2Header->Smb2NegotiateReply???
      }
+     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE purging %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+     pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
      return RTSMB_CLI_SSN_RV_OK;
   }
 
@@ -246,6 +246,7 @@ private:
   {
     dword in_variable_content_size = 0;
     dword bytes_pulled;
+    dword total_security_bytes_pulled=0;
     NetNbssHeader       InNbssHeader;
     NetSmb2Header       InSmb2Header;
     NetSmb2SetupReply Smb2SetupReply;
@@ -254,15 +255,17 @@ private:
     int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.FixedStructureSize()-1, bytes_pulled);
     if (r != NetStatusOk)
       return RTSMB_CLI_SSN_RV_DEAD;
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP pulled: %d \n", bytes_pulled);
     NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
+//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
 
     InNbssHeader.show_contents();
     InSmb2Header.show_contents();
 
-    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED)
+
+    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_setup_phase_two)
     {
       dword ssstatus =  InSmb2Header.Status_ChannelSequenceReserved();
-      cout_log(LL_JUNK) << "didnt get SMB_NT_STATUS_MORE_PROCESSING_REQUIRED got:" << std::hex << ssstatus << endl;
       return RTSMB_CLI_SSN_RV_DEAD;
     }
 
@@ -275,16 +278,20 @@ private:
         return RTSMB_CLI_SSN_RV_DEAD;
       if (Smb2SetupReply.SecurityBufferLength() != security_bytes_pulled)
         return RTSMB_CLI_SSN_RV_DEAD;
+      total_security_bytes_pulled += security_bytes_pulled;
       spnego_blob_size_from_server = std::max(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
       memcpy( spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), spnego_blob_size_from_server);
     }
+
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP total pulled: %d \n", bytes_pulled+total_security_bytes_pulled);
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
+    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
     return RTSMB_CLI_SSN_RV_OK;
   }
   int do_extended_setup_command()
   {
     class SpnegoClient spnegoWorker;
-
     do_setup_phase_two=true;
     decoded_NegTokenTarg_challenge_t decoded_targ_token;
     int r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
@@ -334,7 +341,7 @@ extern int do_smb2_logon_server_worker(Smb2Session &Session)
 
 
 static const byte zero[8] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
-char *myworkstation = "workstation";
+char *myworkstation = "VBOXUNBUNTU";
 // char *myworkstation = "VBOXUNBUNTU";
 
 int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte *session_key)

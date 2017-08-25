@@ -892,7 +892,7 @@ int r;
 
 
     //   resource_string Domain name: UBUNTU14-VIRTUALBOX  unicode
-    w = rtsmb_util_unicode_strlen(domain_name)*2+2;  // item_string null is terminator record
+    w = rtsmb_util_unicode_strlen(domain_name)*2;
     iw = SMB_HTOIW((word) w);
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
@@ -904,7 +904,7 @@ int r;
 
 
     //   resource_string User name: peter                  unicode
-    w = rtsmb_util_unicode_strlen(user_name)*2+2;  // item_string null is terminator record
+    w = rtsmb_util_unicode_strlen(user_name)*2;
     iw = SMB_HTOIW((word) w);
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
@@ -915,9 +915,8 @@ int r;
     decode_token_stream_encode_bytes(&outstream, &dw,  4);  if (r < 0) return r;    // push 0 for offset from security_base, we'll get back to it.
 
     //   resource_string Host name: workstation            unicode
-    w = rtsmb_util_unicode_strlen(workstation_name)*2+2;  // item_string null is terminator record
+    w = rtsmb_util_unicode_strlen(workstation_name)*2;
     iw = SMB_HTOIW((word) w);
-w=iw=0; // send null for forkstation name
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer length
     r = decode_token_stream_encode_bytes(&outstream, &iw,  2);  if (r < 0) return r;  // Target info layer Maxlength
     resource_strings[fixups].offset_fixup_location = outstream.stream_pointer;

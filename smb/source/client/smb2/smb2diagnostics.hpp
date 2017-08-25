@@ -18,13 +18,6 @@
 #include <cstdarg>
 #include <cstdio>
 
-typedef enum smb_diaglevel_e {
-    DIAG_DISABLED      =0,
-    DIAG_JUNK          =1,             // Handy for bumping diagnostics.
-    DIAG_INFORMATIONAL =2,
-    DIAG_DEBUG         =3,
-} smb_diaglevel;
-
 class smb_diagnostics {
 public:
   smb_diagnostics() {

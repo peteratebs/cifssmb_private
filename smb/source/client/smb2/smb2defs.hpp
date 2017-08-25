@@ -310,5 +310,13 @@ extern ddword rtsmb_util_get_current_filetime(void);
 void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w);
 void rtsmb_util_guid(byte *_pGuid);
 
+typedef enum smb_diaglevel_e {
+    DIAG_DISABLED      =0,
+    DIAG_JUNK          =1,             // Handy for bumping diagnostics.
+    DIAG_INFORMATIONAL =2,
+    DIAG_DEBUG         =3,
+} smb_diaglevel;
+void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size);
+void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...);
 
 #endif // include_smb2defs

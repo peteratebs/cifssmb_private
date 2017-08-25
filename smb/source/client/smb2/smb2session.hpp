@@ -29,9 +29,14 @@ public:
   Smb2Share() {share_state = CSSN_SHARE_STATE_DIRTY;}
   int share_state;
   word connect_mid;
-  dword tid;
   const word * share_type;
   word share_name [RTSMB_CFG_MAX_SHARENAME_SIZE + 1];
+  dword tid;
+  // retained from reply but not used yet.
+  byte  ShareType;
+  dword ShareFlags;
+  dword Capabilities;
+  dword MaximalAccess;
 };
 
 
@@ -67,6 +72,8 @@ public:
 
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
+
+  bool list_share(int sharenumber, word *_pattern);
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}

@@ -17,6 +17,7 @@
 
 extern int do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber);
+extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, word *pattern);
 
 /// Api method sets ip address, mask and port (445 | 139) to connect to
 void Smb2Session::set_connection_parameters(const char *ip, byte *mask, int port)
@@ -108,6 +109,10 @@ bool Smb2Session::connect_share(int sharenumber)
   return (bool) do_smb2_tree_connect_worker(*this,sharenumber);
 };
 
+bool Smb2Session::list_share(int sharenumber, word *_pattern)
+{
+  return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,_pattern);
+}
 bool Smb2Session::disconnect_server()                {return false;};
 bool Smb2Session::disconnect_user(int sharenumber)   {return false;};
 bool Smb2Session::disconnect_share(int sharenumber)  {return false;};

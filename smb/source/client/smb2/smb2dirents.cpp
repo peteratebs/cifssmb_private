@@ -1,4 +1,3 @@
-#if(0)
 
 //
 // smb2dirents.cpp -
@@ -42,16 +41,19 @@ static inline int smb2_ls_function(void *devContext, byte *pData, int size)
 //int  rtsmb_cli_session_find_first (int sid, PFCHAR share, PFCHAR pattern, PRTSMB_CLI_SESSION_DSTAT pdstat);
 
 
+static const byte zero16[16] = {0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0,0x0 , 0x0 ,0x0 ,0x0 ,0x0 ,0x0 ,0x0, 0x0};         // zeros
+
 class SmbQuerydirectoryWorker {
 public:
-  SmbQuerydirectoryWorker(int _sid,  byte *_sharename, word *_pattern)
+  SmbQuerydirectoryWorker(Smb2Session &_pSmb2Session,int _sharenumber, word *_pattern)
   {
-    sid=_sid;sharename=_sharename;pattern=_pattern;
-    _tid                  = STUB(sharename);
+    pSmb2Session = &_pSmb2Session;
+    share_number = _sharenumber;
+    pattern = _pattern;
     has_continue          = false;
-    sink_Fn               = smb2_ls_function; // HEREHERE NOT DONE
-    sink_parameters       = 0;  // HEREHERE NOT DONE
-    wire_socket           = 0; // HEREHERE NOT DONE
+//    sink_Fn               = smb2_ls_function; // HEREHERE NOT DONE
+//    sink_parameters       = 0;  // HEREHERE NOT DONE
+//    wire_socket           = 0; // HEREHERE NOT DONE
   };
   int go()
   {
@@ -59,18 +61,70 @@ public:
   }
 
 private:
-  int sid;
-  int _tid;
-  byte *sharename;
+  Smb2Session *pSmb2Session;
+  int share_number;
   word *pattern;
-  NEWRTSMB_CLI_SESSION_DSTAT dstat1;
-  ddword tid()   {return _tid;};  //HEREHERE NOT DONE pSmb2Session->job_data()->findsmb2.search_struct->share_struct->tid;
-  byte    SMB2FileId[16];         // HEREHERE NOT DONE FileId provided by SMB2 Create Request
-  lssinkFn_t    sink_Fn;          // HEREHERE NOT DONE
-  void        *sink_parameters;   // HEREHERE NOT DONE
-  RTP_SOCKET    wire_socket;      // HEREHERE NOT DONE
-
   bool has_continue;
+  int rtsmb2_cli_session_send_querydirectory ()
+  {
+    dword variable_content_size = 0;  // Needs to be known before Smb2NBSSCmd is instantiated
+    NetNbssHeader       OutNbssHeader;
+    NetSmb2Header       OutSmb2Header;
+    NetSmb2QuerydirectoryCmd Smb2QuerydirectoryCmd;
+
+    if (pattern)
+      variable_content_size   = (word)rtp_wcslen_bytes (pattern);
+    else
+      variable_content_size  = 0;
+
+    pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
+    NetSmb2NBSSCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
+    if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
+    {
+      OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
+      Smb2QuerydirectoryCmd.StructureSize        =  Smb2QuerydirectoryCmd.FixedStructureSize();
+      Smb2QuerydirectoryCmd.FileInformationClass    = SMB2_QUERY_FileIdBothDirectoryInformation; // SMB2_QUERY_FileNamesInformation;
+      Smb2QuerydirectoryCmd.FileIndex               = 0;
+      if (has_continue)
+        Smb2QuerydirectoryCmd.Flags                   = 0; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+      else
+        Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS;
+  //    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
+
+      cout_log(LL_JUNK)  << "YOYO Flags1: " << (int)Smb2QuerydirectoryCmd.Flags() << "Flags2: " << (int)Smb2QuerydirectoryCmd.Flags() << endl;
+
+      Smb2QuerydirectoryCmd.FileId                  = (byte*)zero16; // SMB2FileId;
+      Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize()+Smb2QuerydirectoryCmd.StructureSize()-1);
+
+      if (pattern)
+        Smb2QuerydirectoryCmd.FileNameLength   = (word)rtp_wcslen_bytes(pattern);
+      else
+        Smb2QuerydirectoryCmd.FileNameLength   = 0;
+     /* Tell the server that the maximum we can accept is what remains in our read buffer */
+     // Wrong
+      Smb2QuerydirectoryCmd.OutputBufferLength      = (word)1400;
+
+      if (Smb2QuerydirectoryCmd.FileNameLength() != 0)
+      {
+        tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
+        Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
+        byte signature[16];
+        if (checkSessionSigned())
+        {
+          size_t length=0;
+          byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+          calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+        }
+        else
+         memset (signature, 0 , 16);
+        OutSmb2Header.Signature = signature;
+        if (Smb2QuerydirectoryCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
+          return RTSMB_CLI_SSN_RV_DEAD;
+        Smb2NBSSCmd.flush();
+      }
+    }
+    return Smb2NBSSCmd.status;
+  }
 
   int do_ls_command_worker()
   {
@@ -78,15 +132,18 @@ private:
     bool doLoop = false;
     do
     {
+        NEWRTSMB_CLI_SESSION_DSTAT dstat1;
         // pass callbacks to smb2 stream layer through the stat structure
         dstat1.sink_Fn         = smb2_ls_function;
         dstat1.sink_parameters = (void *) &smb2_ls_context;
         int r1;
-        r1 = rtsmb_cli_session_find_first(sid, (char * ) sharename, (char *) pattern, &dstat1);
+        r1 = rtsmb2_cli_session_send_querydirectory ();
+//        r1 = rtsmb_cli_session_find_first(sid, (char * ) sharename, (char *) pattern, &dstat1);
         if(r1 < 0)
         {
           return 1;
         }
+#if (0)
         // This is the SMB2 flavor of search continue
 // Cheating, using RTSMB_CLI_SSN_SMB2_COMPUND_INPUT to assume he wants another
 // Should really be RTSMB_CLI_SSN_SMB2_QUERY_MORE
@@ -99,11 +156,22 @@ private:
               return 1;
             }
         }
-
         rtsmb_cli_session_find_close(sid, &dstat1);
+#endif
     } while(doLoop);
     return 0;
   }
+};
+
+extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, word *pattern);
+extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int sharenumber, word *pattern)
+{
+  SmbQuerydirectoryWorker QuerydirectoryWorker(Session, sharenumber, pattern);
+  return QuerydirectoryWorker.go();
+}
+
+#if(0)
+
 int rtsmb2_cli_session_send_querydirectory_method (NetStreamOutputBuffer &SendBuffer)
 {
   dword variable_content_size = 0;  // Needs to be known before Smb2NBSSCmd is instantiated

@@ -12,14 +12,7 @@
 //  SMB2 client session level interface
 //
 
-#include "smb2defs.hpp"
-//#include "smb2socks.hpp"
-//#include "netstreambuffer.hpp"
-//#include "wireobjects.hpp"
-//#include "smb2wireobjects.hpp"
-//#include "mswireobjects.hpp"
-//#include "session.hpp"
-//#include "smb2socks.hpp"
+#include "smb2clientincludes.hpp"
 #include "rtpdate.h"
 
 // We need to port the whole smbutil file.
@@ -190,4 +183,21 @@ static byte *pGuid=0;
     memcpy(pb, node_address, sizeof (node_address) );
   }
     memcpy(_pGuid, pGuid, 16);
+}
+
+// Diag output funtions not attached to a class
+void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size)
+{
+  smb_diagnostics d;
+  d.set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
+  d.diag_dump_bin(at_diaglayer, prompt, buffer, size);
+}
+
+void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...)
+{
+    char buffer[256];
+    va_list args;
+    va_start(args, fmt);
+    vsprintf (buffer,fmt, args);
+    cout << buffer;
 }

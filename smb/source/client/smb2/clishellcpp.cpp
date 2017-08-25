@@ -38,7 +38,8 @@ public:
      #if(DOLINUX)
      "peter",
      "542Lafayette",
-     "vboxubuntu");
+     "WORKGROUP");
+//     "vboxubuntu");
      #endif
      #if(DOWINDOWS)
      "peterv",
@@ -81,6 +82,13 @@ public:
      {
        cout << "CMD>";
        cin >> current_command;
+       if (current_command == "ls" || current_command == "LS")
+       {
+          word pat[32];
+          pat[0] = (word)'*';
+          pat[1] = 0;
+          ShellSession.list_share(0,pat);
+       }
        if (current_command == "quit" || current_command == "QUIT")
        {
          cout << "bye";

@@ -231,13 +231,13 @@ public:
         bytes_pulled = sourced_byte_count;
      else
         bytes_pulled = 0;
-      advance_input_buffer_bytes(bytes_pulled);
+      advance_input_buffer_bytes(bytes_pulled);  //  {input_pointer+=byte_count;} ;
       return r;
    }
 
    NetStatus pull_new_nbss_frame(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
    {
-     empty();
+//     empty();
      return pull_nbss_data(byte_count, bytes_pulled);
    }
    // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
