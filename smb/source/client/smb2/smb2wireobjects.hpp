@@ -555,7 +555,7 @@ public:
   void flush()
   {
     if (pSmb2Session->SendBuffer.push_output()==NetStatusOk)
-      status=RTSMB_CLI_SSN_RV_SENT;
+      status=RTSMB_CLI_SSN_RV_OK;
     else
       status=RTSMB_CLI_SSN_RV_DEAD;
   }

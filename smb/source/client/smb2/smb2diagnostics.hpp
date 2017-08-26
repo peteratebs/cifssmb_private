@@ -17,6 +17,11 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <string>
+
+typedef char * warning_string_t;
+
+inline void free_warning(warning_string_t &warning_string) { cout << *warning_string << endl; rtp_free(warning_string);}
 
 class smb_diagnostics {
 public:
@@ -24,9 +29,11 @@ public:
     buffer = (char *)rtp_malloc_auto_freed(2048); // Manually freed in detructor since. Should use private local_allocator instead
     _p_diaglevel=DIAG_DISABLED;
     }
-  ~smb_diagnostics() { rtp_free_auto_free(buffer);}
+  ~smb_diagnostics() {
+     std::for_each (warnings.begin(), warnings.end(), free_warning);
+     rtp_free_auto_free(buffer);}
 
-  void set_diag_level(smb_diaglevel diaglevel) { _p_diaglevel =diaglevel; cout << "Set level" << _p_diaglevel << endl; }
+  void set_diag_level(smb_diaglevel diaglevel) { _p_diaglevel =diaglevel;}
   void diag_dump_bin(smb_diaglevel at_diaglayer, const char *prompt, byte *buffer, int size)
   {
     cout << prompt << endl;
@@ -39,6 +46,16 @@ public:
   void diag_dump_bin(smb_diaglevel at_diaglayer,  const char *prompt, word *buffer, int size)   { diag_dump_bin(at_diaglayer, prompt, (byte *)buffer, size); }
   void diag_dump_bin(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size)   { diag_dump_bin(at_diaglayer, prompt, (byte *)buffer, size); }
 
+  void diag_text_warning(const char* fmt...)
+  {
+      va_list args;
+      va_start(args, fmt);
+      vsprintf (buffer,fmt, args);
+      warnings.push_back(rtsmb_strmalloc((char *)buffer));
+      // Store this in a vector
+      cout << "warning: " << buffer << endl;
+      va_end(args);
+  }
  //  note: use %ls to display utf16
   void diag_printf(smb_diaglevel at_diaglayer, const char* fmt...)
   {
@@ -56,10 +73,13 @@ public:
   }
 
 
+
 private:
   void diag_printbuffer()     { cout << buffer; };
   char *buffer;
   smb_diaglevel _p_diaglevel;
+  std::vector<warning_string_t> warnings;
+
 };
 
 #endif // include_smb2diagnostics

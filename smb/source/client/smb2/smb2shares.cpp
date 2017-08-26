@@ -71,6 +71,8 @@ private:
     int send_status;
     byte *path=0;
 
+    setSessionSigned(false);
+
     dword pathlen = (rtp_wcslen(pSmb2Session->Shares[share_number].share_name))*sizeof(word);
     dword variable_content_size = pathlen;  // Needs to be known before Smb2NBSSCmd is instantiated
     NetNbssHeader       OutNbssHeader;
@@ -79,32 +81,29 @@ private:
 
     pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
     NetSmb2NBSSCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
-    if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
+
+    Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
+    Smb2TreeconnectCmd.Reserved = 0;
+    Smb2TreeconnectCmd.PathOffset = (word) (OutSmb2Header.StructureSize()+Smb2TreeconnectCmd.StructureSize()-1);
+    Smb2TreeconnectCmd.PathLength = pathlen;
+    Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
+    pSmb2Session->Shares[share_number].connect_mid =  OutSmb2Header.MessageId();
+
+    memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
+    if (Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
+      return RTSMB_CLI_SSN_RV_DEAD;
+    byte signature[16];
+    if (checkSessionSigned())
     {
-      Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
-      Smb2TreeconnectCmd.Reserved = 0;
-      Smb2TreeconnectCmd.PathOffset = (word) (OutSmb2Header.StructureSize()+Smb2TreeconnectCmd.StructureSize()-1);
-      Smb2TreeconnectCmd.PathLength = pathlen;
-      Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
-
-      pSmb2Session->Shares[share_number].connect_mid =  OutSmb2Header.MessageId();
-
-      memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
-      if (Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
-        return RTSMB_CLI_SSN_RV_DEAD;
-      byte signature[16];
-      if (checkSessionSigned())
-      {
-        size_t length=0;
-        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-      }
-      else
-       memset (signature, 0 , 16);
-      OutSmb2Header.Signature = signature;
-      Smb2NBSSCmd.flush();
+      size_t length=0;
+      byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+      calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
     }
-    // return Smb2NBSSCmd.status;
+    else
+     memset (signature, 0 , 16);
+    OutSmb2Header.Signature = signature;
+    Smb2NBSSCmd.flush();
+  // return Smb2NBSSCmd.status;
 
     return RTSMB_CLI_SSN_RV_OK;
   }

@@ -77,7 +77,7 @@ _PUBLIC_ void hmac_sha256_init(const uint8_t *key, size_t key_len, struct HMACSH
 ***********************************************************************/
 _PUBLIC_ void hmac_sha256_update(const uint8_t *data, size_t data_len, struct HMACSHA256Context *ctx)
 {
-        SHA256_Update(&ctx->ctx, data, data_len); /* then text of datagram */
+  SHA256_Update(&ctx->ctx, data, data_len); /* then text of datagram */
 }
 
 /***********************************************************************
@@ -85,14 +85,14 @@ _PUBLIC_ void hmac_sha256_update(const uint8_t *data, size_t data_len, struct HM
 ***********************************************************************/
 _PUBLIC_ void hmac_sha256_final(uint8_t digest[SHA256_DIGEST_LENGTH], struct HMACSHA256Context *ctx)
 {
-        SHA256_CTX ctx_o;
+   SHA256_CTX ctx_o;
 
-        SHA256_Final(digest, &ctx->ctx);
+   SHA256_Final(digest, &ctx->ctx);
 
-        SHA256_Init(&ctx_o);
-        SHA256_Update(&ctx_o, ctx->k_opad, 64);
-        SHA256_Update(&ctx_o, digest, SHA256_DIGEST_LENGTH);
-        SHA256_Final(digest, &ctx_o);
+   SHA256_Init(&ctx_o);
+   SHA256_Update(&ctx_o, ctx->k_opad, 64);
+   SHA256_Update(&ctx_o, digest, SHA256_DIGEST_LENGTH);
+   SHA256_Final(digest, &ctx_o);
 }
 
 
@@ -100,11 +100,11 @@ void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, 
 {
   struct HMACSHA256Context m;
   uint8_t *bdata = (uint8_t *) data;
-        uint8_t digest[SHA256_DIGEST_LENGTH];
+  uint8_t digest[SHA256_DIGEST_LENGTH];
 
-        memset(&m, 0, sizeof(m));
-        hmac_sha256_init((byte *)signing_key, 16, &m);
-        hmac_sha256_update((byte *)data,data_len,&m);
-        hmac_sha256_final(digest, &m);
-        memcpy(result, digest, 16);
+  memset(&m, 0, sizeof(m));
+  hmac_sha256_init((byte *)signing_key, 16, &m);
+  hmac_sha256_update((byte *)data,data_len,&m);
+  hmac_sha256_final(digest, &m);
+  memcpy(result, digest, 16);
 }

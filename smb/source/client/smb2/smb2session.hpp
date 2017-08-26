@@ -41,7 +41,7 @@ public:
 
 
 
-class Smb2Session {
+class Smb2Session : public smb_diagnostics {
 public:
 
 // - Use these istead of smb1 structures

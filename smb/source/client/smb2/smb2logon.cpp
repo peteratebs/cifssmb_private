@@ -20,13 +20,15 @@ static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0
 
 #define MAXBLOB 4096
 
+#define DIAG_LOGON_LEVEL DIAG_INFORMATIONAL // DIAG_DISABLED,DIAG_DEBUG
+
 
 class SmbLogonWorker : private local_allocator,private smb_diagnostics {
 public:
   SmbLogonWorker(Smb2Session &_Session)
   {
-    set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
-    pSmb2Session = &_Session; do_setup_phase_two=false;
+    set_diag_level(DIAG_LOGON_LEVEL);
+    pSmb2Session = &_Session; do_extended_setup_phase=false;
     spnego_blob_from_server = response_to_challenge=0;
     spnego_blob_from_server = (byte *)local_rtp_malloc(MAXBLOB);
     response_to_challenge=(byte *)local_rtp_malloc(MAXBLOB);
@@ -36,7 +38,6 @@ public:
   ~SmbLogonWorker()
   {
   }
-
   /// Send negotiate and wait for the response which will have dialect, capabilities and buffer sizes and a generic security blob
   /// Send setup and wait for the response which will have a challenge blob
   /// Encode the ntlm security blob from the callenge plus name, domain and UIDand send another setup
@@ -74,7 +75,7 @@ private:
     byte *response_to_challenge;
     byte *concatChallenge;
 
-    bool do_setup_phase_two;
+    bool do_extended_setup_phase;
     byte *setup_blob;
     dword setup_blob_size;
     byte   *spnego_blob_from_server;
@@ -92,25 +93,17 @@ private:
       pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
 
       NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session, OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
-      if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
-      {
-        Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
-        Smb2NegotiateCmd.DialectCount =   2;
-        Smb2NegotiateCmd.SecurityMode =   SMB2_NEGOTIATE_SIGNING_ENABLED;
-        Smb2NegotiateCmd.Reserved     =   0;
-        Smb2NegotiateCmd.Capabilities =   0; // SMB2_GLOBAL_CAP_DFS  et al
-        Smb2NegotiateCmd.guid        =    (byte *) "IAMTHEGUID     ";
-        Smb2NegotiateCmd.ClientStartTime = rtsmb_util_get_current_filetime();  // ???  TBD
-        Smb2NegotiateCmd.Dialect0 =SMB2_DIALECT_2002;
-        Smb2NegotiateCmd.Dialect1 =SMB2_DIALECT_2100;
-        Smb2NegotiateCmd.addto_variable_content(variable_content_size);  // Odd but this is not the same as Smb2NBSSCmd's variable content
-        if (Smb2NegotiateCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
-           return RTSMB_CLI_SSN_RV_DEAD;
-      }
-  // ??   SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
-  //    SendBuffer.job_data()->session_setup.user_struct = SendBuffer.session_user();  // gross.
-      // Pass the session so we can sign the message, need to refactor the Template to take pSmb2Session as an argument
-//      Smb2NBSSCmd.flush(pSmb2Session);
+      Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
+      Smb2NegotiateCmd.DialectCount =   2;
+      Smb2NegotiateCmd.SecurityMode =   SMB2_NEGOTIATE_SIGNING_ENABLED;
+      Smb2NegotiateCmd.Reserved     =   0;
+      Smb2NegotiateCmd.Capabilities =   0; // SMB2_GLOBAL_CAP_DFS  et al
+      Smb2NegotiateCmd.guid        =    (byte *) "IAMTHEGUID     ";
+      Smb2NegotiateCmd.ClientStartTime = rtsmb_util_get_current_filetime();  // ???  TBD
+      Smb2NegotiateCmd.Dialect0 =SMB2_DIALECT_2002;
+      Smb2NegotiateCmd.Dialect1 =SMB2_DIALECT_2100;
+      Smb2NegotiateCmd.addto_variable_content(variable_content_size);  // Odd but this is not the same as Smb2NBSSCmd's variable content
+      Smb2NegotiateCmd.push_output(pSmb2Session->SendBuffer);          //
 
       byte signature[16];
       if (checkSessionSigned())
@@ -123,18 +116,24 @@ private:
        memset (signature, 0 , 16);
       OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
+      if (Smb2NBSSCmd.status != RTSMB_CLI_SSN_RV_OK)
+        pSmb2Session->diag_text_warning("Socket error sending negotiate message status:%d",Smb2NBSSCmd.status);
       return Smb2NBSSCmd.status;
   }
   int receive_negotiate ()
   {
-  //    int send_status;
     dword in_variable_content_size = 0;
     NetNbssHeader       InNbssHeader;
     NetSmb2Header       InSmb2Header;
     NetSmb2NegotiateReply Smb2NegotiateReply;
     dword bytes_pulled;
 
-    pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.FixedStructureSize() ,bytes_pulled);
+    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.FixedStructureSize() ,bytes_pulled);
+    if (r != NetStatusOk)
+    {
+       pSmb2Session->diag_text_warning("Socket error pulling receive_negotiate message status:%d",r);
+      return RTSMB_CLI_SSN_RV_DEAD;
+    }
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE pulled: %d \n", bytes_pulled);
     dword bytes_ready;
     byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
@@ -183,7 +182,11 @@ private:
     if (password_string->ascii_length() > (RTSMB_CFG_MAX_PASSWORD_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
     if (domain_string->ascii_length() > (RTSMB_CFG_MAX_DOMAIN_NAME_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
     ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-    if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED) { ASSURE (pSmb2Session->user_state() == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);  }
+    if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
+    {
+       pSmb2Session->diag_text_warning  ( "do_setup_command state != CSSN_USER_STATE_CHALLENGED state:%d", pSmb2Session->user_state());
+       ASSURE (pSmb2Session->user_state() == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);
+    }
 
     pSmb2Session->update_timestamp();
     pSmb2Session->user_state(CSSN_USER_STATE_LOGGING_ON);
@@ -210,22 +213,18 @@ private:
 
       pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
       NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
-      if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
-      {
-        dword in_variable_content_size    =  Smb2SetupCmd.SecurityBufferLength();    // not sure if this is right
-        Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
-        Smb2SetupCmd.Flags                =  0x0;
-        Smb2SetupCmd.SecurityMode         =  0x01;
-        Smb2SetupCmd.Capabilities         =  0;
-        Smb2SetupCmd.Channel              =  0;
-        Smb2SetupCmd.SecurityBufferOffset =  0x58;
-        Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
-        Smb2SetupCmd.PreviousSessionId    =  0;
-        memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
-        Smb2SetupCmd.addto_variable_content(variable_content_size);
-        if (Smb2SetupCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
-           return RTSMB_CLI_SSN_RV_DEAD;
-      }
+      dword in_variable_content_size    =  Smb2SetupCmd.SecurityBufferLength();    // not sure if this is right
+      Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
+      Smb2SetupCmd.Flags                =  0x0;
+      Smb2SetupCmd.SecurityMode         =  0x01;
+      Smb2SetupCmd.Capabilities         =  0;
+      Smb2SetupCmd.Channel              =  0;
+      Smb2SetupCmd.SecurityBufferOffset =  0x58;
+      Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
+      Smb2SetupCmd.PreviousSessionId    =  0;
+      memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
+      Smb2SetupCmd.addto_variable_content(variable_content_size);
+      Smb2SetupCmd.push_output(pSmb2Session->SendBuffer);
 
       byte signature[16];
       if (checkSessionSigned())
@@ -239,7 +238,9 @@ private:
        memset (signature, 0 , 16);
       OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
-      return RTSMB_CLI_SSN_RV_OK;
+      if (Smb2NBSSCmd.status != RTSMB_CLI_SSN_RV_OK)
+        pSmb2Session->diag_text_warning("Socket error sending send_setup message status:%d",Smb2NBSSCmd.status);
+      return Smb2NBSSCmd.status;
   }
 
   int receive_setup()
@@ -254,17 +255,20 @@ private:
     // Pull enough for the fixed part and then map pointers toi input buffer
     int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.FixedStructureSize()-1, bytes_pulled);
     if (r != NetStatusOk)
+    {
+      pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);
       return RTSMB_CLI_SSN_RV_DEAD;
+    }
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP pulled: %d \n", bytes_pulled);
     NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
-//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
 
-    InNbssHeader.show_contents();
-    InSmb2Header.show_contents();
+//    InNbssHeader.show_contents();
+//    InSmb2Header.show_contents();
 
 
-    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_setup_phase_two)
+    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_extended_setup_phase)
     {
+      pSmb2Session->diag_text_warning("receive_setup missing: SMB_NT_STATUS_MORE_PROCESSING_REQUIRED status:%x",InSmb2Header.Status_ChannelSequenceReserved());
       dword ssstatus =  InSmb2Header.Status_ChannelSequenceReserved();
       return RTSMB_CLI_SSN_RV_DEAD;
     }
@@ -275,9 +279,15 @@ private:
       dword security_bytes_pulled;
       r = pSmb2Session->ReplyBuffer.pull_nbss_data(Smb2SetupReply.SecurityBufferLength(), security_bytes_pulled);
       if (r != NetStatusOk)
+      {
+        pSmb2Session->diag_text_warning("receive_setup recv  error pulling security buffer");
         return RTSMB_CLI_SSN_RV_DEAD;
+      }
       if (Smb2SetupReply.SecurityBufferLength() != security_bytes_pulled)
+      {
+        pSmb2Session->diag_text_warning("receive_setup length error pulling security buffer");
         return RTSMB_CLI_SSN_RV_DEAD;
+      }
       total_security_bytes_pulled += security_bytes_pulled;
       spnego_blob_size_from_server = std::max(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
@@ -292,7 +302,7 @@ private:
   int do_extended_setup_command()
   {
     class SpnegoClient spnegoWorker;
-    do_setup_phase_two=true;
+    do_extended_setup_phase=true;
     decoded_NegTokenTarg_challenge_t decoded_targ_token;
     int r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
                  spnego_blob_from_server,
@@ -314,21 +324,25 @@ private:
     decoded_targ_token.target_info->value_at_offset,
     decoded_targ_token.target_info->size, session_key);
 
+ diag_dump_bin_fn(DIAG_INFORMATIONAL,"server challnge is: ", decoded_targ_token.ntlmserverchallenge,8);
+ diag_printf_fn(DIAG_INFORMATIONAL,"blob length is: %d", blob_length);
+
     if (blob_length && response_to_challenge)
     {
       pSmb2Session->session_key(session_key);     // Save the session key
+diag_dump_bin_fn(DIAG_INFORMATIONAL,"calculated session key is: ", pSmb2Session->session_key(), 16);
       setup_blob = (byte *) response_to_challenge;
       setup_blob_size = blob_length;
       r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
     }
     else
+    {
+      pSmb2Session->diag_text_warning("do_extended_setup_command error creating challenge" );
       r= RTSMB_CLI_SSN_RV_DEAD;
+    }
     if (r==RTSMB_CLI_SSN_RV_OK)
-        r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
+      r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
     return r;
-
-     spnego_decoded_NegTokenTarg_challenge_destructor(&decoded_targ_token);
-     return r;
   }
 };
 

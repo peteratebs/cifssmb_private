@@ -103,6 +103,7 @@ private:
 
 typedef struct {void *ptr; size_t size;} allocated_item_t;
 inline void free_item(allocated_item_t &item) {  if (item.ptr)  { cout << "free item sized: " << std::dec << item.size << endl;   void *p = item.ptr;    rtp_free_auto_free(p);  } }
+
 /// Inheret this class to auto free heap data allocated with local_rtp_malloc(size_t nbytes) when the object's destructor runs
 class local_allocator {
 public:
@@ -305,10 +306,9 @@ typedef struct smb2_iostream_s {
   byte *session_wire_incoming_nbss_header;
 } smb2_iostream;
 
-void rtsmb_util_guid(byte *_pGuid);
+extern void rtsmb_util_guid(byte *_pGuid);
 extern ddword rtsmb_util_get_current_filetime(void);
-void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w);
-void rtsmb_util_guid(byte *_pGuid);
+extern void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w);
 
 typedef enum smb_diaglevel_e {
     DIAG_DISABLED      =0,
@@ -316,7 +316,13 @@ typedef enum smb_diaglevel_e {
     DIAG_INFORMATIONAL =2,
     DIAG_DEBUG         =3,
 } smb_diaglevel;
-void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size);
-void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...);
+extern void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size);
+extern void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...);
+
+extern char *rtsmb_strmalloc(char *str);
+
+
+bool checkSessionSigned();
+void setSessionSigned(bool isSigned);
 
 #endif // include_smb2defs

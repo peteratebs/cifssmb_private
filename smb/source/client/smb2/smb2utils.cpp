@@ -201,3 +201,4 @@ void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...)
     vsprintf (buffer,fmt, args);
     cout << buffer;
 }
+char *rtsmb_strmalloc(char *str) { char *p = (char *)rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}

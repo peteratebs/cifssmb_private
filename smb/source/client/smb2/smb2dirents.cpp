@@ -72,6 +72,8 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2QuerydirectoryCmd Smb2QuerydirectoryCmd;
 
+    setSessionSigned(true);
+
     if (pattern)
       variable_content_size   = (word)rtp_wcslen_bytes (pattern);
     else
@@ -109,15 +111,18 @@ private:
         tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
         Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
         byte signature[16];
+        // Clear the signaturte for calculating over or if it's disabled
+        memset (signature, 0 , 16);
+        OutSmb2Header.Signature = signature;
         if (checkSessionSigned())
         {
           size_t length=0;
           byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
+diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX Signing nbytes: %d\n", length);
+diag_dump_bin_fn(DIAG_INFORMATIONAL,"session key is: ", pSmb2Session->session_key(), 16);
           calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+          OutSmb2Header.Signature = signature;
         }
-        else
-         memset (signature, 0 , 16);
-        OutSmb2Header.Signature = signature;
         if (Smb2QuerydirectoryCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
           return RTSMB_CLI_SSN_RV_DEAD;
         Smb2NBSSCmd.flush();
