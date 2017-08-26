@@ -79,7 +79,6 @@ private:
     else
       variable_content_size  = 0;
 
-    pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
     NetSmb2NBSSCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
     if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
     {
@@ -108,23 +107,9 @@ private:
 
       if (Smb2QuerydirectoryCmd.FileNameLength() != 0)
       {
-        tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
+        tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.PackedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
         Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
-        byte signature[16];
-        // Clear the signaturte for calculating over or if it's disabled
-        memset (signature, 0 , 16);
-        OutSmb2Header.Signature = signature;
-        if (checkSessionSigned())
-        {
-          size_t length=0;
-          byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX Signing nbytes: %d\n", length);
-diag_dump_bin_fn(DIAG_INFORMATIONAL,"session key is: ", pSmb2Session->session_key(), 16);
-          calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-          OutSmb2Header.Signature = signature;
-        }
-        if (Smb2QuerydirectoryCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
-          return RTSMB_CLI_SSN_RV_DEAD;
+        Smb2QuerydirectoryCmd.push_output(pSmb2Session->SendBuffer);
         Smb2NBSSCmd.flush();
       }
     }
@@ -221,10 +206,9 @@ int rtsmb2_cli_session_send_querydirectory_method (NetStreamOutputBuffer &SendBu
 
     if (Smb2QuerydirectoryCmd.FileNameLength() != 0)
     {
-      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.FixedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
+      tc_memcpy(Smb2QuerydirectoryCmd.FixedStructureAddress()+Smb2QuerydirectoryCmd.PackedStructureSize()-1, pattern, Smb2QuerydirectoryCmd.FileNameLength());
       Smb2QuerydirectoryCmd.addto_variable_content(Smb2QuerydirectoryCmd.FileNameLength());
-      if (Smb2QuerydirectoryCmd.push_output(SendBuffer) != NetStatusOk)
-         return RTSMB_CLI_SSN_RV_DEAD;
+      Smb2QuerydirectoryCmd.push_output(SendBuffer);
       Smb2NBSSCmd.flush();
     }
   }

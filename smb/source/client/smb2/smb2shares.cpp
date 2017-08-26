@@ -79,7 +79,6 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2TreeconnectCmd Smb2TreeconnectCmd;
 
-    pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
     NetSmb2NBSSCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
 
     Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
@@ -89,19 +88,8 @@ private:
     Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
     pSmb2Session->Shares[share_number].connect_mid =  OutSmb2Header.MessageId();
 
-    memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.FixedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
-    if (Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer) != NetStatusOk)
-      return RTSMB_CLI_SSN_RV_DEAD;
-    byte signature[16];
-    if (checkSessionSigned())
-    {
-      size_t length=0;
-      byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-      calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-    }
-    else
-     memset (signature, 0 , 16);
-    OutSmb2Header.Signature = signature;
+    memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.PackedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
+    Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer);
     Smb2NBSSCmd.flush();
   // return Smb2NBSSCmd.status;
 
@@ -118,7 +106,7 @@ private:
 
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.FixedStructureSize());
      // Pull enough for the fixed part and then map pointers toi input buffer
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.FixedStructureSize(), bytes_pulled);
+    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
 
     NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
@@ -178,8 +166,7 @@ static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {
-    if (Smb2LogoffCmd.push_output(SendBuffer) != NetStatusOk)
-       return RTSMB_CLI_SSN_RV_DEAD;
+    Smb2LogoffCmd.push_output(SendBuffer);
     Smb2NBSSCmd.flush();
   }
   return Smb2NBSSCmd.status;
@@ -213,8 +200,7 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamInputBuffer &SendBuffer)
 
   if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
   {
-    if (Smb2DisconnectCmd.push_output(SendBuffer) != NetStatusOk)
-       return RTSMB_CLI_SSN_RV_DEAD;
+    Smb2DisconnectCmd.push_output(SendBuffer);
     Smb2NBSSCmd.flush();
   }
   return Smb2NBSSCmd.status;

@@ -92,6 +92,7 @@ class NetNbssHeader  : public NetWireStruct   {
    NetWirebyte       nbss_packet_type;
    NetWire24bitword  nbss_packet_size;
    byte *FixedStructureAddress() { return base_address; };
+   int  PackedStructureSize()  { return FixedStructureSize(); };
    int  FixedStructureSize()  { return objectsize; };
    void SetDefaults()  { };
    unsigned char *bindpointers(byte *_raw_address) {
@@ -99,9 +100,9 @@ class NetNbssHeader  : public NetWireStruct   {
         BindAddressesToBuffer( _raw_address);
         return _raw_address+objectsize;
     }
-    NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
+    void push_output(NetStreamOutputBuffer  &StreamBuffer)
     {
-     return StreamBuffer.push_to_buffer(base_address, objectsize);
+      StreamBuffer.add_to_buffer_count( objectsize);
     }
     void show_contents()
     {
@@ -154,14 +155,12 @@ public:
     SessionId = _SessionId;
     Signature = (byte *)"IAMTHESIGNATURE";
   }
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   int  FixedStructureSize()  { return 64; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 
-  NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
-  {
-    return StreamBuffer.push_to_buffer(base_address, FixedStructureSize());
-  }
+  void push_output(NetStreamOutputBuffer  &StreamBuffer) {  StreamBuffer.add_to_buffer_count( FixedStructureSize()); }
   void show_contents()
   {
     ddword d=(ddword)FixedStructureAddress();
@@ -208,11 +207,12 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return 0; };
   void SetDefaults()  { };
-  NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
-   return StreamBuffer.push_to_buffer(base_address, objectsize+variablesize);
+    StreamBuffer.add_to_buffer_count(objectsize+variablesize);
   }
 private:
   void BindAddressOpen(BindNetWireArgs & args) {};
@@ -243,6 +243,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return 0; };
   void SetDefaults()  { };
 private:
@@ -267,11 +268,12 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
-  NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
-   return StreamBuffer.push_to_buffer(base_address, objectsize+variablesize);
+   StreamBuffer.add_to_buffer_count(objectsize+variablesize);
   }
 private:
   void BindAddressOpen(BindNetWireArgs & args) {};
@@ -291,6 +293,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+
+  int  PackedStructureSize()   { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -311,6 +315,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -333,6 +338,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -352,6 +358,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -370,6 +377,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -387,6 +395,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -405,6 +414,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -431,6 +441,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
@@ -467,6 +478,7 @@ public:
   {
     pSmb2Session=_pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
     isvariable = false; base_address=0; variablesize=0;
+    smb2_command = command;
     dword bytes_ready;
     byte *nbsshead =  pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
     byte *nbsstail  = nbsshead+4;
@@ -477,9 +489,9 @@ public:
   // Cloned from NetWireStruct()
   int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  reply->FixedStructureSize();};
   void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
-  NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
-    return StreamBuffer.push_to_buffer(base_address, objectsize+variablesize);
+    StreamBuffer.add_to_buffer_count(objectsize+variablesize);
   }
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
@@ -495,6 +507,7 @@ public:
      Smb2Session           *pSmb2Session;
      NetNbssHeader         *nbss;
      NetSmb2Header         *smb2;
+     word                   smb2_command;
      byte *base_address;
      bool isvariable;
      dword objectsize;
@@ -526,6 +539,7 @@ public:
   {
     pSmb2Session = _pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
     isvariable = false; base_address=0; variablesize=_variable_size;
+    smb2_command = command;
     dword bytes_available_for_sending;
     byte *nbsshead = pSmb2Session->SendBuffer.output_buffer_address(bytes_available_for_sending);
     byte *nbsstail  = nbsshead+4;
@@ -537,37 +551,57 @@ public:
     ddword SessionId = getCurrentActiveSession_session_id(); // getCurrentActiveSession()->session_server_info_smb2_session_id;
 
     status = RTSMB_CLI_SSN_RV_OK;
+
+    if (smb2_command == SMB2_NEGOTIATE)
+      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
+    else
+      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
     smb2->Initialize(command,(ddword) pSmb2Session->SendBuffer.stream_buffer_mid, SessionId);
 
-//    if (getCurrentActiveSession()->session_key_valid())
-    if (checkSessionSigned())
+    // Sign the message is signing is enabe and it should be signed (>= SMB2_TREE_CONNECT should be correct since we don't support encrypted voumes
+    if (smb2_command >= SMB2_TREE_CONNECT && checkSessionSigned())
     {
        dword Flags = smb2->Flags();
        Flags += SMB2_FLAGS_SIGNED;
        smb2->Flags = Flags;
     }
 
-    if (nbss->push_output(pSmb2Session->SendBuffer) != NetStatusOk)   // nbss to buffer in net byte order
-      status = RTSMB_CLI_SSN_RV_DEAD;
-    if (smb2->push_output(pSmb2Session->SendBuffer) != NetStatusOk)   // smb header to buffer in net byte order
-      status = RTSMB_CLI_SSN_RV_DEAD;
+    nbss->push_output(pSmb2Session->SendBuffer);   // account for sizes in the buffer
+    smb2->push_output(pSmb2Session->SendBuffer);
   }
   void flush()
   {
-    if (pSmb2Session->SendBuffer.push_output()==NetStatusOk)
+    byte signature[16];
+    if (checkSessionSigned())
+    {
+      size_t length=0;
+      byte *signme = RangeRequiringSigning(length);
+      calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
+//     memset (signature, 0xaa , 16);
+    }
+    else
+     memset (signature, 0 , 16);
+    smb2->Signature = signature;
+
+    NetStatus Status = pSmb2Session->SendBuffer.flush_output();
+    if (Status ==NetStatusOk)
       status=RTSMB_CLI_SSN_RV_OK;
     else
+    {
+      pSmb2Session->diag_text_warning("Socket error sending message:%d status:%d",smb2_command,Status);
       status=RTSMB_CLI_SSN_RV_DEAD;
+    }
   }
   // Cloned from NetWireStruct()
   int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();}
   byte *RangeRequiringSigning(size_t &length)  { length = variablesize + smb2->FixedStructureSize()+cmd->FixedStructureSize();return smb2->FixedStructureAddress();}
   void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize; };
-  NetStatus push_output(NetStreamOutputBuffer  &StreamBuffer)
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
-    return StreamBuffer.push_to_buffer(base_address, objectsize+variablesize);
+    StreamBuffer.add_to_buffer_count(objectsize+variablesize);
   }
   unsigned char *bindpointers(byte *_raw_address) {
+       memset(_raw_address, 0, FixedStructureSize()); // uninitialized fields default to zero
        base_address = _raw_address;
        byte *nbsshead = _raw_address;
        byte *nbsstail =nbss->bindpointers(nbsshead);
@@ -578,6 +612,7 @@ public:
   void SetDefaults()  { };
   private:
      Smb2Session            *pSmb2Session;
+     word                   smb2_command;
      T                      *cmd;
      NetNbssHeader          *nbss;
      NetSmb2Header          *smb2;

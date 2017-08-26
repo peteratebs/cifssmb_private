@@ -172,15 +172,11 @@ public:
     bytes_available_for_sending = buffer_size-bytes_buffered;
     return buffer_base+bytes_buffered;
   }
-  NetStatus push_to_buffer(byte *output, dword byte_count)
+  void add_to_buffer_count(dword byte_count)
   {
-     dword bytes_available_for_sending;
-     byte *to = output_buffer_address(bytes_available_for_sending);
-     memcpy(to, output, byte_count);
      bytes_buffered += byte_count;
-     return NetStatusOk;
   }
-  NetStatus push_output()
+  NetStatus flush_output()
   {
     if (bytes_buffered == 0 || SmbSocket->send(buffer_base, bytes_buffered) == bytes_buffered)
     {

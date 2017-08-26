@@ -90,7 +90,6 @@ private:
       NetNbssHeader       OutNbssHeader;
       NetSmb2Header       OutSmb2Header;
       NetSmb2NegotiateCmd Smb2NegotiateCmd;
-      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->unconnected_message_id();
 
       NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session, OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
       Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
@@ -105,19 +104,7 @@ private:
       Smb2NegotiateCmd.addto_variable_content(variable_content_size);  // Odd but this is not the same as Smb2NBSSCmd's variable content
       Smb2NegotiateCmd.push_output(pSmb2Session->SendBuffer);          //
 
-      byte signature[16];
-      if (checkSessionSigned())
-      {
-        size_t length=0;
-        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-      }
-      else
-       memset (signature, 0 , 16);
-      OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
-      if (Smb2NBSSCmd.status != RTSMB_CLI_SSN_RV_OK)
-        pSmb2Session->diag_text_warning("Socket error sending negotiate message status:%d",Smb2NBSSCmd.status);
       return Smb2NBSSCmd.status;
   }
   int receive_negotiate ()
@@ -128,7 +115,7 @@ private:
     NetSmb2NegotiateReply Smb2NegotiateReply;
     dword bytes_pulled;
 
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.FixedStructureSize() ,bytes_pulled);
+    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize() ,bytes_pulled);
     if (r != NetStatusOk)
     {
        pSmb2Session->diag_text_warning("Socket error pulling receive_negotiate message status:%d",r);
@@ -211,7 +198,6 @@ private:
       byte *variable_content = (byte *) setup_blob;
       dword variable_content_size = setup_blob_size;
 
-      pSmb2Session->SendBuffer.stream_buffer_mid = pSmb2Session->next_message_id();
       NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
       dword in_variable_content_size    =  Smb2SetupCmd.SecurityBufferLength();    // not sure if this is right
       Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
@@ -222,24 +208,13 @@ private:
       Smb2SetupCmd.SecurityBufferOffset =  0x58;
       Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
       Smb2SetupCmd.PreviousSessionId    =  0;
+
       memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
+
       Smb2SetupCmd.addto_variable_content(variable_content_size);
       Smb2SetupCmd.push_output(pSmb2Session->SendBuffer);
 
-      byte signature[16];
-      if (checkSessionSigned())
-      {
-        size_t length=0;
-        byte *signme = Smb2NBSSCmd.RangeRequiringSigning(length);
-        calculate_smb2_signing_key((void *)pSmb2Session->session_key(), (void *)signme, length, (unsigned char *)signature);
-//       memset (signature, 0xaa , 16);
-      }
-      else
-       memset (signature, 0 , 16);
-      OutSmb2Header.Signature = signature;
       Smb2NBSSCmd.flush();
-      if (Smb2NBSSCmd.status != RTSMB_CLI_SSN_RV_OK)
-        pSmb2Session->diag_text_warning("Socket error sending send_setup message status:%d",Smb2NBSSCmd.status);
       return Smb2NBSSCmd.status;
   }
 
@@ -253,7 +228,7 @@ private:
     NetSmb2SetupReply Smb2SetupReply;
 
     // Pull enough for the fixed part and then map pointers toi input buffer
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.FixedStructureSize()-1, bytes_pulled);
+    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.PackedStructureSize(), bytes_pulled);
     if (r != NetStatusOk)
     {
       pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);

@@ -120,7 +120,7 @@ extern int FormatDirscanToDstat(void *pBuffer)
   NEWRTSMB_CLI_SESSION_DSTAT mystat;
   NEWRTSMB_CLI_SESSION_DSTAT *pstat = &mystat;
   tc_memcpy (pstat->filename,
-    BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.FixedStructureSize()-1,
+    BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.PackedStructureSize()-1,
     BothDirInfoIterator.FileNameLength());
    pstat->fattributes = (unsigned short) BothDirInfoIterator.FileAttributes();    //    unsigned short fattributes;
    pstat->fatime64= BothDirInfoIterator.LastAccessTime();

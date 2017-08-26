@@ -48,6 +48,7 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()   { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
 private:
