@@ -502,6 +502,148 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 
+#define SMB2_CLOSE_FLAG_POSTQUERY_ATTRIB 0x0001
+class NetSmb2CloseCmd  : public NetWireStruct   {
+public:
+    NetSmb2CloseCmd() {objectsize=24; }
+    NetWireword  StructureSize; // 24
+    NetWireword  Flags;
+    NetWiredword Reserved;
+    NetWireFileId   FileId;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2CloseReply  : public NetWireStruct   {
+public:
+  NetSmb2CloseReply() {objectsize=60; }
+  NetWireword  StructureSize; // 60
+  NetWireword  Flags;
+  NetWiredword Reserved;
+  NetWireFileTime CreationTime;
+  NetWireFileTime LastAccessTime;
+  NetWireFileTime LastWriteTime;
+  NetWireFileTime ChangeTime;
+  NetWireddword AllocationSize;
+  NetWireddword EndofFile;
+  NetWiredword  FileAttributes;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2SetinfoCmd  : public NetWireStruct   {
+public:
+    NetSmb2SetinfoCmd() {objectsize=33; }
+    NetWireword    StructureSize; // 33
+    NetWirebyte    InfoType;
+    NetWirebyte    FileInfoClass;
+    NetWiredword   BufferLength;
+    NetWireword    BufferOffset;
+    NetWireword    Reserved;
+    NetWiredword   AdditionalInformation;
+    NetWireFileId  FileId;
+    NetWirebyte    Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize()-1; };
+  byte *FixedStructureAddress() { return base_address; };
+  byte *VariableContentAddress() { return base_address+PackedStructureSize(); };
+  void copyto_variable_content(void *pcontent, int content_size)
+  {
+     addto_variable_content(content_size);  // we have to do this
+     memcpy(FixedStructureAddress()+BufferOffset(), pcontent, content_size);
+  }
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2RenameInfoType2  : public NetWireStruct   {
+public:
+    NetSmb2RenameInfoType2() {objectsize=21; }
+    NetWirebyte    ReplaceIfExists;
+    NetWireblob7   Reserved;
+    NetWireddword  RootDirectory;
+    NetWiredword   FileNameLength;  // Bytes
+    NetWirebyte    Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  {   return FixedStructureSize()-1; };
+  byte *VariableContentAddress() { return base_address+PackedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults() { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+
+class NetSmb2SetinfoReply  : public NetWireStruct   {
+public:
+    NetSmb2SetinfoReply() {objectsize=2; }
+    NetWireword    StructureSize; // 2
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+#if (0)
+PACK_PRAGMA_ONE
+typedef struct s_FILE_RENAME_INFORMATION_TYPE_2
+{
+	byte    ReplaceIfExists;
+	byte    Reserved[7];
+	ddword  RootDirectory;
+	dword   FileNameLength;  // Bytes
+    byte    Buffer[1];
+} PACK_ATTRIBUTE FILE_RENAME_INFORMATION_TYPE_2;
+PACK_PRAGMA_POP
+typedef FILE_RENAME_INFORMATION_TYPE_2 RTSMB_FAR *PFILE_RENAME_INFORMATION_TYPE_2;
+
+
+typedef struct s_FILE_DISPOSITION_INFO
+{
+  byte    DeletePending; // 2
+} PACK_ATTRIBUTE FILE_DISPOSITION_INFO;
+PACK_PRAGMA_POP
+#endif
+
+
 
 class NetSmb2QuerydirectoryCmd  : public NetWireStruct   {
 public:

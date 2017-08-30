@@ -121,10 +121,59 @@ public:
             pattern = (char *) command_line[2].c_str();
           }
           dualstringdecl(pattern_string)    ;*pattern_string     = pattern;
-          ShellSession.open_dir(0, 0 , path, false);  // open directory named share,file, path, read only
-          ShellSession.list_share(0,0,pattern_string->utf16());
+          ShellSession.open_dir(0, 0 , path, false);             // open directory named share,file, path, read only
+          ShellSession.list_share(0,0,pattern_string->utf16());  // do the ls
+          ShellSession.close_dirent(0, 0);                       // close the directory we used
        }
-       if (current_command == "quit" || current_command == "QUIT")
+       else if (command_line[0] == "mkdir" || command_line[0] == "MKDIR")
+       {
+        char *path = "";
+        char *pattern = "*";
+          if (command_line.size() == 2)
+          {
+            path = (char *) command_line[1].c_str();
+          }
+          if (ShellSession.make_dir(0, 1, path))
+            ShellSession.close_dirent(0, 1);
+       }
+       else if (command_line[0] == "rmdir" || command_line[0] == "RMDIR")
+       {
+        char *path = "";
+          if (command_line.size() == 2)
+          {
+            path = (char *) command_line[1].c_str();
+          }
+          ShellSession.delete_dir(0, path);
+       }
+       else if (command_line[0] == "mvdir" || command_line[0] == "MVDIR")
+       {
+          if (command_line.size() == 3)
+          {
+            char *frompath = (char *) command_line[1].c_str();
+            char *topath = (char *) command_line[2].c_str();
+            ShellSession.rename_dir(0, frompath, topath);
+          }
+       }
+       else if (command_line[0] == "mv" || command_line[0] == "MV")
+       {
+        char *path = "";
+          if (command_line.size() == 3)
+          {
+            char *frompath = (char *) command_line[1].c_str();
+            char *topath = (char *) command_line[2].c_str();
+            ShellSession.rename_file(0, frompath, topath);
+          }
+       }
+       else if (command_line[0] == "rm" || command_line[0] == "RM")
+       {
+        char *path = "";
+          if (command_line.size() == 2)
+          {
+            path = (char *) command_line[1].c_str();
+            ShellSession.delete_file(0, path);
+          }
+       }
+       else if (command_line[0] == "quit" || command_line[0] == "QUIT")
        {
          cout << "bye";
          break;
@@ -167,9 +216,7 @@ extern int PassDirscanToShell(void *pBuffer)
    pstat->fhtime64= BothDirInfoIterator.ChangeTime();
    pstat->fsize = (dword) BothDirInfoIterator.EndofFile();
 //   DisplayDirscan(pstat);
-
-  dualstringdecl(file_name);   //   use a dualstring to convert to ascii
-
+   dualstringdecl(file_name);
   *file_name = (word *) pstat->filename;
 
   cout << file_name->ascii() << endl;

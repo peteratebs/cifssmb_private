@@ -218,3 +218,57 @@ void NetSmb2CreateReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(CreateContextsLength);
   BINDPOINTERS(Buffer);
 };
+
+void NetSmb2CloseCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(FileId);
+}
+
+void NetSmb2CloseReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(CreationTime);
+  BINDPOINTERS(LastAccessTime);
+  BINDPOINTERS(LastWriteTime);
+  BINDPOINTERS(ChangeTime);
+  BINDPOINTERS(AllocationSize);
+  BINDPOINTERS(EndofFile);
+  BINDPOINTERS(FileAttributes);
+}
+
+void NetSmb2SetinfoCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(InfoType);
+  BINDPOINTERS(FileInfoClass);
+  BINDPOINTERS(BufferLength);
+  BINDPOINTERS(BufferOffset);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(AdditionalInformation);
+  BINDPOINTERS(FileId);
+  BINDPOINTERS(Buffer);
+}
+
+void NetSmb2SetinfoReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+}
+
+void NetSmb2RenameInfoType2::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(ReplaceIfExists);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(RootDirectory);
+  BINDPOINTERS(FileNameLength);  // Bytes
+  BINDPOINTERS(Buffer);
+}

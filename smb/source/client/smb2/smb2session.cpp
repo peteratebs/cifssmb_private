@@ -19,6 +19,10 @@ extern bool do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber);
 extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, int filenumber, word *pattern);
 extern bool do_smb2_directory_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname, bool writeable);
+extern bool do_smb2_directory_create_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname);
+extern bool do_smb2_dirent_close_worker(Smb2Session &Session,int sharenumber,int filenumber);
+extern bool do_smb2_dirent_delete_worker(Smb2Session &Session,int sharenumber,char *name, bool isdir);
+extern bool do_smb2_dirent_rename_worker(Smb2Session &Session,int sharenumber, char *oldname, char *newname, bool isdir);
 
 
 /// Api method sets ip address, mask and port (445 | 139) to connect to
@@ -113,10 +117,38 @@ bool Smb2Session::list_share(int sharenumber, int filenumber, word *_pattern)
   return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,filenumber,_pattern);
 }
 
-bool Smb2Session::open_dir(int sharenumber, int fileumber, char *filename, bool forwrite)
+bool Smb2Session::open_dir(int sharenumber, int filenumber, char *filename, bool forwrite)
 {
-  return do_smb2_directory_open_worker(*this,sharenumber, fileumber, filename, forwrite);
+  return do_smb2_directory_open_worker(*this,sharenumber, filenumber, filename, forwrite);
 }
+
+bool Smb2Session::close_dirent(int sharenumber, int filenumber)
+{
+  return do_smb2_dirent_close_worker(*this,sharenumber, filenumber);
+}
+
+bool Smb2Session::make_dir(int sharenumber, int filenumber, char *filename)
+{
+  return do_smb2_directory_create_worker(*this,sharenumber, filenumber, filename);
+}
+bool Smb2Session::delete_dir(int sharenumber, char *filename)
+{
+  return do_smb2_dirent_delete_worker(*this,sharenumber, filename, true);
+}
+bool Smb2Session::delete_file(int sharenumber,char *filename)
+{
+  return do_smb2_dirent_delete_worker(*this,sharenumber, filename, false);
+}
+
+bool Smb2Session::rename_dir(int sharenumber, char *fromname , char *toname)
+{
+  return do_smb2_dirent_rename_worker(*this,sharenumber,  fromname , toname, true);
+}
+bool Smb2Session::rename_file(int sharenumber, char *fromname, char *toname)
+{
+  return do_smb2_dirent_rename_worker(*this,sharenumber, fromname , toname, false);
+}
+
 
 bool Smb2Session::disconnect_server()                {return false;};
 bool Smb2Session::disconnect_user(int sharenumber)   {return false;};

@@ -169,6 +169,16 @@ class NetWireblob8  : public NetWireblob {
     const byte *get()  { return get_raw_address(); };
 };
 
+class NetWireblob7  : public NetWireblob {
+  public:
+    void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
+    NetWireblob7() { blob_size=7;};
+    void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
+    const byte *get()  { return get_raw_address(); };
+};
+
 class NetWireblob4  : public NetWireblob {
   public:
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};

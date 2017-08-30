@@ -27,14 +27,16 @@ typedef enum
 
 class Smb2File {
 public:
-  Smb2File()  { memset(file_id,0,16); file_name = new dualstring;}
+  Smb2File()  { allocated=false; memset(file_id,0,16); file_name = new dualstring;}
   ~Smb2File() { file_name->empty(); delete file_name;}
   void set_filename(char *filename)  { *file_name = filename;  };
   char *get_filename_ascii()  { return file_name->ascii();  };
   word *get_filename_utf16()  { return file_name->utf16();  };
   byte *get_file_id()    { return file_id;  };
-  void set_fileid(byte *fileid)  { memcpy(file_id, fileid,16);  };
+  void set_fileid(byte *fileid)  { allocated=true;memcpy(file_id, fileid,16);  };
+  void set_file_free() {allocated=false;file_name->empty(); memset(file_id,0,16);}
 private:
+  bool  allocated;
   byte  file_id[16];
   dualstring *file_name;
 };
@@ -98,6 +100,15 @@ public:
   bool list_share(int sharenumber,  int filenumber, word *_pattern);
 
   bool  open_dir(int sharenumber, int fileumber, char *filename, bool forwrite);
+  bool  make_dir(int sharenumber, int fileumber, char *filename);
+  bool  close_dirent(int sharenumber, int fileumber);
+
+  bool delete_dir(int sharenumber, char *filename);
+  bool delete_file(int sharenumber,char *filename);
+
+  bool  rename_dir(int sharenumber,  char *toname, char *fromname);
+  bool  rename_file(int sharenumber, char *toname, char *fromname);
+
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
@@ -118,8 +129,8 @@ public:
   void user_state(RTSMB_CLI_SESSION_USER_STATE user_state) { _p_user_state=user_state; }
   RTSMB_CLI_SESSION_USER_STATE user_state() { return _p_user_state; }
 
-  NetStreamOutputBuffer    SendBuffer;
-  NetStreamInputBuffer          ReplyBuffer;
+  NetStreamOutputBuffer     SendBuffer;
+  NetStreamInputBuffer      ReplyBuffer;
 
   Smb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
   Smb2File        Files     [RTSMB_CFG_MAX_FILESPERSESSION];
