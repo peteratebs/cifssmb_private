@@ -126,9 +126,9 @@ static /*const*/ byte ntlm_version[] = {0x06 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00
 static /*const*/ byte ntlm_mic[] = {0x1f ,0xce ,0x09 ,0x06 ,0x22 ,0xb7 ,0xde, 0xfa, 0x91, 0xe3, 0xf9, 0x00, 0xb1, 0x51, 0xdb, 0xb9};   // Version 6.1 (Build 0); NTLM Current Revision 15
 
 
-int SpnegoClient::spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
+bool SpnegoClient::spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length)
 {
-  return _spnego_decode_NegTokenTarg_challenge(decoded_targ_token, pinbuffer, buffer_length);
+  return _spnego_decode_NegTokenTarg_challenge(decoded_targ_token, pinbuffer, buffer_length)==0;
 }
 
 int SpnegoClient::spnego_get_client_ntlmv2_response_blob(byte *pblob)

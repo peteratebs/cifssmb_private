@@ -24,8 +24,8 @@
 
 #define SMB2_SOCKET_NONBLOCK 1
 
-#define SELECT_MSEC             20     // number of msec to block in
-#define DO_IDLE_FUNCTION        1      // 0 to disable, 1 to enable
+#define SELECT_MSEC             20000     // number of msec to block in
+#define DO_IDLE_FUNCTION        1        // 0 to disable, 1 to enable
 
 /*****************************************************************************/
 /* Types
@@ -54,8 +54,18 @@ static bool gWebcNetworkInitialized = false;
 
 
 
-
-
+void SmbSocket_c::show_socket_errors(bool clear_error_state)
+{
+  if (has_error)
+  {
+   diag_printf_fn(DIAG_CONSOLE, "%s Smb Error Level: %d\n",(char *) (isSendError?"Send Error ":"Recv Error "),SmbNetStatus);
+   diag_printf_fn(DIAG_CONSOLE, " errno value : %d\n", errno_val);
+   diag_printf_fn(DIAG_CONSOLE, " errno string: %s\n", errno_string);
+  }
+  else
+    diag_printf_fn(DIAG_CONSOLE, " no socket errors\n");
+  if (clear_error_state) has_error = false;
+}
 
 int smb_network_init (void)
 {
@@ -183,12 +193,13 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
   byte* pkt_data;
   long  pkt_len;
   long  bytes_received;
-  dword start_time, elap_time_msec;
+  dword start_time, elapsed_time_msec;
   int select_val;
 
   bytes_received = 0;
   start_time = rtp_get_system_msec();
 
+  diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read min bytes:%d \n", min_bytes);
   while (bytes_received < min_bytes)
   {
     while (1)
@@ -204,6 +215,7 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
 
       if (rtp_fd_isset(&f_error, sd))
       {
+        diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read Read select error\n");
         return (-1);
       }
 
@@ -213,45 +225,51 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
         break;
       }
 
-      elap_time_msec = rtp_get_system_msec() - start_time;
-      if (elap_time_msec > SMB_TIMEOUT_SEC * 1000)
+      elapsed_time_msec = rtp_get_system_msec() - start_time;
+      if (elapsed_time_msec > SMB_TIMEOUT_SEC * 1000)
       {
+        diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read Read timed out elapsed:%d min:%d recvd:%d \n", elapsed_time_msec,min_bytes,bytes_received);
         return (-1);
       }
       if (idle_func)
       {
-      unsigned long intoidle =  rtp_get_system_msec();
+        unsigned long intoidle =  rtp_get_system_msec();
         if (idle_func(idle_data) < 0)
         {
+          diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read idle timed out elapsed:%d min:%d recvd:%d \n", elapsed_time_msec,min_bytes,bytes_received);
           return (-1);
         }
       }
     } /* while (1) */
 
     pkt_data = (unsigned char *) &(buffer[bytes_received]);
-     pkt_len = rtp_net_recv(sd, pkt_data, max_bytes - bytes_received);
+    pkt_len = rtp_net_recv(sd, pkt_data, max_bytes - bytes_received);
+    diag_printf_fn(DIAG_JUNK,"rtsmb2_net_recv maxrequested:%d recvd: %d pkt_len:%d \n", max_bytes, bytes_received,pkt_len );
+    if (pkt_len == -2)
+    {
+      diag_printf_fn(DIAG_JUNK,"rtsmb2_net_recv -2 recvd \n");
+      continue;
+    }
+    if (pkt_len == 0 || pkt_len == -2)
+    {
+      break;
+    }
 
-     if (pkt_len == 0 || pkt_len == -2)
-     {
-       break;
-     }
-
-     if (pkt_len < 0)
-     {
+    if (pkt_len < 0)
+    {
       return (pkt_len);
     }
-     bytes_received += pkt_len;
+    bytes_received += pkt_len;
   }
+  diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read completd:%d \n", bytes_received);
   return (bytes_received);
 }
 
 int rtsmb2_net_read(RTP_SOCKET sd, byte *pData, int size, int minsize)
 {
 smbIdleFn idle_func=0; byte * idle_data=0;
-
-
    int r = smb_recv_at_least (sd, pData, minsize, size, idle_func, idle_data);
-   cout_log(LL_JUNK) << "rtsmb2_net_read Read n bytes: "  << r << " to : " << std::hex << (ddword) pData << endl;
+   diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read Read n bytes: %d to: %X \n",  r, (ddword) pData);
    return r;
 }
 

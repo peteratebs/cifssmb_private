@@ -17,6 +17,22 @@
 
 using namespace std;
 
+std::vector<std::string> split(const std::string& text, const std::string& delims)
+{
+    std::vector<std::string> tokens;
+    std::size_t start = text.find_first_not_of(delims), end = 0;
+
+    while((end = text.find_first_of(delims, start)) != std::string::npos)
+    {
+        tokens.push_back(text.substr(start, end - start));
+        start = text.find_first_not_of(delims, end);
+    }
+    if(start != std::string::npos)
+        tokens.push_back(text.substr(start));
+
+    return tokens;
+}
+
 
 class SmbShellWorker : private local_allocator,smb_diagnostics {
 public:
@@ -64,37 +80,57 @@ public:
 
     if (ShellSession.connect_socket())
     {
+      ShellSession.display_text_warnings();
       diag_printf(DIAG_INFORMATIONAL, "connect socket worked\ncalling connect server to establish a session with the user\n");
       if (ShellSession.connect_server())
       {
+         ShellSession.display_text_warnings();
          diag_printf(DIAG_INFORMATIONAL, "connect user  worked\ncalling connect share\n");
          if (ShellSession.connect_share(0))
          {
+           ShellSession.display_text_warnings();
            diag_printf(DIAG_INFORMATIONAL, "connect share worked\n");
            goconnected();
          }
       }
     }
+    ShellSession.show_socket_errors(true);
+    ShellSession.display_text_warnings();
    }
    void goconnected()
    {
+     string delims(" ");
      for (;;)
      {
+       char current_command_cstring[255];
        cout << "CMD>";
-       cin >> current_command;
-       if (current_command == "ls" || current_command == "LS")
+       std::cin.getline(current_command_cstring, 255);
+       string current_command(current_command_cstring);
+       std::vector<std::string> command_line = split(current_command, delims);
+       if (command_line[0] == "ls" || command_line[0] == "LS")
        {
-          word pat[32];
-          pat[0] = (word)'*';
-          pat[1] = 0;
-          ShellSession.list_share(0,pat);
+        char *path = "";
+        char *pattern = "*";
+          if (command_line.size() == 2)
+          {
+            path = (char *) command_line[1].c_str();
+          }
+          else if (command_line.size() == 3)
+          {
+            path = (char *) command_line[1].c_str();
+            pattern = (char *) command_line[2].c_str();
+          }
+          dualstringdecl(pattern_string)    ;*pattern_string     = pattern;
+          ShellSession.open_dir(0, 0 , path, false);  // open directory named share,file, path, read only
+          ShellSession.list_share(0,0,pattern_string->utf16());
        }
        if (current_command == "quit" || current_command == "QUIT")
        {
          cout << "bye";
          break;
        }
-
+       ShellSession.display_text_warnings();
+       ShellSession.show_socket_errors(true);
      }
    }
 private:
@@ -111,7 +147,7 @@ extern "C" int smb2_cli_shell()
 }
 
 // Format the dstat in C++ with alignment independent classes and call back to the shell to display
-extern int FormatDirscanToDstat(void *pBuffer)
+extern int PassDirscanToShell(void *pBuffer)
 {
   ms_FILE_ID_BOTH_DIR_INFORMATION  BothDirInfoIterator;
 
@@ -120,8 +156,9 @@ extern int FormatDirscanToDstat(void *pBuffer)
   NEWRTSMB_CLI_SESSION_DSTAT mystat;
   NEWRTSMB_CLI_SESSION_DSTAT *pstat = &mystat;
   tc_memcpy (pstat->filename,
-    BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.PackedStructureSize()-1,
+    BothDirInfoIterator.FixedStructureAddress()+BothDirInfoIterator.PackedStructureSize(),
     BothDirInfoIterator.FileNameLength());
+   pstat->filename[BothDirInfoIterator.FileNameLength()/2]=0;
    pstat->fattributes = (unsigned short) BothDirInfoIterator.FileAttributes();    //    unsigned short fattributes;
    pstat->fatime64= BothDirInfoIterator.LastAccessTime();
    pstat->fatime64= BothDirInfoIterator.LastAccessTime();
@@ -130,7 +167,14 @@ extern int FormatDirscanToDstat(void *pBuffer)
    pstat->fhtime64= BothDirInfoIterator.ChangeTime();
    pstat->fsize = (dword) BothDirInfoIterator.EndofFile();
 //   DisplayDirscan(pstat);
-   return BothDirInfoIterator.NextEntryOffset();
+
+  dualstringdecl(file_name);   //   use a dualstring to convert to ascii
+
+  *file_name = (word *) pstat->filename;
+
+  cout << file_name->ascii() << endl;
+//  diag_dump_unicode_fn(DIAG_DEBUG, "Filename: ", pstat->filename, BothDirInfoIterator.FileNameLength());
+  return BothDirInfoIterator.NextEntryOffset();
 }
 
 typedef int (*lscbfn)(void *params);

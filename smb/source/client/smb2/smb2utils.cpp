@@ -144,9 +144,7 @@ void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size
   dualstringdecl(converted_string);                   //    dualstring user_string;
   *converted_string     =  ascii_string;
   if (w !=  converted_string->utf16_length())
-    cout_log(LL_JUNK)  << "spego::: oops (w != 2*converted_string->utf16_length() w: " << w << " len: " << 2*converted_string->utf16_length() << endl;
-  else
-    cout_log(LL_JUNK)  << "spego::: Yeah (w == 2*converted_string->utf16_length(()" << endl;
+    diag_printf_fn(DIAG_JUNK,"spego::: oops (w != 2*converted_string->utf16_length() w: \n");
   memcpy(unicode_string,converted_string->utf16(), w);
 }
 /* See RFC4122 */
@@ -186,6 +184,15 @@ static byte *pGuid=0;
 }
 
 // Diag output funtions not attached to a class
+void diag_dump_unicode_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size)
+{
+  smb_diagnostics d;
+  d.set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
+  d.diag_dump_unicode(at_diaglayer, prompt, (byte *)buffer, size);
+}
+
+
+// Diag output funtions not attached to a class
 void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size)
 {
   smb_diagnostics d;
@@ -202,3 +209,13 @@ void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...)
     cout << buffer;
 }
 char *rtsmb_strmalloc(char *str) { char *p = (char *)rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}
+
+
+#include <cerrno>
+
+extern const char *rtsmb_util_errstr(int &util_errno)
+{
+  util_errno = errno;
+  return strerror(util_errno);
+//  return rtsmb_strmalloc(strerror(util_errno));
+}

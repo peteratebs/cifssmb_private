@@ -46,35 +46,40 @@ public:
 private:
   Smb2Session *pSmb2Session;
   int share_number;
-  int rtsmb_cli_session_connect_share()
+  bool rtsmb_cli_session_connect_share()
   {
-      ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-      pSmb2Session->update_timestamp();
+    if (pSmb2Session->session_state() <=  CSSN_STATE_DEAD)
+    {
+      pSmb2Session->diag_text_warning("connect_share command called but session is dead");
+      return false;
+    }
 
-      if (pSmb2Session->Shares[share_number].share_state != CSSN_SHARE_STATE_DIRTY)
-          return RTSMB_CLI_SSN_RV_ALREADY_CONNECTED;
+     if (pSmb2Session->Shares[share_number].share_state != CSSN_SHARE_STATE_DIRTY)
+    {
+      pSmb2Session->diag_text_warning("connect_share command called share is already connected");
+      return false;
+    }
 
-      pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTING;
-      pSmb2Session->Shares[share_number].share_type = (const word *)wildcard_type; // disk_type;
+     pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTING;
+     pSmb2Session->Shares[share_number].share_type = (const word *)wildcard_type; // disk_type;
 //      pSmb2Session->Share[share_number].share_name was set by session.
 
-      int r = rtsmb2_cli_session_send_treeconnect ();
+     bool r = rtsmb2_cli_session_send_treeconnect ();
 
-      if (r == RTSMB_CLI_SSN_RV_OK)
-        r = rtsmb2_cli_session_receive_treeconnect();
+     if (r)
+       r = rtsmb2_cli_session_receive_treeconnect();
 
       return r;
   }
 
-  int rtsmb2_cli_session_send_treeconnect ()
+  bool rtsmb2_cli_session_send_treeconnect ()
   {
     int send_status;
     byte *path=0;
 
-    setSessionSigned(false);
+    setSessionSigned(false);      // Should enable signing here and everythng should work, but signing is broken
 
-    dword pathlen = (rtp_wcslen(pSmb2Session->Shares[share_number].share_name))*sizeof(word);
-    dword variable_content_size = pathlen;  // Needs to be known before Smb2NBSSCmd is instantiated
+    dword variable_content_size = (rtp_wcslen(pSmb2Session->Shares[share_number].share_name))*sizeof(word);
     NetNbssHeader       OutNbssHeader;
     NetSmb2Header       OutSmb2Header;
     NetSmb2TreeconnectCmd Smb2TreeconnectCmd;
@@ -84,18 +89,16 @@ private:
     Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
     Smb2TreeconnectCmd.Reserved = 0;
     Smb2TreeconnectCmd.PathOffset = (word) (OutSmb2Header.StructureSize()+Smb2TreeconnectCmd.StructureSize()-1);
-    Smb2TreeconnectCmd.PathLength = pathlen;
-    Smb2TreeconnectCmd.addto_variable_content(variable_content_size);  // we have to do this
+    Smb2TreeconnectCmd.PathLength = variable_content_size;
+
     pSmb2Session->Shares[share_number].connect_mid =  OutSmb2Header.MessageId();
 
-    memcpy(Smb2TreeconnectCmd.FixedStructureAddress()+Smb2TreeconnectCmd.PackedStructureSize()-1, pSmb2Session->Shares[share_number].share_name, Smb2TreeconnectCmd.PathLength());
-    Smb2TreeconnectCmd.push_output(pSmb2Session->SendBuffer);
-    Smb2NBSSCmd.flush();
-  // return Smb2NBSSCmd.status;
+    Smb2TreeconnectCmd.copyto_variable_content(pSmb2Session->Shares[share_number].share_name, variable_content_size);  // we have to do this
 
-    return RTSMB_CLI_SSN_RV_OK;
+
+    return Smb2NBSSCmd.flush();
   }
-  int rtsmb2_cli_session_receive_treeconnect ()
+  bool rtsmb2_cli_session_receive_treeconnect ()
   {
     dword in_variable_content_size = 0;
     dword bytes_pulled = 0;
@@ -106,7 +109,12 @@ private:
 
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.FixedStructureSize());
      // Pull enough for the fixed part and then map pointers toi input buffer
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
+    if (r != NetStatusOk)
+    {
+      pSmb2Session->diag_text_warning("receive_treeconnect command failed pulling from the socket");
+      return false;
+    }
 
     NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
@@ -115,30 +123,18 @@ private:
     InNbssHeader.show_contents();
     InSmb2Header.show_contents();
 
-// HAVE TO PULL OR TIMEOUT
-//    pShare = find_connecting_share(pSmb2Session, InSmb2Header.MessageId());
-  //    for (r = 0; r < prtsmb_cli_ctx->max_shares_per_session; r++)
-  //    {
-  //      if (pSmb2Session->pSession()->shares[r].state != CSSN_SHARE_STATE_UNUSED &&
-  //       pSmb2Session->pSession()->shares[r].connect_mid == (word) InSmb2Header.MessageId())
-  //      {
-  //        pShare = &pSmb2Session->pSession()->shares[r];
-  //        break;
-  //      }
-  //    }
+    pSmb2Session->Shares[share_number].tid =   InSmb2Header.TreeId();
+    pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTED;
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT TID: %x \n", pSmb2Session->Shares[share_number].tid );
 
-      pSmb2Session->Shares[share_number].tid =   InSmb2Header.TreeId();
-      pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTED;
-     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT TID: %x \n", pSmb2Session->Shares[share_number].tid );
+    if (pSmb2Session->session_state() == CSSN_STATE_RECOVERY_TREE_CONNECTING)
+    {
+      pSmb2Session->session_state(CSSN_STATE_RECOVERY_TREE_CONNECTED);
+    }
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
 
-      if (pSmb2Session->session_state() == CSSN_STATE_RECOVERY_TREE_CONNECTING)
-      {
-        pSmb2Session->session_state(CSSN_STATE_RECOVERY_TREE_CONNECTED);
-      }
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-      pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-
-      return  RTSMB_CLI_SSN_RV_OK;
+    return true;
   }
 
 };
@@ -163,21 +159,16 @@ static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
   NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
 
   OutSmb2Header.TreeId =  (ddword)pSmb2Session->job_data()->tree_disconnect.tid;
-
-  if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
-  {
-    Smb2LogoffCmd.push_output(SendBuffer);
-    Smb2NBSSCmd.flush();
-  }
+  Smb2NBSSCmd.flush();
   return Smb2NBSSCmd.status;
 }
-static int rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &ReplyBuffer)
+static bool rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &ReplyBuffer)
 {
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
   NetSmb2LogoffReply  Smb2LogoffReply;
   NetSmb2NBSSReply<NetSmb2LogoffReply> Smb2NBSSReply(SMB2_LOGOFF, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2LogoffReply);
-  return  RTSMB_CLI_SSN_RV_OK;
+  return  true;
 }
 
 // Table needs entries for smb2io as well as Streambuffers for now until all legacys are removed.
@@ -198,11 +189,7 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamInputBuffer &SendBuffer)
 
   OutSmb2Header.TreeId = (ddword) pSmb2Session->job_data()->tree_disconnect.tid;
 
-  if (Smb2NBSSCmd.status == RTSMB_CLI_SSN_RV_OK)
-  {
-    Smb2DisconnectCmd.push_output(SendBuffer);
-    Smb2NBSSCmd.flush();
-  }
+  Smb2NBSSCmd.flush();
   return Smb2NBSSCmd.status;
 }
 static int rtsmb2_cli_session_receive_disconnect (NetStreamInputBuffer &ReplyBuffer)
@@ -233,7 +220,6 @@ private:
       pSession = rtsmb_cli_session_get_session (sid);
       ASSURE (pSession, RTSMB_CLI_SSN_RV_BAD_SID);
       ASSURE (pSession->state > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
-      rtsmb_cli_session_update_timestamp (pSession);
 
       if (!(RTSMB_ISSMB2_DIALECT(pSession->server_info.dialect)))
       {

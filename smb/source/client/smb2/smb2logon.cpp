@@ -34,6 +34,12 @@ public:
     response_to_challenge=(byte *)local_rtp_malloc(MAXBLOB);
     ntlm_response_buffer_ram=(byte *)local_rtp_malloc(MAXBLOB);
     concatChallenge =(byte *)local_rtp_malloc(MAXBLOB);
+    if (pSmb2Session->user_state() != CSSN_USER_STATE_UNUSED)
+    {
+      pSmb2Session->diag_text_warning("Logon called but user_state() != CSSN_USER_STATE_UNUSED %d",pSmb2Session->user_state());
+//      return false;
+    }
+
   }
   ~SmbLogonWorker()
   {
@@ -42,30 +48,33 @@ public:
   /// Send setup and wait for the response which will have a challenge blob
   /// Encode the ntlm security blob from the callenge plus name, domain and UIDand send another setup
   /// Set tate to logged in.
-  int do_logon_commands()
+  bool do_logon_commands()
   {
     // Send negotiate and wait for the response which will have a server challenge
-    int r = do_negotiate_command();
-    if(r < 0) return 0;
-
-    // Send setup and wait for the response which will have a challenge blob
-    r = do_setup_command();
-    if(r < 0) return 0;
-    if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
+    bool r = do_negotiate_command();
+    if(r)
     {
-       cout_log(LL_JUNK) << "didnt get to CSSN_USER_STATE_CHALLENGED state" << endl;
-       return 0;
+      // Send setup and wait for the response which will have a challenge blob
+      r = do_setup_command();
+      if(r)
+      {
+       if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
+       {
+         cout_log(LL_JUNK) << "didnt get to CSSN_USER_STATE_CHALLENGED state" << endl;
+         pSmb2Session->diag_text_warning("didnt get to CSSN_USER_STATE_CHALLENGED state");
+         return false;
+       }
+       else    // Send hashed user, password, domain, server challenge blob and wait for okay from teh server
+          r = do_extended_setup_command();
+      }
     }
-    // Send hashed user, password, domain, server challenge blob and wait for okay from teh server
-    r = do_extended_setup_command();
-    if(r < 0) return 0;
-    return(1);
+    return(r);
   }
-  int do_negotiate_command ()
+  bool do_negotiate_command ()
   {
-    int r = send_negotiate ();
-    if (r >= 0)
-      r = receive_negotiate ();
+    bool r = send_negotiate();
+    if (r)
+      r = receive_negotiate();
     return r;
   }
 private:
@@ -83,7 +92,7 @@ private:
 
     Smb2Session *pSmb2Session;
 
-  int send_negotiate ()
+  bool send_negotiate ()
   {
       int send_status;
       dword variable_content_size = (dword)2*sizeof(word);  // Needs to be known before Smb2NBSSCmd is instantiated
@@ -101,13 +110,11 @@ private:
       Smb2NegotiateCmd.ClientStartTime = rtsmb_util_get_current_filetime();  // ???  TBD
       Smb2NegotiateCmd.Dialect0 =SMB2_DIALECT_2002;
       Smb2NegotiateCmd.Dialect1 =SMB2_DIALECT_2100;
-      Smb2NegotiateCmd.addto_variable_content(variable_content_size);  // Odd but this is not the same as Smb2NBSSCmd's variable content
-      Smb2NegotiateCmd.push_output(pSmb2Session->SendBuffer);          //
+      Smb2NegotiateCmd.addto_variable_content(variable_content_size);  // not using copy2 but we could
 
-      Smb2NBSSCmd.flush();
-      return Smb2NBSSCmd.status;
+      return Smb2NBSSCmd.flush();
   }
-  int receive_negotiate ()
+  bool receive_negotiate ()
   {
     dword in_variable_content_size = 0;
     NetNbssHeader       InNbssHeader;
@@ -115,21 +122,15 @@ private:
     NetSmb2NegotiateReply Smb2NegotiateReply;
     dword bytes_pulled;
 
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize() ,bytes_pulled);
+    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize() ,bytes_pulled);
     if (r != NetStatusOk)
     {
        pSmb2Session->diag_text_warning("Socket error pulling receive_negotiate message status:%d",r);
-      return RTSMB_CLI_SSN_RV_DEAD;
+       return false;
     }
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE pulled: %d \n", bytes_pulled);
     dword bytes_ready;
     byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
     NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
-
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE framesize %d \n", InNbssHeader.nbss_packet_size()+4);
-
-//    InNbssHeader.show_contents();
-//    InSmb2Header.show_contents();
 
 
     if (Smb2NegotiateReply.SecurityBufferLength())
@@ -149,46 +150,54 @@ private:
         maxsize = Smb2NegotiateReply.MaxTransactSize();
       pSmb2Session->session_server_info_buffer_size =  maxsize;
       pSmb2Session->session_server_info_raw_size   =   maxsize;
+      pSmb2Session->diag_text_warning("receive_negotiate max size:%d",maxsize);
      }
      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE purging %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
      pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-     return RTSMB_CLI_SSN_RV_OK;
+     return true;
   }
 
   // Phase 1 sends sNegTokenInit, Expects SMB_NT_STATUS_MORE_PROCESSING_REQUIRED and a server challenge
   // Phase 2 sends sNegTokenInit   ntlmssp_encode_ntlm2_type2_response_packet (spnego_encode_ntlm2_type3_packet)
 
 //  int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
-  int do_setup_command ()
+  bool do_setup_command ()
   {
     dualstringdecl(user_string)    ;*user_string     = pSmb2Session->user_name();
     dualstringdecl(password_string);*password_string = pSmb2Session->password() ;
     dualstringdecl(domain_string)  ;*domain_string    =pSmb2Session->domain()   ;
 
-    if (user_string->ascii_length() > (RTSMB_CFG_MAX_USERNAME_SIZE - 1))  return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    if (password_string->ascii_length() > (RTSMB_CFG_MAX_PASSWORD_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    if (domain_string->ascii_length() > (RTSMB_CFG_MAX_DOMAIN_NAME_SIZE - 1)) return RTSMB_CLI_SSN_RV_BAD_ARGS;
-    ASSURE (pSmb2Session->session_state() > CSSN_STATE_DEAD, RTSMB_CLI_SSN_RV_DEAD);
+
+    if ( (user_string->ascii_length() > (RTSMB_CFG_MAX_USERNAME_SIZE - 1))   ||
+       (password_string->ascii_length() > (RTSMB_CFG_MAX_PASSWORD_SIZE - 1)) ||
+       (domain_string->ascii_length() > (RTSMB_CFG_MAX_DOMAIN_NAME_SIZE - 1)) )
+    {
+      pSmb2Session->diag_text_warning("bad arguments to setup command");
+      return false;
+    }
+    if (pSmb2Session->session_state() <=  CSSN_STATE_DEAD)
+    {
+      pSmb2Session->diag_text_warning("setup command called but session is dead");
+      return false;
+    }
     if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
     {
-       pSmb2Session->diag_text_warning  ( "do_setup_command state != CSSN_USER_STATE_CHALLENGED state:%d", pSmb2Session->user_state());
-       ASSURE (pSmb2Session->user_state() == CSSN_USER_STATE_UNUSED, RTSMB_CLI_SSN_RV_TOO_MANY_USERS);
+      pSmb2Session->diag_text_warning  ( "do_setup_command state != CSSN_USER_STATE_CHALLENGED state:%d", pSmb2Session->user_state());
+      return false;
     }
-
-    pSmb2Session->update_timestamp();
     pSmb2Session->user_state(CSSN_USER_STATE_LOGGING_ON);
     pSmb2Session->user_uid(1);
 
     setup_blob = (byte *) setup_blob_phase_one;
     setup_blob_size = sizeof(setup_blob_phase_one);
 
-    int r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
-    if (r==RTSMB_CLI_SSN_RV_OK)
+    bool r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
+    if (r)
         r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
     return r;
   }
 
-  int send_setup()
+  bool send_setup()
   {
       int send_status;
       NetNbssHeader       OutNbssHeader;
@@ -209,16 +218,23 @@ private:
       Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
       Smb2SetupCmd.PreviousSessionId    =  0;
 
-      memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
+#if (0)
+HEREHERE - Need a XXXCmd.VariableContentOffset() field
+//      Smb2SetupCmd.copy_variable_content(variable_content, variable_content_size);
+//void copy_variable_content(variable_content, variable_content_size)
+//{
+//  memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
+//  Smb2SetupCmd.addto_variable_content(variable_content_size);
+//}
+instead of:
+#endif
+      memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.VariableContentOffset(), variable_content, variable_content_size);
+      Smb2SetupCmd.addto_variable_content(variable_content_size); // can't use copyto because the offset if from base of message
 
-      Smb2SetupCmd.addto_variable_content(variable_content_size);
-      Smb2SetupCmd.push_output(pSmb2Session->SendBuffer);
-
-      Smb2NBSSCmd.flush();
-      return Smb2NBSSCmd.status;
+      return Smb2NBSSCmd.flush();
   }
 
-  int receive_setup()
+  bool receive_setup()
   {
     dword in_variable_content_size = 0;
     dword bytes_pulled;
@@ -228,11 +244,11 @@ private:
     NetSmb2SetupReply Smb2SetupReply;
 
     // Pull enough for the fixed part and then map pointers toi input buffer
-    int r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.PackedStructureSize(), bytes_pulled);
     if (r != NetStatusOk)
     {
       pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);
-      return RTSMB_CLI_SSN_RV_DEAD;
+      return false;
     }
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP pulled: %d \n", bytes_pulled);
     NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
@@ -245,7 +261,7 @@ private:
     {
       pSmb2Session->diag_text_warning("receive_setup missing: SMB_NT_STATUS_MORE_PROCESSING_REQUIRED status:%x",InSmb2Header.Status_ChannelSequenceReserved());
       dword ssstatus =  InSmb2Header.Status_ChannelSequenceReserved();
-      return RTSMB_CLI_SSN_RV_DEAD;
+      return false;
     }
 
     pSmb2Session->session_server_info_smb2_session_id = InSmb2Header.SessionId();
@@ -256,12 +272,12 @@ private:
       if (r != NetStatusOk)
       {
         pSmb2Session->diag_text_warning("receive_setup recv  error pulling security buffer");
-        return RTSMB_CLI_SSN_RV_DEAD;
+        return false;
       }
       if (Smb2SetupReply.SecurityBufferLength() != security_bytes_pulled)
       {
         pSmb2Session->diag_text_warning("receive_setup length error pulling security buffer");
-        return RTSMB_CLI_SSN_RV_DEAD;
+        return false;
       }
       total_security_bytes_pulled += security_bytes_pulled;
       spnego_blob_size_from_server = std::max(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
@@ -272,14 +288,14 @@ private:
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP total pulled: %d \n", bytes_pulled+total_security_bytes_pulled);
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
     pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
-    return RTSMB_CLI_SSN_RV_OK;
+    return true;
   }
-  int do_extended_setup_command()
+  bool do_extended_setup_command()
   {
     class SpnegoClient spnegoWorker;
     do_extended_setup_phase=true;
     decoded_NegTokenTarg_challenge_t decoded_targ_token;
-    int r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
+    bool r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
                  spnego_blob_from_server,
                  spnego_blob_size_from_server);
 
@@ -313,16 +329,16 @@ diag_dump_bin_fn(DIAG_INFORMATIONAL,"calculated session key is: ", pSmb2Session-
     else
     {
       pSmb2Session->diag_text_warning("do_extended_setup_command error creating challenge" );
-      r= RTSMB_CLI_SSN_RV_DEAD;
+      r= false;
     }
-    if (r==RTSMB_CLI_SSN_RV_OK)
+    if (r)
       r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
     return r;
   }
 };
 
 
-extern int do_smb2_logon_server_worker(Smb2Session &Session)
+extern bool do_smb2_logon_server_worker(Smb2Session &Session)
 {
   SmbLogonWorker LogonWorker(Session);
   return LogonWorker.do_logon_commands();

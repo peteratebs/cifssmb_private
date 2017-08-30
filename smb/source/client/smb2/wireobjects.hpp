@@ -134,7 +134,6 @@ class NetWireblob  : public NetWire {
 protected:
     void get(void *p)
     {
-cout_log(LL_JUNK) << "get blob n bytes: "  << blob_size << " from : " << std::hex << (ddword) raw_address << endl;
          tc_memcpy(p, raw_address, blob_size);
     }
 private:
@@ -160,6 +159,16 @@ class NetWireblob16  : public NetWireblob {
    private:
     const byte *get()  { return get_raw_address(); };
 };
+class NetWireblob8  : public NetWireblob {
+  public:
+    void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
+    NetWireblob8() { blob_size=8;};
+    void get(void *p)  { NetWireblob::get(p); };
+    const byte *operator()() { return get(); }
+   private:
+    const byte *get()  { return get_raw_address(); };
+};
+
 class NetWireblob4  : public NetWireblob {
   public:
     void operator =(byte *s)  { tc_memcpy(raw_address, s, blob_size);};
@@ -214,8 +223,6 @@ public:
   virtual int  FixedStructureSize()  { return (int)objectsize; };
   virtual void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};
   virtual void push_output(NetStreamOutputBuffer  &StreamBuffer) {    StreamBuffer.add_to_buffer_count(objectsize+variablesize); }
-
-
 
 protected:
   byte *base_address;

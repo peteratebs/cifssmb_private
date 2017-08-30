@@ -176,3 +176,45 @@ void NetSmb2QuerydirectoryReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(OutputBufferLength);
   BINDPOINTERS(Buffer);
 }
+
+void NetSmb2CreateCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize); // 57
+  BINDPOINTERS(SecurityFlags);
+  BINDPOINTERS(RequestedOplockLevel);
+  BINDPOINTERS(ImpersonationLevel);
+  BINDPOINTERS(SmbCreateFlags);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(DesiredAccess);
+  BINDPOINTERS(FileAttributes);
+  BINDPOINTERS(ShareAccess);
+  BINDPOINTERS(CreateDisposition);
+  BINDPOINTERS(CreateOptions);
+  BINDPOINTERS(NameOffset);
+  BINDPOINTERS(NameLength);
+  BINDPOINTERS(CreateContextsOffset);
+  BINDPOINTERS(CreateContextsLength);
+  BINDPOINTERS(Buffer);
+}
+
+void NetSmb2CreateReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(OplockLevel);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(CreateAction);
+  BINDPOINTERS(CreationTime);
+  BINDPOINTERS(LastAccessTime);
+  BINDPOINTERS(LastWriteTime);
+  BINDPOINTERS(ChangeTime);
+  BINDPOINTERS(AllocationSize);
+  BINDPOINTERS(EndofFile);
+  BINDPOINTERS(FileAttributes);
+  BINDPOINTERS(Reserved2);
+  BINDPOINTERS(FileId);
+  BINDPOINTERS(CreateContextsOffset);
+  BINDPOINTERS(CreateContextsLength);
+  BINDPOINTERS(Buffer);
+};

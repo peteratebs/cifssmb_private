@@ -34,10 +34,18 @@ public:
      rtp_free_auto_free(buffer);}
 
   void set_diag_level(smb_diaglevel diaglevel) { _p_diaglevel =diaglevel;}
+
+
+  void diag_dump_unicode(smb_diaglevel at_diaglayer, const char *prompt, byte *buffer, int size)
+  {
+    if (_p_diaglevel && _p_diaglevel >= at_diaglayer)
+    {
+      rtsmb_dump_bytes(prompt, buffer, size, DUMPUNICODE);
+    }
+  }
   void diag_dump_bin(smb_diaglevel at_diaglayer, const char *prompt, byte *buffer, int size)
   {
     cout << prompt << endl;
-    cout << "Curr level: " << _p_diaglevel << "message level: "  << at_diaglayer << endl;
     if (_p_diaglevel && _p_diaglevel >= at_diaglayer)
     {
       rtsmb_dump_bytes(prompt, buffer, size, DUMPBIN);
@@ -46,6 +54,16 @@ public:
   void diag_dump_bin(smb_diaglevel at_diaglayer,  const char *prompt, word *buffer, int size)   { diag_dump_bin(at_diaglayer, prompt, (byte *)buffer, size); }
   void diag_dump_bin(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size)   { diag_dump_bin(at_diaglayer, prompt, (byte *)buffer, size); }
 
+  void display_text_warnings()
+  {
+     for (int i = 0; i <  warnings.size(); i++)
+     {
+        diag_printf_fn(DIAG_INFORMATIONAL,"Warning: %s\n", warnings[i]);
+        free(warnings[i]);
+     }
+     warnings.clear();
+  }
+
   void diag_text_warning(const char* fmt...)
   {
       va_list args;
@@ -53,7 +71,7 @@ public:
       vsprintf (buffer,fmt, args);
       warnings.push_back(rtsmb_strmalloc((char *)buffer));
       // Store this in a vector
-      cout << "warning: " << buffer << endl;
+      // cout << "warning: " << buffer << endl;
       va_end(args);
   }
  //  note: use %ls to display utf16

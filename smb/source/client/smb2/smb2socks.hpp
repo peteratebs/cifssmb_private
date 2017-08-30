@@ -100,7 +100,8 @@ typedef enum
 } ConnectionState_t;
 
 public:
-  SmbSocket_c()                         {_p_ipvalid=false; connection_state=NoSocket; idle_func = 0;}
+  SmbSocket_c()
+    {_p_ipvalid=false; connection_state=NoSocket; idle_func = 0;has_error = false; }
   int connect()
   {
     int r = -1;
@@ -131,6 +132,17 @@ public:
     }
     return r;
   }
+  void set_socket_error(bool _isSendError, NetStatus _SmbStatus, int _errno_val, const char *_errno_string)
+  {
+    has_error  = true;
+    isSendError = _isSendError;
+    SmbNetStatus   = _SmbStatus  ;
+    errno_val    = errno_val   ;
+    errno_string = _errno_string;
+  }
+  // Shows any socket errors, also clears see session.showSessionSocketError() wrapper
+  void show_socket_errors(bool clear_error_state);
+
   long send(byte* buffer, long size)
   {
     if (connection_state!=Connected)
@@ -181,6 +193,11 @@ private:
   byte * idle_data;
   ConnectionState_t connection_state;    // Notconnected, Connecting, Connected, Closing
   int run_state;           // Idle, WaitSend, WaitRecv
+  bool has_error;
+  bool isSendError;
+  NetStatus  SmbNetStatus;
+  int  errno_val;
+  const char *errno_string;
 };
 
 

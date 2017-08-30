@@ -15,9 +15,11 @@
 #include "smb2clientincludes.hpp"
 
 
-extern int do_smb2_logon_server_worker(Smb2Session &Session);
+extern bool do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber);
-extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, word *pattern);
+extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, int filenumber, word *pattern);
+extern bool do_smb2_directory_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname, bool writeable);
+
 
 /// Api method sets ip address, mask and port (445 | 139) to connect to
 void Smb2Session::set_connection_parameters(const char *ip, byte *mask, int port)
@@ -56,14 +58,15 @@ bool Smb2Session::connect_socket()
   session_state(CSSN_STATE_CONNECTING);
   if (SmbSocket.connect() == 0)
   {
-    cout_log(LL_JUNK)  << "Socket connect worked" << endl;
+    diag_printf_fn(DIAG_JUNK, "Socket connect worked\n");
     session_state(CSSN_STATE_CONNECTED);
     return Smb2Session::connect_buffers();
   }
   else
   {
-    cout_log(LL_JUNK)  << "Socket connect failed, back to dead" << endl;
+    diag_text_warning("Socket connect failed, reverting back to dead");
     session_state(CSSN_STATE_DEAD);
+    setSessionSocketError(this, true, NetStatusConnectFailed);
     return false;
   }
   return true;
@@ -71,11 +74,7 @@ bool Smb2Session::connect_socket()
 /// Api method establishes a logged in SMB connection to the server and updates session state information.
 bool Smb2Session::connect_server()
 {
-  int r = do_smb2_logon_server_worker(*this);
-  if (r < 0)
-   return false;
-  else
-   return true;
+  return do_smb2_logon_server_worker(*this);
 };
 
 
@@ -109,10 +108,16 @@ bool Smb2Session::connect_share(int sharenumber)
   return (bool) do_smb2_tree_connect_worker(*this,sharenumber);
 };
 
-bool Smb2Session::list_share(int sharenumber, word *_pattern)
+bool Smb2Session::list_share(int sharenumber, int filenumber, word *_pattern)
 {
-  return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,_pattern);
+  return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,filenumber,_pattern);
 }
+
+bool Smb2Session::open_dir(int sharenumber, int fileumber, char *filename, bool forwrite)
+{
+  return do_smb2_directory_open_worker(*this,sharenumber, fileumber, filename, forwrite);
+}
+
 bool Smb2Session::disconnect_server()                {return false;};
 bool Smb2Session::disconnect_user(int sharenumber)   {return false;};
 bool Smb2Session::disconnect_share(int sharenumber)  {return false;};
@@ -125,3 +130,10 @@ Smb2Session *getCurrentActiveSession() {return glCurrentActiveSession;}
 bool force_signing_on = false;
 bool checkSessionSigned() { return force_signing_on; }// glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };
 void setSessionSigned(bool isSigned) { force_signing_on=isSigned; }// glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };
+
+void setSessionSocketError(Smb2Session *pSmb2Session, bool isSendError, NetStatus SmbStatus)
+{ // calling this from a static funtion rather than a class method of session, not sure why for now
+  int util_errno;
+  const char *util_errstr = rtsmb_util_errstr(util_errno);
+  pSmb2Session->set_socket_error(isSendError, SmbStatus, util_errno, util_errstr );
+}

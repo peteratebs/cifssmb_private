@@ -75,15 +75,15 @@ typedef unsigned long long ddword;  //32-bit
 typedef ptrdiff_t RTP_ADDR;
 
 #define LARGEST_STRING 255
-
 #define dualstringdecl(STRINGNAME) std::auto_ptr<dualstring> STRINGNAME(new(dualstring))
 /// dualstring string container can be intialized with ascii or utf16 and then be dereferenced by either type utf16() or the ascii() methods.
 /// Uses dynamic memory that is freed by its destructror.
 /// For extra safety use the dualstringdecl(stringname) to ensure that the destuctor is called to free memory.
 class dualstring {
 public:
-  dualstring(int _maxlen=LARGEST_STRING) {buflen=0;maxlen=_maxlen; utf16view=0; asciiview=0;};
-  ~dualstring() { if (utf16view) rtp_free_auto_free(utf16view); if (asciiview) rtp_free_auto_free(asciiview); };
+  dualstring() {buflen=0;maxlen=LARGEST_STRING; utf16view=0; asciiview=0;};
+  ~dualstring() { empty(); }
+  void empty() { if (utf16view) rtp_free(utf16view); if (asciiview) rtp_free(asciiview);buflen=0;maxlen=LARGEST_STRING; utf16view=0; asciiview=0; };
   char *ascii()  { return asciiview;}
   word  *utf16() { return utf16view;}
   int   utf16_length() { return strlen*2; }
@@ -102,7 +102,7 @@ private:
 };
 
 typedef struct {void *ptr; size_t size;} allocated_item_t;
-inline void free_item(allocated_item_t &item) {  if (item.ptr)  { cout << "free item sized: " << std::dec << item.size << endl;   void *p = item.ptr;    rtp_free_auto_free(p);  } }
+inline void free_item(allocated_item_t &item) {  if (item.ptr)  {   void *p = item.ptr;    rtp_free_auto_free(p);  } }
 
 /// Inheret this class to auto free heap data allocated with local_rtp_malloc(size_t nbytes) when the object's destructor runs
 class local_allocator {
@@ -131,7 +131,10 @@ private:
 
 
 #define RTSMB_CFG_MAX_SESSIONS                      1
-#define RTSMB_CFG_MAX_SHARESPERSESSION               1
+#define RTSMB_CFG_MAX_SHARESPERSESSION              1
+
+#define RTSMB_CFG_MAX_FILESPERSESSION               8
+
 #define RTSMB_CFG_MAX_SHARENAME_SIZE               80
 
 
@@ -142,6 +145,8 @@ private:
 
 
 #define RTSMB_CFG_MAX_BUFFER_SIZE     32768    // The physical buffer size we stream through
+  // Maximum read/write/trasnaction size we'll ever use so we know that we have space in the buffer for it.
+#define RTSMB_CFG_MAX_CLIENT_TRANSACTION_SIZE     (RTSMB_CFG_MAX_BUFFER_SIZE-2048)
 
 #define RTSMB_CFG_MAX_FILENAME_SIZE    255   // the maximum size of file name in utf16
 
@@ -218,7 +223,8 @@ enum NetStatus {
     NetStatusEmpty             = -3,
     NetStatusDeviceRecvFailed  = -4,
     NetStatusDeviceSendFailed  = -5,
-    NetStatusBadCallParms      = -6
+    NetStatusBadCallParms      = -6,
+    NetStatusConnectFailed     = -7
 };
 
 typedef struct SecurityBuffer_s {
@@ -237,7 +243,6 @@ typedef struct decoded_NegTokenTarg_challenge_s {
 
 
 // void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
-int spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
 void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
 void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
 
@@ -260,51 +265,14 @@ typedef struct
 
 } NEWRTSMB_CLI_SESSION_DSTAT;
 
-
-#define RTSMB_CLI_SSN_RV_OK                    0    /* everything is good */
-#define RTSMB_CLI_SSN_RV_SENT                  1    /* The callback sends this when the packet was send internally and doesn't need to be sent from the top */
-#define RTSMB_CLI_SSN_RV_DEAD                 -3   /* session is untenable and should be closed */
-#define RTSMB_CLI_SSN_RV_BAD_ARGS             -6   /* argument to function is out of range */
-#define RTSMB_CLI_SSN_RV_TOO_MANY_JOBS        -7   /* too many jobs waiting */
-#define RTSMB_CLI_SSN_RV_TOO_MANY_USERS       -8   /* too many users logged on */
-
-#define RTSMB_CLI_SSN_RV_ALREADY_CONNECTED    -20  /* already connected to a share */
-
-#define RTSMB_CLI_SSN_SMB2_QUERY_MORE         -102 /* the SMB2 retrieve is still in progress, display current results */
-#define RTSMB_CLI_SSN_SMB2_QUERY_FINISHED     -103 /* the SMB2 retrieve is complte. Send a search close */
-#define RTSMB_CLI_SSN_SMB2_COMPUND_INPUT      -104 /* the SMB2 packet indicates moree data */
-#define RTSMB_CLI_SSN_RV_INVALID_RV           -100 /* this is guaranteed to never be used as an rv value */
-
 #define RTSMB_NBSS_COM_MESSAGE            0x00
 #define PDIFF(p, q) (std::ptrdiff_t)((std::ptrdiff_t) (p) - (std::ptrdiff_t) (q))
-
 
 
 int rtsmb_cli_session_find_first(int sid, char *sharename, char *pattern, NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 int rtsmb_cli_session_find_next(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 void rtsmb_cli_session_find_close(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 
-#if(0)
-class Smb2Session {
-public:
-  Smb2Session() {}
-#define CONNECTED 1
-  int session_wire_state;
-};
-#endif
-
-typedef struct smb2_iostream_s {
-  int xx;
-#define INFO_CAN_TIMEOUT 1
-  dword buffer_flags;
-  ddword buffer_mid;
-#define WAITING_ON_US 1
-#define WAITING_ON_SERVER 2
-  int  buffer_state;
-  dword buffer_end_time_base;
-  int session_wire_state;     // There are two instances, tbd
-  byte *session_wire_incoming_nbss_header;
-} smb2_iostream;
 
 extern void rtsmb_util_guid(byte *_pGuid);
 extern ddword rtsmb_util_get_current_filetime(void);
@@ -312,11 +280,13 @@ extern void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_strin
 
 typedef enum smb_diaglevel_e {
     DIAG_DISABLED      =0,
+    DIAG_CONSOLE       =1,
     DIAG_JUNK          =1,             // Handy for bumping diagnostics.
     DIAG_INFORMATIONAL =2,
     DIAG_DEBUG         =3,
 } smb_diaglevel;
 extern void diag_dump_bin_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size);
+extern void diag_dump_unicode_fn(smb_diaglevel at_diaglayer,  const char *prompt, void *buffer, int size);
 extern void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...);
 
 extern char *rtsmb_strmalloc(char *str);
@@ -324,5 +294,8 @@ extern char *rtsmb_strmalloc(char *str);
 
 bool checkSessionSigned();
 void setSessionSigned(bool isSigned);
+extern const char *rtsmb_util_errstr(int &util_errno);
+
+
 
 #endif // include_smb2defs

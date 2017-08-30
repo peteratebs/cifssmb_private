@@ -14,7 +14,9 @@
 #ifndef include_netstreambuffer
 #define include_netstreambuffer
 
-struct SocketContext{  RTP_SOCKET socket;};
+struct SocketContext{
+   RTP_SOCKET socket;
+};
 struct memcpydevContext{ byte *pData; dword bytes_left;};
 /// "device for sinking bytes from a stream.
 /// This memcopies to a location stored in device context.
@@ -215,6 +217,7 @@ public:
    byte *buffered_data_pointer(dword &bytes_ready) { bytes_ready = buffered_count(); return buffered_data_pointer();}
    byte *buffered_data_pointer() { return buffer_base+write_pointer;}
    dword buffered_count() {return input_pointer-write_pointer;}
+   dword consume_bytes(dword nbytes) { write_pointer += nbytes; }
 
    // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
    NetStatus pull_nbss_data(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
@@ -222,7 +225,7 @@ public:
      NetStatus r = NetStatusDeviceRecvFailed;
      dword sourced_byte_count=0;
      if (data_sourcer)
-        r = data_sourcer->source_data(input_buffer_pointer(),byte_count, sourced_byte_count);
+        r = data_sourcer->source_data(input_buffer_pointer(),byte_count, sourced_byte_count);     // buffer_base+input_pointer;
      if (r == NetStatusOk)
         bytes_pulled = sourced_byte_count;
      else

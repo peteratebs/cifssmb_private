@@ -24,6 +24,21 @@ typedef enum
 } RTSMB_CLI_SESSION_SHARE_STATE;
 
 
+
+class Smb2File {
+public:
+  Smb2File()  { memset(file_id,0,16); file_name = new dualstring;}
+  ~Smb2File() { file_name->empty(); delete file_name;}
+  void set_filename(char *filename)  { *file_name = filename;  };
+  char *get_filename_ascii()  { return file_name->ascii();  };
+  word *get_filename_utf16()  { return file_name->utf16();  };
+  byte *get_file_id()    { return file_id;  };
+  void set_fileid(byte *fileid)  { memcpy(file_id, fileid,16);  };
+private:
+  byte  file_id[16];
+  dualstring *file_name;
+};
+
 class Smb2Share {
 public:
   Smb2Share() {share_state = CSSN_SHARE_STATE_DIRTY;}
@@ -64,6 +79,13 @@ public:
   bool connect_socket();
   void disconnect_socket();
 
+  /// Show and optionally clear errors if any for the
+  void set_socket_error(bool _isSendError, NetStatus _SmbStatus, int _errno_val, const char *errno_string)
+  {
+    SmbSocket.set_socket_error(_isSendError, _SmbStatus, _errno_val, errno_string);
+  }
+  void show_socket_errors(bool clear_error_state)  { SmbSocket.show_socket_errors(clear_error_state); };
+
   bool connect_server() ;
   bool disconnect_server() ;
 
@@ -73,7 +95,9 @@ public:
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
 
-  bool list_share(int sharenumber, word *_pattern);
+  bool list_share(int sharenumber,  int filenumber, word *_pattern);
+
+  bool  open_dir(int sharenumber, int fileumber, char *filename, bool forwrite);
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
@@ -98,6 +122,7 @@ public:
   NetStreamInputBuffer          ReplyBuffer;
 
   Smb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
+  Smb2File        Files     [RTSMB_CFG_MAX_FILESPERSESSION];
 
 
   RTSMB_CLI_SESSION_DIALECT session_server_info_dialect;
@@ -153,5 +178,8 @@ private:
 
 bool checkSessionSigned();
 void setCurrentActiveSession(Smb2Session *CurrentActiveSession);
+// calling this from a static funtion rather than a class method of session, not sure why for now
+void setSessionSocketError(Smb2Session *pSmb2Session, bool isSendError, NetStatus SmbStatus);
+
 
 #endif // include_smb2session
