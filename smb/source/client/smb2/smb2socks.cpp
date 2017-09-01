@@ -199,7 +199,6 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
   bytes_received = 0;
   start_time = rtp_get_system_msec();
 
-  diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read min bytes:%d \n", min_bytes);
   while (bytes_received < min_bytes)
   {
     while (1)
@@ -244,10 +243,8 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
 
     pkt_data = (unsigned char *) &(buffer[bytes_received]);
     pkt_len = rtp_net_recv(sd, pkt_data, max_bytes - bytes_received);
-    diag_printf_fn(DIAG_JUNK,"rtsmb2_net_recv maxrequested:%d recvd: %d pkt_len:%d \n", max_bytes, bytes_received,pkt_len );
     if (pkt_len == -2)
     {
-      diag_printf_fn(DIAG_JUNK,"rtsmb2_net_recv -2 recvd \n");
       continue;
     }
     if (pkt_len == 0 || pkt_len == -2)
@@ -261,7 +258,6 @@ long smb_recv_at_least (RTP_SOCKET sd, byte * buffer, long min_bytes, long max_b
     }
     bytes_received += pkt_len;
   }
-  diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read completd:%d \n", bytes_received);
   return (bytes_received);
 }
 
@@ -269,7 +265,6 @@ int rtsmb2_net_read(RTP_SOCKET sd, byte *pData, int size, int minsize)
 {
 smbIdleFn idle_func=0; byte * idle_data=0;
    int r = smb_recv_at_least (sd, pData, minsize, size, idle_func, idle_data);
-   diag_printf_fn(DIAG_JUNK,"rtsmb2_net_read Read n bytes: %d to: %X \n",  r, (ddword) pData);
    return r;
 }
 

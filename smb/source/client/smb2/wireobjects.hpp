@@ -229,6 +229,8 @@ private:
 class NetWireStruct   {
 public:
   NetWireStruct() { isvariable = false; base_address=0; variablesize=0;};
+  virtual const char *command_name() = 0;
+  virtual const int  command_id() = 0;
   virtual int  PackedStructureSize() = 0;   // must be overridden FixedStructureSize() or FixedStructureSize()-1 if the one byte buffer size if it is a variable length message.
   virtual int  FixedStructureSize()  { return (int)objectsize; };
   virtual void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize;};

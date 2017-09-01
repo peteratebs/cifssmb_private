@@ -34,13 +34,13 @@ extern "C" {
 
 
 /* SMB2 Header structure command values and flag vlues. See  2.2.1.2, page 30 */
-#define SMB2_NEGOTIATE          0x0000
-#define SMB2_SESSION_SETUP      0x0001
-#define SMB2_LOGOFF             0x0002
-#define SMB2_TREE_CONNECT       0x0003
-#define SMB2_TREE_DISCONNECT    0x0004
-#define SMB2_CREATE             0x0005
-#define SMB2_CLOSE              0x0006
+#define SMB2_NEGOTIATE          0x0000   // Smartpointer and handler  completed
+#define SMB2_SESSION_SETUP      0x0001   // Smartpointer and handler  completed
+#define SMB2_LOGOFF             0x0002   // Smartpointer completed
+#define SMB2_TREE_CONNECT       0x0003   // Smartpointer and handler  completed
+#define SMB2_TREE_DISCONNECT    0x0004   // Smartpointer completed
+#define SMB2_CREATE             0x0005   // Smartpointer and handler  completed
+#define SMB2_CLOSE              0x0006   // Smartpointer and handler  completed
 #define SMB2_FLUSH              0x0007
 #define SMB2_READ               0x0008
 #define SMB2_WRITE              0x0009
@@ -48,10 +48,10 @@ extern "C" {
 #define SMB2_IOCTL              0x000B
 #define SMB2_CANCEL             0x000C
 #define SMB2_ECHO               0x000D
-#define SMB2_QUERY_DIRECTORY    0x000E
+#define SMB2_QUERY_DIRECTORY    0x000E   // Smartpointer and handler  completed
 #define SMB2_CHANGE_NOTIFY      0x000F
 #define SMB2_QUERY_INFO         0x0010
-#define SMB2_SET_INFO           0x0011
+#define SMB2_SET_INFO           0x0011  // Smartpointer and handler  completed
 #define SMB2_OPLOCK_BREAK       0x0012
 
 
@@ -92,6 +92,8 @@ class NetNbssHeader  : public NetWireStruct   {
    NetWirebyte       nbss_packet_type;
    NetWire24bitword  nbss_packet_size;
    byte *FixedStructureAddress() { return base_address; };
+   const char *command_name() { return "";} // not an smb command so these are bogus
+   const int   command_id()   { return 0;}
    int  PackedStructureSize()  { return FixedStructureSize(); };
    int  FixedStructureSize()  { return objectsize; };
    void SetDefaults()  { };
@@ -155,6 +157,8 @@ public:
     SessionId = _SessionId;
     Signature = (byte *)"IAMTHESIGNATURE";
   }
+  const char *command_name() { return "SMB2";} // not an smb command so these are bogus
+  const int   command_id()   { return 0;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   int  FixedStructureSize()  { return 64; };
   byte *FixedStructureAddress() { return base_address; };
@@ -207,6 +211,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_NEGOTIATE";}
+  const int   command_id()   { return SMB2_NEGOTIATE;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return 0; };
   void SetDefaults()  { };
@@ -243,6 +249,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_NEGOTIATE";}
+  const int   command_id()   { return SMB2_NEGOTIATE;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return 0; };
   void SetDefaults()  { };
@@ -269,6 +277,8 @@ public:
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
   int VariableContentOffset()  { return (int)SecurityBufferOffset(); }
+  const char *command_name() { return "SMB2_SESSION_SETUP";}
+  const int   command_id()   { return SMB2_SESSION_SETUP;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -295,6 +305,8 @@ public:
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
 
+  const char *command_name() { return "SMB2_SESSION_SETUP";}
+  const int   command_id()   { return SMB2_SESSION_SETUP;}
   int  PackedStructureSize()   { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -317,6 +329,8 @@ public:
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
   int VariableContentOffset() { return PackedStructureSize(); };
+  const char *command_name() { return "SMB2_TREE_CONNECT";}
+  const int   command_id()   { return SMB2_TREE_CONNECT;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -346,6 +360,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_TREE_CONNECT";}
+  const int   command_id()   { return SMB2_TREE_CONNECT;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -379,6 +395,8 @@ public:
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
   int VariableContentOffset() { return PackedStructureSize(); };
+  const char *command_name() { return "SMB2_CREATE";}
+  const int   command_id()   { return SMB2_CREATE;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -419,6 +437,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_CREATE";}
+  const int   command_id()   { return SMB2_CREATE;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -437,6 +457,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_TREE_DISCONNECT";}
+  const int   command_id()   { return SMB2_TREE_DISCONNECT;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -456,6 +478,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_TREE_DISCONNECT";}
+  const int   command_id()   { return SMB2_TREE_DISCONNECT;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -474,6 +498,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_LOGOFF";}
+  const int   command_id()   { return SMB2_LOGOFF;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -493,6 +519,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_LOGOFF";}
+  const int   command_id()   { return SMB2_LOGOFF;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -514,6 +542,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_CLOSE";}
+  const int   command_id()   { return SMB2_CLOSE;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -536,11 +566,12 @@ public:
   NetWireddword AllocationSize;
   NetWireddword EndofFile;
   NetWiredword  FileAttributes;
-  const char *command_name() {return "CLOSE";}
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_CLOSE";}
+  const int   command_id()   { return SMB2_CLOSE;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -566,6 +597,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_SET_INFO";}
+  const int   command_id()   { return SMB2_SET_INFO;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   byte *VariableContentAddress() { return base_address+PackedStructureSize(); };
@@ -593,6 +626,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_SET_INFO";}
+  const int   command_id()   { return SMB2_SET_INFO;}
   int  PackedStructureSize()  {   return FixedStructureSize()-1; };
   byte *VariableContentAddress() { return base_address+PackedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
@@ -613,6 +648,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_SET_INFO";}
+  const int   command_id()   { return SMB2_SET_INFO;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -631,6 +668,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "MINIMUM";}
+  const int   command_id()   { return 0;}
   int  PackedStructureSize()  { return FixedStructureSize(); };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -666,6 +705,8 @@ public:
   }
 
   int  VariableContentOffset() { return PackedStructureSize(); }
+  const char *command_name() { return "SMB2_QUERY_DIRECTORY";}
+  const int   command_id()   { return SMB2_QUERY_DIRECTORY;}
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -688,6 +729,8 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_QUERY_DIRECTORY";}
+  const int   command_id()   { return SMB2_QUERY_DIRECTORY;}
   int  PackedStructureSize() { return FixedStructureSize()-1; }
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
@@ -765,7 +808,7 @@ public:
     isvariable = false; base_address=0; variablesize=_variable_size;
     smb2_command = command;
 
-    pSmb2Session->PrepSessionForCommand(); // Drain inp and output buffers to start a new command
+    pSmb2Session->prep_session_for_command(cmd->command_name(), cmd->command_id()); // Drain inp and output buffers to start a new command
 
     dword bytes_available_for_sending;
     byte *nbsshead = pSmb2Session->SendBuffer.output_buffer_address(bytes_available_for_sending);

@@ -66,32 +66,19 @@ private:
     NetSmb2QuerydirectoryReply Smb2QuerydirectoryReply;
     NetStatus r;
 
-    // Pull enough for the fixed part and then map pointers to input buffer
     r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("QUERY", Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
-//    r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
     if (r != NetStatusOk && r != NetStatusServerErrorStatus)
     {
-      pSmb2Session->diag_text_warning("receive_querydirectory command failed pulling fixed part from the socket");
       return false;
     }
     NetSmb2NBSSReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, pSmb2Session, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
 
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY status: %X\n",InSmb2Header.Status_ChannelSequenceReserved());
     if (r == NetStatusServerErrorStatus)
     {
       bool rv = false;
       has_continue = false;
       if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_NO_MORE_FILES)
         rv = true;
-      pSmb2Session->ReplyBuffer.drain_socket_input();
-     #if(0)
-      if ((InNbssHeader.nbss_packet_size()+4) > bytes_pulled)
-      {
-        diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY size: %d pulled %d purging: %d \n", (InNbssHeader.nbss_packet_size()+4),bytes_pulled, (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-        pSmb2Session->diag_text_warning("receive_querydirectory byte counts out of sync recved < frame size");
-        pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-      }
-     #endif
       return rv;
     }
 
@@ -108,15 +95,13 @@ private:
 
     if (Smb2QuerydirectoryReply.OutputBufferOffset()!=0)  // If zero it means we are empty. Confused why recv hangs when I try to read all bytes on last message (including the 1 byte buff that is zero filled by the server)
     { // Skip to the content if we have to
-#if (1)
       int t = (Smb2QuerydirectoryReply.OutputBufferOffset()+InNbssHeader.FixedStructureSize())-bytes_pulled;  // Advance to the variable part if needed
       if (t>0)
       {
-        diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY top2: Offset:%d Size(4)%d pulled:%d  advance %d \n", Smb2QuerydirectoryReply.OutputBufferOffset(),InNbssHeader.FixedStructureSize(),bytes_pulled,t);
+        pSmb2Session->diag_text_warning("receive_querydirectory content was offset ??");
         pSmb2Session->ReplyBuffer.consume_bytes(t);
         bytes_pulled += t;
       }
-#endif
       // read in the content which will fit in our buffer if the server obneyed our max transaction size
       dword payload_bytes_pulled = 0;
       total_bytes_left = (InNbssHeader.nbss_packet_size()+4)-bytes_pulled;
@@ -130,8 +115,7 @@ private:
     }
     if (payload_bytes_left > total_bytes_left)
     {
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY top: Truncate payload from %d to %d \n", payload_bytes_left, total_bytes_left);
-      pSmb2Session->diag_text_warning("receive_querydirectory command truncated smb2 payload size from NBSS size");
+      pSmb2Session->diag_text_warning("receive_querydirectory SMB2_QUERY_DIRECTORY Truncated payload from %d to %d", payload_bytes_left, total_bytes_left);
       payload_bytes_left = total_bytes_left;
     }
     // call back to the application layer with each item
@@ -156,7 +140,6 @@ private:
         }
       }
     }
-    pSmb2Session->ReplyBuffer.drain_socket_input();
     return true;
   }
 
@@ -166,8 +149,6 @@ private:
     NetNbssHeader       OutNbssHeader;
     NetSmb2Header       OutSmb2Header;
     NetSmb2QuerydirectoryCmd Smb2QuerydirectoryCmd;
-
-
     if (pattern)
       variable_content_size   = (word)rtp_wcslen_bytes (pattern);
     else
@@ -183,7 +164,6 @@ private:
     else
       Smb2QuerydirectoryCmd.Flags                    = (byte)Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS;
 //    Smb2QuerydirectoryCmd.Flags                    = Smb2QuerydirectoryCmd.Flags()|SMB2_QUERY_RESTART_SCANS; // SMB2_QUERY_SMB2_INDEX_SPECIFIED;
-
 
     Smb2QuerydirectoryCmd.FileId                  = pSmb2Session->Files[file_number].get_file_id();
     Smb2QuerydirectoryCmd.FileNameOffset          = (word) (OutSmb2Header.StructureSize()+Smb2QuerydirectoryCmd.VariableContentOffset());

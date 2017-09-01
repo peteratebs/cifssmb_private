@@ -72,6 +72,7 @@ public:
     session_server_info_smb2_session_id=0;
     session_state(CSSN_STATE_DEAD);
     user_state(CSSN_USER_STATE_UNUSED);
+    current_command_name="UNASSIGNED";
   }
 
   void set_connection_parameters(const char *ip, byte *mask, int port);
@@ -97,12 +98,29 @@ public:
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
 
-  bool PrepSessionForCommand()
+  bool prep_session_for_command(const char *_command_name, int _command_id)
   {
+    current_command_name = _command_name;
+    current_command_id   = _command_id;
     ReplyBuffer.drain_socket_input();
     SendBuffer.drain_socket_output();
     return true;
   }
+
+  bool check_share_state(int share_number, int share_state)
+  {
+    if (session_state() <=  CSSN_STATE_DEAD)
+    {
+      diag_text_warning("%s command called but session is dead", current_command_name);
+      return false;
+    }
+    if (Shares[share_number].share_state != CSSN_SHARE_STATE_CONNECTED)
+    {
+      diag_text_warning("%s command called share is closed", current_command_name);
+      return false;
+    }
+ }
+
 
   bool list_share(int sharenumber,  int filenumber, word *_pattern);
 
@@ -163,6 +181,8 @@ private:
   int _p_send_buffer_size;
   byte *_p_send_buffer_raw;
   byte *_p_reply_buffer_raw;
+  const char *current_command_name;
+  int current_command_id;
 
   RTSMB_CLI_SESSION_USER_STATE _p_user_state;
   char               _p_groupname [RTSMB_CFG_MAX_GROUPNAME_SIZE  ];

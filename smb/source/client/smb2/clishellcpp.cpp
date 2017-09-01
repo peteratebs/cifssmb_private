@@ -14,6 +14,7 @@
 
 
 #include "smb2clientincludes.hpp"
+#include "rtpfile.h"
 
 using namespace std;
 
@@ -35,7 +36,92 @@ std::vector<std::string> split(const std::string& text, const std::string& delim
 
     return tokens;
 }
+bool is_command_line(string &inputcmd, const char *isitcmd)
+{
+  for (size_t i=0; i < inputcmd.size(); i++) inputcmd[i] = toupper(inputcmd[i]);
+//  std::transform(s_name.begin(), s_name.end(), s_name.begin(), toupper);
+  string isitcmdstring(isitcmd);
+  return (isitcmdstring == inputcmd);
+}
 
+bool filename_is_remote(string &filename)
+{
+ if (filename[0] == '>' ||  filename[0] == '<')
+ {
+   filename = filename.substr(1);
+   return true;
+ }
+ return false;
+}
+
+class SmbFile {
+public:
+  SmbFile ( bool _issmbclientFile, string _filename) { filename=_filename; issmbclientFile=_issmbclientFile; isopen=false;
+  isstdin = isstdout = false;
+  if (_filename == "STDIN" || _filename == "stdin") isstdin = true;
+  if (_filename == "STDOUT" || _filename == "stdout") isstdout = true;
+  }
+  bool open_file (bool iswrite=false, bool iscreate=false)
+  {
+    if (issmbclientFile)
+      ;
+    else if (isstdout || isstdin)
+      ;
+    else
+    {
+     int r = rtp_file_open (&rtpFile, filename.c_str(), iswrite?RTP_FILE_O_CREAT|RTP_FILE_O_TRUNC|RTP_FILE_O_RDWR:0, iscreate?RTP_FILE_S_IWRITE:RTP_FILE_S_IREAD);
+     if (r < 0)
+      return false;
+    }
+    return true;
+  }
+  bool flush_file(){return true;};
+  bool close_file()
+  {
+    if (issmbclientFile)
+      ;
+    else if (isstdin||isstdout)
+      ;
+    else  rtp_file_close(rtpFile);
+    return true;
+  };
+  int read_from_file(byte *buffer, int n_bytes)
+  {
+    if (issmbclientFile)
+      ;
+    if (isstdin)
+    {
+        std::cin.getline((char *)buffer, n_bytes);
+        if (buffer[0]!=0) { buffer[strlen((char *)buffer)+1] = 0; buffer[strlen((char *)buffer)]='\n';}
+        return strlen((char*)buffer);
+    }
+    else  { return (int)rtp_file_read(rtpFile, buffer, n_bytes); }
+    return 0;
+  }
+  int write_to_file(byte *buffer, int n_bytes)
+  {
+    if (issmbclientFile)
+      ;
+    if (isstdout)
+    {
+      std::cout << (char *) buffer;
+      return strlen((char *)buffer);
+    }
+    else
+    {
+      return rtp_file_write(rtpFile, buffer, n_bytes);
+    }
+    return 0;
+  }
+private:
+  string filename;
+  bool isstdout;
+  bool isstdin;
+  bool issmbclientFile;
+  bool isopen;
+  RTP_HANDLE  rtpFile;
+  dword smbclientFile;
+};
 
 class SmbShellWorker : private local_allocator,smb_diagnostics {
 public:
@@ -108,10 +194,12 @@ public:
        char current_command_cstring[255];
        cout << "CMD>";
        std::cin.getline(current_command_cstring, 255);
+       if (!current_command_cstring[0])
+         continue;
        string current_command(current_command_cstring);
        // split the strings and replace '!' with space
        std::vector<std::string> command_line = split(current_command, delims);
-       if (command_line[0] == "ls" || command_line[0] == "LS")
+       if (is_command_line(command_line[0], "LS"))
        {
         char *path = (char *) "";
         char *pattern = (char *) "*";
@@ -129,7 +217,7 @@ public:
           ShellSession.list_share(0,0,pattern_string->utf16());  // do the ls
           ShellSession.close_dirent(0, 0);                       // close the directory we used
        }
-       else if (command_line[0] == "mkdir" || command_line[0] == "MKDIR")
+       else if (is_command_line(command_line[0], "MKDIR"))
        {
         char *path = (char *) "";
         char *pattern = "*";
@@ -140,7 +228,7 @@ public:
           if (ShellSession.make_dir(0, 1, path))
             ShellSession.close_dirent(0, 1);
        }
-       else if (command_line[0] == "rmdir" || command_line[0] == "RMDIR")
+       else if (is_command_line(command_line[0], "RMDIR"))
        {
         char *path = (char *) "";
           if (command_line.size() == 2)
@@ -149,7 +237,7 @@ public:
           }
           ShellSession.delete_dir(0, path);
        }
-       else if (command_line[0] == "mvdir" || command_line[0] == "MVDIR")
+       else if (is_command_line(command_line[0], "MVDIR"))
        {
           if (command_line.size() == 3)
           {
@@ -158,7 +246,7 @@ public:
             ShellSession.rename_dir(0, frompath, topath);
           }
        }
-       else if (command_line[0] == "mv" || command_line[0] == "MV")
+       else if (is_command_line(command_line[0], "MV"))
        {
         char *path = (char *) "";
           if (command_line.size() == 3)
@@ -168,7 +256,7 @@ public:
             ShellSession.rename_file(0, frompath, topath);
           }
        }
-       else if (command_line[0] == "rm" || command_line[0] == "RM")
+       else if (is_command_line(command_line[0], "RM"))
        {
         char *path = (char *) "";
           if (command_line.size() == 2)
@@ -177,12 +265,42 @@ public:
             ShellSession.delete_file(0, path);
           }
        }
-       else if (command_line[0] == "echo" || command_line[0] == "ECHO")
+       else if (is_command_line(command_line[0], "CP"))
+       {
+        dword total_written=0;
+        if (command_line.size() == 3)
+        {
+          SmbFile source_file(filename_is_remote(command_line[1]), command_line[1]);
+          SmbFile dest_file(filename_is_remote(command_line[2]), command_line[2]);
+          source_file.open_file();
+          dest_file.open_file(true,true);
+          int buffersize = 1024;
+          byte *_buffer = (byte *)rtp_malloc(buffersize);
+          while(int read_count = source_file.read_from_file(_buffer, buffersize))
+          {
+            int write_count = dest_file.write_to_file(_buffer, read_count);
+            if (write_count <= 0)
+              break;
+            else
+              total_written += write_count;
+          }
+          rtp_free(_buffer);
+          cout << "Total written: " << total_written << endl;
+          source_file.close_file();
+          dest_file.close_file();
+        }
+        else
+        {
+
+        }
+       }
+//       else if (command_line[0] == "echo" || command_line[0] == "ECHO")
+       else if (is_command_line(command_line[0], "ECHO"))
        {
         for (int i=0; i < command_line.size(); i++)
-         cout << "I:" << i << "Here:" << command_line[i] <<":ZZZ" << endl;
+         cout << "I:" << i << ":" << command_line[i] << ":remote:" <<  filename_is_remote(command_line[i])<< ":" << command_line[i] << ":"  << endl;
        }
-       else if (command_line[0] == "quit" || command_line[0] == "QUIT")
+       else if (is_command_line(command_line[0], "QUIT"))
        {
          cout << "bye";
          break;
@@ -199,7 +317,6 @@ private:
 extern "C" int smb2_cli_shell()
 {
     SmbShellWorker ShellWorker;
-
     ShellWorker.go();
     return 0;
 }

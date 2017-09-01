@@ -226,7 +226,6 @@ private:
     NetSmb2CreateReply  Smb2CreateReply;
     bool rv = false;
 
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX CREATE pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2CreateReply.FixedStructureSize());
      // Pull enough for the fixed part and then map pointers to input buffer
 //    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2CreateReply.PackedStructureSize(), bytes_pulled);
     NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("CREATE", Smb2CreateReply.PackedStructureSize(), bytes_pulled);
@@ -234,15 +233,11 @@ private:
     if (r == NetStatusOk)
     {
       NetSmb2NBSSReply<NetSmb2CreateReply> Smb2NBSSReply(SMB2_CREATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CreateReply);
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX CREATE pulled: %d \n", bytes_pulled);
-      diag_dump_bin_fn(DIAG_DEBUG,"do_smb2_dirent_open_worker returned filedid: ", (void *)Smb2CreateReply.FileId(), 16);
       Smb2CreateReply.FileId.get(file_id);
-      diag_dump_bin_fn(DIAG_DEBUG,"do_smb2_dirent_open_worker copied filedid: ", file_id, 16);
       rv = true;
     }
     else
       pSmb2Session->diag_text_warning("receive_create command failed pulling from the socket");
-    pSmb2Session->ReplyBuffer.drain_socket_input();
     return rv;
   }
 };
@@ -347,7 +342,6 @@ private:
     size_t min_reply_size = InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2MinimumReply.PackedStructureSize();
     size_t good_reply_size = InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+T.PackedStructureSize();
     byte *pBase = pSmb2Session->ReplyBuffer.input_buffer_pointer();
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX %s pulling minimum: %d \n", T.command_name(), min_reply_size);
      // Pull enough for the fixed part and then map pointers to input buffer
     NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(min_reply_size, min_packet_bytes_pulled);
     if (r != NetStatusOk || min_packet_bytes_pulled != min_reply_size)
@@ -361,7 +355,6 @@ private:
     Smb2MinimumReply.bindpointers(pBase+InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize());
     more_bytes_pulled = 0;
 
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX CLOSE status == %0X \n", InSmb2Header.Status_ChannelSequenceReserved());
 
     if (InSmb2Header.Status_ChannelSequenceReserved() != SMB2_NT_STATUS_SUCCESS)
     {
@@ -394,33 +387,11 @@ private:
     if (r == NetStatusOk)
     {
       NetSmb2NBSSReply<NetSmb2CloseReply> Smb2NBSSReply(SMB2_CLOSE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CloseReply);
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX CLOSE pulled: %d \n", bytes_pulled);
-
-//    InNbssHeader.show_contents();
-//    InSmb2Header.show_contents();
     }
-    pSmb2Session->ReplyBuffer.drain_socket_input();
-//    if (bytes_pulled >= InNbssHeader.FixedStructureSize() && (InNbssHeader.nbss_packet_size()+4)>bytes_pulled) //
-//      pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
     return true;
   }
-};
-#if(0)
-==============
-     byte *pNBss = input_buffer_pointer();
-     NetNbssHeader       InNbssHeader;
-    .NetNbssHeader.bindpointers(pNBss);
-     dword _nbss_bytes_pulled;
-     bool r = false;
-//     empty();
-     if (pull_nbss_data(4, _nbss_bytes_pulled))
-     {
-       r =pull_nbss_data(byte_count-4, bytes_pulled);
-       bytes_pulled += 4;
-     }
-     return r;
-==============
-#endif
+}
+;
 extern bool do_smb2_dirent_close_worker(Smb2Session &Session,int sharenumber,int filenumber)
 {
   SmbFileCloseWorker FileCloseWorker(Session, sharenumber, filenumber);
@@ -561,7 +532,6 @@ private:
     NetNbssHeader       InNbssHeader;
     NetSmb2Header       InSmb2Header;
     NetSmb2SetinfoReply Smb2SetinfoReply;
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETINFO pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetinfoReply.FixedStructureSize());
 //    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
     NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("SETINFO", Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
 
@@ -572,12 +542,7 @@ private:
     }
     NetSmb2NBSSReply<NetSmb2SetinfoReply> Smb2NBSSReply(SMB2_SET_INFO, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetinfoReply);
 
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETINFO pulled: %d \n", bytes_pulled);
-
-    pSmb2Session->ReplyBuffer.drain_socket_input();
-//  pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-
-     return true;
+    return true;
   }
 };
 
@@ -616,13 +581,10 @@ bool do_smb2_dirent_rename_worker(Smb2Session &Session,int sharenumber, char *ol
 {
   bool r;
   int filenumber = 0;
-  diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX rename call open\n");
 
   r = do_smb2_dirent_open_worker(Session, sharenumber, filenumber,oldname, isdir, true, false);
-  diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX rename open returned %d\n", r);
   if (r)
   {
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX rename call setinfo returned %d\n", r);
     r = do_smb2_dirent_setinfo_rename_worker(Session, sharenumber, filenumber, isdir, newname);
     if (r)
     {

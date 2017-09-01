@@ -53,7 +53,6 @@ private:
       pSmb2Session->diag_text_warning("connect_share command called but session is dead");
       return false;
     }
-
      if (pSmb2Session->Shares[share_number].share_state != CSSN_SHARE_STATE_DIRTY)
     {
       pSmb2Session->diag_text_warning("connect_share command called share is already connected");
@@ -106,8 +105,6 @@ private:
     NetSmb2Header       InSmb2Header;
     NetSmb2TreeconnectReply Smb2TreeconnectReply;
 
-
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.FixedStructureSize());
      // Pull enough for the fixed part and then map pointers toi input buffer
 //    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
     NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("TREECONNECT", Smb2TreeconnectReply.FixedStructureSize(), bytes_pulled);
@@ -119,23 +116,16 @@ private:
 
     NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT pulled: %d \n", bytes_pulled);
-
     InNbssHeader.show_contents();
     InSmb2Header.show_contents();
 
     pSmb2Session->Shares[share_number].tid =   InSmb2Header.TreeId();
     pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTED;
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT TID: %x \n", pSmb2Session->Shares[share_number].tid );
 
     if (pSmb2Session->session_state() == CSSN_STATE_RECOVERY_TREE_CONNECTING)
     {
       pSmb2Session->session_state(CSSN_STATE_RECOVERY_TREE_CONNECTED);
     }
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-    pSmb2Session->ReplyBuffer.drain_socket_input();
-
     return true;
   }
 

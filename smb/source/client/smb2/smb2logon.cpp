@@ -152,9 +152,6 @@ private:
       pSmb2Session->session_server_info_raw_size   =   maxsize;
       pSmb2Session->diag_text_warning("receive_negotiate max size:%d",maxsize);
      }
-     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE purging %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-     pSmb2Session->ReplyBuffer.drain_socket_input();
-    // pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
      return true;
   }
 
@@ -241,11 +238,7 @@ private:
       pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);
       return false;
     }
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP pulled: %d \n", bytes_pulled);
     NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
-
-//    InNbssHeader.show_contents();
-//    InSmb2Header.show_contents();
 
 
     if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_extended_setup_phase)
@@ -275,11 +268,6 @@ private:
       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
       memcpy( spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), spnego_blob_size_from_server);
     }
-
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP total pulled: %d \n", bytes_pulled+total_security_bytes_pulled);
-    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
-    pSmb2Session->ReplyBuffer.drain_socket_input();
-//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
     return true;
   }
   bool do_extended_setup_command()
