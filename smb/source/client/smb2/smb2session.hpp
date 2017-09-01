@@ -35,8 +35,8 @@ public:
   byte *get_file_id()    { return file_id;  };
   void set_fileid(byte *fileid)  { allocated=true;memcpy(file_id, fileid,16);  };
   void set_file_free() {allocated=false;file_name->empty(); memset(file_id,0,16);}
-private:
   bool  allocated;
+private:
   byte  file_id[16];
   dualstring *file_name;
 };
@@ -73,6 +73,7 @@ public:
     session_state(CSSN_STATE_DEAD);
     user_state(CSSN_USER_STATE_UNUSED);
     current_command_name="UNASSIGNED";
+    _p_session_number = 0;
   }
 
   void set_connection_parameters(const char *ip, byte *mask, int port);
@@ -88,6 +89,8 @@ public:
     SmbSocket.set_socket_error(_isSendError, _SmbStatus, _errno_val, errno_string);
   }
   void show_socket_errors(bool clear_error_state)  { SmbSocket.show_socket_errors(clear_error_state); };
+
+  int session_number()  { return _p_session_number; }
 
   bool connect_server() ;
   bool disconnect_server() ;
@@ -106,7 +109,6 @@ public:
     SendBuffer.drain_socket_output();
     return true;
   }
-
   bool check_share_state(int share_number, int share_state)
   {
     if (session_state() <=  CSSN_STATE_DEAD)
@@ -119,11 +121,28 @@ public:
       diag_text_warning("%s command called share is closed", current_command_name);
       return false;
     }
- }
-
+  }
+  /// encode
+  bool allocate_fileid(dword newid, int shareid=0)
+  {
+    size_t i;
+    for(size_t i = 0; i < sizeof(Files)/sizeof(Files[0]); i++)
+    {
+      if (!Files[i].allocated)
+      {
+        newid = (dword)session_number()<<24|(dword)shareid<<16|(dword)i;
+        Files[i].allocated=true;
+        return true;
+      }
+   }
+   return false;
+  }
+  int fileid_to_filenumber(dword fileid) { return  (int)(fileid&0xffff);}
+  int fileid_to_sharenumber(dword fileid) { return (int)((fileid>>16)&0xff);}
 
   bool list_share(int sharenumber,  int filenumber, word *_pattern);
 
+  bool  open_file(int sharenumber, int filenumber, const char *filename, bool forwrite);
   bool  open_dir(int sharenumber, int fileumber, char *filename, bool forwrite);
   bool  make_dir(int sharenumber, int fileumber, char *filename);
   bool  close_dirent(int sharenumber, int fileumber);
@@ -134,6 +153,9 @@ public:
   bool  rename_dir(int sharenumber,  char *toname, char *fromname);
   bool  rename_file(int sharenumber, char *toname, char *fromname);
 
+
+  int write_to_file(int sharenumber, int filenumber, byte *buffer, int count);
+  int read_from_file(int sharenumber, int filenumber, byte *buffer, int count);
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
@@ -166,10 +188,11 @@ public:
   dword session_server_info_buffer_size;
   dword session_server_info_raw_size;
   ddword session_server_info_smb2_session_id;
-  byte   session_server_info_challenge [8];
+  byte session_server_info_challenge [8];
 
 
 private:
+  int                _p_session_number;
   int                _p_session_state;
   int                _p_sid;
   dword              _p_timestamp;
@@ -216,6 +239,7 @@ private:
 
 bool checkSessionSigned();
 void setCurrentActiveSession(Smb2Session *CurrentActiveSession);
+extern Smb2Session *getCurrentActiveSession();
 // calling this from a static funtion rather than a class method of session, not sure why for now
 void setSessionSocketError(Smb2Session *pSmb2Session, bool isSendError, NetStatus SmbStatus);
 

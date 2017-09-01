@@ -219,7 +219,6 @@ extern const char *rtsmb_util_errstr(int &util_errno)
   return strerror(util_errno);
 //  return rtsmb_strmalloc(strerror(util_errno));
 }
-extern Smb2Session *getCurrentActiveSession();
 
 NetStatus NetStreamInputBuffer::pull_nbss_frame_checked(const char *arg_command_name, size_t arg_packed_structure_size, dword &bytes_pulled)
 {

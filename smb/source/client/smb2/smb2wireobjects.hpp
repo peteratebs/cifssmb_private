@@ -16,7 +16,7 @@
 
 // #include "smb2session.hpp"
 
-// Cuurent layering cant access the session from her
+// Current layering cant access the session from her
 extern ddword getCurrentActiveSession_session_id();
 
 extern "C" {
@@ -797,7 +797,6 @@ public:
 
 bool checkSessionSigned();
 
-
 template <class T>
 class NetSmb2NBSSCmd {
 public:
@@ -888,4 +887,173 @@ public:
      bool isvariable;
      dword objectsize;
      dword variablesize;
+};
+
+class NetSmb2FlushCmd  : public NetWireStruct   {
+public:
+  NetSmb2FlushCmd() {objectsize=24; }
+  NetWireword  StructureSize; // 24
+  NetWireword  Reserved1;
+  NetWiredword Reserved2;
+  NetWireFileId FileId;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_FLUSH";}
+  const int   command_id()   { return SMB2_FLUSH;}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
+  {
+   StreamBuffer.add_to_buffer_count(objectsize+variablesize);
+  }
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2FlushReply  : public NetWireStruct   {
+public:
+  NetSmb2FlushReply() {objectsize=4; }
+  NetWireword  StructureSize; // 4
+  NetWireword  Reserved;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+
+  const char *command_name() { return "SMB2_FLUSH";}
+  const int   command_id()   { return SMB2_FLUSH;}
+  int  PackedStructureSize()   { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2ReadCmd  : public NetWireStruct   {
+public:
+  NetSmb2ReadCmd() {objectsize=49; }
+  NetWireword    StructureSize; // 49
+  NetWirebyte    Padding;
+  NetWirebyte    Flags;
+  NetWiredword   Length;
+  NetWireddword  Offset;
+  NetWireFileId  FileId;
+  NetWiredword   MinimumCount;
+  NetWiredword   Channel;
+  NetWiredword   RemainingBytes;
+  NetWireword    ReadChannelInfoOffset;
+  NetWireword    ReadChannelInfoLength;
+  NetWirebyte    Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_READ";}
+  const int   command_id()   { return SMB2_READ;}
+  int  PackedStructureSize()  { return FixedStructureSize()-1; };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
+  {
+   StreamBuffer.add_to_buffer_count(objectsize+variablesize);
+  }
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2ReadReply  : public NetWireStruct   {
+public:
+  NetSmb2ReadReply() {objectsize=17; }
+  NetWireword  StructureSize; // 17
+  NetWirebyte  DataOffset;
+  NetWirebyte  Reserved;
+  NetWiredword DataLength;
+  NetWiredword DataRemaining;
+  NetWiredword Reserved2;
+  NetWirebyte  Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+
+  const char *command_name() { return "SMB2_READ";}
+  const int   command_id()   { return SMB2_READ;}
+  int  PackedStructureSize()   { return FixedStructureSize()-1; };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+
+#define SMB2_WRITEFLAG_WRITE_THROUGH 0x00000001
+#define SMB2_WRITEFLAG_WRITE_UNBUFFERED 0x00000002
+
+class NetSmb2WriteCmd  : public NetWireStruct   {
+public:
+  NetSmb2WriteCmd() {objectsize=49; }
+  NetWireword    StructureSize; // 49
+  NetWireword    DataOffset;
+  NetWiredword   Length;
+  NetWireddword  Offset;
+  NetWireFileId  FileId;
+  NetWiredword   Channel;
+  NetWiredword   RemainingBytes;
+  NetWireword    WriteChannelInfoOffset;
+  NetWireword    WriteChannelInfoLength;
+  NetWiredword   Flags;
+  NetWirebyte    Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "SMB2_WRITE";}
+  const int   command_id()   { return SMB2_WRITE;}
+  int  PackedStructureSize()  { return FixedStructureSize()-1; };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+  void push_output(NetStreamOutputBuffer  &StreamBuffer)
+  {
+   StreamBuffer.add_to_buffer_count(objectsize+variablesize);
+  }
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
+
+class NetSmb2WriteReply  : public NetWireStruct   {
+public:
+  NetSmb2WriteReply() {objectsize=17; }
+   NetWireword  StructureSize; // 17
+   NetWireword  Reserved;
+   NetWiredword Count;
+   NetWiredword Remaining;
+   NetWireword  WriteChannelInfoOffset;
+   NetWireword  WriteChannelInfoLength;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+
+  const char *command_name() { return "SMB2_WRITE";}
+  const int   command_id()   { return SMB2_WRITE;}
+  int  PackedStructureSize()   { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
 };

@@ -19,6 +19,7 @@ extern bool do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber);
 extern int do_smb2_cli_querydirectory_worker(Smb2Session &Session,int share_number, int filenumber, word *pattern);
 extern bool do_smb2_directory_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname, bool writeable);
+extern bool do_smb2_file_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname, bool writeable);
 extern bool do_smb2_directory_create_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname);
 extern bool do_smb2_dirent_close_worker(Smb2Session &Session,int sharenumber,int filenumber);
 extern bool do_smb2_dirent_delete_worker(Smb2Session &Session,int sharenumber,char *name, bool isdir);
@@ -120,6 +121,20 @@ bool Smb2Session::open_dir(int sharenumber, int filenumber, char *filename, bool
 {
   return do_smb2_directory_open_worker(*this,sharenumber, filenumber, filename, forwrite);
 }
+
+bool Smb2Session::open_file(int sharenumber, int filenumber, const char *filename, bool forwrite)
+{
+  return do_smb2_directory_open_worker(*this,sharenumber, filenumber, (char *)filename, forwrite);
+}
+int Smb2Session::write_to_file(int sharenumber, int filenumber, byte *buffer, int count)
+{
+  return -1;
+}
+int Smb2Session::read_from_file(int sharenumber, int filenumber, byte *buffer, int count)
+{
+  return -1;
+}
+
 
 bool Smb2Session::close_dirent(int sharenumber, int filenumber)
 {

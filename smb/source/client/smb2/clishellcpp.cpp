@@ -14,9 +14,11 @@
 
 
 #include "smb2clientincludes.hpp"
+#include "smb2api.hpp"
 #include "rtpfile.h"
 
 using namespace std;
+
 
 // split the strings and replace '!' with space
 std::vector<std::string> split(const std::string& text, const std::string& delims)
@@ -33,7 +35,6 @@ std::vector<std::string> split(const std::string& text, const std::string& delim
     for (int i=0; i < tokens.size(); i++)
       for (int j=0; j < tokens[i].size(); j++)
           if (tokens[i][j] == '!') tokens[i][j]= ' ';
-
     return tokens;
 }
 bool is_command_line(string &inputcmd, const char *isitcmd)
@@ -64,7 +65,11 @@ public:
   bool open_file (bool iswrite=false, bool iscreate=false)
   {
     if (issmbclientFile)
-      ;
+    {
+     bool r = smb2_file_open (smbclientFile, filename.c_str(), iswrite);
+     if (!r)
+      return false;
+    }
     else if (isstdout || isstdin)
       ;
     else
@@ -79,7 +84,7 @@ public:
   bool close_file()
   {
     if (issmbclientFile)
-      ;
+     smb2_file_close(smbclientFile);
     else if (isstdin||isstdout)
       ;
     else  rtp_file_close(rtpFile);
@@ -88,11 +93,11 @@ public:
   int read_from_file(byte *buffer, int n_bytes)
   {
     if (issmbclientFile)
-      ;
+    { return (int)smb2_file_read(rtpFile, buffer, n_bytes); }
     if (isstdin)
     {
         std::cin.getline((char *)buffer, n_bytes);
-        if (buffer[0]!=0) { buffer[strlen((char *)buffer)+1] = 0; buffer[strlen((char *)buffer)]='\n';}
+        if (buffer[0]!=0)  buffer[strlen((char *)buffer)+1] = 0; buffer[strlen((char *)buffer)]='\n';
         return strlen((char*)buffer);
     }
     else  { return (int)rtp_file_read(rtpFile, buffer, n_bytes); }
@@ -108,10 +113,7 @@ public:
       return strlen((char *)buffer);
     }
     else
-    {
-      return rtp_file_write(rtpFile, buffer, n_bytes);
-    }
-    return 0;
+    { return (int)smb2_file_write(rtpFile, buffer, n_bytes); }
   }
 private:
   string filename;

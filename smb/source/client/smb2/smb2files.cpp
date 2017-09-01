@@ -255,6 +255,11 @@ static bool do_smb2_dirent_open_worker(Smb2Session &Session,int sharenumber,int 
   return r;
 }
 
+extern bool do_smb2_file_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *filename, bool writeable)
+{
+  return do_smb2_dirent_open_worker(Session,sharenumber, filenumber, filename, false, writeable, writeable);
+}
+
 extern bool do_smb2_directory_open_worker(Smb2Session &Session,int sharenumber,int filenumber,char *dirname, bool writeable)
 {
   return do_smb2_dirent_open_worker(Session,sharenumber, filenumber, dirname, true, writeable, false);

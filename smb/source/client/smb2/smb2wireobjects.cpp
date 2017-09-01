@@ -273,6 +273,79 @@ void NetSmb2RenameInfoType2::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(Buffer);
 }
 
+void NetSmb2FlushCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved1);
+  BINDPOINTERS(Reserved2);
+  BINDPOINTERS(FileId);
+};
+
+void NetSmb2FlushReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+void NetSmb2ReadCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Padding);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(Length);
+  BINDPOINTERS(Offset);
+  BINDPOINTERS(FileId);
+  BINDPOINTERS(MinimumCount);
+  BINDPOINTERS(Channel);
+  BINDPOINTERS(RemainingBytes);
+  BINDPOINTERS(ReadChannelInfoOffset);
+  BINDPOINTERS(ReadChannelInfoLength);
+  BINDPOINTERS(Buffer);
+};
+
+void NetSmb2ReadReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(DataOffset);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(DataLength);
+  BINDPOINTERS(DataRemaining);
+  BINDPOINTERS(Reserved2);
+  BINDPOINTERS(Buffer);
+};
+
+
+void NetSmb2WriteCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(DataOffset);
+  BINDPOINTERS(Length);
+  BINDPOINTERS(Offset);
+  BINDPOINTERS(FileId);
+  BINDPOINTERS(Channel);
+  BINDPOINTERS(RemainingBytes);
+  BINDPOINTERS(WriteChannelInfoOffset);
+  BINDPOINTERS(WriteChannelInfoLength);
+  BINDPOINTERS(Flags);
+  BINDPOINTERS(Buffer);
+};
+
+void NetSmb2WriteReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+  BINDPOINTERS(Count);
+  BINDPOINTERS(Remaining);
+  BINDPOINTERS(WriteChannelInfoOffset);
+  BINDPOINTERS(WriteChannelInfoLength);
+}
+
 void NetSmb2MinimumReply::BindAddressesToBuffer(byte *base)
 {
   BindNetWireArgs A(base);
