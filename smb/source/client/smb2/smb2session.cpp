@@ -81,7 +81,6 @@ bool Smb2Session::connect_server()
   return do_smb2_logon_server_worker(*this);
 };
 
-
 void Smb2Session::disconnect_socket()
 {
   SmbSocket.close();
@@ -98,7 +97,7 @@ bool Smb2Session::connect_buffers() // private
   ReplyBuffer.attach_buffer(_p_reply_buffer_raw, _p_reply_buffer_size);
 
   sourcesockContext.socket = SmbSocket.socket();
-  SocketSource.SourceFromDevice (socket_source_function, (void *)&sourcesockContext);
+  SocketSource.SourceFromDevice (socket_source_function, socket_drain_function, (void *)&sourcesockContext);
   ReplyBuffer.attach_source(SocketSource);
 
   sinksockContext.socket = SmbSocket.socket();
@@ -139,7 +138,6 @@ bool Smb2Session::delete_file(int sharenumber,char *filename)
 {
   return do_smb2_dirent_delete_worker(*this,sharenumber, filename, false);
 }
-
 bool Smb2Session::rename_dir(int sharenumber, char *fromname , char *toname)
 {
   return do_smb2_dirent_rename_worker(*this,sharenumber,  fromname , toname, true);

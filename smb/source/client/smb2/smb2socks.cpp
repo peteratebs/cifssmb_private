@@ -273,6 +273,39 @@ smbIdleFn idle_func=0; byte * idle_data=0;
    return r;
 }
 
+void rtsmb2_net_drain(RTP_SOCKET sd)
+{
+  RTP_FD_SET f_read;
+  RTP_FD_SET f_error;
+  int ndrained = 0;
+  int select_val;
+
+  rtp_fd_zero(&f_read);
+  rtp_fd_set(&f_read, sd);
+
+  rtp_fd_zero(&f_error);
+  rtp_fd_set(&f_error, sd);
+
+  select_val = rtp_net_select(&f_read, 0, &f_error, 0);
+
+ if (rtp_fd_isset(&f_error, sd))
+ {
+    diag_printf_fn(DIAG_JUNK,"rtsmb2_net_drain Read select error\n");
+ }
+
+  if (select_val > 0)
+  {
+    byte junk[32];
+    long pkt_len;
+    do {
+     pkt_len = rtp_net_recv(sd, junk, 32);
+     if (pkt_len > 0) ndrained += pkt_len;
+    } while(pkt_len>0);
+  }
+  if (ndrained)
+    diag_printf_fn(DIAG_JUNK,"rtsmb2_net_dran: drained bytes: %d \n", ndrained);
+}
+
 /*************************************************************************
  smb_send() - send data over a socket
  smb_s_send() - send data over a secure socket

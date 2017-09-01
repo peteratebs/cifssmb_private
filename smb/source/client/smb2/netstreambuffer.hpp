@@ -47,6 +47,13 @@ inline int socket_source_function(void *devContext, byte *pData, int size)
    return r;
 }
 
+/// device for sourcing bytes from tcp stream.
+inline int socket_drain_function(void *devContext)
+{
+   rtsmb2_net_drain ( ((struct SocketContext *)devContext)->socket);
+   return 0;
+}
+
 typedef int (* pDeviceSendFn_t) (void *devContext, byte *pData, int size);
 /// Attach this to NetStreamInputBuffer to sink streamdata to a device
 class DataSinkDevtype {
@@ -121,13 +128,17 @@ inline int memcpy_source_function(void *devContext, byte *pData, int size)
 }
 
 typedef int (* pDeviceReceiveFn_t) (void *devContext, byte *pRecieveto, int size);
+typedef int (* pDeviceDrainFn_t) (void *devContext);
 
 /// Attach this to NetStreamInputBuffer to source streamdata from a device or from memory
 class StreamBufferDataSource {
 public:
   StreamBufferDataSource() {devContext=0; DeviceReceiveFn=0;}
   /// Call this to provide a callback and context for sourcing data from for example, files or sockets.
-  void SourceFromDevice (pDeviceReceiveFn_t _DeviceReceiveFn, void *_devContext) { DeviceReceiveFn=_DeviceReceiveFn; devContext=_devContext;}
+  void SourceFromDevice (pDeviceReceiveFn_t _DeviceReceiveFn, pDeviceDrainFn_t _DeviceDrainFn, void *_devContext) { DeviceReceiveFn=_DeviceReceiveFn; DeviceDrainFn=_DeviceDrainFn; devContext=_devContext;}
+  /// Call this to provide a callback and context for sourcing data from for example, files or sockets.
+  void DrainFromDevice (pDeviceDrainFn_t _DeviceDrainFn, void *_devContext) { DeviceDrainFn=_DeviceDrainFn; devContext=_devContext;}
+
   /// Call this to preload the stream with a buffer of data that will be pushed to the sink when the stream.pull_input is called.
   void SourceFromMemory (byte *data, dword _byte_count) { data_pointer=data; buffer_size=bytes_buffered=_byte_count; }
 
@@ -156,9 +167,17 @@ public:
     else
       return NetStatusOk;
   }
+  NetStatus drain_data()
+  {
+    if (DeviceDrainFn)
+     DeviceDrainFn(devContext);
+     return NetStatusOk;
+  }
+
 private:
   void *devContext;
   pDeviceReceiveFn_t DeviceReceiveFn;
+  pDeviceDrainFn_t DeviceDrainFn;
   byte *data_pointer;
   dword buffer_size;
   dword bytes_buffered;
@@ -178,9 +197,13 @@ public:
   {
      bytes_buffered += byte_count;
   }
+  void drain_socket_output()
+  {
+    bytes_buffered=0;
+  }
   NetStatus flush_output()
   {
-    if (bytes_buffered == 0 || SmbSocket->send(buffer_base, bytes_buffered) == bytes_buffered)
+    if (bytes_buffered == 0 || (dword)SmbSocket->send(buffer_base, bytes_buffered) == bytes_buffered)
     {
         bytes_buffered = 0;
         return NetStatusOk;
@@ -216,8 +239,12 @@ public:
    /// Get location and number of bytes in the input buffer
    byte *buffered_data_pointer(dword &bytes_ready) { bytes_ready = buffered_count(); return buffered_data_pointer();}
    byte *buffered_data_pointer() { return buffer_base+write_pointer;}
+
+  byte *input_buffer_pointer() { return buffer_base+input_pointer;}
+
    dword buffered_count() {return input_pointer-write_pointer;}
-   dword consume_bytes(dword nbytes) { write_pointer += nbytes; }
+   void  consume_bytes(dword nbytes) { write_pointer += nbytes; }
+
 
    // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
    NetStatus pull_nbss_data(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
@@ -233,13 +260,19 @@ public:
       advance_input_buffer_bytes(bytes_pulled);  //  {input_pointer+=byte_count;} ;
       return r;
    }
-
    NetStatus pull_new_nbss_frame(dword byte_count, dword & bytes_pulled, dword min_byte_count=1)
    {
-//     empty();
      return pull_nbss_data(byte_count, bytes_pulled);
    }
+   NetStatus pull_nbss_frame_checked(const char *arg_command_name, size_t arg_packed_structure_size, dword &bytes_pulled);
    // Pull data to the input buffer, if it can't fit copy the already processed data in the buffer down first
+
+   void drain_socket_input()
+   {
+     NetStatus r = data_sourcer->drain_data();
+     empty();
+   }
+
    NetStatus purge_socket_input(dword byte_count)
    {
      empty();
@@ -269,7 +302,7 @@ private:
 
   void empty() { write_pointer=input_pointer=0; }
   ///
-  byte *input_buffer_pointer() { return buffer_base+input_pointer;}
+//  byte *input_buffer_pointer() { return buffer_base+input_pointer;}
   dword input_buffer_free() {return buffer_size-input_pointer;}
   dword input_buffer_count() {return write_pointer-input_pointer;}
   void advance_input_buffer_bytes(dword byte_count) {input_pointer+=byte_count;} ;

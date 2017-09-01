@@ -56,7 +56,7 @@ public:
 
   void display_text_warnings()
   {
-     for (int i = 0; i <  warnings.size(); i++)
+     for (int i = 0; i <  (int)warnings.size(); i++)
      {
         diag_printf_fn(DIAG_INFORMATIONAL,"Warning: %s\n", warnings[i]);
         free(warnings[i]);

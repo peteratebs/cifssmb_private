@@ -153,7 +153,8 @@ private:
       pSmb2Session->diag_text_warning("receive_negotiate max size:%d",maxsize);
      }
      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX NEGOTIATE purging %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-     pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+     pSmb2Session->ReplyBuffer.drain_socket_input();
+    // pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
      return true;
   }
 
@@ -218,16 +219,6 @@ private:
       Smb2SetupCmd.SecurityBufferLength =  variable_content_size;
       Smb2SetupCmd.PreviousSessionId    =  0;
 
-#if (0)
-HEREHERE - Need a XXXCmd.VariableContentOffset() field
-//      Smb2SetupCmd.copy_variable_content(variable_content, variable_content_size);
-//void copy_variable_content(variable_content, variable_content_size)
-//{
-//  memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.SecurityBufferOffset(), variable_content, variable_content_size);
-//  Smb2SetupCmd.addto_variable_content(variable_content_size);
-//}
-instead of:
-#endif
       memcpy(OutSmb2Header.FixedStructureAddress()+Smb2SetupCmd.VariableContentOffset(), variable_content, variable_content_size);
       Smb2SetupCmd.addto_variable_content(variable_content_size); // can't use copyto because the offset if from base of message
 
@@ -287,7 +278,8 @@ instead of:
 
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP total pulled: %d \n", bytes_pulled+total_security_bytes_pulled);
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SETUP purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
-    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
+    pSmb2Session->ReplyBuffer.drain_socket_input();
+//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - (bytes_pulled+total_security_bytes_pulled));
     return true;
   }
   bool do_extended_setup_command()

@@ -97,6 +97,13 @@ public:
   bool connect_share(int sharenumber=0) ;
   bool disconnect_share(int sharenumber=0) ;
 
+  bool PrepSessionForCommand()
+  {
+    ReplyBuffer.drain_socket_input();
+    SendBuffer.drain_socket_output();
+    return true;
+  }
+
   bool list_share(int sharenumber,  int filenumber, word *_pattern);
 
   bool  open_dir(int sharenumber, int fileumber, char *filename, bool forwrite);

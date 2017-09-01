@@ -17,11 +17,11 @@
 
 using namespace std;
 
+// split the strings and replace '!' with space
 std::vector<std::string> split(const std::string& text, const std::string& delims)
 {
     std::vector<std::string> tokens;
     std::size_t start = text.find_first_not_of(delims), end = 0;
-
     while((end = text.find_first_of(delims, start)) != std::string::npos)
     {
         tokens.push_back(text.substr(start, end - start));
@@ -29,6 +29,9 @@ std::vector<std::string> split(const std::string& text, const std::string& delim
     }
     if(start != std::string::npos)
         tokens.push_back(text.substr(start));
+    for (int i=0; i < tokens.size(); i++)
+      for (int j=0; j < tokens[i].size(); j++)
+          if (tokens[i][j] == '!') tokens[i][j]= ' ';
 
     return tokens;
 }
@@ -106,11 +109,12 @@ public:
        cout << "CMD>";
        std::cin.getline(current_command_cstring, 255);
        string current_command(current_command_cstring);
+       // split the strings and replace '!' with space
        std::vector<std::string> command_line = split(current_command, delims);
        if (command_line[0] == "ls" || command_line[0] == "LS")
        {
-        char *path = "";
-        char *pattern = "*";
+        char *path = (char *) "";
+        char *pattern = (char *) "*";
           if (command_line.size() == 2)
           {
             path = (char *) command_line[1].c_str();
@@ -127,7 +131,7 @@ public:
        }
        else if (command_line[0] == "mkdir" || command_line[0] == "MKDIR")
        {
-        char *path = "";
+        char *path = (char *) "";
         char *pattern = "*";
           if (command_line.size() == 2)
           {
@@ -138,7 +142,7 @@ public:
        }
        else if (command_line[0] == "rmdir" || command_line[0] == "RMDIR")
        {
-        char *path = "";
+        char *path = (char *) "";
           if (command_line.size() == 2)
           {
             path = (char *) command_line[1].c_str();
@@ -156,7 +160,7 @@ public:
        }
        else if (command_line[0] == "mv" || command_line[0] == "MV")
        {
-        char *path = "";
+        char *path = (char *) "";
           if (command_line.size() == 3)
           {
             char *frompath = (char *) command_line[1].c_str();
@@ -166,12 +170,17 @@ public:
        }
        else if (command_line[0] == "rm" || command_line[0] == "RM")
        {
-        char *path = "";
+        char *path = (char *) "";
           if (command_line.size() == 2)
           {
             path = (char *) command_line[1].c_str();
             ShellSession.delete_file(0, path);
           }
+       }
+       else if (command_line[0] == "echo" || command_line[0] == "ECHO")
+       {
+        for (int i=0; i < command_line.size(); i++)
+         cout << "I:" << i << "Here:" << command_line[i] <<":ZZZ" << endl;
        }
        else if (command_line[0] == "quit" || command_line[0] == "QUIT")
        {

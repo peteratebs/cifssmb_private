@@ -109,7 +109,8 @@ private:
 
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT pulling: %d \n", InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.FixedStructureSize());
      // Pull enough for the fixed part and then map pointers toi input buffer
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
+//    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("TREECONNECT", Smb2TreeconnectReply.FixedStructureSize(), bytes_pulled);
     if (r != NetStatusOk)
     {
       pSmb2Session->diag_text_warning("receive_treeconnect command failed pulling from the socket");
@@ -132,7 +133,8 @@ private:
       pSmb2Session->session_state(CSSN_STATE_RECOVERY_TREE_CONNECTED);
     }
     diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX TREECONNECT purging  %d \n", (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+//    pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+    pSmb2Session->ReplyBuffer.drain_socket_input();
 
     return true;
   }

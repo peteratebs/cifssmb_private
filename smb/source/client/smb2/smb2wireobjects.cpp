@@ -272,3 +272,9 @@ void NetSmb2RenameInfoType2::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(FileNameLength);  // Bytes
   BINDPOINTERS(Buffer);
 }
+
+void NetSmb2MinimumReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+}

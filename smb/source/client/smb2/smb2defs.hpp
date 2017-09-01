@@ -224,7 +224,10 @@ enum NetStatus {
     NetStatusDeviceRecvFailed  = -4,
     NetStatusDeviceSendFailed  = -5,
     NetStatusBadCallParms      = -6,
-    NetStatusConnectFailed     = -7
+    NetStatusConnectFailed     = -7,
+    NetStatusDeviceRecvBadLength  = -8,
+    NetStatusServerErrorStatus    = -9,
+    NetStatusDeviceRecvUnderflow  = -10,
 };
 
 typedef struct SecurityBuffer_s {

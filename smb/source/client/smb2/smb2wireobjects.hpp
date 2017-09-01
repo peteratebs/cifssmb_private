@@ -536,6 +536,7 @@ public:
   NetWireddword AllocationSize;
   NetWireddword EndofFile;
   NetWiredword  FileAttributes;
+  const char *command_name() {return "CLOSE";}
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
@@ -621,28 +622,23 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 
-
-#if (0)
-PACK_PRAGMA_ONE
-typedef struct s_FILE_RENAME_INFORMATION_TYPE_2
-{
-	byte    ReplaceIfExists;
-	byte    Reserved[7];
-	ddword  RootDirectory;
-	dword   FileNameLength;  // Bytes
-    byte    Buffer[1];
-} PACK_ATTRIBUTE FILE_RENAME_INFORMATION_TYPE_2;
-PACK_PRAGMA_POP
-typedef FILE_RENAME_INFORMATION_TYPE_2 RTSMB_FAR *PFILE_RENAME_INFORMATION_TYPE_2;
-
-
-typedef struct s_FILE_DISPOSITION_INFO
-{
-  byte    DeletePending; // 2
-} PACK_ATTRIBUTE FILE_DISPOSITION_INFO;
-PACK_PRAGMA_POP
-#endif
-
+/// Minimum possible reply NBSS:SMB:THIS (too bad the designers didn't include the command in the reply)
+class NetSmb2MinimumReply  : public NetWireStruct   {
+public:
+    NetSmb2MinimumReply() {objectsize=2; }
+    NetWireword    StructureSize; // 2
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  int  PackedStructureSize()  { return FixedStructureSize(); };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
 
 
 class NetSmb2QuerydirectoryCmd  : public NetWireStruct   {
@@ -768,6 +764,9 @@ public:
     pSmb2Session = _pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
     isvariable = false; base_address=0; variablesize=_variable_size;
     smb2_command = command;
+
+    pSmb2Session->PrepSessionForCommand(); // Drain inp and output buffers to start a new command
+
     dword bytes_available_for_sending;
     byte *nbsshead = pSmb2Session->SendBuffer.output_buffer_address(bytes_available_for_sending);
     byte *nbsstail  = nbsshead+4;

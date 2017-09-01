@@ -67,17 +67,39 @@ private:
     NetStatus r;
 
     // Pull enough for the fixed part and then map pointers to input buffer
-    r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
-    if (r != NetStatusOk)
+    r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("QUERY", Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
+//    r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
+    if (r != NetStatusOk && r != NetStatusServerErrorStatus)
     {
       pSmb2Session->diag_text_warning("receive_querydirectory command failed pulling fixed part from the socket");
       return false;
     }
     NetSmb2NBSSReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, pSmb2Session, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
 
+    diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY status: %X\n",InSmb2Header.Status_ChannelSequenceReserved());
+    if (r == NetStatusServerErrorStatus)
+    {
+      bool rv = false;
+      has_continue = false;
+      if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_NO_MORE_FILES)
+        rv = true;
+      pSmb2Session->ReplyBuffer.drain_socket_input();
+     #if(0)
+      if ((InNbssHeader.nbss_packet_size()+4) > bytes_pulled)
+      {
+        diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY size: %d pulled %d purging: %d \n", (InNbssHeader.nbss_packet_size()+4),bytes_pulled, (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+        pSmb2Session->diag_text_warning("receive_querydirectory byte counts out of sync recved < frame size");
+        pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
+      }
+     #endif
+      return rv;
+    }
+
     pSmb2Session->ReplyBuffer.consume_bytes(bytes_pulled);
     if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_NO_MORE_FILES)
-     has_continue = false;
+    {
+      has_continue = false;
+    }
     else
      has_continue = true;
 
@@ -134,18 +156,7 @@ private:
         }
       }
     }
-
-    if ( (InNbssHeader.nbss_packet_size()+4) < bytes_pulled)
-    {
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY size: %d pulled %d !!!OVERFLOW purging: %d \n", (InNbssHeader.nbss_packet_size()+4),bytes_pulled, (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-      pSmb2Session->diag_text_warning("receive_querydirectory byte counts out of sync recved > frame size");
-    }
-    else if (((InNbssHeader.nbss_packet_size()+4) - bytes_pulled) != 0)
-    {
-      diag_printf_fn(DIAG_INFORMATIONAL, "XXXXX SMB2_QUERY_DIRECTORY size: %d pulled %d NOT !! purging: %d \n", (InNbssHeader.nbss_packet_size()+4),bytes_pulled, (InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-      pSmb2Session->diag_text_warning("receive_querydirectory byte counts out of sync recved < frame size");
-//      pSmb2Session->ReplyBuffer.purge_socket_input((InNbssHeader.nbss_packet_size()+4) - bytes_pulled);
-    }
+    pSmb2Session->ReplyBuffer.drain_socket_input();
     return true;
   }
 

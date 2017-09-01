@@ -34,6 +34,8 @@ int rtsmb2_net_write(RTP_SOCKET sd, byte *pData, int size);
 
 int rtsmb2_net_read(RTP_SOCKET sd, byte *pData, int size, int minsize);
 
+void rtsmb2_net_drain(RTP_SOCKET sd);
+
 
 typedef int (* smbIdleFn) (byte *idleContext);
 
@@ -86,6 +88,8 @@ int         smb_poll_socket             (RTP_SOCKET sd,
 #ifdef __cplusplus
 //}
 #endif
+
+void rtsmb2_net_drain(RTP_SOCKET sd);
 
 
 class SmbSocket_c {
@@ -151,6 +155,10 @@ public:
     if (r<0)
       close();
     return r;
+  }
+  void drain(void)
+  {
+    rtsmb2_net_drain(sd);
   }
   long recieve_at_least(byte* buffer, long minimum, long maximum)
   {
