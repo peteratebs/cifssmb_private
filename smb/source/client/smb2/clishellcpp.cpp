@@ -14,6 +14,7 @@
 
 
 #include "smb2clientincludes.hpp"
+#include "smb2filio.hpp"
 #include "smb2api.hpp"
 #include "rtpfile.h"
 
@@ -54,10 +55,10 @@ bool filename_is_remote(string &filename)
  }
  return false;
 }
-
-class SmbFile {
+#if(0) // not used, sill testing prinmitives so dont confuse things
+class ShellFile {
 public:
-  SmbFile ( bool _issmbclientFile, string _filename) { filename=_filename; issmbclientFile=_issmbclientFile; isopen=false;
+  ShellFile ( bool _issmbclientFile, string _filename) { filename=_filename; issmbclientFile=_issmbclientFile; isopen=false;
   isstdin = isstdout = false;
   if (_filename == "STDIN" || _filename == "stdin") isstdin = true;
   if (_filename == "STDOUT" || _filename == "stdout") isstdout = true;
@@ -69,6 +70,7 @@ public:
      bool r = smb2_file_open (smbclientFile, filename.c_str(), iswrite);
      if (!r)
       return false;
+      _p_SmbFilioWorker.bindfileid(smbclientFile);
     }
     else if (isstdout || isstdin)
       ;
@@ -93,7 +95,7 @@ public:
   int read_from_file(byte *buffer, int n_bytes)
   {
     if (issmbclientFile)
-    { return (int)smb2_file_read(rtpFile, buffer, n_bytes); }
+    { return (int)smb2_file_read(smbclientFile, buffer, n_bytes); }
     if (isstdin)
     {
         std::cin.getline((char *)buffer, n_bytes);
@@ -106,14 +108,14 @@ public:
   int write_to_file(byte *buffer, int n_bytes)
   {
     if (issmbclientFile)
-      ;
+    { return (int)smb2_file_write(smbclientFile, buffer, n_bytes); }
     if (isstdout)
     {
       std::cout << (char *) buffer;
       return strlen((char *)buffer);
     }
     else
-    { return (int)smb2_file_write(rtpFile, buffer, n_bytes); }
+    { return (int)rtp_file_write(rtpFile, buffer, n_bytes); }
   }
 private:
   string filename;
@@ -123,7 +125,10 @@ private:
   bool isopen;
   RTP_HANDLE  rtpFile;
   dword smbclientFile;
+  SmbFilioWorker _p_SmbFilioWorker;
 };
+#endif
+Smb2Session ShellSession;
 
 class SmbShellWorker : private local_allocator,smb_diagnostics {
 public:
@@ -131,17 +136,21 @@ public:
   {
     set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
   }
+    #define DOLINUX   0
+    #define DOWINDOWS 1
+    #define DOEBS     0
   void go()
   {
+#if(DOLINUX)
     char *ip   = "192.168.1.2";
-//    char *ip   = "192.168.1.12";
+#endif
+#if(DOWINDOWS)
+     char *ip   = "192.168.1.12";
+#endif
     byte mask[] = {255,255,255,0};
 
     ShellSession.set_connection_parameters(ip, mask, 445);
     ShellSession.set_user_parameters(
-    #define DOLINUX   1
-    #define DOWINDOWS 0
-    #define DOEBS     0
      #if(DOLINUX)
      "peter",
      "542Lafayette",
@@ -151,7 +160,7 @@ public:
      #if(DOWINDOWS)
      "peterv",
      "542Lafayette",
-     "workgroup");
+     "LAPTOP-ROQPO0PB"); // "workgroup");
      #endif
      #if(DOEBS)
      "notebs",
@@ -163,6 +172,9 @@ public:
 #endif
 #if(DOLINUX)
    ShellSession.set_share_parameters("\\\\192.168.1.2\\peter",0);
+#endif
+#if(DOWINDOWS)
+     ShellSession.set_share_parameters("\\\\192.168.1.12\\0a_share_with_virtual_box",0);
 #endif
     // Using a global accessor, may not need it anymore
     setCurrentActiveSession(&ShellSession);
@@ -269,15 +281,123 @@ public:
        }
        else if (is_command_line(command_line[0], "CP"))
        {
+        char *path = (char *) "";
+        char *destpath = (char *) "";
+        char *pattern = (char *) "*";
+         bool source_isremote=false;
+         bool source_isfile=false;
+
+         bool dest_isremote=false;
+         bool has_dest=false;
+         if (command_line.size() >= 2)
+         {
+           source_isremote=filename_is_remote(command_line[1]); // strips off < too iof needed
+           path = (char *) command_line[1].c_str();
+         }
+         if (command_line.size() >= 3)
+         {
+           dest_isremote=filename_is_remote(command_line[2]); // strips off < too iof needed
+           destpath = (char *) command_line[2].c_str();
+           has_dest = true;
+         }
+
+         bool sourcevalid=false;
+         dword sourcefileid;
+         RTP_HANDLE  sourcertpFile;
+
+         int sourcefileno=-1;
+         if (source_isremote)
+         {
+           source_isfile=false;
+           if (ShellSession.allocate_fileid(sourcefileid, 0))
+           {
+             sourcefileno = (int)(sourcefileid&0xffff);
+             if (ShellSession.open_file(0, sourcefileno , path, false)==true)
+               sourcevalid=true;
+           }
+         }
+         else
+         {
+            int r = rtp_file_open (&sourcertpFile, path, 0, 0);
+            if (r >= 0)
+            {
+              source_isfile=true;
+              source_isremote=false;
+              sourcevalid=false;
+            }
+         }
+         ddword offset = 0;
+         dword total_bytes_read = 0;
+         int res=0;
+         do
+         {
+           res=-1;
+           byte buffer[130]; int count =128;
+           if (source_isremote)
+             res=ShellSession.read_from_file(0, sourcefileno,buffer, offset, count);
+           else if (source_isfile)
+             res = rtp_file_read(sourcertpFile, buffer, count);
+           if (res >=0)
+           {
+               buffer[res]=0;// so we can print
+               diag_printf(DIAG_INFORMATIONAL, "\n>:\n%s\n:\n", buffer);
+               offset += res;
+               total_bytes_read += res;
+           }
+         } while (res > 0);
+         if (source_isremote)
+         {
+            ShellSession.close_dirent(0, sourcefileno);                       // close the directory we used
+            ShellSession.release_fileid(sourcefileid);
+         }
+         else if (source_isfile)
+         {
+             rtp_file_close(sourcertpFile);
+         }
+         diag_printf(DIAG_INFORMATIONAL, "Bytes copied:%d\n", total_bytes_read);
+       }
+#if (0)
+         if (ShellSession.allocate_fileid(sourcefileid, 0))
+         {
+           if (ShellSession.open_file(0, sourcefileno , path, false)==true)
+           {
+             sourcefileno = (int)(sourcefileid&0xffff);
+             ddword offset = 0;
+              byte buffer[130]; int count =128; int res=0;
+              while ((res=ShellSession.read_from_file(0, sourcefileno,buffer, offset, count)) > 0)
+              {
+               diag_printf(DIAG_INFORMATIONAL, "read_from_file  worked count :%d\n", res);
+               buffer[res]=0;// so we can print
+               diag_printf(DIAG_INFORMATIONAL, ":%s\n", buffer);
+               offset += res;
+             }
+            }
+//            ShellSession.list_share(0,fileno,pattern_string->utf16());  // do the ls
+            ShellSession.close_dirent(0, sourcefileno);                       // close the directory we used
+            ShellSession.release_fileid(sourcefileid);
+         }
+#endif
+#if (0)
+       {
         dword total_written=0;
-        if (command_line.size() == 3)
+        if (command_line.size() == 2)
         {
-          SmbFile source_file(filename_is_remote(command_line[1]), command_line[1]);
-          SmbFile dest_file(filename_is_remote(command_line[2]), command_line[2]);
+          word pattern[2]; pattern[0]='*'; pattern[1]=0;
+          ShellSession.open_dir(0, 0 , (char *)command_line[1].c_str(), false);             // open directory named share,file, path, read only
+          ShellSession.list_share(0,0,pattern);  // do the ls
+          ShellSession.close_dirent(0, 0);                       // close the directory we used
+        }
+        if (0&&command_line.size() == 3)
+        {
+          bool isremote=filename_is_remote(command_line[1]); // strips off < too iof needed
+          ShellFile source_file(isremote, command_line[1]);
+          isremote=filename_is_remote(command_line[2]); // strips off < too iof needed
+          ShellFile dest_file(isremote, command_line[2]);
           source_file.open_file();
           dest_file.open_file(true,true);
           int buffersize = 1024;
           byte *_buffer = (byte *)rtp_malloc(buffersize);
+
           while(int read_count = source_file.read_from_file(_buffer, buffersize))
           {
             int write_count = dest_file.write_to_file(_buffer, read_count);
@@ -296,6 +416,7 @@ public:
 
         }
        }
+#endif
 //       else if (command_line[0] == "echo" || command_line[0] == "ECHO")
        else if (is_command_line(command_line[0], "ECHO"))
        {
@@ -313,7 +434,7 @@ public:
    }
 private:
    string      current_command;
-   Smb2Session ShellSession;
+//   Smb2Session ShellSession;
 };
 
 extern "C" int smb2_cli_shell()

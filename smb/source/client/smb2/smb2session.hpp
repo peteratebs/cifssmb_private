@@ -27,18 +27,26 @@ typedef enum
 
 class Smb2File {
 public:
-  Smb2File()  { allocated=false; memset(file_id,0,16); file_name = new dualstring;}
-  ~Smb2File() { file_name->empty(); delete file_name;}
-  void set_filename(char *filename)  { *file_name = filename;  };
-  char *get_filename_ascii()  { return file_name->ascii();  };
-  word *get_filename_utf16()  { return file_name->utf16();  };
+  Smb2File()  { memset(file_id,0,16); file_name="";file_name_unicode = 0; }
+  ~Smb2File() { set_file_free();}
+  void set_filename(char *filename)
+  {
+    size_t w;
+    file_name = filename;
+    w=rtp_strlen(filename)*2+2;
+    file_name_unicode=(word*)rtp_malloc(w);
+    rtsmb_util_ascii_to_unicode (filename ,file_name_unicode, w);
+  }
+  const char *get_filename_ascii()  { return file_name.c_str(); }
+  word *get_filename_utf16()  { return file_name_unicode;  };
   byte *get_file_id()    { return file_id;  };
   void set_fileid(byte *fileid)  { allocated=true;memcpy(file_id, fileid,16);  };
-  void set_file_free() {allocated=false;file_name->empty(); memset(file_id,0,16);}
+  void set_file_free() {file_name = ""; if(file_name_unicode) rtp_free(file_name_unicode);memset(file_id,0,16);}
   bool  allocated;
 private:
   byte  file_id[16];
-  dualstring *file_name;
+  std::string file_name;
+  word   *file_name_unicode;
 };
 
 class Smb2Share {
@@ -123,15 +131,16 @@ public:
     }
   }
   /// encode
-  bool allocate_fileid(dword newid, int shareid=0)
+  bool allocate_fileid(dword &newid, int shareid=0)
   {
     size_t i;
-    for(size_t i = 0; i < sizeof(Files)/sizeof(Files[0]); i++)
+    for(size_t i = 1; i < sizeof(Files)/sizeof(Files[0]); i++)
     {
       if (!Files[i].allocated)
       {
-        newid = (dword)session_number()<<24|(dword)shareid<<16|(dword)i;
+        newid = (((dword)session_number()&0xffff)<<24) | (dword)shareid<<16 | (dword)i;
         Files[i].allocated=true;
+        diag_printf_fn(DIAG_DEBUG,"Alloced New file handle: %X\n", newid);
         return true;
       }
    }
@@ -139,7 +148,16 @@ public:
   }
   int fileid_to_filenumber(dword fileid) { return  (int)(fileid&0xffff);}
   int fileid_to_sharenumber(dword fileid) { return (int)((fileid>>16)&0xff);}
-
+  void release_fileid(dword id)
+  {
+    diag_printf_fn(DIAG_DEBUG,"release file handle: %X\n", id);
+    int i = (int) (id&0xffff);
+    if (i>=0 && i < sizeof(Files)/sizeof(Files[0]))
+    {
+      diag_printf_fn(DIAG_DEBUG,"release file id %d\n", i);
+      Files[i].allocated=false;
+    }
+  }
   bool list_share(int sharenumber,  int filenumber, word *_pattern);
 
   bool  open_file(int sharenumber, int filenumber, const char *filename, bool forwrite);
@@ -154,8 +172,8 @@ public:
   bool  rename_file(int sharenumber, char *toname, char *fromname);
 
 
-  int write_to_file(int sharenumber, int filenumber, byte *buffer, int count);
-  int read_from_file(int sharenumber, int filenumber, byte *buffer, int count);
+  int write_to_file(int sharenumber,  int filenumber, byte *buffer, int count, bool flush);
+  int read_from_file(int sharenumber, int filenumber, byte *buffer, ddword offset, int count);
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
@@ -242,6 +260,10 @@ void setCurrentActiveSession(Smb2Session *CurrentActiveSession);
 extern Smb2Session *getCurrentActiveSession();
 // calling this from a static funtion rather than a class method of session, not sure why for now
 void setSessionSocketError(Smb2Session *pSmb2Session, bool isSendError, NetStatus SmbStatus);
+
+Smb2Session *FileIdToSession(dword Fileid);
+inline int   FileIdToSharenumber(dword Fileid)     {return (int)(Fileid>>16)&0xff;}
+inline int   FileIdToFilenumber(dword Fileid)      {return (int)(Fileid&0xffff);}
 
 
 #endif // include_smb2session

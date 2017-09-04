@@ -20,7 +20,7 @@ static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0
 
 #define MAXBLOB 4096
 
-#define DIAG_LOGON_LEVEL DIAG_INFORMATIONAL // DIAG_DISABLED,DIAG_DEBUG
+#define DIAG_LOGON_LEVEL DIAG_DEBUG // DIAG_DISABLED,DIAG_DEBUG
 
 
 class SmbLogonWorker : private local_allocator,private smb_diagnostics {
@@ -278,6 +278,7 @@ private:
     bool r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
                  spnego_blob_from_server,
                  spnego_blob_size_from_server);
+diag_dump_bin_fn(DIAG_INFORMATIONAL,"server challenge is: ", decoded_targ_token.ntlmserverchallenge,8);
 
 //    decoded_targ_token.Flags;
 //    decoded_targ_token.ntlmserverchallenge[8];
@@ -295,7 +296,6 @@ private:
     decoded_targ_token.target_info->value_at_offset,
     decoded_targ_token.target_info->size, session_key);
 
- diag_dump_bin_fn(DIAG_INFORMATIONAL,"server challnge is: ", decoded_targ_token.ntlmserverchallenge,8);
  diag_printf_fn(DIAG_INFORMATIONAL,"blob length is: %d", blob_length);
 
     if (blob_length && response_to_challenge)
@@ -407,6 +407,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
   // Convert the password to unicode
    // get md4 of password.  This is the 16-byte NTLM hash
    dst = upassword->utf16_length();
+   diag_dump_unicode(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed passwd: ", (byte*)upassword->utf16(), dst);
    diag_dump_bin(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed passwd: ", upassword->utf16(), dst);
    RTSMB_MD4 ((const unsigned char *)upassword->utf16(), (dword)dst, p21);
    diag_dump_bin(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed pwhash: ", p21, 16);
@@ -423,9 +424,11 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    std::transform(s_name.begin(), s_name.end(), s_name.begin(), toupper);
    dualstringdecl(uname);   //   use a dualstring to convert the name to a string
    *uname = (char *)s_name.c_str();
+   diag_dump_unicode(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed name: ", (byte*)uname->utf16(), uname->utf16_length());
 
    dualstringdecl(udomain);   //   use a dualstring to convert the domain to upper
    *udomain = domainname;
+   diag_dump_unicode(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed domain: ", (byte*)udomain->utf16(), udomain->utf16_length());
 
     // The Unicode uppercase username is concatenated with the Unicode authentication target
     // (the domain or server name specified in the Target Name field of the Type 3 message).
@@ -437,6 +440,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    // concatenate the uppercase username with the domainname
     memcpy((char *) nameDomainname, uname->utf16(), uname->utf16_length() );
     memcpy((char *) &nameDomainname[uname->utf16_length()], udomain->utf16(), udomain->utf16_length() );
+   diag_dump_unicode(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
     diag_dump_bin(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
 
    // The HMAC-MD5 message authentication code algorithm is applied to

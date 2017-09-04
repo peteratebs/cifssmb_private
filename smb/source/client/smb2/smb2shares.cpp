@@ -76,6 +76,7 @@ private:
     int send_status;
     byte *path=0;
 
+//    setSessionSigned(false);      // Should enable signing here and everythng should work, but signing is broken
     setSessionSigned(false);      // Should enable signing here and everythng should work, but signing is broken
 
     dword variable_content_size = (rtp_wcslen(pSmb2Session->Shares[share_number].share_name))*sizeof(word);

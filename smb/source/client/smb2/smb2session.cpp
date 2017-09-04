@@ -24,7 +24,7 @@ extern bool do_smb2_directory_create_worker(Smb2Session &Session,int sharenumber
 extern bool do_smb2_dirent_close_worker(Smb2Session &Session,int sharenumber,int filenumber);
 extern bool do_smb2_dirent_delete_worker(Smb2Session &Session,int sharenumber,char *name, bool isdir);
 extern bool do_smb2_dirent_rename_worker(Smb2Session &Session,int sharenumber, char *oldname, char *newname, bool isdir);
-
+extern int do_smb2_cli_readfile_worker(Smb2Session &pSession,int share_number, int file_number, byte *buffer, ddword offset, int count);
 
 /// Api method sets ip address, mask and port (445 | 139) to connect to
 void Smb2Session::set_connection_parameters(const char *ip, byte *mask, int port)
@@ -63,7 +63,6 @@ bool Smb2Session::connect_socket()
   session_state(CSSN_STATE_CONNECTING);
   if (SmbSocket.connect() == 0)
   {
-    diag_printf_fn(DIAG_JUNK, "Socket connect worked\n");
     session_state(CSSN_STATE_CONNECTED);
     return Smb2Session::connect_buffers();
   }
@@ -117,24 +116,20 @@ bool Smb2Session::list_share(int sharenumber, int filenumber, word *_pattern)
   return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,filenumber,_pattern);
 }
 
+int Smb2Session::read_from_file(int sharenumber, int filenumber, byte *buffer, ddword offset, int count)
+{
+  return do_smb2_cli_readfile_worker(*this,sharenumber,filenumber,buffer, offset, count);
+}
+
+
 bool Smb2Session::open_dir(int sharenumber, int filenumber, char *filename, bool forwrite)
 {
   return do_smb2_directory_open_worker(*this,sharenumber, filenumber, filename, forwrite);
 }
-
 bool Smb2Session::open_file(int sharenumber, int filenumber, const char *filename, bool forwrite)
 {
-  return do_smb2_directory_open_worker(*this,sharenumber, filenumber, (char *)filename, forwrite);
+  return do_smb2_file_open_worker(*this,sharenumber, filenumber, (char *)filename, forwrite);
 }
-int Smb2Session::write_to_file(int sharenumber, int filenumber, byte *buffer, int count)
-{
-  return -1;
-}
-int Smb2Session::read_from_file(int sharenumber, int filenumber, byte *buffer, int count)
-{
-  return -1;
-}
-
 
 bool Smb2Session::close_dirent(int sharenumber, int filenumber)
 {
@@ -167,10 +162,22 @@ bool Smb2Session::disconnect_server()                {return false;};
 bool Smb2Session::disconnect_user(int sharenumber)   {return false;};
 bool Smb2Session::disconnect_share(int sharenumber)  {return false;};
 
-static Smb2Session *glCurrentActiveSession=0;
-void setCurrentActiveSession(Smb2Session *CurrentActiveSession) {glCurrentActiveSession=CurrentActiveSession;}
+#if (RTSMB_CFG_MAX_SESSIONS > 1)
+#error CFG_MAX_SESSIONS > 1 needs some work yet see glSessions[0].
+#endif
+static Smb2Session *glActiveSessions[RTSMB_CFG_MAX_SESSIONS];
+static Smb2Session *glCurrentActiveSession=0;                   // TBD add more sessions
+void setCurrentActiveSession(Smb2Session *CurrentActiveSession)
+{
+ glActiveSessions[0]=CurrentActiveSession;
+ glCurrentActiveSession=CurrentActiveSession;
+}
 ddword getCurrentActiveSession_session_id() { return glCurrentActiveSession->session_server_info_smb2_session_id;}
+
 Smb2Session *getCurrentActiveSession() {return glCurrentActiveSession;}
+Smb2Session *FileIdToSession(dword Fileid)  {return glActiveSessions[Fileid>>24];}
+
+
 //bool checkSessionSigned( ) { return glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };
 bool force_signing_on = false;
 bool checkSessionSigned() { return force_signing_on; }// glCurrentActiveSession && glCurrentActiveSession->session_key_valid(); };

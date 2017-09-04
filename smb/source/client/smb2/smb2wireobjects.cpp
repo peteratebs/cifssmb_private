@@ -311,10 +311,9 @@ void NetSmb2ReadReply::BindAddressesToBuffer(byte *base)
   BindNetWireArgs A(base);
   BINDPOINTERS(StructureSize);
   BINDPOINTERS(DataOffset);
-  BINDPOINTERS(Reserved);
   BINDPOINTERS(DataLength);
   BINDPOINTERS(DataRemaining);
-  BINDPOINTERS(Reserved2);
+  BINDPOINTERS(Reserved);
   BINDPOINTERS(Buffer);
 };
 

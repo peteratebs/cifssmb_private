@@ -165,7 +165,6 @@ private:
 
     setSessionSigned(false);      // Should enable signing here and everythng should work, but signing is broken
 
-    (char *)pSmb2Session->Files[filenumber].get_filename_ascii();
     dword variable_content_size = strlen((char *)pSmb2Session->Files[filenumber].get_filename_ascii())*sizeof(word);
     NetNbssHeader       OutNbssHeader;
     NetSmb2Header       OutSmb2Header;
@@ -174,8 +173,6 @@ private:
     NetSmb2NBSSCmd<NetSmb2CreateCmd> Smb2NBSSCmd(SMB2_CREATE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CreateCmd, variable_content_size);
 
     OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
-
-
 
    Smb2CreateCmd.StructureSize = Smb2CreateCmd.FixedStructureSize();
    Smb2CreateCmd.SecurityFlags         = 0;

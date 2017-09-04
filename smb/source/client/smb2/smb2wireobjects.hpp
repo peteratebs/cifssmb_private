@@ -864,7 +864,7 @@ public:
   }
   // Cloned from NetWireStruct()
   int  FixedStructureSize()  { return nbss->FixedStructureSize() + smb2->FixedStructureSize() +  cmd->FixedStructureSize();}
-  byte *RangeRequiringSigning(size_t &length)  { length = variablesize + smb2->FixedStructureSize()+cmd->FixedStructureSize();return smb2->FixedStructureAddress();}
+  byte *RangeRequiringSigning(size_t &length)  { length = variablesize + smb2->FixedStructureSize()+cmd->PackedStructureSize();return smb2->FixedStructureAddress();}
   void addto_variable_content(dword delta_variablesize) {variablesize += delta_variablesize; };
   void push_output(NetStreamOutputBuffer  &StreamBuffer) { StreamBuffer.add_to_buffer_count(objectsize+variablesize); }
   unsigned char *bindpointers(byte *_raw_address) {
@@ -957,9 +957,15 @@ public:
        return _raw_address+FixedStructureSize();}
   const char *command_name() { return "SMB2_READ";}
   const int   command_id()   { return SMB2_READ;}
+  int  VariableContentOffset() { return PackedStructureSize(); }
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
+  void copyto_variable_content(void *pcontent, int content_size)
+  {
+     addto_variable_content(content_size);  // we have to do this
+     memcpy(FixedStructureAddress()+VariableContentOffset(), pcontent, content_size);
+  }
   void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
    StreamBuffer.add_to_buffer_count(objectsize+variablesize);
@@ -974,11 +980,10 @@ class NetSmb2ReadReply  : public NetWireStruct   {
 public:
   NetSmb2ReadReply() {objectsize=17; }
   NetWireword  StructureSize; // 17
-  NetWirebyte  DataOffset;
-  NetWirebyte  Reserved;
+  NetWireword  DataOffset;
   NetWiredword DataLength;
   NetWiredword DataRemaining;
-  NetWiredword Reserved2;
+  NetWiredword Reserved;
   NetWirebyte  Buffer;
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
@@ -1023,6 +1028,12 @@ public:
   int  PackedStructureSize()  { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };
+  int  VariableContentOffset() { return PackedStructureSize(); }
+  void copyto_variable_content(void *pcontent, int content_size)
+  {
+     addto_variable_content(content_size);  // we have to do this
+     memcpy(FixedStructureAddress()+VariableContentOffset(), pcontent, content_size);
+  }
   void push_output(NetStreamOutputBuffer  &StreamBuffer)
   {
    StreamBuffer.add_to_buffer_count(objectsize+variablesize);
