@@ -139,14 +139,33 @@ bool SmbFilioWorker::send_write()
 
   Smb2WriteCmd.copyto_variable_content((void*)io_request_buffer, io_request_length);  // we have to do this
 
-
   // this should work
   return Smb2NBSSCmd.flush();
 }
-bool SmbFilioWorker::recv_write()
+int SmbFilioWorker::recv_write()
 {
-  return false;
+  dword in_variable_content_size = 0;
+  dword bytes_pulled = 0;
+  dword bytes_consumed = 0;
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+  NetSmb2WriteReply   Smb2WriteReply;
+  NetStatus r;
+  int nwritten = 0; // return this through io_result if all goes well
+
+  io_result = -1; // Assume failure to start
+  r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("WRITE", Smb2WriteReply.PackedStructureSize(), bytes_pulled);
+  if (r != NetStatusOk)
+  {
+      pSmb2Session->diag_text_warning("receive_read write failed pulling fixed part from the socket");
+     io_result = -1;
+     return -1;
+  }
+  NetSmb2NBSSReply<NetSmb2WriteReply> Smb2NBSSReply(SMB2_WRITE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2WriteReply);
+  io_result = Smb2WriteReply.Count(); // Assume failure to start
+  return io_result;
 }
+
 bool SmbFilioWorker::send_flush()
 {
   return true;
@@ -156,16 +175,17 @@ bool SmbFilioWorker::recv_flush()
   return true;
 }
 
-extern bool do_smb2_write_to_file(Smb2Session &Session,int share_number, int file_number, byte *buffer, int count, bool flush)
+extern int do_smb2_cli_writefile_worker(Smb2Session &Session,int share_number, int file_number, byte *buffer, ddword offset, int count, bool flush)
 {
   SmbFilioWorker FilioWorker;
   FilioWorker.bindfileid(Session,share_number,file_number);
   FilioWorker.set_io_request_length(count);
+  FilioWorker.set_io_request_offset(offset);
   FilioWorker.set_io_request_buffer(buffer);
   bool r = FilioWorker.send_write();
   if (r)
-    r = FilioWorker.recv_write();
-  return r;
+    return FilioWorker.recv_write();
+  return -1;
 }
 
 extern int do_smb2_cli_readfile_worker(Smb2Session &Session,int share_number, int file_number, byte *buffer, ddword offset, int count)

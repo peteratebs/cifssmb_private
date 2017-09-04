@@ -47,7 +47,7 @@ public:
   bool send_read();
   int  recv_read();
   bool send_write();
-  bool recv_write();
+  int  recv_write();
   bool send_flush();
   bool recv_flush();
 private:

@@ -172,7 +172,7 @@ public:
   bool  rename_file(int sharenumber, char *toname, char *fromname);
 
 
-  int write_to_file(int sharenumber,  int filenumber, byte *buffer, int count, bool flush);
+  int write_to_file(int sharenumber,  int filenumber, byte *buffer, ddword offset, int count, bool flush=false);
   int read_from_file(int sharenumber, int filenumber, byte *buffer, ddword offset, int count);
 
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}

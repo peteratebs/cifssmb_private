@@ -24,77 +24,6 @@
 #include "smb2clientincludes.hpp"
 
 
-#define SMB2_OPLOCK_LEVEL_NONE 0x00
-#define SMB2_OPLOCK_LEVEL_II 0x01
-#define SMB2_OPLOCK_LEVEL_EXCLUSIVE 0x08
-#define SMB2_OPLOCK_LEVEL_BATCH 0x09
-#define SMB2_OPLOCK_LEVEL_LEASE 0xFF
-
-#define SMB2_ImpersonationLevel_Anonymous           0x00000000
-#define SMB2_ImpersonationLevel_Identification      0x00000001
-#define SMB2_ImpersonationLevel_Impersonation       0x00000002
-#define SMB2_ImpersonationLevel_Delegate            0x00000003
-
-/* RTSMB2_CREATE_C::ShareAccess */
-#define SMB2_FILE_SHARE_READ                        0x00000001
-#define SMB2_FILE_SHARE_WRITE                       0x00000002
-#define SMB2_FILE_SHARE_DELETE                      0x00000004
-
-/* RTSMB2_CREATE_C::CreateDisposition */
-#define SMB2_FILE_SUPERSEDE                         0x00000000
-#define SMB2_FILE_OPEN                              0x00000001
-#define SMB2_FILE_CREATE                            0x00000002
-#define SMB2_FILE_OPEN_IF                           0x00000003
-#define SMB2_FILE_OVERWRITE                         0x00000004
-#define SMB2_FILE_OVERWRITE_IF                      0x00000005
-
-
-
-#define SMB2_FPP_ACCESS_MASK_FILE_READ_DATA         0x00000001   /* ** This value indicates the right to read data from the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_FILE_WRITE_DATA        0x00000002   /* ** This value indicates the right to write data into the file or named pipe beyond the end of the file. */
-#define SMB2_FPP_ACCESS_MASK_FILE_APPEND_DATA       0x00000004   /* ** This value indicates the right to append data into the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_FILE_READ_EA           0x00000008   /* ** This value indicates the right to read the extended attributes of the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_FILE_WRITE_EA          0x00000010   /* ** This value indicates the right to write or change the extended attributes to the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_FILE_DELETE_CHILD      0x00000040   /* ** This value indicates the right to delete entries within a directory. */
-#define SMB2_FPP_ACCESS_MASK_FILE_EXECUTE           0x00000020   /* ** This value indicates the right to execute the file. */
-#define SMB2_FPP_ACCESS_MASK_FILE_READ_ATTRIBUTES   0x00000080   /* ** This value indicates the right to read the attributes of the file. */
-#define SMB2_FPP_ACCESS_MASK_FILE_WRITE_ATTRIBUTES  0x00000100   /* ** This value indicates the right to change the attributes of the file. */
-#define SMB2_FPP_ACCESS_MASK_DELETE                 0x00010000   /* ** This value indicates the right to delete the file. */
-#define SMB2_FPP_ACCESS_MASK_READ_CONTROL           0x00020000   /* ** This value indicates the right to read the security descriptor for the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_WRITE_DAC              0x00040000   /* ** This value indicates the right to change the discretionary access control list (DACL) in the security descriptor for the file or named pipe. For the DACL data structure, see ACL in [MS-DTYP]. */
-#define SMB2_FPP_ACCESS_MASK_WRITE_OWNER            0x00080000   /* ** This value indicates the right to change the owner in the security descriptor for the file or named pipe. */
-#define SMB2_FPP_ACCESS_MASK_SYNCHRONIZE            0x00100000   /* ** SMB2 clients set this flag to any value. SMB2 servers SHOULD ignore this flag. */
-#define SMB2_FPP_ACCESS_MASK_ACCESS_SYSTEM_SECURITY 0x01000000   /* ** This value indicates the right to read or change the system access control list (SACL) in the security descriptor for the file or named pipe. For the SACL data structure, see ACL in [MS-DTYP].<42> */
-#define SMB2_FPP_ACCESS_MASK_MAXIMUM_ALLOWED        0x02000000   /* ** This value indicates that the client is requesting an open to the file with the highest level of access the client has on this file. If no access is granted for the client on this file, the server MUST fail the open with STATUS_ACCESS_DENIED. */
-#define SMB2_FPP_ACCESS_MASK_GENERIC_ALL            0x10000000   /* ** This value indicates a request for all the access flags that are previously listed except MAXIMUM_ALLOWED and ACCESS_SYSTEM_SECURITY. */
-#define SMB2_FPP_ACCESS_MASK_GENERIC_EXECUTE        0x20000000   /* ** This value indicates a request for the following combination of access flags listed above: FILE_READ_ATTRIBUTES| FILE_EXECUTE| SYNCHRONIZE| READ_CONTROL. */
-#define SMB2_FPP_ACCESS_MASK_GENERIC_WRITE          0x40000000   /* ** This value indicates a request for the following combination of access flags listed above: FILE_WRITE_DATA| FILE_APPEND_DATA| FILE_WRITE_ATTRIBUTES| FILE_WRITE_EA| SYNCHRONIZE| READ_CONTROL. */
-#define SMB2_FPP_ACCESS_MASK_GENERIC_READ           0x80000000   /* ** This value indicates a request for the following combination of access flags listed above: FILE_READ_DATA| FILE_READ_ATTRIBUTES| FILE_READ_EA| SYNCHRONIZE| READ_CONTROL. */
-
-
-
-/* RTSMB2_CREATE_C::CreateOptions */
-#define FILE_DIRECTORY_FILE 0x00000001
-#define FILE_WRITE_THROUGH 0x00000002
-#define FILE_SEQUENTIAL_ONLY 0x00000004
-#define FILE_NO_INTERMEDIATE_BUFFERING 0x00000008
-#define FILE_SYNCHRONOUS_IO_ALERT 0x00000010
-#define FILE_SYNCHRONOUS_IO_NONALERT 0x00000020
-#define FILE_NON_DIRECTORY_FILE 0x00000040
-#define FILE_COMPLETE_IF_OPLOCKED 0x00000100
-#define FILE_NO_EA_KNOWLEDGE 0x00000200
-#define FILE_RANDOM_ACCESS 0x00000800
-#define FILE_DELETE_ON_CLOSE 0x00001000
-#define FILE_OPEN_BY_FILE_ID 0x00002000
-#define FILE_OPEN_FOR_BACKUP_INTENT 0x00004000
-#define FILE_NO_COMPRESSION 0x00008000
-#define FILE_OPEN_REMOTE_INSTANCE 0x00000400
-#define FILE_OPEN_REQUIRING_OPLOCK 0x00010000
-#define FILE_DISALLOW_EXCLUSIVE 0x00020000
-#define FILE_RESERVE_OPFILTER 0x00100000
-#define FILE_OPEN_REPARSE_POINT 0x00200000
-#define FILE_OPEN_NO_RECALL 0x00400000
-#define FILE_OPEN_FOR_FREE_SPACE_QUERY 0x00800000
 
 
 // Can't embedd this in smb2session.hpp
@@ -112,10 +41,13 @@ public:
     isreadonly =
     iscreate   =
     isexclusive = false;
+    create_disposition = SMB2_FILE_OPEN;
   }
-  void set_permissions(bool _create, bool _write) {
+  void set_permissions(bool _create, bool _write, dword _create_disposition) {
      iscreate = _create;
      isreadonly  = !_write;
+     create_disposition = _create_disposition;
+
   }
   void set_parameters(int _sharenumber, int _filenumber, char *filename, bool isdir)
   {
@@ -138,6 +70,7 @@ private:
   bool isreadonly;
   bool iscreate;
   bool isexclusive;
+  dword create_disposition;
 
   int rtsmb_cli_session_create_file()
   {
@@ -187,21 +120,8 @@ private:
    if (isadiropen)
      Smb2CreateCmd.FileAttributes        = 0x10;
    Smb2CreateCmd.ShareAccess             = 0x7; // fixed per spec at RDWREXE;
-#define SMB2_FILE_OPEN                              0x00000001
-#define SMB2_FILE_CREATE                            0x00000002
-#define SMB2_FILE_OPEN_IF                           0x00000003
-#define SMB2_FILE_OVERWRITE                         0x00000004
-#define SMB2_FILE_OVERWRITE_IF                      0x00000005
 
-   dword disposition = 0;
-   if (iscreate)
-     disposition = SMB2_FILE_CREATE;
-   else
-     disposition = SMB2_FILE_OPEN;
-//    if (isexclusive)
-//     displosition = SMB2_FILE_OPEN_IF;  // ??
-
-   Smb2CreateCmd.CreateDisposition     = disposition;
+   Smb2CreateCmd.CreateDisposition     = create_disposition;
    if (isadiropen)
      Smb2CreateCmd.CreateOptions         = 1;
    Smb2CreateCmd.NameOffset            = 0x78;
@@ -242,7 +162,14 @@ static bool do_smb2_dirent_open_worker(Smb2Session &Session,int sharenumber,int 
 {
   SmbFileCreateWorker FileCreateWorker(Session);
   FileCreateWorker.set_parameters(sharenumber, filenumber, name, isdir);
-  FileCreateWorker.set_permissions(creatable, writeable);
+  dword create_diposition;
+  //
+  if (writeable)
+    create_diposition = SMB2_FILE_OVERWRITE_IF;
+  else
+    create_diposition = SMB2_FILE_OPEN;
+
+  FileCreateWorker.set_permissions(creatable, writeable,create_diposition);
   bool r = FileCreateWorker.go();
   if (r)
   {

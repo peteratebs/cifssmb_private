@@ -284,10 +284,10 @@ public:
         char *path = (char *) "";
         char *destpath = (char *) "";
         char *pattern = (char *) "*";
-         bool source_isremote=false;
-         bool source_isfile=false;
-
-         bool dest_isremote=false;
+        bool source_isremote=false;
+        bool source_isfile=false;
+        bool dest_isremote=false;
+        bool dest_isfile=false;
          bool has_dest=false;
          if (command_line.size() >= 2)
          {
@@ -304,8 +304,12 @@ public:
          bool sourcevalid=false;
          dword sourcefileid;
          RTP_HANDLE  sourcertpFile;
+         bool destvalid=false;
+         dword destfileid;
+         RTP_HANDLE  destrtpFile;
 
          int sourcefileno=-1;
+         int destfileno=-1;
          if (source_isremote)
          {
            source_isfile=false;
@@ -326,6 +330,28 @@ public:
               sourcevalid=false;
             }
          }
+
+         if (dest_isremote)
+         {
+           dest_isfile=false;
+           if (ShellSession.allocate_fileid(destfileid, 0))
+           {
+             destfileno = (int)(destfileid&0xffff);
+             if (ShellSession.open_file(0, destfileno , destpath, true)==true)
+               destvalid=true;
+           }
+         }
+         else
+         {
+            dest_isremote=false;
+            int r = rtp_file_open (&destrtpFile, destpath, RTP_FILE_O_CREAT|RTP_FILE_O_TRUNC|RTP_FILE_O_RDWR,RTP_FILE_S_IWRITE);
+            if (r >= 0)
+            {
+              dest_isfile=true;
+              destvalid=false;
+            }
+         }
+
          ddword offset = 0;
          dword total_bytes_read = 0;
          int res=0;
@@ -337,12 +363,19 @@ public:
              res=ShellSession.read_from_file(0, sourcefileno,buffer, offset, count);
            else if (source_isfile)
              res = rtp_file_read(sourcertpFile, buffer, count);
-           if (res >=0)
+           if (res >0)
            {
-               buffer[res]=0;// so we can print
-               diag_printf(DIAG_INFORMATIONAL, "\n>:\n%s\n:\n", buffer);
-               offset += res;
-               total_bytes_read += res;
+              offset += res;
+              total_bytes_read += res;
+              if (dest_isremote)
+                res=ShellSession.write_to_file(0, destfileno,buffer, offset, count);
+              else if (dest_isfile)
+                res = rtp_file_write(destrtpFile, buffer, count);
+              else
+              {
+                buffer[res]=0;// so we can print
+                diag_printf(DIAG_INFORMATIONAL, "\n>:\n%s\n:\n", buffer);
+              }
            }
          } while (res > 0);
          if (source_isremote)
@@ -353,6 +386,15 @@ public:
          else if (source_isfile)
          {
              rtp_file_close(sourcertpFile);
+         }
+         if (dest_isremote)
+         {
+            ShellSession.close_dirent(0, destfileno);                       // close the directory we used
+            ShellSession.release_fileid(destfileid);
+         }
+         else if (dest_isfile)
+         {
+             rtp_file_close(destrtpFile);
          }
          diag_printf(DIAG_INFORMATIONAL, "Bytes copied:%d\n", total_bytes_read);
        }
