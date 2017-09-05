@@ -264,54 +264,7 @@ private:
     NetSmb2Header       InSmb2Header;
     NetSmb2CloseReply  Smb2CloseReply;
 
-#if(0)
-    NetSmb2MinimumReply  Smb2MinimumReply;
-    NetSmb2CloseReply &T = Smb2CloseReply;
-    dword min_packet_bytes_pulled,more_bytes_pulled;
-    size_t min_reply_size = InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2MinimumReply.PackedStructureSize();
-    size_t good_reply_size = InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+T.PackedStructureSize();
-    byte *pBase = pSmb2Session->ReplyBuffer.input_buffer_pointer();
-     // Pull enough for the fixed part and then map pointers to input buffer
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(min_reply_size, min_packet_bytes_pulled);
-    if (r != NetStatusOk || min_packet_bytes_pulled != min_reply_size)
-    {
-      pSmb2Session->diag_text_warning("receive_close command failed pulling SMB2 header from the socket");
-      return false;
-    }
-    // look at the headers for status
-    InNbssHeader.bindpointers(pBase);
-    InSmb2Header.bindpointers(pBase+InNbssHeader.FixedStructureSize());
-    Smb2MinimumReply.bindpointers(pBase+InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize());
-    more_bytes_pulled = 0;
-
-
-    if (InSmb2Header.Status_ChannelSequenceReserved() != SMB2_NT_STATUS_SUCCESS)
-    {
-      pSmb2Session->diag_text_warning("receive_close command failed pulling SMB2 header from the socket");
-      r = NetStatusServerErrorStatus;
-    }
-    else
-    {
-      if (min_packet_bytes_pulled < good_reply_size)
-      {
-         r = pSmb2Session->ReplyBuffer.pull_nbss_data(good_reply_size-min_packet_bytes_pulled, more_bytes_pulled);
-         if (r != NetStatusOk || more_bytes_pulled != good_reply_size-min_packet_bytes_pulled)
-         {
-           pSmb2Session->diag_text_warning("receive_close command failed pulling CMD header from the socket");
-           r = NetStatusDeviceRecvBadLength;
-         }
-       }
-       else
-          r = NetStatusServerErrorStatus;
-    }
-    bytes_pulled = more_bytes_pulled + min_packet_bytes_pulled;
-    if (bytes_pulled != good_reply_size)
-    {
-        pSmb2Session->diag_text_warning("receive_close not expected  command bytes_pulled != good_reply_size");
-    }
-#else
     NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("CLOSE", Smb2CloseReply.PackedStructureSize(), bytes_pulled);
-#endif
 
     if (r == NetStatusOk)
     {

@@ -42,13 +42,13 @@ extern "C" {
 #define SMB2_TREE_DISCONNECT    0x0004   // Smartpointer completed
 #define SMB2_CREATE             0x0005   // Smartpointer and handler  completed
 #define SMB2_CLOSE              0x0006   // Smartpointer and handler  completed
-#define SMB2_FLUSH              0x0007
-#define SMB2_READ               0x0008
-#define SMB2_WRITE              0x0009
+#define SMB2_FLUSH              0x0007   // Smartpointer and handler  completed
+#define SMB2_READ               0x0008   // Smartpointer and handler  completed
+#define SMB2_WRITE              0x0009   // Smartpointer and handler  completed
 #define SMB2_LOCK               0x000A
 #define SMB2_IOCTL              0x000B
 #define SMB2_CANCEL             0x000C
-#define SMB2_ECHO               0x000D
+#define SMB2_ECHO               0x000D   // Smartpointer and handler  completed
 #define SMB2_QUERY_DIRECTORY    0x000E   // Smartpointer and handler  completed
 #define SMB2_CHANGE_NOTIFY      0x000F
 #define SMB2_QUERY_INFO         0x0010

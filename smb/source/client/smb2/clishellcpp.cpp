@@ -407,67 +407,6 @@ public:
          }
          diag_printf(DIAG_INFORMATIONAL, "Bytes copied:%d\n", total_bytes_read);
        }
-#if (0)
-         if (ShellSession.allocate_fileid(sourcefileid, 0))
-         {
-           if (ShellSession.open_file(0, sourcefileno , path, false)==true)
-           {
-             sourcefileno = (int)(sourcefileid&0xffff);
-             ddword offset = 0;
-              byte buffer[130]; int count =128; int res=0;
-              while ((res=ShellSession.read_from_file(0, sourcefileno,buffer, offset, count)) > 0)
-              {
-               diag_printf(DIAG_INFORMATIONAL, "read_from_file  worked count :%d\n", res);
-               buffer[res]=0;// so we can print
-               diag_printf(DIAG_INFORMATIONAL, ":%s\n", buffer);
-               offset += res;
-             }
-            }
-//            ShellSession.list_share(0,fileno,pattern_string->utf16());  // do the ls
-            ShellSession.close_dirent(0, sourcefileno);                       // close the directory we used
-            ShellSession.release_fileid(sourcefileid);
-         }
-#endif
-#if (0)
-       {
-        dword total_written=0;
-        if (command_line.size() == 2)
-        {
-          word pattern[2]; pattern[0]='*'; pattern[1]=0;
-          ShellSession.open_dir(0, 0 , (char *)command_line[1].c_str(), false);             // open directory named share,file, path, read only
-          ShellSession.list_share(0,0,pattern);  // do the ls
-          ShellSession.close_dirent(0, 0);                       // close the directory we used
-        }
-        if (0&&command_line.size() == 3)
-        {
-          bool isremote=filename_is_remote(command_line[1]); // strips off < too iof needed
-          ShellFile source_file(isremote, command_line[1]);
-          isremote=filename_is_remote(command_line[2]); // strips off < too iof needed
-          ShellFile dest_file(isremote, command_line[2]);
-          source_file.open_file();
-          dest_file.open_file(true,true);
-          int buffersize = 1024;
-          byte *_buffer = (byte *)rtp_malloc(buffersize);
-
-          while(int read_count = source_file.read_from_file(_buffer, buffersize))
-          {
-            int write_count = dest_file.write_to_file(_buffer, read_count);
-            if (write_count <= 0)
-              break;
-            else
-              total_written += write_count;
-          }
-          rtp_free(_buffer);
-          cout << "Total written: " << total_written << endl;
-          source_file.close_file();
-          dest_file.close_file();
-        }
-        else
-        {
-
-        }
-       }
-#endif
 //       else if (command_line[0] == "echo" || command_line[0] == "ECHO")
        else if (is_command_line(command_line[0], "ECHO"))
        {
