@@ -175,6 +175,10 @@ public:
   int write_to_file(int sharenumber,  int filenumber, byte *buffer, ddword offset, int count, bool flush=false);
   int read_from_file(int sharenumber, int filenumber, byte *buffer, ddword offset, int count);
 
+  int flush_file(int sharenumber, int filenumber);
+
+  bool echo();
+
   void  session_state(int state) { _p_session_state = state;_p_session_mid=0;}
   int  session_state() { return _p_session_state;}
   int  sid()           {return _p_sid;       }

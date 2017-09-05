@@ -168,10 +168,33 @@ int SmbFilioWorker::recv_write()
 
 bool SmbFilioWorker::send_flush()
 {
-  return true;
+  int                 variable_content_size = 0;
+  NetNbssHeader       OutNbssHeader;
+  NetSmb2Header       OutSmb2Header;
+  NetSmb2FlushCmd     Smb2FlushCmd;
+
+  NetSmb2NBSSCmd<NetSmb2FlushCmd> Smb2NBSSCmd(SMB2_FLUSH, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2FlushCmd, variable_content_size);
+  OutSmb2Header.TreeId                      = pSmb2Session->Shares[share_number].tid;
+  Smb2FlushCmd.StructureSize                = Smb2FlushCmd.FixedStructureSize();
+  Smb2FlushCmd.FileId                       = pSmb2Session->Files[file_number].get_file_id();;
+  // this should work
+  return Smb2NBSSCmd.flush();
 }
 bool SmbFilioWorker::recv_flush()
 {
+  dword in_variable_content_size = 0;
+  dword bytes_pulled=0;
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+  NetSmb2FlushReply   Smb2FlushReply;
+  NetStatus r;
+  r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("FLUSH", Smb2FlushReply.PackedStructureSize(), bytes_pulled);
+  if (r != NetStatusOk)
+  {
+      pSmb2Session->diag_text_warning("receive_flush failed pulling fixed part from the socket");
+     return false;
+  }
+  NetSmb2NBSSReply<NetSmb2FlushReply> Smb2NBSSReply(SMB2_FLUSH, pSmb2Session, InNbssHeader,InSmb2Header, Smb2FlushReply);
   return true;
 }
 
@@ -201,4 +224,15 @@ extern int do_smb2_cli_readfile_worker(Smb2Session &Session,int share_number, in
     return FilioWorker.recv_read();
   else
     return -1;
+}
+
+
+extern bool do_smb2_cli_flush_worker(Smb2Session &Session,int share_number, int file_number)
+{
+  SmbFilioWorker FilioWorker;
+  FilioWorker.bindfileid(Session,share_number,file_number);
+  bool r = FilioWorker.send_flush();
+  if (r)
+    r = FilioWorker.recv_flush();
+  return r;
 }

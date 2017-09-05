@@ -40,6 +40,7 @@ public:
   void set_io_request_offset(ddword offset) {io_request_offset = offset;}
   void set_io_request_buffer(byte *_io_request_buffer) {io_request_buffer = _io_request_buffer;}
 
+  bool flush ();
   bool seek (ddword offset, ddword &new_offset);
   int  read (byte *buffer, int count);
   int  write(byte *buffer, int count, bool dosync);

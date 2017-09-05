@@ -25,7 +25,9 @@ extern bool do_smb2_dirent_close_worker(Smb2Session &Session,int sharenumber,int
 extern bool do_smb2_dirent_delete_worker(Smb2Session &Session,int sharenumber,char *name, bool isdir);
 extern bool do_smb2_dirent_rename_worker(Smb2Session &Session,int sharenumber, char *oldname, char *newname, bool isdir);
 extern int do_smb2_cli_readfile_worker(Smb2Session &pSession,int share_number, int file_number, byte *buffer, ddword offset, int count);
+extern bool do_smb2_cli_flush_worker(Smb2Session &Session,int share_number, int file_number);
 extern int do_smb2_cli_writefile_worker(Smb2Session &pSession,int share_number, int file_number, byte *buffer, ddword offset, int count, bool flush);
+extern  bool do_smb2_echo_worker(Smb2Session &Session);
 
 /// Api method sets ip address, mask and port (445 | 139) to connect to
 void Smb2Session::set_connection_parameters(const char *ip, byte *mask, int port)
@@ -117,6 +119,11 @@ bool Smb2Session::list_share(int sharenumber, int filenumber, word *_pattern)
   return (bool) do_smb2_cli_querydirectory_worker(*this,sharenumber,filenumber,_pattern);
 }
 
+bool Smb2Session::echo()
+{
+  return do_smb2_echo_worker(*this);
+}
+
 int Smb2Session::read_from_file(int sharenumber, int filenumber, byte *buffer, ddword offset, int count)
 {
   return do_smb2_cli_readfile_worker(*this,sharenumber,filenumber,buffer, offset, count);
@@ -125,6 +132,12 @@ int Smb2Session::write_to_file(int sharenumber, int filenumber, byte *buffer, dd
 {
   return do_smb2_cli_writefile_worker(*this,sharenumber,filenumber,buffer, offset, count, flush);
 }
+
+int Smb2Session::flush_file(int sharenumber, int filenumber)
+{
+  return do_smb2_cli_flush_worker(*this, sharenumber, filenumber);
+}
+
 
 bool Smb2Session::open_dir(int sharenumber, int filenumber, char *filename, bool forwrite)
 {

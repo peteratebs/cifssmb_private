@@ -345,6 +345,23 @@ void NetSmb2WriteReply::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(WriteChannelInfoLength);
 }
 
+
+void NetSmb2EchoCmd::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+};
+
+void NetSmb2EchoReply::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(StructureSize);
+  BINDPOINTERS(Reserved);
+}
+
+
+
 void NetSmb2MinimumReply::BindAddressesToBuffer(byte *base)
 {
   BindNetWireArgs A(base);
