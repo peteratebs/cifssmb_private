@@ -64,7 +64,7 @@ using std::endl;
 #define DUMPBIN     0
 #define DUMPASCII   1
 #define DUMPUNICODE 2
-extern "C" void rtsmb_dump_bytes(const char *prompt, void *pbytes, int length, int format);
+extern void rtsmb_dump_bytes(const char *prompt, void *pbytes, int length, int format);
 
 
 

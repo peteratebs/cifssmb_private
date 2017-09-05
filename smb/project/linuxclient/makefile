@@ -1,4 +1,8 @@
-# GNU Makefile for RTSMB Client Application
+all: rtsmbclientapplication.out
+	echo I am broken sorry try the linuxsmb2client directory
+	exit
+
+	# GNU Makefile for RTSMB Client Application
 
 ### Usage ##############################################################
 ### :make clean
@@ -8,6 +12,7 @@
 incpath = .
 
 doclient = "Y"
+
 
 cflags += -D SUPPORT_SMB2 -D BUILDING_CLIENT
 

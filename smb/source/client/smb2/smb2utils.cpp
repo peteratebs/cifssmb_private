@@ -278,3 +278,30 @@ NetStatus NetStreamInputBuffer::pull_nbss_frame_checked(const char *arg_command_
 
   return r;
 }
+
+#include "rtpprint.h"
+
+void rtsmb_dump_bytes(const char *prompt, void *_pbytes, int length, int format)
+{
+int i;
+int charno = 0;
+byte *pbytes = (byte *) _pbytes;
+    rtp_printf("%-40s:(%4d) bytes:\n", prompt, length);
+    for (i=0; i<length; i++)
+      if (format==DUMPBIN)
+      {
+          rtp_printf("%2.2X ", pbytes[i]);
+          if (++charno == 16)
+          {
+            charno = 0;
+            rtp_printf("\n");
+          }
+      }
+      else
+      {
+        rtp_printf("%c", (char) pbytes[i]);
+        if (format==DUMPUNICODE)
+          i++;
+      }
+      rtp_printf("\n===\n");
+}
