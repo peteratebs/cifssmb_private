@@ -50,7 +50,7 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2EchoCmd Smb2EchoCmd;
 
-    NetSmb2NBSSCmd<NetSmb2EchoCmd> Smb2NBSSCmd(SMB2_ECHO, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2EchoCmd, variable_content_size);
+    NetSmb2NBSSSendCmd<NetSmb2EchoCmd> Smb2NBSSCmd(SMB2_ECHO, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2EchoCmd, variable_content_size);
     Smb2EchoCmd.StructureSize = Smb2EchoCmd.FixedStructureSize();
     return Smb2NBSSCmd.flush();
   }

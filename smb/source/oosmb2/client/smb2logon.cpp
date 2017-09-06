@@ -100,7 +100,7 @@ private:
       NetSmb2Header       OutSmb2Header;
       NetSmb2NegotiateCmd Smb2NegotiateCmd;
 
-      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session, OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
+      NetSmb2NBSSSendCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, pSmb2Session, OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
       Smb2NegotiateCmd.StructureSize=   Smb2NegotiateCmd.FixedStructureSize();
       Smb2NegotiateCmd.DialectCount =   2;
       Smb2NegotiateCmd.SecurityMode =   SMB2_NEGOTIATE_SIGNING_ENABLED;
@@ -130,7 +130,7 @@ private:
     }
     dword bytes_ready;
     byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
-    NetSmb2NBSSReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
+    NetSmb2NBSSRecvReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
 
 
     if (Smb2NegotiateReply.SecurityBufferLength())
@@ -205,7 +205,7 @@ private:
       byte *variable_content = (byte *) setup_blob;
       dword variable_content_size = setup_blob_size;
 
-      NetSmb2NBSSCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
+      NetSmb2NBSSSendCmd<NetSmb2SetupCmd> Smb2NBSSCmd(SMB2_SESSION_SETUP, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetupCmd, variable_content_size);
       dword in_variable_content_size    =  Smb2SetupCmd.SecurityBufferLength();    // not sure if this is right
       Smb2SetupCmd.StructureSize        =  Smb2SetupCmd.FixedStructureSize();
       Smb2SetupCmd.Flags                =  0x0;
@@ -238,7 +238,7 @@ private:
       pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);
       return false;
     }
-    NetSmb2NBSSReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
+    NetSmb2NBSSRecvReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
 
 
     if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_extended_setup_phase)

@@ -71,7 +71,7 @@ private:
     {
       return false;
     }
-    NetSmb2NBSSReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, pSmb2Session, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
+    NetSmb2NBSSRecvReply<NetSmb2QuerydirectoryReply> Smb2NBSSReply(SMB2_QUERY_DIRECTORY, pSmb2Session, InNbssHeader,InSmb2Header, Smb2QuerydirectoryReply);
 
     if (r == NetStatusServerErrorStatus)
     {
@@ -154,7 +154,7 @@ private:
     else
       variable_content_size  = 0;
 
-    NetSmb2NBSSCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
+    NetSmb2NBSSSendCmd<NetSmb2QuerydirectoryCmd> Smb2NBSSCmd(SMB2_QUERY_DIRECTORY, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2QuerydirectoryCmd, variable_content_size);
     OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
     Smb2QuerydirectoryCmd.StructureSize        =  Smb2QuerydirectoryCmd.FixedStructureSize();
     Smb2QuerydirectoryCmd.FileInformationClass    = SMB2_QUERY_FileIdBothDirectoryInformation; // SMB2_QUERY_FileNamesInformation;

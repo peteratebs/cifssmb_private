@@ -191,9 +191,9 @@ private:
 };
 
 template <class T>
-class NetSmb2NBSSReply {
+class NetSmb2NBSSRecvReply {
 public:
-  NetSmb2NBSSReply(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
+  NetSmb2NBSSRecvReply(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header   &_smb2,  T &_reply)
   {
     pSmb2Session=_pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  reply  =&_reply ;
     isvariable = false; base_address=0; variablesize=0;
@@ -243,15 +243,15 @@ public:
 ///      NetNbssHeader       OutNbssHeader;     Nsss and smb2 declarations are always the same
 ///      NetSmb2Header       OutSmb2Header;
 ///      NetSmb2NegotiateCmd Smb2NegotiateCmd;  The command to be templated.
-///      NetSmb2NBSSCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
+///      NetSmb2NBSSSendCmd<NetSmb2NegotiateCmd> Smb2NBSSCmd(SMB2_NEGOTIATE, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2NegotiateCmd, variable_content_size);
 
 bool checkSessionSigned();
 
 template <class T>
-class NetSmb2NBSSCmd {
+class NetSmb2NBSSSendCmd {
 public:
 //  int status;
-  NetSmb2NBSSCmd(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header &_smb2,  T &_cmd, dword _variable_size=0)
+  NetSmb2NBSSSendCmd(word command, Smb2Session  *_pSmb2Session, NetNbssHeader  &_nbss, NetSmb2Header &_smb2,  T &_cmd, dword _variable_size=0)
   {
     pSmb2Session = _pSmb2Session; nbss =&_nbss;   smb2 =&_smb2;  cmd  =&_cmd ;
     isvariable = false; base_address=0; variablesize=_variable_size;

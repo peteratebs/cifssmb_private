@@ -84,7 +84,7 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2TreeconnectCmd Smb2TreeconnectCmd;
 
-    NetSmb2NBSSCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
+    NetSmb2NBSSSendCmd<NetSmb2TreeconnectCmd> Smb2NBSSCmd(SMB2_TREE_CONNECT, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2TreeconnectCmd, variable_content_size);
 
     Smb2TreeconnectCmd.StructureSize=   Smb2TreeconnectCmd.FixedStructureSize();
     Smb2TreeconnectCmd.Reserved = 0;
@@ -115,7 +115,7 @@ private:
       return false;
     }
 
-    NetSmb2NBSSReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
+    NetSmb2NBSSRecvReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
     InNbssHeader.show_contents();
     InSmb2Header.show_contents();
@@ -149,7 +149,7 @@ static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
   NetSmb2LogoffCmd    Smb2LogoffCmd;
   Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
-  NetSmb2NBSSCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
+  NetSmb2NBSSSendCmd<NetSmb2LogoffCmd> Smb2NBSSCmd(SMB2_LOGOFF, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2LogoffCmd, 0);
 
   OutSmb2Header.TreeId =  (ddword)pSmb2Session->job_data()->tree_disconnect.tid;
   Smb2NBSSCmd.flush();
@@ -160,7 +160,7 @@ static bool rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &ReplyBuffer
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
   NetSmb2LogoffReply  Smb2LogoffReply;
-  NetSmb2NBSSReply<NetSmb2LogoffReply> Smb2NBSSReply(SMB2_LOGOFF, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2LogoffReply);
+  NetSmb2NBSSRecvReply<NetSmb2LogoffReply> Smb2NBSSReply(SMB2_LOGOFF, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2LogoffReply);
   return  true;
 }
 
@@ -176,7 +176,7 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamInputBuffer &SendBuffer)
   NetNbssHeader       OutNbssHeader;
   NetSmb2Header       OutSmb2Header;
   NetSmb2DisconnectCmd    Smb2DisconnectCmd;
-  NetSmb2NBSSCmd<NetSmb2DisconnectCmd> Smb2NBSSCmd(SMB2_TREE_DISCONNECT, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2DisconnectCmd, 0);
+  NetSmb2NBSSSendCmd<NetSmb2DisconnectCmd> Smb2NBSSCmd(SMB2_TREE_DISCONNECT, SendBuffer,OutNbssHeader,OutSmb2Header, Smb2DisconnectCmd, 0);
 
   Smb2Session *pSmb2Session = smb2_reply_buffer_to_session(SendBuffer);
 
@@ -190,7 +190,7 @@ static int rtsmb2_cli_session_receive_disconnect (NetStreamInputBuffer &ReplyBuf
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
   NetSmb2DisconnectReply  Smb2DisconnectReply;
-  NetSmb2NBSSReply<NetSmb2DisconnectReply> Smb2NBSSReply(SMB2_TREE_DISCONNECT, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2DisconnectReply);
+  NetSmb2NBSSRecvReply<NetSmb2DisconnectReply> Smb2NBSSReply(SMB2_TREE_DISCONNECT, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2DisconnectReply);
   return  RTSMB_CLI_SSN_RV_OK;
 }
 

@@ -37,7 +37,7 @@ bool SmbFilioWorker::send_read()
 
 diag_printf_fn(DIAG_DEBUG,"SmbFilioWorker::send_read() top filenumber This:%X session addr:%X %d\n",this,pSmb2Session,file_number);
 
-  NetSmb2NBSSCmd<NetSmb2ReadCmd> Smb2NBSSCmd(SMB2_READ, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2ReadCmd, variable_content_size);
+  NetSmb2NBSSSendCmd<NetSmb2ReadCmd> Smb2NBSSCmd(SMB2_READ, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2ReadCmd, variable_content_size);
   OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
   Smb2ReadCmd.StructureSize                 =  Smb2ReadCmd.FixedStructureSize();
   Smb2ReadCmd.Flags                         = 0;
@@ -72,7 +72,7 @@ int SmbFilioWorker::recv_read()
       pSmb2Session->diag_text_warning("receive_read command failed pulling fixed part from the socket");
      return -1;
   }
-  NetSmb2NBSSReply<NetSmb2ReadReply> Smb2NBSSReply(SMB2_READ, pSmb2Session, InNbssHeader,InSmb2Header, Smb2ReadReply);
+  NetSmb2NBSSRecvReply<NetSmb2ReadReply> Smb2NBSSReply(SMB2_READ, pSmb2Session, InNbssHeader,InSmb2Header, Smb2ReadReply);
 
 
   if (Smb2ReadReply.DataOffset()!=0 && Smb2ReadReply.DataLength() != 0)  // If zero it means we are empty. Confused why recv hangs when I try to read all bytes on last message (including the 1 byte buff that is zero filled by the server)
@@ -124,7 +124,7 @@ bool SmbFilioWorker::send_write()
   NetSmb2Header       OutSmb2Header;
   NetSmb2WriteCmd     Smb2WriteCmd;
 
-  NetSmb2NBSSCmd<NetSmb2WriteCmd> Smb2NBSSCmd(SMB2_WRITE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2WriteCmd, variable_content_size);
+  NetSmb2NBSSSendCmd<NetSmb2WriteCmd> Smb2NBSSCmd(SMB2_WRITE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2WriteCmd, variable_content_size);
   OutSmb2Header.TreeId                      = pSmb2Session->Shares[share_number].tid;
   Smb2WriteCmd.StructureSize                 =  Smb2WriteCmd.FixedStructureSize();
   Smb2WriteCmd.Length                        = io_request_length;
@@ -161,7 +161,7 @@ int SmbFilioWorker::recv_write()
      io_result = -1;
      return -1;
   }
-  NetSmb2NBSSReply<NetSmb2WriteReply> Smb2NBSSReply(SMB2_WRITE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2WriteReply);
+  NetSmb2NBSSRecvReply<NetSmb2WriteReply> Smb2NBSSReply(SMB2_WRITE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2WriteReply);
   io_result = Smb2WriteReply.Count(); // Assume failure to start
   return io_result;
 }
@@ -173,7 +173,7 @@ bool SmbFilioWorker::send_flush()
   NetSmb2Header       OutSmb2Header;
   NetSmb2FlushCmd     Smb2FlushCmd;
 
-  NetSmb2NBSSCmd<NetSmb2FlushCmd> Smb2NBSSCmd(SMB2_FLUSH, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2FlushCmd, variable_content_size);
+  NetSmb2NBSSSendCmd<NetSmb2FlushCmd> Smb2NBSSCmd(SMB2_FLUSH, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2FlushCmd, variable_content_size);
   OutSmb2Header.TreeId                      = pSmb2Session->Shares[share_number].tid;
   Smb2FlushCmd.StructureSize                = Smb2FlushCmd.FixedStructureSize();
   Smb2FlushCmd.FileId                       = pSmb2Session->Files[file_number].get_file_id();;
@@ -194,7 +194,7 @@ bool SmbFilioWorker::recv_flush()
       pSmb2Session->diag_text_warning("receive_flush failed pulling fixed part from the socket");
      return false;
   }
-  NetSmb2NBSSReply<NetSmb2FlushReply> Smb2NBSSReply(SMB2_FLUSH, pSmb2Session, InNbssHeader,InSmb2Header, Smb2FlushReply);
+  NetSmb2NBSSRecvReply<NetSmb2FlushReply> Smb2NBSSReply(SMB2_FLUSH, pSmb2Session, InNbssHeader,InSmb2Header, Smb2FlushReply);
   return true;
 }
 

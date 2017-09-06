@@ -103,7 +103,7 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2CreateCmd Smb2CreateCmd;
 
-    NetSmb2NBSSCmd<NetSmb2CreateCmd> Smb2NBSSCmd(SMB2_CREATE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CreateCmd, variable_content_size);
+    NetSmb2NBSSSendCmd<NetSmb2CreateCmd> Smb2NBSSCmd(SMB2_CREATE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CreateCmd, variable_content_size);
 
     OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
 
@@ -149,7 +149,7 @@ private:
 
     if (r == NetStatusOk)
     {
-      NetSmb2NBSSReply<NetSmb2CreateReply> Smb2NBSSReply(SMB2_CREATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CreateReply);
+      NetSmb2NBSSRecvReply<NetSmb2CreateReply> Smb2NBSSReply(SMB2_CREATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CreateReply);
       Smb2CreateReply.FileId.get(file_id);
       rv = true;
     }
@@ -244,7 +244,7 @@ private:
     NetSmb2Header       OutSmb2Header;
     NetSmb2CloseCmd Smb2CloseCmd;
 
-    NetSmb2NBSSCmd<NetSmb2CloseCmd> Smb2NBSSCmd(SMB2_CLOSE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CloseCmd, 0);
+    NetSmb2NBSSSendCmd<NetSmb2CloseCmd> Smb2NBSSCmd(SMB2_CLOSE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CloseCmd, 0);
 
 
     OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
@@ -268,7 +268,7 @@ private:
 
     if (r == NetStatusOk)
     {
-      NetSmb2NBSSReply<NetSmb2CloseReply> Smb2NBSSReply(SMB2_CLOSE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CloseReply);
+      NetSmb2NBSSRecvReply<NetSmb2CloseReply> Smb2NBSSReply(SMB2_CLOSE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2CloseReply);
     }
     return true;
   }
@@ -363,7 +363,7 @@ private:
       *converted_string     =  newname;
       variable_content_size= Smb2RenameInfoType2.PackedStructureSize()+ converted_string->utf16_length();
     }
-    NetSmb2NBSSCmd<NetSmb2SetinfoCmd> Smb2NBSSCmd(SMB2_SET_INFO, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetinfoCmd, variable_content_size);
+    NetSmb2NBSSSendCmd<NetSmb2SetinfoCmd> Smb2NBSSCmd(SMB2_SET_INFO, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2SetinfoCmd, variable_content_size);
 
     OutSmb2Header.TreeId = pSmb2Session->Shares[share_number].tid;
     Smb2SetinfoCmd.StructureSize = Smb2SetinfoCmd.FixedStructureSize();
@@ -422,7 +422,7 @@ private:
       pSmb2Session->diag_text_warning("receive_setinfo command failed pulling from the socket");
       return false;
     }
-    NetSmb2NBSSReply<NetSmb2SetinfoReply> Smb2NBSSReply(SMB2_SET_INFO, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetinfoReply);
+    NetSmb2NBSSRecvReply<NetSmb2SetinfoReply> Smb2NBSSReply(SMB2_SET_INFO, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetinfoReply);
 
     return true;
   }
