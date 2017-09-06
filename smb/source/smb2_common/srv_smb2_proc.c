@@ -58,6 +58,8 @@
 extern word spnego_AuthenticateUser (PSMB_SESSIONCTX pCtx, decoded_NegTokenTarg_t *decoded_targ_token, word *extended_authId);
 void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result);
 
+extern int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin, dword wite_size);
+
 
 #include "rtptime.h"
 
@@ -128,9 +130,23 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     pSctx->SMB2_FrameState.NextCommandOffset = 0;
     pSctx->SMB2_FrameState.stackcontext_state = ST_INPROCESS;
 
+
+
+
     // If not replaying, clear the stream structure and set buffer pointers from the smbv1 style SMB_SESSIONCTX structure
     if (!replay)
       Smb1SrvCtxtToStream(pStream, pSctx);
+#if (0)
+    int bodysize = FuckWithSmb2OO(pStream->read_origin, pSctx->readBufferSize, pStream->write_origin,pStream->write_buffer_size);
+    if (bodysize>0)
+    {
+      pSctx->SMB2_FrameState.stackcontext_state=ST_TRUE;
+      pStream->OutBodySize = bodysize;
+      // we will reply now so restore pSctx->outBodySize. pSctx->doSocketClose and pSctx->doSessionClose from stream
+      Smb1SrvCtxtFromStream(pSctx, &pSctx->SMB2_FrameState.smb2stream);
+      return pSctx->SMB2_FrameState.stackcontext_state;
+    }
+#endif
     /* read header */
     if (cmd_read_header_raw_smb2( pStream->read_origin, pStream->read_origin,  pStream->InBodySize, &(pStream->InHdr)) == -1)
     {
