@@ -63,7 +63,7 @@ private:
     NetSmb2EchoReply  Smb2EchoReply;
     bool rv = false;
      // Pull  the fixed part
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("ECHO", Smb2EchoReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("ECHO", Smb2EchoReply.PackedStructureSize(), bytes_pulled);
     if (r == NetStatusOk)
       rv = true;
     return rv;

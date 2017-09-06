@@ -15,7 +15,7 @@
 
 #include "smb2clientincludes.hpp"
 
-Smb2Session *smb2_reply_buffer_to_session(NetStreamInputBuffer &ReplyBuffer);
+Smb2Session *smb2_reply_buffer_to_session(NetStreamInputBuffer &RecvBuffer);
 extern int PassDirscanToShell(void *pBuffer);
 
 
@@ -66,7 +66,7 @@ private:
     NetSmb2QuerydirectoryReply Smb2QuerydirectoryReply;
     NetStatus r;
 
-    r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("QUERY", Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
+    r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("QUERY", Smb2QuerydirectoryReply.PackedStructureSize(), bytes_pulled);
     if (r != NetStatusOk && r != NetStatusServerErrorStatus)
     {
       return false;
@@ -82,7 +82,7 @@ private:
       return rv;
     }
 
-    pSmb2Session->ReplyBuffer.consume_bytes(bytes_pulled);
+    pSmb2Session->RecvBuffer.consume_bytes(bytes_pulled);
     if (InSmb2Header.Status_ChannelSequenceReserved() == SMB2_STATUS_NO_MORE_FILES)
     {
       has_continue = false;
@@ -99,13 +99,13 @@ private:
       if (t>0)
       {
         pSmb2Session->diag_text_warning("receive_querydirectory content was offset ??");
-        pSmb2Session->ReplyBuffer.consume_bytes(t);
+        pSmb2Session->RecvBuffer.consume_bytes(t);
         bytes_pulled += t;
       }
       // read in the content which will fit in our buffer if the server obneyed our max transaction size
       dword payload_bytes_pulled = 0;
       total_bytes_left = (InNbssHeader.nbss_packet_size()+4)-bytes_pulled;
-      if (pSmb2Session->ReplyBuffer.pull_nbss_data(total_bytes_left,payload_bytes_pulled)!=NetStatusOk)
+      if (pSmb2Session->RecvBuffer.pull_nbss_data(total_bytes_left,payload_bytes_pulled)!=NetStatusOk)
       {
         pSmb2Session->diag_text_warning("receive_querydirectory command failed pulling variable part from the socket");
         return false;
@@ -122,15 +122,15 @@ private:
     if (payload_bytes_left)
     {
       dword bytes_ready;
-      byte *pdata = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
+      byte *pdata = pSmb2Session->RecvBuffer.buffered_data_pointer(bytes_ready);
       while (bytes_ready)
       {
         int next_offset;
         next_offset = PassDirscanToShell(pdata);
         if (next_offset>0 && next_offset <= bytes_ready)
         {
-          pSmb2Session->ReplyBuffer.consume_bytes(next_offset);
-          pdata = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
+          pSmb2Session->RecvBuffer.consume_bytes(next_offset);
+          pdata = pSmb2Session->RecvBuffer.buffered_data_pointer(bytes_ready);
         }
         else
         {

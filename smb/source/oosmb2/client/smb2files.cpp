@@ -144,8 +144,8 @@ private:
     bool rv = false;
 
      // Pull enough for the fixed part and then map pointers to input buffer
-//    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2CreateReply.PackedStructureSize(), bytes_pulled);
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("CREATE", Smb2CreateReply.PackedStructureSize(), bytes_pulled);
+//    NetStatus r = pSmb2Session->RecvBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2CreateReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("CREATE", Smb2CreateReply.PackedStructureSize(), bytes_pulled);
 
     if (r == NetStatusOk)
     {
@@ -264,7 +264,7 @@ private:
     NetSmb2Header       InSmb2Header;
     NetSmb2CloseReply  Smb2CloseReply;
 
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("CLOSE", Smb2CloseReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("CLOSE", Smb2CloseReply.PackedStructureSize(), bytes_pulled);
 
     if (r == NetStatusOk)
     {
@@ -414,8 +414,8 @@ private:
     NetNbssHeader       InNbssHeader;
     NetSmb2Header       InSmb2Header;
     NetSmb2SetinfoReply Smb2SetinfoReply;
-//    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("SETINFO", Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
+//    NetStatus r = pSmb2Session->RecvBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("SETINFO", Smb2SetinfoReply.PackedStructureSize(), bytes_pulled);
 
     if (r != NetStatusOk)
     {

@@ -23,7 +23,7 @@ public:
     isvariable = false; base_address=0; variablesize=0;
     smb2_command = command;
     dword bytes_ready;
-    byte *nbsshead =  pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
+    byte *nbsshead =  pSmb2Session->RecvBuffer.buffered_data_pointer(bytes_ready);
     byte *nbsstail  = nbsshead+4;
     byte *cmdtail =   bindpointers(nbsshead);
   }
@@ -36,7 +36,7 @@ public:
   }
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
-       byte *nbsshead = _raw_address; // Was this in earklier build. ReplyBuffer->session_wire_incoming_nbss_header;
+       byte *nbsshead = _raw_address; // Was this in earklier build. RecvBuffer->session_wire_incoming_nbss_header;
        byte *nbsstail =nbss->bindpointers(nbsshead);
        byte *smbtail = smb2->bindpointers(nbsstail);
        byte *replytail = reply->bindpointers(smbtail);

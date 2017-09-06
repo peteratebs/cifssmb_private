@@ -107,8 +107,8 @@ private:
     NetSmb2TreeconnectReply Smb2TreeconnectReply;
 
      // Pull enough for the fixed part and then map pointers toi input buffer
-//    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("TREECONNECT", Smb2TreeconnectReply.FixedStructureSize(), bytes_pulled);
+//    NetStatus r = pSmb2Session->RecvBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2TreeconnectReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("TREECONNECT", Smb2TreeconnectReply.FixedStructureSize(), bytes_pulled);
     if (r != NetStatusOk)
     {
       pSmb2Session->diag_text_warning("receive_treeconnect command failed pulling from the socket");
@@ -155,12 +155,12 @@ static int rtsmb2_cli_session_send_logoff (NetStreamInputBuffer &SendBuffer)
   Smb2NBSSCmd.flush();
   return Smb2NBSSCmd.status;
 }
-static bool rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &ReplyBuffer)
+static bool rtsmb2_cli_session_receive_logoff (NetStreamInputBuffer &RecvBuffer)
 {
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
   NetSmb2LogoffReply  Smb2LogoffReply;
-  NetSmb2NBSSRecvReply<NetSmb2LogoffReply> Smb2NBSSReply(SMB2_LOGOFF, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2LogoffReply);
+  NetSmb2NBSSRecvReply<NetSmb2LogoffReply> Smb2NBSSReply(SMB2_LOGOFF, RecvBuffer, InNbssHeader,InSmb2Header, Smb2LogoffReply);
   return  true;
 }
 
@@ -185,12 +185,12 @@ static int rtsmb2_cli_session_send_disconnect (NetStreamInputBuffer &SendBuffer)
   Smb2NBSSCmd.flush();
   return Smb2NBSSCmd.status;
 }
-static int rtsmb2_cli_session_receive_disconnect (NetStreamInputBuffer &ReplyBuffer)
+static int rtsmb2_cli_session_receive_disconnect (NetStreamInputBuffer &RecvBuffer)
 {
   NetNbssHeader       InNbssHeader;
   NetSmb2Header       InSmb2Header;
   NetSmb2DisconnectReply  Smb2DisconnectReply;
-  NetSmb2NBSSRecvReply<NetSmb2DisconnectReply> Smb2NBSSReply(SMB2_TREE_DISCONNECT, ReplyBuffer, InNbssHeader,InSmb2Header, Smb2DisconnectReply);
+  NetSmb2NBSSRecvReply<NetSmb2DisconnectReply> Smb2NBSSReply(SMB2_TREE_DISCONNECT, RecvBuffer, InNbssHeader,InSmb2Header, Smb2DisconnectReply);
   return  RTSMB_CLI_SSN_RV_OK;
 }
 

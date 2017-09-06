@@ -121,14 +121,14 @@ private:
     NetSmb2NegotiateReply Smb2NegotiateReply;
     dword bytes_pulled;
 
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize() ,bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize() ,bytes_pulled);
     if (r != NetStatusOk)
     {
        pSmb2Session->diag_text_warning("Socket error pulling receive_negotiate message status:%d",r);
        return false;
     }
     dword bytes_ready;
-    byte *message_base = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
+    byte *message_base = pSmb2Session->RecvBuffer.buffered_data_pointer(bytes_ready);
     NetSmb2NBSSRecvReply<NetSmb2NegotiateReply> Smb2NBSSReply(SMB2_NEGOTIATE, pSmb2Session, InNbssHeader,InSmb2Header, Smb2NegotiateReply);
 
 
@@ -190,7 +190,7 @@ private:
 
     bool r = send_setup (); // (NetStreamInputBuffer &SendBuffer);
     if (r)
-        r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
+        r = receive_setup(); // (NetStreamInputBuffer &RecvBuffer);
     return r;
   }
 
@@ -231,7 +231,7 @@ private:
     NetSmb2SetupReply Smb2SetupReply;
 
     // Pull enough for the fixed part and then map pointers toi input buffer
-    NetStatus r = pSmb2Session->ReplyBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.PackedStructureSize(), bytes_pulled);
+    NetStatus r = pSmb2Session->RecvBuffer.pull_new_nbss_frame(InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize()+Smb2SetupReply.PackedStructureSize(), bytes_pulled);
     if (r != NetStatusOk)
     {
       pSmb2Session->diag_text_warning("Socket error pulling recieve_setup message status:%d",r);
@@ -251,7 +251,7 @@ private:
     if (Smb2SetupReply.SecurityBufferLength()&&Smb2SetupReply.SecurityBufferLength() < 2048)
     {
       dword security_bytes_pulled;
-      r = pSmb2Session->ReplyBuffer.pull_nbss_data(Smb2SetupReply.SecurityBufferLength(), security_bytes_pulled);
+      r = pSmb2Session->RecvBuffer.pull_nbss_data(Smb2SetupReply.SecurityBufferLength(), security_bytes_pulled);
       if (r != NetStatusOk)
       {
         pSmb2Session->diag_text_warning("receive_setup recv  error pulling security buffer");
@@ -311,7 +311,7 @@ diag_dump_bin_fn(DIAG_INFORMATIONAL,"calculated session key is: ", pSmb2Session-
       r= false;
     }
     if (r)
-      r = receive_setup(); // (NetStreamInputBuffer &ReplyBuffer);
+      r = receive_setup(); // (NetStreamInputBuffer &RecvBuffer);
     return r;
   }
 };

@@ -113,7 +113,7 @@ public:
   {
     current_command_name = _command_name;
     current_command_id   = _command_id;
-    ReplyBuffer.drain_socket_input();
+    RecvBuffer.drain_socket_input();
     SendBuffer.drain_socket_output();
     return true;
   }
@@ -199,7 +199,7 @@ public:
   RTSMB_CLI_SESSION_USER_STATE user_state() { return _p_user_state; }
 
   NetStreamOutputBuffer     SendBuffer;
-  NetStreamInputBuffer      ReplyBuffer;
+  NetStreamInputBuffer      RecvBuffer;
 
   Smb2Share       Shares    [RTSMB_CFG_MAX_SHARESPERSESSION];
   Smb2File        Files     [RTSMB_CFG_MAX_FILESPERSESSION];

@@ -97,11 +97,11 @@ bool Smb2Session::connect_buffers() // private
   _p_reply_buffer_raw = (byte *)rtp_malloc(_p_reply_buffer_size);
 
   SendBuffer.attach_buffer(_p_send_buffer_raw, _p_send_buffer_size);
-  ReplyBuffer.attach_buffer(_p_reply_buffer_raw, _p_reply_buffer_size);
+  RecvBuffer.attach_buffer(_p_reply_buffer_raw, _p_reply_buffer_size);
 
   sourcesockContext.socket = SmbSocket.socket();
   SocketSource.SourceFromDevice (socket_source_function, socket_drain_function, (void *)&sourcesockContext);
-  ReplyBuffer.attach_source(SocketSource);
+  RecvBuffer.attach_source(SocketSource);
 
   sinksockContext.socket = SmbSocket.socket();
   SocketSink.AssignSendFunction(socket_sink_function, (void *)&sinksockContext);

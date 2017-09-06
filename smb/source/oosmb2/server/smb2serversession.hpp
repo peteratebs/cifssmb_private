@@ -26,7 +26,7 @@ public:
   {
   }
   NetStreamOutputBuffer     SendBuffer;
-  NetStreamInputBuffer      ReplyBuffer;
+  NetStreamInputBuffer      RecvBuffer;
 private:
 //  int                _p_session_number;
 //  int                _p_session_state;

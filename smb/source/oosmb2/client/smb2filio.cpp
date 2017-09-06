@@ -66,7 +66,7 @@ int SmbFilioWorker::recv_read()
   int nread = 0; // return this through io_result if all goes well
 
   io_result = -1; // Assume failure to start
-  r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("READ", Smb2ReadReply.PackedStructureSize(), bytes_pulled);
+  r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("READ", Smb2ReadReply.PackedStructureSize(), bytes_pulled);
   if (r != NetStatusOk)
   {
       pSmb2Session->diag_text_warning("receive_read command failed pulling fixed part from the socket");
@@ -81,10 +81,10 @@ int SmbFilioWorker::recv_read()
     if (t>0)
     {
       pSmb2Session->diag_text_warning("receive_querydirectory content was offset ??");
-      pSmb2Session->ReplyBuffer.consume_bytes(t);
+      pSmb2Session->RecvBuffer.consume_bytes(t);
       bytes_pulled += t;
     }
-    pSmb2Session->ReplyBuffer.consume_bytes(bytes_pulled);
+    pSmb2Session->RecvBuffer.consume_bytes(bytes_pulled);
     dword nreadd = Smb2ReadReply.DataLength(); // return this through io_result if all goes well
     // read in the content which shouldl fit in our buffer.
     dword total_bytes_left = Smb2ReadReply.DataLength();
@@ -96,11 +96,11 @@ int SmbFilioWorker::recv_read()
         total_bytes_left = nreadd;
     }
     dword bytes_ready;
-    byte *pdata = pSmb2Session->ReplyBuffer.buffered_data_pointer(bytes_ready);
+    byte *pdata = pSmb2Session->RecvBuffer.buffered_data_pointer(bytes_ready);
     while (total_bytes_left)
     {
       dword payload_bytes_pulled = 0;
-      if (pSmb2Session->ReplyBuffer.pull_nbss_data(total_bytes_left,payload_bytes_pulled)!=NetStatusOk ||  payload_bytes_pulled==0)
+      if (pSmb2Session->RecvBuffer.pull_nbss_data(total_bytes_left,payload_bytes_pulled)!=NetStatusOk ||  payload_bytes_pulled==0)
       {
         pSmb2Session->diag_text_warning("receive_read command failed pulling variable part from the socket");
         return -1;
@@ -154,7 +154,7 @@ int SmbFilioWorker::recv_write()
   int nwritten = 0; // return this through io_result if all goes well
 
   io_result = -1; // Assume failure to start
-  r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("WRITE", Smb2WriteReply.PackedStructureSize(), bytes_pulled);
+  r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("WRITE", Smb2WriteReply.PackedStructureSize(), bytes_pulled);
   if (r != NetStatusOk)
   {
       pSmb2Session->diag_text_warning("receive_read write failed pulling fixed part from the socket");
@@ -188,7 +188,7 @@ bool SmbFilioWorker::recv_flush()
   NetSmb2Header       InSmb2Header;
   NetSmb2FlushReply   Smb2FlushReply;
   NetStatus r;
-  r = pSmb2Session->ReplyBuffer.pull_nbss_frame_checked("FLUSH", Smb2FlushReply.PackedStructureSize(), bytes_pulled);
+  r = pSmb2Session->RecvBuffer.pull_nbss_frame_checked("FLUSH", Smb2FlushReply.PackedStructureSize(), bytes_pulled);
   if (r != NetStatusOk)
   {
       pSmb2Session->diag_text_warning("receive_flush failed pulling fixed part from the socket");
