@@ -18,7 +18,8 @@ SMB_PATH  = ../../../smb
 
 include ../mkgnu.inc
 
-includes = . $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+includes = $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include) $(lib_to_rtsmb2_client_include) $(lib_to_rtsmb2_oocommon_path) $(lib_to_rtsmb2_ooclient_path)
+
 
 
 
@@ -27,7 +28,7 @@ includes = . $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 ########################################################################
 
 
-vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb2_client_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
+vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb2_ooclient_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
 
 vpath %.h   . $(lib_to_rtsmb2_client_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
@@ -63,12 +64,11 @@ defines += BOOST_SYSTEM_NO_DEPRECATED
 # dirs = $(lib_to_webc_path)
 
 # rtsmb client build
-includes += $(lib_to_rtsmb2_client_include)
-dirs = $(lib_to_rtsmb2_client_path) $(lib_to_rtsmb_client_demo_path)
+#  includes += $(lib_to_rtsmb2_client_include) $(lib_to_rtsmb2_oocommon_path) $(lib_to_rtsmb2_client_include) $(lib_to_rtsmb2_oocommon_path)
+dirs = $(lib_to_rtsmb2_ooclient_path) $(lib_to_rtsmb2_oocommon_path) $(lib_to_rtsmb_client_demo_path)
 
 ## Note: debug dynamic allocation for client
 #defines += ALLOC_FROM_HEAP
-
 
 
 #RTSMB COMMON FILES USED
@@ -78,10 +78,14 @@ dirs = $(lib_to_rtsmb2_client_path) $(lib_to_rtsmb_client_demo_path)
 
 #RTSMB CLIENT FILES USED
 
-clienthpfiles := $(wildcard $(lib_to_rtsmb2_client_path)/*.hpp)
+clienthpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.hpp) $(wildcard $(lib_to_rtsmb2_oocommon_path)/*.hpp)
 hpdependlist := $(hpfiles)
 
-cpfiles := $(wildcard $(lib_to_rtsmb2_client_path)/*.cpp)
+# cpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.cpp) $(wildcard $(lib_to_rtsmb2_oocommon_path)/*.cpp)
+
+cpfiles := $(foreach dir,$(dirs),$(wildcard $(dir)/*.cpp))
+# cpfiles += $(lib_to_rtsmb2_oocommon_path)/hmacsha256.cpp
+
 
 cpmodules := $(patsubst %.cpp,%,$(cpfiles))
 

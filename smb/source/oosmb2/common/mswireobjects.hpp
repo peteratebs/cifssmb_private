@@ -49,7 +49,7 @@ public:
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
   const char *command_name() { return "BOTH";} // not an smb command so these are bogus
-  const int   command_id()   { return 0;}
+  int   command_id()   { return 0;}
   int  PackedStructureSize()   { return FixedStructureSize()-1; };
   byte *FixedStructureAddress() { return base_address; };
   void SetDefaults()  { };

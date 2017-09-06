@@ -30,11 +30,9 @@ using std::cout;
 using std::endl;
 
 // Log levels for further processing by cout_log()
-#define LL_JUNK  0
-#define LL_TESTS 1
-#define LL_INIT  2
-// Macro for now but convert to a class for a better outcome
-#define cout_log(level) cout
+//#define LL_JUNK  0
+//#define LL_TESTS 1
+//#define LL_INIT  2
 
 
 #endif // include_smbutils

@@ -60,7 +60,6 @@ public:
       {
        if (pSmb2Session->user_state() != CSSN_USER_STATE_CHALLENGED)
        {
-         cout_log(LL_JUNK) << "didnt get to CSSN_USER_STATE_CHALLENGED state" << endl;
          pSmb2Session->diag_text_warning("didnt get to CSSN_USER_STATE_CHALLENGED state");
          return false;
        }

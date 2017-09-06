@@ -13,4 +13,10 @@
 //
 
 
-#include "smb2clientincludes.hpp"
+// #include "smb2clientincludes.hpp"
+#include "smb2defs.hpp"
+#include "smb2diagnostics.hpp"
+#include "smb2socks.hpp"
+#include "netstreambuffer.hpp"
+#include "wireobjects.hpp"
+#include "smb2wireobjects.hpp"

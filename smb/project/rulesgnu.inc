@@ -65,6 +65,8 @@ $(OBJDIR)/%.$(obj): %.cpp
 
 ifeq ($(doclient),"Y")
 include ../clientrulesgnu.inc
+else
+include ../serverrulesgnu.inc
 endif
 # bin/srvssn.o: $(lib_to_rtsmb_server_path)/srvssn.c
 $(OBJDIR)/srvobjects.o: $(lib_to_rtsmb_server_path)/srvobjects.c

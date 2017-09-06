@@ -12,7 +12,7 @@
 //  SMB2 client session level interface
 //
 
-#include "smb2clientincludes.hpp"
+#include "smb2commonincludes.hpp"
 #include "mswireobjects.hpp"
 
 void ms_FILE_ID_BOTH_DIR_INFORMATION::BindAddressesToBuffer(byte *base)

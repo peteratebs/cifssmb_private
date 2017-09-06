@@ -34,16 +34,16 @@ lib_to_http_include_path     = $(HTTP_PATH)/include
 # SOURCE PATHS
 ########################################################################
 
-# vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_nbserver_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path)  $(lib_to_rtsmb2_client_path) $(lib_to_rtsmb_boostclient_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
+# vpath %.c   . $(app_to_RTSMB_path) $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtsmb_server_demo_path) $(lib_to_rtsmb_nbserver_path) $(lib_to_rtsmb_server_path) $(lib_to_rtsmb_client_path)  $(lib_to_rtsmb2_ooclient_path) $(lib_to_rtsmb_boostclient_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric)
 # vpath %.h   ..$(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_server_include) $(lib_to_rtsmb_client_include) $(lib_to_rtsmb2_client_include) $(lib_to_rtsmb_boostclient_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
 
 
-vpath %.c   . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path)  $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_client_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
+vpath %.c   . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path)  $(lib_to_rtsmb_crypto_path) $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_ooclient_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
 
 vpath %.h   .. $(lib_to_rtsmb_common_include) $(lib_to_rtsmb_client_include) $(lib_to_rtsmb2_client_include) $(lib_to_rtsmb2_common_include)$(lib_to_http_include_path)  $(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
 
-vpathXXX = . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_client_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
+vpathXXX = . $(app_to_RTSMB_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_common_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_ooclient_path) $(lib_to_rtsmb2_common_path) $(lib_to_rtptarget) $(lib_to_rtpgeneric) $(lib_to_rtsmb_client_demo_path)
 ########################################################################
 # OPERATING SYSTEM/ENVIRONMENT SPECIFIC MODULES
 ########################################################################
@@ -77,7 +77,7 @@ defines += BOOST_SYSTEM_NO_DEPRECATED
 
 # rtsmb client build
 includes += $(lib_to_rtsmb_nbserver_include) $(lib_to_rtsmb_client_include) $(lib_to_rtsmb2_client_include) $(lib_to_http_include_path) $(lib_to_rtsmb_commonnb_include)
-dirs = $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_client_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_client_demo_path)
+dirs = $(lib_to_rtsmb_commonnb_path) $(lib_to_rtsmb_client_path) $(lib_to_rtsmb2_ooclient_path) $(lib_to_http_common_path) $(lib_to_http_example_path) $(lib_to_rtsmb_client_demo_path)
 
 includes += $(lib_to_rtsmb_server_include)
 
@@ -142,11 +142,11 @@ cfiles += $(lib_to_rtsmb_client_path)/cliwire.c
 cfiles += $(lib_to_rtsmb_client_path)/clsrvsvc.c
 
 
-clienthpfiles := $(wildcard $(lib_to_rtsmb2_client_path)/*.hpp)
+clienthpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.hpp)
 #hpdependlist := $(patsubst %.hpp,%,$(hpfiles))
 hpdependlist := $(hpfiles)
 
-cpfiles := $(wildcard $(lib_to_rtsmb2_client_path)/*.cpp)
+cpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.cpp)
 
 //cpfiles += $(lib_to_rtsmb_client_path)/wireobjects.cpp
 //cpfiles += $(lib_to_rtsmb_client_path)/smb2wireobjects.cpp

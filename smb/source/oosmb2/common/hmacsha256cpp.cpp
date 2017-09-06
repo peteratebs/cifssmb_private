@@ -95,7 +95,6 @@ _PUBLIC_ void hmac_sha256_final(uint8_t digest[SHA256_DIGEST_LENGTH], struct HMA
    SHA256_Final(digest, &ctx_o);
 }
 
-
 void calculate_smb2_signing_key(void *signing_key, void *data, size_t data_len, unsigned char *result)
 {
   struct HMACSHA256Context m;

@@ -14,7 +14,7 @@
 /* Header files
  *****************************************************************************/
 
-#include "smb2clientincludes.hpp"
+#include "smb2commonincludes.hpp"
 #include "rtptime.h"
 //#include "rtpprint.h"
 
