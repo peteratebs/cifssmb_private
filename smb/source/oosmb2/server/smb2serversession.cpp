@@ -46,3 +46,32 @@ bool Smb2ServerSession::connect_buffers() // private
   return true;
 }
 
+
+extern "C" int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin, dword wrtite_size)
+{
+  byte *nbss_read_origin= (byte *) read_origin;
+  nbss_read_origin -= 4; // Look at the NBSS header
+  diag_printf_fn(DIAG_INFORMATIONAL,"FuckWithSmb2OO size is: %d\n", size);
+  diag_printf_fn(DIAG_INFORMATIONAL,"FuckWithSmb2OO is: %X %d\n", read_origin,size);
+
+  NetNbssHeader       InNbssHeader;
+  NetSmb2Header       InSmb2Header;
+
+  InNbssHeader.bindpointers(nbss_read_origin);
+  InSmb2Header.bindpointers(nbss_read_origin+InNbssHeader.FixedStructureSize());
+
+  InNbssHeader.show_contents();
+  InSmb2Header.show_contents();
+
+#define SMB2_ECHO               0x000D   // Smartpointer and handler  completed
+  if (InSmb2Header.Command() == SMB2_ECHO)
+  {
+    NetSmb2EchoCmd Smb2EchoCmd;
+    Smb2EchoCmd.bindpointers(nbss_read_origin+InNbssHeader.FixedStructureSize()+InSmb2Header.FixedStructureSize());
+
+    diag_printf_fn(DIAG_INFORMATIONAL,"FuckWithSmb2OO RECVED echo: %d\n", Smb2EchoCmd.StructureSize());
+    strcpy((char *)write_origin, "Suck on this  Suck on this  Suck on this  Suck on this  Suck on this  Suck on this  ");
+    return strlen("Suck on this  Suck on this  Suck on this  Suck on this  Suck on this  Suck on this  ");
+  }
+  return 0;
+}

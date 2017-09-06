@@ -997,7 +997,7 @@ private:
 class NetSmb2EchoCmd  : public NetWireStruct   {
 public:
   NetSmb2EchoCmd() {objectsize=4; }
-  NetWireword    StructureSize; // 49
+  NetWireword    StructureSize; // 4
   NetWireword    Reserved;
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;

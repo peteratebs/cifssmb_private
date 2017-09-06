@@ -139,8 +139,8 @@ public:
   {
     set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
   }
-    #define DOLINUX   0
-    #define DOWINDOWS 1
+    #define DOLINUX   1
+    #define DOWINDOWS 0
     #define DOEBS     0
   void go()
   {
@@ -149,6 +149,9 @@ public:
 #endif
 #if(DOWINDOWS)
      char *ip   = "192.168.1.12";
+#endif
+#if(DOEBS)
+    char *ip   = "192.168.1.2";
 #endif
     byte mask[] = {255,255,255,0};
 
