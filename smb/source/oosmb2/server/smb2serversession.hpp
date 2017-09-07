@@ -22,20 +22,15 @@ public:
 //  RTSMB2_CLI_SESSION_USER  user;
 //  RTSMB2_CLI_SESSION_SHARE share;
 //  Smb2ServerSession() ;
-  Smb2ServerSession()
-  {
-  }
+  Smb2ServerSession();
+  void AttachLegacyBuffers(byte *_read_origin, dword _read_size, byte *_write_origin, dword _write_size);
+
+  int ProcessNegotiate();
+
+
   NetStreamOutputBuffer     SendBuffer;
   NetStreamInputBuffer      RecvBuffer;
 private:
-//  int                _p_session_number;
-//  int                _p_session_state;
-//  int                _p_sid;
-//  dword              _p_timestamp;
-//  ddword              _p_session_mid;  // Smb legacy should be
-//  word               _p_uid;        // A little confused abiut this one still
-//  byte               _p_session_key[16];
-//  bool               _p_session_key_valid;
   int _p_reply_buffer_size;
   int _p_send_buffer_size;
   byte *_p_send_buffer_raw;
@@ -48,11 +43,25 @@ private:
   bool connect_buffers() ;
   bool disconnect_buffers() ;
 
+  // properties recieved from the client
+  dword  client_capabilities;
 
-//  const char *current_command_name;
-//  int current_command_id;
+  // properties inhereted from the environment.
+  byte server_guid[16];
+  dword  server_max_transaction_size;
+  dword  server_global_caps;
+  bool   server_require_signing;
+
+  // temporary stealing from old stream stuff
+  byte *read_origin;
+  dword read_size;
+  byte *write_origin;
+  dword write_size;
+
 
 };
+
+
 #if(0)
 typedef enum
 {

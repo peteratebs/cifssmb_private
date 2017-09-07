@@ -67,8 +67,9 @@ extern "C" {
 #define SMB2_NT_STATUS_SUCCESS                  0x00000000
 #define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
+#define SMB2_STATUS_INVALID_PARAMETER           0xC000000D /* The parameter specified in the request is not valid. */
 #define SMB_NT_STATUS_MORE_PROCESSING_REQUIRED  0xC0000016
-
+#define SMB2_STATUS_NOT_SUPPORTED               0xC00000BB /* The client request is not supported. */
 
 
 
@@ -142,6 +143,22 @@ public:
        base_address = _raw_address;
        BindAddressesToBuffer( _raw_address);
        return _raw_address+FixedStructureSize();}
+  void InitializeReply(NetSmb2Header &Smb2Header)
+  {
+    ProtocolId                     = (byte *)Smb2Header.ProtocolId();
+    Command                        = Smb2Header.Command();
+    CreditCharge                   = Smb2Header.CreditCharge() ;
+    Status_ChannelSequenceReserved = Smb2Header.Status_ChannelSequenceReserved() ;
+    Command                        = Smb2Header.Command() ;
+    CreditRequest_CreditResponse   = Smb2Header.CreditRequest_CreditResponse() ;
+    Flags = SMB2_FLAGS_SERVER_TO_REDIR; // Smb2Header.Flags() ;
+//    NextCommand = NextCommand.NextCommand() ;
+    MessageId                       = Smb2Header.MessageId() ;
+    Reserved                        = Smb2Header.Reserved() ;
+    TreeId                          = Smb2Header.TreeId() ;
+    SessionId                       = Smb2Header.SessionId() ;
+//    Signature = Signature.Signature ;
+  }
   void Initialize(dword command,ddword mid, ddword _SessionId)
   {
     ProtocolId    =     (byte *)"\xfeSMB";
@@ -201,8 +218,6 @@ public:
     NetWiredword Capabilities;
     NetWireblob16 guid;
     NetWireFileTime ClientStartTime;
-
-
     NetWireword Dialect0;
     NetWireword Dialect1;
     NetWireword Dialect2;
@@ -225,6 +240,7 @@ private:
   void BindAddressClose(BindNetWireArgs & args) {};
   void BindAddressesToBuffer(byte *base);
 };
+
 
 class NetSmb2NegotiateReply  : public NetWireStruct   {
 public:
