@@ -154,7 +154,7 @@ static PFRTCHAR GetNameRoot( PFRTCHAR name)
   if(name[0] == '\\')
   {
   // get past obligatory slashes
-      for(i=0; i < 3; name++)
+      for(i=0; i < 2; name++)
       {
           if(name[0] == '\0')
           {
