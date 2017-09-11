@@ -21,7 +21,7 @@
 
 typedef char * warning_string_t;
 
-inline void free_warning(warning_string_t &warning_string) { cout << *warning_string << endl; rtp_free(warning_string);}
+inline void free_warning(warning_string_t &warning_string) { cout << *warning_string << endl; smb_rtp_free(warning_string);}
 
 class smb_diagnostics {
 public:

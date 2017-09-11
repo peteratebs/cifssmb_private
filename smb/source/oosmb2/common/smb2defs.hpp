@@ -44,8 +44,12 @@
 #define SMB_ITOHDD(A) A
 
 
-#define rtp_malloc_auto_freed rtp_malloc
-#define rtp_free_auto_free rtp_free
+void *smb_rtp_malloc(size_t s);
+void smb_rtp_free(void *s);
+
+
+#define rtp_malloc_auto_freed smb_rtp_malloc
+#define rtp_free_auto_free smb_rtp_free
 #define rtp_freed_from_object             // does nothing just a marker where rtp_free is replaced by the localallocator destructor.
 
 #define rtp_wcslen_bytes(S) (rtp_wcslen((S))*2)
@@ -81,44 +85,60 @@ typedef ptrdiff_t RTP_ADDR;
 /// For extra safety use the dualstringdecl(stringname) to ensure that the destuctor is called to free memory.
 class dualstring {
 public:
-  dualstring() {buflen=0;maxlen=LARGEST_STRING; utf16view=0; asciiview=0;};
+  dualstring() {utf16view=0; asciiview=0;empty();};
   ~dualstring() { empty(); }
-  void empty() { if (utf16view) rtp_free(utf16view); if (asciiview) rtp_free(asciiview);buflen=0;maxlen=LARGEST_STRING; utf16view=0; asciiview=0; };
+  void empty() { if (utf16view) smb_rtp_free(utf16view); if (asciiview) smb_rtp_free(asciiview);maxlen=LARGEST_STRING; utf16view=0; asciiview=0;strlen=0; };
   char *ascii()  { return asciiview;}
   word  *utf16() { return utf16view;}
   int   utf16_length() { return strlen*2; }
   int   ascii_length() { return strlen; }
   bool  istoolong() {return (strlen > maxlen);}
-  void operator =(char *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (char *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
-  void operator =(word *s)  {utf16view = (word *)rtp_malloc_auto_freed(2*(arglen(s)+1)); asciiview = (char *)rtp_malloc_auto_freed(strlen+1); asciiview[strlen]=0; utf16view[strlen]=0; for (int i=0;i<strlen; i++) {asciiview[i]=(byte)s[i];utf16view[i]=(word)s[i];utf16view[i+1]=0;asciiview[i+1]=0;}}
+  void operator =(char *s)
+  {
+    int l=arglen(s);
+    utf16view = (word *)rtp_malloc_auto_freed(2*(l+1));
+    asciiview = (char *)rtp_malloc_auto_freed(l+1);
+    asciiview[l]=0;
+    utf16view[l]=0;
+    for (int i=0;i<l; i++)
+    {
+     asciiview[i]=(byte)s[i];
+     utf16view[i]=(word)s[i];
+    }
+  }
+  void operator =(word *s)
+  {
+    int l=arglen(s);
+    utf16view = (word *)rtp_malloc_auto_freed(2*(l+1));
+    asciiview = (char *)rtp_malloc_auto_freed(l+1);
+    for (int i=0;i<l; i++)
+    {
+     asciiview[i]=(byte)s[i];
+     utf16view[i]=(word)s[i];
+    }
+    asciiview[l]=0;
+    utf16view[l]=0;
+   }
 private:
   int maxlen;
-  int buflen;
   int strlen;
-  int arglen(char *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen; }
-  int arglen(word *s)  { strlen=0; buflen=0; while(s[strlen]) strlen++;  strlen = std::min(strlen,maxlen); return strlen;}
+  int arglen(char *s)
+    {
+      strlen=0;
+      while(s[strlen])
+        strlen++;
+      strlen = std::min(strlen,maxlen);
+      return strlen;
+  }
+  int arglen(word *s)
+   { strlen=0;
+     while(s[strlen])
+      strlen++;
+     strlen = std::min(strlen,maxlen);
+     return strlen;
+   }
   word *utf16view;
   char *asciiview;
-};
-
-typedef struct {void *ptr; size_t size;} allocated_item_t;
-inline void free_item(allocated_item_t &item) {  if (item.ptr)  {   void *p = item.ptr;    rtp_free_auto_free(p);  } }
-
-/// Inheret this class to auto free heap data allocated with local_rtp_malloc(size_t nbytes) when the object's destructor runs
-class local_allocator {
-public:
-  local_allocator() {};
-  ~local_allocator() { std::for_each (allocated_items.begin(), allocated_items.end(), free_item);}
-  void *local_rtp_malloc(size_t nbytes)
-  {
-     allocated_item_t r;
-     r.size=nbytes;
-     r.ptr = rtp_malloc_auto_freed(nbytes);
-     allocated_items.push_back(r);
-     return r.ptr;
-  }
-private:
-  std::vector<allocated_item_t> allocated_items;
 };
 
 
@@ -137,6 +157,11 @@ private:
 
 #define RTSMB_CFG_MAX_SHARENAME_SIZE               80
 
+#define HARDWIRED_TARGET_NAME       "VBOXUNBUNTU"
+#define HARDWIRED_NBDOMAIN_NAME     "DOMAIN"
+#define HARDWIRED_NBCOMPUTER_NAME   "NETBIOSCOMPUTERAME"
+#define HARDWIRED_DNSDOMAIN_NAME    "DNSDOMAINNAME"
+#define HARDWIRED_DNSCOMPUTER_NAME  "DNSCOMPUTERAME"
 
 #define RTSMB_CFG_MAX_GROUPNAME_SIZE   10   // the maximum size of group names
 #define RTSMB_CFG_MAX_USERNAME_SIZE    128  // the maximum size of account names
@@ -244,6 +269,20 @@ typedef struct decoded_NegTokenTarg_challenge_s {
     SecurityBuffer_t *target_info;
 } decoded_NegTokenTarg_challenge_t;
 
+#define AUTH_GUEST          1
+#define AUTH_NOACCESS       2
+#define AUTH_USER_MODE      0
+#define AUTH_SHARE_MODE     1
+
+/* It is not recommended that you change these */
+//#define CFG_RTSMB_MAX_GROUPNAME_SIZE   10   // the maximum size of group names
+//#define CFG_RTSMB_MAX_USERNAME_SIZE    128  // the maximum size of account names
+#define CFG_RTSMB_MAX_PASSWORD_SIZE    128  // the maximum size of passwords (must be at least 24 when using encryption)
+//#define CFG_RTSMB_MAX_DOMAIN_NAME_SIZE 128  // the maximum size of domain names
+//#define CFG_RTSMB_MAX_HOSTNAME_NAME_SIZE 128  // the maximum size of host name (rcved from client)
+//#define CFG_RTSMB_MAX_SECURITYBLOB_SIZE 512 // the maximum size of spnego security blob
+
+
 
 // void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token);
 void spnego_decoded_NegTokenTarg_challenge_destructor(decoded_NegTokenTarg_challenge_t *decoded_targ_token);
@@ -280,6 +319,12 @@ void rtsmb_cli_session_find_close(int sid,  NEWRTSMB_CLI_SESSION_DSTAT *pstat1);
 extern void rtsmb_util_guid(byte *_pGuid);
 extern ddword rtsmb_util_get_current_filetime(void);
 extern void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size_t w);
+extern void rtsmb_util_unicode_to_ascii (word *unicode_string, char *ascii_string);
+int rtsmb_util_unicode_strlen(word *str);
+word *rtsmb_util_string_to_upper (word *string);
+char *rtsmb_util_string_to_upper (char *cstring);
+word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string);
+
 
 typedef enum smb_diaglevel_e {
     DIAG_DISABLED      =0,
@@ -299,6 +344,32 @@ bool checkSessionSigned();
 void setSessionSigned(bool isSigned);
 extern const char *rtsmb_util_errstr(int &util_errno);
 
+typedef struct {void *ptr; size_t size;} allocated_item_t;
+inline void free_item(allocated_item_t &item)
+ {
+ if (item.ptr)
+      {   void *p = item.ptr;
+          diag_printf_fn(DIAG_INFORMATIONAL,"Free size:%d addr:%X\n", item.size, item.ptr);
+          rtp_free_auto_free(p);
+      }
+}
 
+/// Inheret this class to auto free heap data allocated with local_rtp_malloc(size_t nbytes) when the object's destructor runs
+class local_allocator {
+public:
+  local_allocator() {};
+  ~local_allocator() { std::for_each (allocated_items.begin(), allocated_items.end(), free_item);}
+  void *local_rtp_malloc(size_t nbytes)
+  {
+     allocated_item_t r;
+     r.size=nbytes;
+     r.ptr = rtp_malloc_auto_freed(nbytes);
+diag_printf_fn(DIAG_INFORMATIONAL,"Localalloc size:%d addr:%X\n", nbytes, r.ptr);
+     allocated_items.push_back(r);
+     return r.ptr;
+  }
+private:
+  std::vector<allocated_item_t> allocated_items;
+};
 
 #endif // include_smb2defs

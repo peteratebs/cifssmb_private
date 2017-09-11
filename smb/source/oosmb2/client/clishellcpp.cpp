@@ -139,9 +139,9 @@ public:
   {
     set_diag_level(DIAG_DEBUG); //(DIAG_INFORMATIONAL); // DIAG_DEBUG);
   }
-    #define DOLINUX   1
+    #define DOLINUX   0
     #define DOWINDOWS 0
-    #define DOEBS     0
+    #define DOEBS     1
   void go()
   {
 #if(DOLINUX)
@@ -174,7 +174,8 @@ public:
      "domain");
      #endif
 #if(DOEBS)
-     ShellSession.set_share_parameters("\\\\SHARE0",0);
+     ShellSession.set_share_parameters("\\\\share0",0);
+//     ShellSession.set_share_parameters("\\\\SHARE0",0);
 #endif
 #if(DOLINUX)
    ShellSession.set_share_parameters("\\\\192.168.1.2\\peter",0);

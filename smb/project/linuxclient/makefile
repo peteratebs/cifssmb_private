@@ -142,7 +142,7 @@ cfiles += $(lib_to_rtsmb_client_path)/cliwire.c
 cfiles += $(lib_to_rtsmb_client_path)/clsrvsvc.c
 
 
-clienthpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.hpp)
+clienthpfiles := $(wildcard $(lib_to_rtsmb2_ooclient_path)/*.hpp) $(wildcard $(lib_to_rtsmb2_oocommon_path)/*.hpp)
 #hpdependlist := $(patsubst %.hpp,%,$(hpfiles))
 hpdependlist := $(hpfiles)
 

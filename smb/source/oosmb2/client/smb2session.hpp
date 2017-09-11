@@ -34,14 +34,14 @@ public:
     size_t w;
     file_name = filename;
     w=rtp_strlen(filename)*2+2;
-    file_name_unicode=(word*)rtp_malloc(w);
+    file_name_unicode=(word*)smb_rtp_malloc(w);
     rtsmb_util_ascii_to_unicode (filename ,file_name_unicode, w);
   }
   const char *get_filename_ascii()  { return file_name.c_str(); }
   word *get_filename_utf16()  { return file_name_unicode;  };
   byte *get_file_id()    { return file_id;  };
   void set_fileid(byte *fileid)  { allocated=true;memcpy(file_id, fileid,16);  };
-  void set_file_free() {file_name = ""; if(file_name_unicode) rtp_free(file_name_unicode);memset(file_id,0,16);}
+  void set_file_free() {file_name = ""; if(file_name_unicode) smb_rtp_free(file_name_unicode);memset(file_id,0,16);}
   bool  allocated;
 private:
   byte  file_id[16];

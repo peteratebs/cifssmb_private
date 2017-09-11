@@ -28,6 +28,7 @@ SMB_PATH = ../..
 include ../mkgnu.inc
 
 includes = . $(lib_to_rtsmb2_common_include) $(lib_to_rtsmb_crypto_include) $(lib_to_rtsmb2_oocommon_path) $(lib_to_rtsmb2_ooserver_path) $(lib_to_rtsmb_commonnb_include) $(lib_to_rtsmb_common_include) $(lib_to_rtptarget_include) $(lib_to_rtpgeneric_include)
+serverhpfiles := $(wildcard $(lib_to_rtsmb2_ooserver_path)/*.hpp) $(wildcard $(lib_to_rtsmb2_oocommon_path)/*.hpp)
 
 ########################################################################
 # SOURCE PATHS

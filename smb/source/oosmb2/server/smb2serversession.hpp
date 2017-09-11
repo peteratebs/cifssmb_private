@@ -15,6 +15,8 @@
 #ifndef include_smbserversession
 #define include_smbserversession
 
+
+
 class Smb2ServerSession : public smb_diagnostics {
 public:
 
@@ -26,11 +28,31 @@ public:
   void AttachLegacyBuffers(byte *_read_origin, dword _read_size, byte *_write_origin, dword _write_size);
 
   int ProcessNegotiate();
-
+  int ProcessEcho();
+  int ProcessSetup();
+  int check_login_credentials(dword ntlmssp_type,byte *psecurityblob, dword SecurityBufferLength);
+  word spnego_AuthenticateUser (/* decoded_NegTokenTarg_t*/ void *decoded_targ_token, word *extended_authId);
+  const word *get_password_from_user_name( word *username, int &return_pwd_width_bytes);
+  word Auth_AuthenticateUser_ntlmv2 (byte *ntlm_response_blob, size_t ntlm_response_blob_length, word *name, word *domainname);
 
   NetStreamOutputBuffer     SendBuffer;
   NetStreamInputBuffer      RecvBuffer;
 private:
+#define Session_State_Idle        0
+#define Session_State_InProgress  1
+#define Session_State_Valid       2
+#define Session_State_Expired     3
+  /* The current activity state of this session. This value MUST be either InProgress, Valid, or Expired. */
+  byte     session_state;
+  ddword   session_create_time;
+  dword    session_idle_timebase;
+  byte     session_encryption_key[8];
+  byte     session_signing_key[16];
+  ddword   sessionid;                 /* For selecting this session by id sent from the client. Copied in by us from ddword  server_next_sessionid */
+
+  byte    *UserName;                  /* The name of the user who established the session. */
+  byte    *DomainName;                /* The domain of the user who established the session. */
+
   int _p_reply_buffer_size;
   int _p_send_buffer_size;
   byte *_p_send_buffer_raw;
@@ -51,6 +73,8 @@ private:
   dword  server_max_transaction_size;
   dword  server_global_caps;
   bool   server_require_signing;
+
+  std::map<std::string, std::string> resistered_users;
 
   // temporary stealing from old stream stuff
   byte *read_origin;
@@ -82,14 +106,14 @@ public:
     size_t w;
     file_name = filename;
     w=rtp_strlen(filename)*2+2;
-    file_name_unicode=(word*)rtp_malloc(w);
+    file_name_unicode=(word*)smb_rtp_malloc(w);
     rtsmb_util_ascii_to_unicode (filename ,file_name_unicode, w);
   }
   const char *get_filename_ascii()  { return file_name.c_str(); }
   word *get_filename_utf16()  { return file_name_unicode;  };
   byte *get_file_id()    { return file_id;  };
   void set_fileid(byte *fileid)  { allocated=true;memcpy(file_id, fileid,16);  };
-  void set_file_free() {file_name = ""; if(file_name_unicode) rtp_free(file_name_unicode);memset(file_id,0,16);}
+  void set_file_free() {file_name = ""; if(file_name_unicode) smb_rtp_free(file_name_unicode);memset(file_id,0,16);}
   bool  allocated;
 private:
   byte  file_id[16];

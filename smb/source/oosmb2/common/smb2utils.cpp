@@ -1,5 +1,5 @@
 //
-// smb2logon.cpp -
+// smb2util.cpp -
 //
 // EBS - RTSMB
 //
@@ -129,6 +129,13 @@ static TIME rtsmb_util_time_rtp_date_to_ms (RTP_DATE rtp_date)
 	return rtsmb_util_time_unix_to_ms(rtsmb_util_time_rtp_date_to_unix(rtp_date));
 }
 
+int rtsmb_util_unicode_strlen(word *str)
+{
+word l=0;
+  while (str[l]) l++;
+  return l;
+}
+
 ddword rtsmb_util_get_current_filetime(void)
 {
 RTP_DATE date;
@@ -146,6 +153,12 @@ void rtsmb_util_ascii_to_unicode (char *ascii_string ,word *unicode_string, size
   if (w !=  converted_string->utf16_length())
     diag_printf_fn(DIAG_JUNK,"spego::: oops (w != 2*converted_string->utf16_length() w: \n");
   memcpy(unicode_string,converted_string->utf16(), w);
+}
+void rtsmb_util_unicode_to_ascii (word *unicode_string, char *ascii_string)
+{
+  dualstringdecl(converted_string);                   //    dualstring user_string;
+  *converted_string     =  unicode_string;
+  strcpy(ascii_string, converted_string->ascii());
 }
 /* See RFC4122 */
 void rtsmb_util_guid(byte *_pGuid)
@@ -208,8 +221,8 @@ void diag_printf_fn(smb_diaglevel at_diaglayer, const char* fmt...)
     vsprintf (buffer,fmt, args);
     cout << buffer;
 }
-char *rtsmb_strmalloc(char *str) { char *p = (char *)rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}
-char *rtsmb_strmalloc_to_unicode(char *str) { char *p = (char *)rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}
+char *rtsmb_strmalloc(char *str) { char *p = (char *)smb_rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}
+char *rtsmb_strmalloc_to_unicode(char *str) { char *p = (char *)smb_rtp_malloc(rtp_strlen(str)+1); if (p) strcpy(p, str); return p;}
 
 
 #include <cerrno>
@@ -247,4 +260,113 @@ byte *pbytes = (byte *) _pbytes;
           i++;
       }
       rtp_printf("\n===\n");
+}
+
+static bool initted=false;
+void *alloc_pointers[10000];
+size_t alloc_sizes[10000];
+
+static void init_memtracker()
+{
+  initted=true;
+  memset(alloc_pointers, 0,sizeof(alloc_pointers));
+  memset(alloc_sizes, 0,sizeof(alloc_sizes));
+}
+int used_already=0;
+void check_track_mem()
+{
+  for (int i = 0; i < 1000; i++)
+  {
+    if (alloc_pointers[i] && alloc_pointers[i]!=(void*)&used_already)
+    {
+      if (  ((byte *)alloc_pointers[i])[alloc_sizes[i]] != 'A')
+      {
+        rtp_printf("\noverrun at pointer: %X sized: %d \n", alloc_pointers[i], alloc_sizes[i]);
+      }
+    }
+  }
+}
+
+
+static void track_mem(void *b, size_t s)
+{
+  check_track_mem();
+  for (int i = 0; i < 10000; i++)
+  {
+    if (alloc_pointers[i]==0)
+    {
+      alloc_pointers[i] = b;
+      alloc_sizes[i] = s;
+      rtp_printf("\ntrack pointer#:%d at:%X sized: %d\n", i, alloc_pointers[i], alloc_sizes[i]);
+      if (s==80)
+      {
+        rtp_printf("\nYo allocated 80 track pointer#:%d at:%X sized: %d\n", i, alloc_pointers[i], alloc_sizes[i]);
+      }
+      break;
+    }
+  }
+}
+static void untrack_mem(void *b)
+{
+  check_track_mem();
+  for (int i = 0; i < 10000; i++)
+  {
+    if (alloc_pointers[i]==b)
+    {
+      rtp_printf("\n untrack pointer#:%d at:%X sized: %d\n", i, alloc_pointers[i], alloc_sizes[i]);
+      if (alloc_sizes[i]==80)
+      {
+        rtp_printf("\nYo free 80 track feeded 80 #:%d at:%X sized: %d\n", i, alloc_pointers[i], alloc_sizes[i]);
+      }
+//      alloc_pointers[i] = (void *)&used_already;
+//      alloc_sizes[i] = 0;
+      alloc_pointers[i] = 0;
+      alloc_sizes[i] = 0;
+      return;
+    }
+  }
+  rtp_printf("untracked lost pointer: %X\n", b);
+}
+
+void *smb_rtp_malloc(size_t s)
+{
+   if (!initted) init_memtracker();
+   byte *b = (byte *) rtp_malloc(s+4);
+   memcpy(b+s, "ABCD", 4);
+   track_mem(b, s);
+   return (void *) b;
+}
+void smb_rtp_free(void *s)
+{
+  untrack_mem(s);
+  rtp_free(s);  // inside smb_rtp_free
+}
+
+char *rtsmb_util_string_to_upper (char *cstring)
+{
+  for (int i = 0; i < 256 && cstring[i]; i++)
+    cstring[i]= (char) std::toupper ( (int) cstring[i] );
+  return cstring;
+}
+
+word *rtsmb_util_string_to_upper (word *cstring)
+{
+  for (int i = 0; i < 256 && cstring[i]; i++)
+  {
+    if (cstring[i] >= 'a' && cstring[i] <= 'z')
+      cstring[i]=(word) std::toupper ( (int) cstring[i] );
+  }
+  return cstring;
+}
+
+#define CFG_RTSMB_USER_CODEPAGE 0
+
+word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string)
+{
+word *p;
+size_t w;
+  w=rtp_strlen(ascii_string)*2+2;
+  p=(word *)smb_rtp_malloc(w);
+  rtsmb_util_ascii_to_unicode (ascii_string ,p , CFG_RTSMB_USER_CODEPAGE);
+  return (p);
 }

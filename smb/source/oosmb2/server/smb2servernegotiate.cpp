@@ -152,7 +152,7 @@ int Smb2ServerSession::ProcessNegotiate()
          Smb2NegotiateReply.ServerGuid = server_guid;
 
          Smb2NegotiateReply.SecurityMode       = SMB2_NEGOTIATE_SIGNING_ENABLED;
-         if (Smb2NegotiateCmd.SecurityMode() & SMB2_NEGOTIATE_SIGNING_REQUIRED)    ; //  pStream->psmb2Session->Connection->ShouldSign = TRUE;
+//         if (Smb2NegotiateCmd.SecurityMode() & SMB2_NEGOTIATE_SIGNING_REQUIRED)    ; //  pStream->psmb2Session->Connection->ShouldSign = TRUE;
          if (server_require_signing)
            Smb2NegotiateReply.SecurityMode   = Smb2NegotiateReply.SecurityMode() | SMB2_NEGOTIATE_SIGNING_REQUIRED;
         client_capabilities = Smb2NegotiateCmd.Capabilities();
@@ -182,7 +182,7 @@ int Smb2ServerSession::ProcessNegotiate()
         {
             Smb2NegotiateReply.SecurityBufferOffset = (word) (OutSmb2Header.FixedStructureSize()+Smb2NegotiateReply.PackedStructureSize());
         }
-          OutNbssHeader.nbss_packet_size =
+        OutNbssHeader.nbss_packet_size =
              OutSmb2Header.FixedStructureSize()+
              Smb2NegotiateReply.PackedStructureSize() +
              Smb2NegotiateReply.SecurityBufferLength();

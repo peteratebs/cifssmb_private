@@ -67,11 +67,14 @@ extern "C" {
 #define SMB2_NT_STATUS_SUCCESS                  0x00000000
 #define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
+
+
 #define SMB2_STATUS_INVALID_PARAMETER           0xC000000D /* The parameter specified in the request is not valid. */
-#define SMB_NT_STATUS_MORE_PROCESSING_REQUIRED  0xC0000016
+#define SMB2_STATUS_MORE_PROCESSING_REQUIRED    0xC0000016 /* If extended security has been negotiated, then this error code can be returned in the SMB_COM_SESSION_SETUP_ANDX response from the server to indicate that additional authentication information is to be exchanged. See section 2.2.4.6 for details. */
 #define SMB2_STATUS_NOT_SUPPORTED               0xC00000BB /* The client request is not supported. */
 
-
+#define SMB2_STATUS_INVALID_SMB                 0x00010002 /* An invalid SMB client request is received by the server. */
+#define SMB2_STATUS_ACCESS_DENIED               0xC0000022 /* The client did not have the required permission needed for the operation. */
 
 /* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
 #define SMB2_QUERY_FileDirectoryInformation       0x01  /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
@@ -147,6 +150,7 @@ public:
   {
     ProtocolId                     = (byte *)Smb2Header.ProtocolId();
     Command                        = Smb2Header.Command();
+    StructureSize                  = Smb2Header.StructureSize() ;
     CreditCharge                   = Smb2Header.CreditCharge() ;
     Status_ChannelSequenceReserved = Smb2Header.Status_ChannelSequenceReserved() ;
     Command                        = Smb2Header.Command() ;

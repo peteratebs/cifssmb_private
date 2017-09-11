@@ -1509,8 +1509,10 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
 		unicode_lendian[dst++] = (BYTE)password[src];
 		unicode_lendian[dst++] = 0;
 	}
+rtsmb_dump_bytes("old: unicode_lendian passwd: ", unicode_lendian, dst, DUMPBIN);
 	// get md4 of password.  This is the 16-byte NTLM hash
 	RTSMB_MD4 (unicode_lendian, (dword)dst, p21);
+rtsmb_dump_bytes("old: p21: ", p21, 21, DUMPBIN);
 
     // The Unicode uppercase username is concatenated with the Unicode authentication target
     // (the domain or server name specified in the Target Name field of the Type 3 message).
@@ -1530,6 +1532,10 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
 	// concatenate the uppercase username with the domainname
 	tc_memcpy((PFCHAR) &nameDomainname[2*rtsmb_util_wlen((PFWCS)name)], domainname, 2*rtsmb_util_wlen((PFWCS)domainname));
 
+
+rtsmb_dump_bytes("old: nameDomainname: ", nameDomainname, ndLen, DUMPBIN);
+
+
 	// The HMAC-MD5 message authentication code algorithm is applied to
 	// the unicode (username,domainname) using the 16-byte NTLM hash as the key.
 	// This results in a 16-byte value - the NTLMv2 hash.
@@ -1538,6 +1544,7 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
                p21,             /* pointer to remote authentication key */
                16,              /* length of authentication key */
                NTLMv2_Hash);    /* caller digest to be filled in */
+rtsmb_dump_bytes("old: NTLMv2_Hash: ", NTLMv2_Hash, 16, DUMPBIN);
     BYTE concatChallenge[1024];
     BYTE output_value[16];
     // The HMAC-MD5 message authentication code algorithm is applied to this value using the 16-byte NTLMv2 hash
@@ -1547,6 +1554,7 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
 
   tc_memcpy(concatChallenge, serverChallenge, 8);
   tc_memcpy(&concatChallenge[8], ntlm_response_blob+16, ntlm_response_blob_length);
+rtsmb_dump_bytes("old: concatChallenge: ", concatChallenge, ntlm_response_blob_length+8, DUMPBIN);
 //    rtsmb_dump_bytes("NTLMv2 hash: ", NTLMv2_Hash, 16, DUMPBIN);
 //    rtsmb_dump_bytes("NTLMv2 concatChallenge: ", concatChallenge, ntlm_response_blob_length+8, DUMPBIN);
 	hmac_md5(concatChallenge,	/* pointer to data stream */
@@ -1554,12 +1562,12 @@ PFBYTE cli_util_encrypt_password_ntlmv2 (PFCHAR password, PFBYTE serverChallenge
                NTLMv2_Hash,		/* pointer to remote authentication key */
                16,				/* length of authentication key */
                (PFBYTE ) output_value);
-//    rtsmb_dump_bytes("NTLMv2 real concatChallenge output: ", output_value, 16, DUMPBIN);
+rtsmb_dump_bytes("NTLMv2 real concatChallenge output: ", output_value, 16, DUMPBIN);
 
     // This value is concatenated with the blob to form the NTLMv2 response.
 	tc_memcpy(&output[0], output_value, 16);
 	tc_memcpy(&output[16], ntlm_response_blob+16, ntlm_response_blob_length-16);
-
+rtsmb_dump_bytes("old  output: ",  output,ntlm_response_blob_length, DUMPBIN);
 	return (PFBYTE )output;
 }
 //=================

@@ -99,7 +99,7 @@ unsigned char *RTSMB_MD4(const unsigned char *d, unsigned long n, unsigned char 
 #define OPENSSL_VERSION_TEXT	"OpenSSL 0.9.6a-dev XX xxx XXXX"
 #define OPENSSL_VERSION_PTEXT	" part of " OPENSSL_VERSION_TEXT
 
-const char *RTSMB_MD4_version="MD4" OPENSSL_VERSION_PTEXT;
+// const char *RTSMB_MD4_version="MD4" OPENSSL_VERSION_PTEXT;
 
 /* Implemented from RFC1186 The MD4 Message-Digest Algorithm
  */

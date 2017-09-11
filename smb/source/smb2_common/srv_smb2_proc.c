@@ -136,7 +136,6 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
     // If not replaying, clear the stream structure and set buffer pointers from the smbv1 style SMB_SESSIONCTX structure
     if (!replay)
       Smb1SrvCtxtToStream(pStream, pSctx);
-#if (0)
     int bodysize = FuckWithSmb2OO(pStream->read_origin, pSctx->readBufferSize, pStream->write_origin,pStream->write_buffer_size);
     if (bodysize>0)
     {
@@ -144,9 +143,12 @@ smb2_stream *pStream = &pSctx->SMB2_FrameState.smb2stream;
       pStream->OutBodySize = bodysize;
       // we will reply now so restore pSctx->outBodySize. pSctx->doSocketClose and pSctx->doSessionClose from stream
       Smb1SrvCtxtFromStream(pSctx, &pSctx->SMB2_FrameState.smb2stream);
+
+      // Make sure we set dialect because we processed the initial negotiate packet in the oo layer
+      pStream->psmb2Session->Connection->NegotiateDialect=SMB2_DIALECT_2100;
+
       return pSctx->SMB2_FrameState.stackcontext_state;
     }
-#endif
     /* read header */
     if (cmd_read_header_raw_smb2( pStream->read_origin, pStream->read_origin,  pStream->InBodySize, &(pStream->InHdr)) == -1)
     {

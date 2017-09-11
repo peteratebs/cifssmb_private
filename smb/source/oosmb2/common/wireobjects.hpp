@@ -36,6 +36,7 @@ public:
 class NetWire {
   public:
     NetWire() {}
+    virtual void bindaddress(byte *_raw_address)   {    raw_address = _raw_address; }
     virtual void bindpointers(BindNetWireArgs &args)
     {
         raw_address = args.raw_address;

@@ -22,7 +22,7 @@ ifeq ($(pointersize),P32)
 ### COMPILER AND LINKER FLAGS ########################################
 
 # ldflags += -m32 -L/usr/lib/i386-linux-gnu -L/usr/lib32 -lm -lc -lgcc  -pthread -lboost_thread -lboost_system -Wl,-Map=output.map
-ldflags += -m32 -L/usr/lib/i386-linux-gnu -L/usr/lib32 -lm -lc -lgcc  -pthread -Wl,-Map=output.map
+ldflags += -lmcheck -m32 -L/usr/lib/i386-linux-gnu -L/usr/lib32 -lm -lc -lgcc  -pthread -Wl,-Map=output.map
 
 # cflags  += -Wconversion -Wextra -Werror
 cflags  += -m32 -pthread -DBUILD_SMB_32BIT

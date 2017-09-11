@@ -14,6 +14,8 @@
 
 #include "smb2clientincludes.hpp"
 
+void check_track_mem();
+
 
 extern bool do_smb2_logon_server_worker(Smb2Session &Session);
 extern int do_smb2_tree_connect_worker(Smb2Session &Session,int sharenumber);
@@ -47,17 +49,36 @@ void Smb2Session::set_share_parameters(char *_share_name, int sharenumber)
 {
   dualstringdecl(share_name);   //   use a dualstring to convert the share to unicode
   std::string s;
-  std::string s2;
-  if (_share_name[0] != '\\')     s = "\\";
-  if (_share_name[1] != '\\')     s += "\\";
-  s += _share_name;
+
+check_track_mem();
+cout << "back hck1" << endl;
+  if (_share_name[0] != '\\')
+  {
+    s = "\\";
+    if (_share_name[1] != '\\')     s += "\\";
+      s += _share_name;
+    *share_name = (char *)s.c_str();
+  }
+  else
+    *share_name = _share_name;
   // Store it in upper case
 //  std::transform(s.begin(), s.end(), s.begin(), toupper);
-  *share_name = (char *)s.c_str();
+check_track_mem();
+cout << "back hck11" << endl;
   memcpy(
     Shares[sharenumber].share_name,
     share_name->utf16(),
-    std::max((size_t)RTSMB_CFG_MAX_SHARENAME_SIZE, 2*(1+strlen((char *)share_name->ascii()) )));
+    std::min((size_t)RTSMB_CFG_MAX_SHARENAME_SIZE, 2*(1+strlen((char *)share_name->ascii()) )));
+check_track_mem();
+cout << "back hck2" << endl;
+
+  cout << "Not dead yet yet ?\n";
+check_track_mem();
+cout << "back hck3" << endl;
+  cout << "Not dead yet yet 2 ?\n";
+check_track_mem();
+cout << "back hck3" << endl;
+
 }
 
 /// Api method establishes a socket connection to the server and assigns buffering and stream handlers
@@ -93,8 +114,8 @@ bool Smb2Session::connect_buffers() // private
 {
   _p_send_buffer_size  = RTSMB_CFG_MAX_BUFFER_SIZE;
   _p_reply_buffer_size = RTSMB_CFG_MAX_BUFFER_SIZE;
-  _p_send_buffer_raw = (byte *)rtp_malloc(_p_send_buffer_size);
-  _p_reply_buffer_raw = (byte *)rtp_malloc(_p_reply_buffer_size);
+  _p_send_buffer_raw = (byte *)smb_rtp_malloc(_p_send_buffer_size);
+  _p_reply_buffer_raw = (byte *)smb_rtp_malloc(_p_reply_buffer_size);
 
   SendBuffer.attach_buffer(_p_send_buffer_raw, _p_send_buffer_size);
   RecvBuffer.attach_buffer(_p_reply_buffer_raw, _p_reply_buffer_size);

@@ -22,6 +22,51 @@ static const byte setup_blob_phase_one[] = {0x60,0x48,0x06,0x06,0x2b,0x06,0x01,0
 
 #define DIAG_LOGON_LEVEL DIAG_DEBUG // DIAG_DISABLED,DIAG_DEBUG
 
+/// class SpnegoClient - Public methods and private helpers to implment ntlmv2 client over spnego
+/// should be broken into a spnego base class and Client and server classes, will do when server it implemented.
+class SpnegoClient : public local_allocator {
+public:
+  SpnegoClient() { spnego_init_extended_security(); }
+
+  ~SpnegoClient() {}
+public:
+//  bool spnego_decode_NegTokenTarg_challenge(decoded_NegTokenTarg_challenge_t *decoded_targ_token, unsigned char *pinbuffer, size_t buffer_length);
+//  int spnego_get_client_ntlmv2_response_blob(byte *pblob);
+//  int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+  int spnego_encode_NegTokenInit_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key);
+  int spnego_decode_NegTokenInit_packet(decoded_NegTokenInit_t *decoded_init_token, unsigned char *pinbuffer, size_t buffer_length);
+  // This function is spnego_decode_init_packet() returns so it can release any allocated storage from a decoded_init_token_t.
+  void spnego_decoded_NegTokenInit_destructor(decoded_NegTokenInit_t *decoded_token)
+  {
+    if (decoded_token->mechToken) rtp_freed_from_object(decoded_token->mechToken);
+    if (decoded_token->mechListMic) rtp_freed_from_object(decoded_token->mechListMic);
+  }
+  int spnego_encode_ntlm2_type2_response_packet(unsigned char *outbuffer, size_t buffer_length, byte *challenge);
+
+private: // messy catch all of private methods, all memory is allocated and freed through local_allocator::.
+  int decode_token_stream_fetch_byte(decode_token_stream_t *pstream, byte *b);
+  int decode_token_stream_fetch_length(decode_token_stream_t *pstream, size_t *l);
+  int decode_token_stream_fetch_oid(decode_token_stream_t *pstream, byte *poid);
+  unsigned long asn1_decode_length(unsigned char **ppbuffer);
+  size_t asn1_calculate_width_of_width_field(unsigned long l);
+  oid_t oid_string_to_oid_t(byte *pbuffer);
+  unsigned char *asn1_encode_length(unsigned char *pbuffer,unsigned long l);
+  void decode_token_stream_constructor(decode_token_stream_t *pstream,void  *decoded_token,byte  *stream_base, size_t stream_len);
+  int decode_token_stream_fetch(decode_token_stream_t *pstream,byte  *fetch_buffer, size_t fetch_count);
+  int decode_token_stream_fetch_obj(decode_token_stream_t *pstream, void *prv, asn1_objtype_t objtype);
+  int decode_token_stream_fetch_flags(decode_token_stream_t *pstream, dword *pFlags);
+  int decode_token_stream_fetch_word(decode_token_stream_t *pstream, word *w);
+  int decode_token_stream_fetch_dword(decode_token_stream_t *pstream, dword *dw);
+  int  decode_token_stream_encode_bytes(spnego_output_stream_t *pstream, void *_pb, size_t width);
+  void decode_token_stream_encode_fixup_lengths(spnego_output_stream_t *pstream);
+  int  decode_token_stream_encode_app_container(spnego_output_stream_t *pstream, byte Token);
+  void spnego_output_stream_stream_constructor(spnego_output_stream_t *pstream,void  *context,byte  *stream_base, size_t stream_len,bool resolving_widths);
+
+  int  decode_token_stream_encode_byte(spnego_output_stream_t *pstream, byte b);
+  int  decode_token_stream_encode_length(spnego_output_stream_t *pstream, dword l);
+  int  decode_token_stream_fetch_security_buffer(decode_token_stream_t *pstream, byte *blob_base, SecurityBuffer_t **_presource);
+
+};
 
 class SmbLogonWorker : private local_allocator,private smb_diagnostics {
 public:
@@ -154,7 +199,7 @@ private:
      return true;
   }
 
-  // Phase 1 sends sNegTokenInit, Expects SMB_NT_STATUS_MORE_PROCESSING_REQUIRED and a server challenge
+  // Phase 1 sends sNegTokenInit, Expects SMB2_STATUS_MORE_PROCESSING_REQUIRED and a server challenge
   // Phase 2 sends sNegTokenInit   ntlmssp_encode_ntlm2_type2_response_packet (spnego_encode_ntlm2_type3_packet)
 
 //  int spnego_encode_ntlm2_type3_packet(unsigned char *outbuffer, size_t buffer_length, byte *ntlm_response_buffer, int ntlm_response_buffer_size, byte *domain_name, byte *user_name, byte *workstation_name, byte *session_key)
@@ -240,9 +285,9 @@ private:
     NetSmb2NBSSRecvReply<NetSmb2SetupReply>  Smb2NBSSReply(SMB2_SESSION_SETUP, pSmb2Session, InNbssHeader,InSmb2Header, Smb2SetupReply);
 
 
-    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB_NT_STATUS_MORE_PROCESSING_REQUIRED && !do_extended_setup_phase)
+    if (InSmb2Header.Status_ChannelSequenceReserved() !=  SMB2_STATUS_MORE_PROCESSING_REQUIRED && !do_extended_setup_phase)
     {
-      pSmb2Session->diag_text_warning("receive_setup missing: SMB_NT_STATUS_MORE_PROCESSING_REQUIRED status:%x",InSmb2Header.Status_ChannelSequenceReserved());
+      pSmb2Session->diag_text_warning("receive_setup missing: SMB2_STATUS_MORE_PROCESSING_REQUIRED status:%x",InSmb2Header.Status_ChannelSequenceReserved());
       dword ssstatus =  InSmb2Header.Status_ChannelSequenceReserved();
       return false;
     }
@@ -263,7 +308,7 @@ private:
         return false;
       }
       total_security_bytes_pulled += security_bytes_pulled;
-      spnego_blob_size_from_server = std::max(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
+      spnego_blob_size_from_server = std::min(Smb2SetupReply.SecurityBufferLength(),(word)MAXBLOB);
       pSmb2Session->user_state(CSSN_USER_STATE_CHALLENGED);
       memcpy( spnego_blob_from_server, InSmb2Header.FixedStructureAddress()+Smb2SetupReply.SecurityBufferOffset(), spnego_blob_size_from_server);
     }
@@ -274,10 +319,11 @@ private:
     class SpnegoClient spnegoWorker;
     do_extended_setup_phase=true;
     decoded_NegTokenTarg_challenge_t decoded_targ_token;
-    bool r = spnegoWorker.spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
+    int ir = spnego_decode_NegTokenTarg_challenge(&decoded_targ_token,
                  spnego_blob_from_server,
                  spnego_blob_size_from_server);
 diag_dump_bin_fn(DIAG_INFORMATIONAL,"server challenge is: ", decoded_targ_token.ntlmserverchallenge,8);
+    bool r = (bool)(ir==0);
 
 //    decoded_targ_token.Flags;
 //    decoded_targ_token.ntlmserverchallenge[8];
@@ -331,7 +377,8 @@ char *myworkstation = "VBOXUNBUNTU";
 int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, char * domain, byte * serverChallenge, byte * serverInfoblock, int serverInfoblock_length,byte *session_key)
 {
 
-    rtsmb_util_guid(&session_key[0]);
+    memcpy(&session_key[0],"IAMTHESESSIONKEY\0\0\0", 16);
+//    rtsmb_util_guid(&session_key[0]);
 //    rtsmb_util_guid(&session_key[8]);
     word workstation_name[32];
     rtsmb_util_ascii_to_unicode (myworkstation ,workstation_name, std::max((size_t)32,(strlen(myworkstation)+1)*2) );
@@ -349,7 +396,7 @@ int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, 
     pclient_blob += 8;
     class SpnegoClient spnegoWorker;
     // Append the 28 byte blob containing the client nonce
-    spnegoWorker.spnego_get_client_ntlmv2_response_blob(pclient_blob);
+    spnego_get_client_ntlmv2_response_blob(pclient_blob);
     pclient_blob += 28;
     // Append the target information block pqassed from the server
     memcpy(pclient_blob, serverInfoblock,serverInfoblock_length);
@@ -371,7 +418,7 @@ int SmbLogonWorker::rtsmb_cli_session_ntlm_auth ( char * user, char * password, 
     memcpy(&ntlm_response_buffer_ram[0],output,16);
 
     size_t ntlm_response_blob_size=
-            spnegoWorker.spnego_encode_ntlm2_type3_packet(
+            spnego_encode_ntlm2_type3_packet(
               (byte *)response_to_challenge,
               (size_t)MAXBLOB, // ntlm_response_blob_size,
               (byte *)ntlm_response_buffer_ram,
@@ -393,6 +440,10 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
   byte NTLMv2_Hash[16];
   int dst, src;
   size_t ndLen;
+
+
+   diag_dump_unicode_fn(DIAG_DEBUG,"unicode cli_util_client_encrypt_password_ntlmv2 incoming domain domain: ", (byte *)domainname, 32);
+   diag_dump_bin_fn(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 incoming domain domain: ", (byte *)domainname, 32);
 
   // The NTLM password hash is obtained, this is the MD4 digest of the Unicode mixed-case password).
   // Convert the password to unicode
@@ -427,6 +478,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
 
    dualstringdecl(udomain);   //   use a dualstring to convert the domain to upper
    *udomain = domainname;
+   diag_dump_bin(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed domain: ", (byte*)udomain->utf16(), udomain->utf16_length());
    diag_dump_unicode(DIAG_DEBUG,"cli_util_client_encrypt_password_ntlmv2 fixed domain: ", (byte*)udomain->utf16(), udomain->utf16_length());
 
     // The Unicode uppercase username is concatenated with the Unicode authentication target
@@ -439,7 +491,7 @@ byte * SmbLogonWorker::cli_util_client_encrypt_password_ntlmv2 (word * name, cha
    // concatenate the uppercase username with the domainname
     memcpy((char *) nameDomainname, uname->utf16(), uname->utf16_length() );
     memcpy((char *) &nameDomainname[uname->utf16_length()], udomain->utf16(), udomain->utf16_length() );
-   diag_dump_unicode(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
+    diag_dump_unicode(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
     diag_dump_bin(DIAG_DEBUG,"cli_util_encrypt_password_ntlmv2 fixed namedomain: ", nameDomainname, ndLen);
 
    // The HMAC-MD5 message authentication code algorithm is applied to
