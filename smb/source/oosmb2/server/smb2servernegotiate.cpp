@@ -140,7 +140,7 @@ int Smb2ServerSession::ProcessNegotiate()
       {
          // if  (select_3x_only && !SMB2IS3XXDIALECT(pEntry->dialect))
          //  SMB2_STATUS_INVALID_PARAMETER);
-        /* If the common dialect is SMB 2.1 or 3.x dialect family and the underlying connection is either TCP port 445 or RDMA,     Connection.SupportsMultiCredit MUST be set to TRUE; otherwise, it MUST be set to FALSE.
+        // If the common dialect is SMB 2.1 or 3.x dialect family and the underlying connection is either TCP port 445 or RDMA,     Connection.SupportsMultiCredit MUST be set to TRUE; otherwise, it MUST be set to FALSE.
         //pEntry->dialect != SMB2_DIALECT_2002)
         //    pStream->psmb2Session->Connection->SupportsMultiCredit = TRUE;
         //  else

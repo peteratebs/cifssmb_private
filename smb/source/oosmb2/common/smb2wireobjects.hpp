@@ -152,7 +152,7 @@ public:
     Command                        = Smb2Header.Command();
     StructureSize                  = Smb2Header.StructureSize() ;
     CreditCharge                   = Smb2Header.CreditCharge() ;
-    Status_ChannelSequenceReserved = Smb2Header.Status_ChannelSequenceReserved() ;
+    Status_ChannelSequenceReserved =  SMB2_NT_STATUS_SUCCESS; //  Smb2Header.Status_ChannelSequenceReserved() ;
     Command                        = Smb2Header.Command() ;
     CreditRequest_CreditResponse   = Smb2Header.CreditRequest_CreditResponse() ;
     Flags = SMB2_FLAGS_SERVER_TO_REDIR; // Smb2Header.Flags() ;

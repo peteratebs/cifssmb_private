@@ -367,6 +367,66 @@ word *p;
 size_t w;
   w=rtp_strlen(ascii_string)*2+2;
   p=(word *)smb_rtp_malloc(w);
-  rtsmb_util_ascii_to_unicode (ascii_string ,p , CFG_RTSMB_USER_CODEPAGE);
+  rtsmb_util_ascii_to_unicode (ascii_string ,p , w);
   return (p);
+}
+
+char *rtsmb_util_malloc_ascii_to_ascii (char *ascii_string)
+{
+char *p;
+size_t w;
+  w=rtp_strlen(ascii_string)+1;
+  p=(char *)smb_rtp_malloc(w);
+  memcpy(p,ascii_string, w);
+  return (p);
+}
+
+char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string)
+{
+char *p;
+int w = rtsmb_util_unicode_strlen(unicode_string)+1;
+  p=(char *)smb_rtp_malloc(w);
+  rtsmb_util_unicode_to_ascii(unicode_string,p);
+  return (p);
+}
+
+int rtsmb_util_unicode_strnicmp(word * ch1, word * ch2, int n)
+{
+  /* simplistic version that only case neutralizes ascii stuff.  How to
+  better? */
+  int i;
+
+  for (i = 0; i < n && ch1[i] && ch2[i]; i++)
+  {
+    word c1, c2;
+
+    c1 = (word)std::toupper(ch1[i]);
+    c2 = (word)std::toupper(ch2[i]);
+
+    if (c1 < c2)
+    {
+      return -1;
+    }
+    else if (c1 > c2)
+    {
+      return 1;
+    }
+  }
+  if (i == n)
+  {
+    return 0;
+  }
+  if (!ch1[i] && !ch2[i])
+  {
+    return 0;
+  }
+  else if (!ch1[i])
+  {
+    return -1;
+  }
+  else if (!ch2[i])
+  {
+    return 1;
+  }
+  return 0;
 }

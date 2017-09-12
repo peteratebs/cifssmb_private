@@ -47,33 +47,6 @@ static const byte KERBV5[] =  {0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x12, 0
 static const byte KERBV5L[] = {0x06, 0x09, 0x2a, 0x86, 0x48, 0x82, 0xf7, 0x12, 0x01, 0x02, 0x02}; // 1.2.840.48018.1.2.2
 static const byte NTLMSSP[] = {0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x02, 0x02, 0x0a};   // 1.3.6.1.4.1.311.2.2.10
 
-#if (0)
-#define MAX_OBJECT_PER_OUTPUT_STREAM 64
-
-// Stream data type for encoding output buffer into streams and substreams and for fixing up variable length width fields
-typedef struct spnego_output_stream_s {
-  void  *context;
-  BBOOL resolving_widths;              // If true we are enumerating to calculate widths
-  int  object_index;                  // index at this level of who we are
-  int   object_count;                  // If resolving_widths phase is completed this is the maximum depth
-#define OBJECT_WIDTH_UNRESOLVED 0x8000ul // ored in if we don't know it yet.
-  dword  object_widths[MAX_OBJECT_PER_OUTPUT_STREAM];
-  byte  *stream_base;
-  byte  *stream_pointer;
-  byte  *stream_end;
-} spnego_output_stream_t;
-
-#define SPNEGO_PACKET_TOO_LARGE -1
-#define SPNEGO_OBJCOUNT_TOO_DEEP -2
-
-// Stream data type for decoding input buffer into streams and substreams a pouplating decoded_toke structure from stream content.
-typedef struct decode_token_stream_s {
-  void  *decoded_token;  // Actually of typ decoded_init_token_t *.
-  byte  *stream_base;
-  byte  *stream_pointer;
-  byte  *stream_next;
-} decode_token_stream_t;
-#endif
 
 // NTLM_RESP_FLAGS
 

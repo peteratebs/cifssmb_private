@@ -117,9 +117,6 @@ private:
 
     NetSmb2NBSSRecvReply<NetSmb2TreeconnectReply> Smb2NBSSReply(SMB2_TREE_CONNECT, pSmb2Session, InNbssHeader,InSmb2Header, Smb2TreeconnectReply);
 
-    InNbssHeader.show_contents();
-    InSmb2Header.show_contents();
-
     pSmb2Session->Shares[share_number].tid =   InSmb2Header.TreeId();
     pSmb2Session->Shares[share_number].share_state = CSSN_SHARE_STATE_CONNECTED;
 

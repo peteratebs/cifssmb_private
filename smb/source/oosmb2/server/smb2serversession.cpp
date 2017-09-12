@@ -18,6 +18,18 @@
 // TODO - Convert NTLM to OO. It is not implemented in OO framework only spnego
 // Session ids shares etc are not messhed. Implement treeconnect and create commands if server
 
+static bool Smb2ServerIsInitialized=false;
+static void Smb2ServerInitialize()
+{
+  if (!Smb2ServerIsInitialized)
+  {
+    // add type 1 (disk) share, not read only)
+     initialize_sharetable();
+     add_sharename_to_sharetable("\\\\SHARE0", "/media/sf_0a_share_with_virtual_box/mountpoint", 1, false);
+     Smb2ServerIsInitialized = true;
+  }
+}
+
 
 bool Smb2ServerSession::connect_buffers() // private
 {
@@ -42,6 +54,7 @@ bool Smb2ServerSession::connect_buffers() // private
 
 Smb2ServerSession::Smb2ServerSession()
 {
+  Smb2ServerInitialize(); // be sure globals are up
   session_state = Session_State_Idle;
   rtsmb_util_guid(server_guid);
   server_max_transaction_size = 262144;
@@ -84,8 +97,8 @@ extern "C" int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin,
   InNbssHeader.bindpointers(nbss_read_origin);
   InSmb2Header.bindpointers(nbss_read_origin+InNbssHeader.FixedStructureSize());
 
-  InNbssHeader.show_contents();
-  InSmb2Header.show_contents();
+//  InNbssHeader.show_contents();
+//  InSmb2Header.show_contents();
 
   glSession.AttachLegacyBuffers((byte *)read_origin, size, (byte *)write_origin, write_size);
 
@@ -98,6 +111,8 @@ extern "C" int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin,
      break;
    case SMB2_LOGOFF             :
    case SMB2_TREE_CONNECT       :
+     return glSession.ProcessTreeconnect();
+     break;
    case SMB2_TREE_DISCONNECT    :
    case SMB2_CREATE             :
    case SMB2_CLOSE              :
@@ -146,10 +161,8 @@ int  Smb2ServerSession::ProcessEcho()
  OutNbssHeader.nbss_packet_size = OutSmb2Header.FixedStructureSize()+ Smb2EchoReply.FixedStructureSize();
  Smb2EchoReply.StructureSize = 4;
 
- diag_printf_fn(DIAG_INFORMATIONAL,"FuckWithSmb2OO RECVED echo: %d\n", Smb2EchoCmd.StructureSize());
-
- OutNbssHeader.show_contents();
- OutSmb2Header.show_contents();
+// OutNbssHeader.show_contents();
+// OutSmb2Header.show_contents();
 
  return OutNbssHeader.nbss_packet_size()+4;
 }

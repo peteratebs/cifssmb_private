@@ -150,6 +150,8 @@ private:
 // #define ASSURE_V(A)     {if (!(A))	return;}
 
 
+#define RTSMB_CFG_MAX_SHARES                        2
+
 #define RTSMB_CFG_MAX_SESSIONS                      1
 #define RTSMB_CFG_MAX_SHARESPERSESSION              1
 
@@ -324,6 +326,9 @@ int rtsmb_util_unicode_strlen(word *str);
 word *rtsmb_util_string_to_upper (word *string);
 char *rtsmb_util_string_to_upper (char *cstring);
 word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string);
+char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string);
+char *rtsmb_util_malloc_ascii_to_ascii (char *ascii_string);
+int rtsmb_util_unicode_strnicmp(word * ch1, word * ch2, int n);
 
 
 typedef enum smb_diaglevel_e {

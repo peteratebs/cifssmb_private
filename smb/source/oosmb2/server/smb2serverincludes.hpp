@@ -18,6 +18,7 @@
 #include "smb2diagnostics.hpp"
 #include "smb2socks.hpp"
 #include "netstreambuffer.hpp"
+#include "smb2servershare.hpp"
 #include "smb2serversession.hpp"
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"

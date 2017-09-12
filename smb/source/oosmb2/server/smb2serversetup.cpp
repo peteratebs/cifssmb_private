@@ -31,7 +31,7 @@ static void calculate_ntlmv2_signing_key(
 
 static byte * cli_util_encrypt_password_ntlmv2 (char *password, byte * serverChallenge, byte * ntlm_response_blob, size_t ntlm_response_blob_length, word * name, word * domainname,byte * output);
 
-static bool gl_display_login_info = true;
+static bool gl_display_login_info = false;
 // session id seed for sessions we create
 ddword  server_next_sessionid = 0;
 

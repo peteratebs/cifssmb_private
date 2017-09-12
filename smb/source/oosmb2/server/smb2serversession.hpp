@@ -15,7 +15,7 @@
 #ifndef include_smbserversession
 #define include_smbserversession
 
-
+#define RTSMB_CFG_MAX_SHARES_PER_SERVER_SESSION 2
 
 class Smb2ServerSession : public smb_diagnostics {
 public:
@@ -28,8 +28,12 @@ public:
   void AttachLegacyBuffers(byte *_read_origin, dword _read_size, byte *_write_origin, dword _write_size);
 
   int ProcessNegotiate();
-  int ProcessEcho();
   int ProcessSetup();
+  int ProcessTreeconnect();
+  int ProcessCreate();
+  int ProcessEcho();
+
+
   int check_login_credentials(dword ntlmssp_type,byte *psecurityblob, dword SecurityBufferLength);
   word spnego_AuthenticateUser (/* decoded_NegTokenTarg_t*/ void *decoded_targ_token, word *extended_authId);
   const word *get_password_from_user_name( word *username, int &return_pwd_width_bytes);
@@ -87,15 +91,6 @@ private:
 
 
 #if(0)
-typedef enum
-{
-    CSSN_SHARE_STATE_UNUSED,    /* no user */
-    CSSN_SHARE_STATE_CONNECTING,    /* trying to connect */
-    CSSN_SHARE_STATE_CONNECTED, /* share is connected */
-    CSSN_SHARE_STATE_DIRTY      /* share needs to be reconnected */
-} RTSMB_CLI_SESSION_SHARE_STATE;
-
-
 
 class Smb2File {
 public:
@@ -120,24 +115,6 @@ private:
   std::string file_name;
   word   *file_name_unicode;
 };
-
-class Smb2Share {
-public:
-  Smb2Share() {share_state = CSSN_SHARE_STATE_DIRTY;}
-  int share_state;
-  word connect_mid;
-  const word * share_type;
-  word share_name [RTSMB_CFG_MAX_SHARENAME_SIZE + 1];
-  dword tid;
-  // retained from reply but not used yet.
-  byte  ShareType;
-  dword ShareFlags;
-  dword Capabilities;
-  dword MaximalAccess;
-};
-
-
-
 
 
 bool checkSessionSigned();
