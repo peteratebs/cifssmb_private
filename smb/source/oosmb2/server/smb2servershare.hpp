@@ -15,6 +15,11 @@
 #ifndef include_smbservershare
 #define include_smbservershare
 
+#define ST_DISKTREE               1
+#define ST_PRINTER                2
+#define ST_IPC                    3
+
+
 typedef struct Smb2ServerShareStruct_s {
     int   share_type;     //     DISK 1,  _PRINTER 3,  IPC, 2
     int   share_flags;    //     SMB2_FPP_ACCESS_MASK_FILE_READ_DATA et al
@@ -28,31 +33,7 @@ typedef struct Smb2ServerShareStruct_s {
     bool is_currently_cwd;
 } Smb2ServerShareStruct;
 
-class Smb2ServerShare : public smb_diagnostics {
-public:
-    Smb2ServerShare();
-    ~Smb2ServerShare();
-    void Clear();
 
-    bool use_disk_share(char *pathname, bool readonly=false);
-    bool use_disk_share(char *sharename, char *nativepathname, bool readonly=false);
-    bool map_name_to_shareid(word *sharename_unicode, int sharename_length, dword &share_id);
-    int   map_sharehandle_to_share_type(dword share_id);
-    int   map_sharehandle_to_share_flags(dword share_id);
-    dword map_sharehandle_to_maximal_access_flags(dword share_id);
-
-    int   share_type;     //     DISK 1,  _PRINTER 3,  IPC, 2
-    int   share_flags;    //     SMB2_FPP_ACCESS_MASK_FILE_READ_DATA et al
-    int   share_handle;   //     index into our share table
-    dword share_id;       //     external shareid
-    word  *alloced_sharename_unicode;
-    char  *alloced_sharename_ascii;
-    char  *alloced_sharepath_ascii;
-    bool  is_readonly;
-    bool is_currently_inuse;
-    bool is_currently_cwd;
-//  private:
-};
 
 /// Called first by static initializer method
 extern void initialize_sharetable();

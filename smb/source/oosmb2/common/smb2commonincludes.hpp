@@ -22,5 +22,4 @@
 #include "wireobjects.hpp"
 #include "smb2wireobjects.hpp"
 
-
 #endif // include_commonincludes

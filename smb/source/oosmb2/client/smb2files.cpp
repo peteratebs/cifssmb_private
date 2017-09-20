@@ -94,14 +94,23 @@ private:
   bool rtsmb2_cli_session_send_createfile ()
   {
     int send_status;
+    bool isaroot=false;
     byte *path=0;
 
     setSessionSigned(false);      // Should enable signing here and everythng should work, but signing is broken
 
+    if (isadiropen)
+    {
+      char *p = (char*)pSmb2Session->Files[filenumber].get_filename_ascii();
+      if ( (*p==(char)'\\') && (*(p+1) == 0) )
+        isaroot=true;
+    }
     dword variable_content_size = strlen((char *)pSmb2Session->Files[filenumber].get_filename_ascii())*sizeof(word);
     NetNbssHeader       OutNbssHeader;
     NetSmb2Header       OutSmb2Header;
     NetSmb2CreateCmd Smb2CreateCmd;
+    if (isaroot)
+      variable_content_size=0;
 
     NetSmb2NBSSSendCmd<NetSmb2CreateCmd> Smb2NBSSCmd(SMB2_CREATE, pSmb2Session,OutNbssHeader,OutSmb2Header, Smb2CreateCmd, variable_content_size);
 

@@ -36,3 +36,14 @@ void ms_FILE_ID_BOTH_DIR_INFORMATION::BindAddressesToBuffer(byte *base)
   BINDPOINTERS(FileId);
   BINDPOINTERS(FileName);
 }
+
+void ms_RTSMB2_CREATE_CONTEXT_WIRE::BindAddressesToBuffer(byte *base)
+{
+  BindNetWireArgs A(base);
+  BINDPOINTERS(Next);
+  BINDPOINTERS(NameOffset);
+  BINDPOINTERS(NameLength);
+  BINDPOINTERS(DataOffset);
+  BINDPOINTERS(DataLength);
+  BINDPOINTERS(Buffer);
+}

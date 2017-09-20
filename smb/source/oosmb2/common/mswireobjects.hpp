@@ -42,7 +42,7 @@ public:
   NetWirebyte  Reserved1;
   NetWireblob24  ShortName;
   NetWireword  Reserved2;
-  NetWireddword FileId;
+  NetWireblob8 FileId;
   NetWirebyte  FileName;
   unsigned char *bindpointers(byte *_raw_address) {
        base_address = _raw_address;
@@ -59,6 +59,30 @@ private:
   void BindAddressesToBuffer(byte *base);
 };
 
+
+class ms_RTSMB2_CREATE_CONTEXT_WIRE  : public NetWireStruct   {
+public:
+  ms_RTSMB2_CREATE_CONTEXT_WIRE() {objectsize=17; }
+  NetWiredword Next;
+  NetWireword NameOffset;
+  NetWiredword NameLength;
+  NetWireword  DataOffset;
+  NetWiredword DataLength;
+  NetWirebyte  Buffer;
+  unsigned char *bindpointers(byte *_raw_address) {
+       base_address = _raw_address;
+       BindAddressesToBuffer( _raw_address);
+       return _raw_address+FixedStructureSize();}
+  const char *command_name() { return "CREATE_CONTEXT";} // not an smb command so these are bogus
+  int   command_id()   { return 0;}
+  int  PackedStructureSize()   { return FixedStructureSize()-1; };
+  byte *FixedStructureAddress() { return base_address; };
+  void SetDefaults()  { };
+private:
+  void BindAddressOpen(BindNetWireArgs & args) {};
+  void BindAddressClose(BindNetWireArgs & args) {};
+  void BindAddressesToBuffer(byte *base);
+};
 
 
 #endif

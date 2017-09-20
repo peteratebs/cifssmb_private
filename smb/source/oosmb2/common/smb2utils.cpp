@@ -14,15 +14,10 @@
 
 #include "smb2commonincludes.hpp"
 #include "rtpdate.h"
+#include "rtpfile.h"
 
 // We need to port the whole smbutil file.
 
-/* This is a time-since-microsoft-epoch struct.  That means it records
-   how many 100-nanoseconds have passed since Jan. 1, 1601. */
-typedef struct {
-    dword low_time;
-    dword high_time;
-} TIME;
 
 #define SECS_IN_A_DAY           86400
 #define DAYS_IN_FOUR_YEARS      1461
@@ -35,98 +30,248 @@ static const int month_days [12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 
 #define HIGH_100NS_BETWEEN_EPOCHS   0x019DB1DE
 #define SECS_TO_100NS               10000000L     /* 10^7 */
 
-static TIME rtsmb_util_time_unix_to_ms (dword unix_time)
+
+word rtsmb_util_rtsmb_to_smb_attributes (byte rtsmb_attributes)
 {
-	TIME answer;
-	dword tmp1, tmp2, tmp3, tmp4, before;
+  word smb_attributes = 0;
 
-	answer.low_time = 0;
-	answer.high_time = 0;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_ISDIR)   smb_attributes |= SMB_FA_D;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_ISVOL)   smb_attributes |= SMB_FA_V;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_RDONLY)  smb_attributes |= SMB_FA_RO;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_HIDDEN)  smb_attributes |= SMB_FA_H;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_SYSTEM)  smb_attributes |= SMB_FA_S;
+  if (rtsmb_attributes & RTP_FILE_ATTRIB_ARCHIVE) smb_attributes |= SMB_FA_A;
+  if (smb_attributes == 0)                        smb_attributes = SMB_FA_N;
 
-	tmp1 = ((unix_time & 0x000000FF) >> 0)  * SECS_TO_100NS;
-	tmp2 = ((unix_time & 0x0000FF00) >> 8)  * SECS_TO_100NS;
-	tmp3 = ((unix_time & 0x00FF0000) >> 16) * SECS_TO_100NS;
-	tmp4 = ((unix_time & 0xFF000000) >> 24) * SECS_TO_100NS;
+return smb_attributes;
+}
 
-	answer.low_time = tmp1;
-	answer.high_time = 0;
 
-	before = answer.low_time;
-	answer.low_time += (tmp2 & 0xFFFFFF) << 8;
-	answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
-	answer.high_time += (tmp2 & 0xFF000000) >> 24;
+RTP_DATE rtsmb_util_time_unix_to_rtp_date (dword unix_time)
+{
+  RTP_DATE date;
+  dword day_time;
+  dword tmp;
 
-	before = answer.low_time;
-	answer.low_time += (tmp3 & 0xFFFF) << 16;
-	answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
-	answer.high_time += (tmp3 & 0xFFFF0000) >> 16;
+  int i;
+  bool leap = false;
 
-	before = answer.low_time;
-	answer.low_time += (tmp4 & 0xFF) << 24;
-	answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
-	answer.high_time += (tmp4 & 0xFFFFFF00) >> 8;
+  day_time = unix_time % SECS_IN_A_DAY;
 
-	/* now we have the right amount of 100-ns intervals */
+  date.year = 0;
+  date.msec = 0;
+  date.dlsTime = 0;
+  date.tzOffset = 0;
 
-	/* add the difference in epochs */
-	before = answer.low_time;
-	answer.low_time += LOW_100NS_BETWEEN_EPOCHS;
-	answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
-	answer.high_time += HIGH_100NS_BETWEEN_EPOCHS;
+  date.hour = (day_time / 3600) - 4; //hours
+  date.minute = ((((day_time / 60) % 60))); //minutes
+  date.second = (((day_time % 60))); //seconds, might be (day_time %60) / 2
 
-	return answer;
+
+  /* Now, we are only concerned with the time span 1980 - 2099.  So, the only century year
+     is also a 400-year.  Thus, every four years in this span there is one leap year.  Thus,
+     a 4-year span has a constant amount of days. */
+  day_time = unix_time / SECS_IN_A_DAY;
+
+  /* adjust unix time to 1980-based time */
+  day_time -= (DAYS_IN_FOUR_YEARS * 2 + 730);
+
+
+  tmp = day_time / DAYS_IN_FOUR_YEARS;
+  tmp *= 4;
+  day_time = day_time % DAYS_IN_FOUR_YEARS;
+
+  if (day_time < 366)
+  {
+    leap = true;
+    tmp += 0;
+  }
+  else if (day_time < 731)
+  {
+    day_time -= 366;
+    tmp += 1;
+  }
+  else if (day_time < 1096)
+  {
+    day_time -= 731;
+    tmp += 2;
+  }
+  else
+  {
+    day_time -= 1096;
+    tmp += 3;
+  }
+
+  /* year */
+  date.year = (tmp);
+  date.year += 1980;
+
+  //deal with month
+  for (i = 0, tmp = 0; i < 12; i++)
+  {
+    tmp += (dword)month_days [i];
+    if (leap && i == 1)
+    {
+      tmp ++;
+    }
+
+    if (day_time < tmp)
+    {
+      /* month */
+      date.month = (unsigned)(i + 1);
+      break;
+    }
+  }
+
+  tmp -= (dword)month_days [i];
+  if (leap && i == 1)
+  {
+    tmp --;
+  }
+
+  /* day */
+  date.day = ((day_time - tmp + 1));
+
+  return date;
+}
+
+static void rtmsb_util_time_put_digit_at_offset (int digit, int offset, TIME_MS *ms_time)
+{
+dword *t;
+dword temp;
+  t = offset < 8 ? &ms_time->low_time : (offset -= 8, &ms_time->high_time);
+  temp = (*t) & (0xFFFFFFFF << ((offset + 1) * 4));
+  temp |= (*t) & (0xFFFFFFFF >> ((8 - offset) * 4));
+  temp |= (dword)((digit & 0xF) << (offset * 4));
+  *t = temp;
+}
+static dword rtmsb_util_time_get_dividend (int prior, int offset, TIME_MS *ms_time)
+{
+  dword *t;
+  dword temp;
+  t = offset < 8 ? &ms_time->low_time : (offset -= 8, &ms_time->high_time);
+  temp = (dword)prior << 4;
+  temp |=  (  ((*t) & (dword)(0xF << (offset * 4)))  >> (offset * 4));
+  return temp;
+}
+
+dword rtsmb_util_time_ms_to_unix (TIME_MS ms_time)
+{
+int offset;
+int remainder, window;
+TIME_MS answer;
+
+  answer.low_time = 0;
+  answer.high_time = 0;
+
+  /* get rid of uppermost bit, since that is the sign bit */
+  ms_time.high_time = ms_time.high_time & 0x7FFFFFFF;
+
+  for (offset = 14, remainder = 0; offset >= 0; offset --)
+  {
+    window = (int)rtmsb_util_time_get_dividend (remainder, offset, &ms_time);
+    rtmsb_util_time_put_digit_at_offset (window / SECS_TO_100NS, offset, &answer);
+    remainder = window % SECS_TO_100NS;
+  }
+
+  answer.low_time -= SECS_BETWEEN_EPOCHS;
+
+  return answer.low_time;
+}
+
+
+static TIME_MS rtsmb_util_time_unix_to_ms (dword unix_time)
+{
+  TIME_MS answer;
+  dword tmp1, tmp2, tmp3, tmp4, before;
+
+  answer.low_time = 0;
+  answer.high_time = 0;
+
+  tmp1 = ((unix_time & 0x000000FF) >> 0)  * SECS_TO_100NS;
+  tmp2 = ((unix_time & 0x0000FF00) >> 8)  * SECS_TO_100NS;
+  tmp3 = ((unix_time & 0x00FF0000) >> 16) * SECS_TO_100NS;
+  tmp4 = ((unix_time & 0xFF000000) >> 24) * SECS_TO_100NS;
+
+  answer.low_time = tmp1;
+  answer.high_time = 0;
+
+  before = answer.low_time;
+  answer.low_time += (tmp2 & 0xFFFFFF) << 8;
+  answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
+  answer.high_time += (tmp2 & 0xFF000000) >> 24;
+
+  before = answer.low_time;
+  answer.low_time += (tmp3 & 0xFFFF) << 16;
+  answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
+  answer.high_time += (tmp3 & 0xFFFF0000) >> 16;
+
+  before = answer.low_time;
+  answer.low_time += (tmp4 & 0xFF) << 24;
+  answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
+  answer.high_time += (tmp4 & 0xFFFFFF00) >> 8;
+
+  /* now we have the right amount of 100-ns intervals */
+
+  /* add the difference in epochs */
+  before = answer.low_time;
+  answer.low_time += LOW_100NS_BETWEEN_EPOCHS;
+  answer.high_time += answer.low_time < before ? 1 : 0; /* did we carry? */
+  answer.high_time += HIGH_100NS_BETWEEN_EPOCHS;
+
+  return answer;
 }
 
 dword rtsmb_util_time_rtp_date_to_unix (RTP_DATE rtp_date)
 {
-	dword unix_time;
-	bool leap = false;
-	unsigned int i;
+  dword unix_time;
+  bool leap = false;
+  unsigned int i;
 
-	unix_time = 0;
-	unix_time += (rtp_date.second);  //seconds
-	unix_time += (rtp_date.minute) * 60;  //minutes -> seconds
-	unix_time += (rtp_date.hour + 4) * 3600;  //hours -> seconds
+  unix_time = 0;
+  unix_time += (rtp_date.second);  //seconds
+  unix_time += (rtp_date.minute) * 60;  //minutes -> seconds
+  unix_time += (rtp_date.hour + 4) * 3600;  //hours -> seconds
 
-	unix_time += (rtp_date.day -1) * SECS_IN_A_DAY;
+  unix_time += (rtp_date.day -1) * SECS_IN_A_DAY;
 
-	unix_time += ((rtp_date.year - 1980) / 4) * DAYS_IN_FOUR_YEARS * SECS_IN_A_DAY;
+  unix_time += ((rtp_date.year - 1980) / 4) * DAYS_IN_FOUR_YEARS * SECS_IN_A_DAY;
 
-	switch (rtp_date.year % 4)
-	{
-		case 0:
-			leap = true;
-			break;
-		case 1:
-			unix_time += 366 * SECS_IN_A_DAY;
-			break;
-		case 2:
-			unix_time += 731 * SECS_IN_A_DAY;
-			break;
-		case 3:
-			unix_time += 1096 * SECS_IN_A_DAY;
-			break;
-	}
+  switch (rtp_date.year % 4)
+  {
+    case 0:
+      leap = true;
+      break;
+    case 1:
+      unix_time += 366 * SECS_IN_A_DAY;
+      break;
+    case 2:
+      unix_time += 731 * SECS_IN_A_DAY;
+      break;
+    case 3:
+      unix_time += 1096 * SECS_IN_A_DAY;
+      break;
+  }
 
-	for (i = 0; i < rtp_date.month - 1; i++)
-	{
-		if (leap && i == 1)
-		{
-			unix_time += SECS_IN_A_DAY;
-		}
+  for (i = 0; i < rtp_date.month - 1; i++)
+  {
+    if (leap && i == 1)
+    {
+      unix_time += SECS_IN_A_DAY;
+    }
 
-		unix_time += (dword) (month_days [i] * SECS_IN_A_DAY);
-	}
+    unix_time += (dword) (month_days [i] * SECS_IN_A_DAY);
+  }
 
-	/* adjust time to 1970-based time */
-	unix_time += (DAYS_IN_FOUR_YEARS * 2 + 730) * SECS_IN_A_DAY;
+  /* adjust time to 1970-based time */
+  unix_time += (DAYS_IN_FOUR_YEARS * 2 + 730) * SECS_IN_A_DAY;
 
-	return unix_time;
+  return unix_time;
 }
 
-static TIME rtsmb_util_time_rtp_date_to_ms (RTP_DATE rtp_date)
+TIME_MS rtsmb_util_time_rtp_date_to_ms (RTP_DATE rtp_date)
 {
-	return rtsmb_util_time_unix_to_ms(rtsmb_util_time_rtp_date_to_unix(rtp_date));
+  return rtsmb_util_time_unix_to_ms(rtsmb_util_time_rtp_date_to_unix(rtp_date));
 }
 
 int rtsmb_util_unicode_strlen(word *str)
@@ -139,7 +284,7 @@ word l=0;
 ddword rtsmb_util_get_current_filetime(void)
 {
 RTP_DATE date;
-TIME t;
+TIME_MS t;
 ddword r;
     rtp_get_date (&date);
     t = rtsmb_util_time_rtp_date_to_ms(date);
@@ -361,12 +506,12 @@ word *rtsmb_util_string_to_upper (word *cstring)
 
 #define CFG_RTSMB_USER_CODEPAGE 0
 
-word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string)
+word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string, int extra_bytes)
 {
 word *p;
 size_t w;
   w=rtp_strlen(ascii_string)*2+2;
-  p=(word *)smb_rtp_malloc(w);
+  p=(word *)smb_rtp_malloc(w+extra_bytes);
   rtsmb_util_ascii_to_unicode (ascii_string ,p , w);
   return (p);
 }
@@ -381,7 +526,31 @@ size_t w;
   return (p);
 }
 
-char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string)
+
+char *rtsmb_util_malloc_fullpath_ascii (char *ascii_path, word *unicode_filename, int extra_bytes)
+{
+char *p;
+  int pathlen         = strlen(ascii_path);
+  char *ascii_filename = rtsmb_util_malloc_unicodeto_ascii (unicode_filename);
+  int filename_length = strlen(ascii_filename)+1;
+  p=(char *)smb_rtp_malloc(pathlen+1+filename_length+extra_bytes);
+  strcpy(p, ascii_path);
+  strcat(p, "\\");
+  strcat(p, ascii_filename);
+  smb_rtp_free(ascii_filename);
+  return p;
+}
+
+char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string, int extra_bytes)
+{
+char *p;
+int w = rtsmb_util_unicode_strlen(unicode_string)+1;
+  p=(char *)smb_rtp_malloc(w+extra_bytes);
+  rtsmb_util_unicode_to_ascii(unicode_string,p);
+  return (p);
+}
+
+char *rtsmb_util_malloc_unicodeto_xxascii (word *unicode_string)
 {
 char *p;
 int w = rtsmb_util_unicode_strlen(unicode_string)+1;

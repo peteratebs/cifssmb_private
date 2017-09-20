@@ -15,7 +15,15 @@
 #ifndef include_smbserversession
 #define include_smbserversession
 
+
 #define RTSMB_CFG_MAX_SHARES_PER_SERVER_SESSION 2
+
+typedef struct session_file_instance_t {
+  bool  in_use;
+  int   session_file_id;    // index in the session file table
+  int   int_file_id;        // index in the server file table
+} session_file_instance;
+
 
 class Smb2ServerSession : public smb_diagnostics {
 public:
@@ -27,17 +35,22 @@ public:
   Smb2ServerSession();
   void AttachLegacyBuffers(byte *_read_origin, dword _read_size, byte *_write_origin, dword _write_size);
 
+  int SessionIndex();
+
   int ProcessNegotiate();
   int ProcessSetup();
   int ProcessTreeconnect();
   int ProcessCreate();
   int ProcessEcho();
-
+  int ProcessQueryDirectory();
 
   int check_login_credentials(dword ntlmssp_type,byte *psecurityblob, dword SecurityBufferLength);
   word spnego_AuthenticateUser (/* decoded_NegTokenTarg_t*/ void *decoded_targ_token, word *extended_authId);
   const word *get_password_from_user_name( word *username, int &return_pwd_width_bytes);
   word Auth_AuthenticateUser_ntlmv2 (byte *ntlm_response_blob, size_t ntlm_response_blob_length, word *name, word *domainname);
+
+  session_file_instance *allocate_session_file();
+  void release_session_file(session_file_instance *pFileInstance);
 
   NetStreamOutputBuffer     SendBuffer;
   NetStreamInputBuffer      RecvBuffer;
@@ -57,6 +70,7 @@ private:
   byte    *UserName;                  /* The name of the user who established the session. */
   byte    *DomainName;                /* The domain of the user who established the session. */
 
+  int  _p_sessionindex;
   int _p_reply_buffer_size;
   int _p_send_buffer_size;
   byte *_p_send_buffer_raw;
@@ -79,6 +93,9 @@ private:
   bool   server_require_signing;
 
   std::map<std::string, std::string> resistered_users;
+
+  // link external FID to internal fid
+  session_file_instance session_file_table[RTSMB_CFG_MAX_FILES_PER_SESSION];
 
   // temporary stealing from old stream stuff
   byte *read_origin;

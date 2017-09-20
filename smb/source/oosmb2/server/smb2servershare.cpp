@@ -87,34 +87,3 @@ static Smb2ServerShareStruct *map_available_share()
  }
  return pResult;
 }
-
-void Smb2ServerShare::Clear()
-{
-cout << "Smb2ServerShare::Clear() handle ??:" << share_handle <<  endl;
-   if (alloced_sharename_unicode) smb_rtp_free(alloced_sharename_unicode);
-   if (alloced_sharename_ascii)   smb_rtp_free(alloced_sharename_ascii);
-   if (alloced_sharepath_ascii)   smb_rtp_free(alloced_sharepath_ascii);
-   alloced_sharename_unicode = 0;
-   alloced_sharename_ascii   = 0;
-   alloced_sharepath_ascii   = 0;
-   share_type                = 0;     //     DISK 1,  _PRINTER 3,  IPC, 2
-   share_flags               = 0; //     SMB2_FPP_ACCESS_MASK_FILE_READ_DATA et al
-   is_currently_cwd          = false;
-   is_currently_inuse        = false;
-   is_readonly               = false;
-}
-
-
-Smb2ServerShare::Smb2ServerShare()
-{
-   alloced_sharename_unicode = 0;
-   alloced_sharename_ascii   = 0;
-   alloced_sharepath_ascii   = 0;
-cout << "Smb2ServerShare::Smb2ServerShare()" << endl;
-   Clear();
-}
-Smb2ServerShare::~Smb2ServerShare()
-{
-cout << "~Smb2ServerShare::Smb2ServerShare()" << endl;
-   Clear();
-}

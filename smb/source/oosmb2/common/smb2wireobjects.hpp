@@ -65,16 +65,23 @@ extern "C" {
 
 
 #define SMB2_NT_STATUS_SUCCESS                  0x00000000
+#define SMB2_STATUS_UNSUCCESSFUL                0xC0000001 /* The requested operation failed */
 #define SMB2_STATUS_INFO_LENGTH_MISMATCH        0xC0000004
 #define SMB2_STATUS_NO_MORE_FILES               0x80000006 /* No more files were found that match the file specification. */
 
 
+#define SMB2_STATUS_OBJECT_PATH_NOT_FOUND       0xC000003A /* The path to the directory specified was not found. This error is also returned on a create request if the operation requires the creation of more than one new directory level for the path specified. */
 #define SMB2_STATUS_INVALID_PARAMETER           0xC000000D /* The parameter specified in the request is not valid. */
 #define SMB2_STATUS_MORE_PROCESSING_REQUIRED    0xC0000016 /* If extended security has been negotiated, then this error code can be returned in the SMB_COM_SESSION_SETUP_ANDX response from the server to indicate that additional authentication information is to be exchanged. See section 2.2.4.6 for details. */
 #define SMB2_STATUS_NOT_SUPPORTED               0xC00000BB /* The client request is not supported. */
 
 #define SMB2_STATUS_INVALID_SMB                 0x00010002 /* An invalid SMB client request is received by the server. */
 #define SMB2_STATUS_ACCESS_DENIED               0xC0000022 /* The client did not have the required permission needed for the operation. */
+#define SMB2_STATUS_FILE_IS_A_DIRECTORY         0xC00000BA /* The file that was specified as a target is a directory and the caller specified that it could be anything but a directory. */
+#define SMB2_STATUS_INSUFFICIENT_RESOURCES      0xC000009A
+
+#define SMB2_STATUS_NO_SUCH_FILE                0xC000000F
+#define SMB2_STATUS_OBJECT_NAME_COLLISION       0xC0000035 /* The object name already exists. */
 
 /* RTSMB2_QUERY_DIRECTORY_C.FileInformationClass */
 #define SMB2_QUERY_FileDirectoryInformation       0x01  /*  Basic information about a file or directory. Basic information is defined as the file's name, time stamp, size and attributes. File attributes are as specified in [MS-FSCC] section 2.6. */
@@ -88,6 +95,22 @@ extern "C" {
 #define SMB2_QUERY_RETURN_SINGLE_ENTRY    0x02     /*  The server MUST only return the first entry of the search results. */
 #define SMB2_QUERY_INDEX_SPECIFIED        0x04     /*  The server SHOULD<64> return entries beginning at the byte number specified by FileIndex. */
 #define SMB2_QUERY_REOPEN                 0x10     /*  The server MUST restart the enumeration from the beginning, and the search pattern MUST be changed to the provided value. This often involves silently closing and reopening the directory on the server side. */
+
+// Used in various places
+#define SECURITY_READ       0
+#define SECURITY_WRITE      1
+#define SECURITY_READWRITE  2
+#define SECURITY_NONE       3
+#define SECURITY_ANY        4
+
+// File Attribute Encoding for SMB Protocol
+#define SMB_FA_RO	0x01 //Read only file
+#define SMB_FA_H	0x02 //Hidden file
+#define SMB_FA_S	0x04 //System file
+#define SMB_FA_V	0x08 //Volume
+#define SMB_FA_D	0x10 //Directory
+#define SMB_FA_A	0x20 //Archive file
+#define SMB_FA_N    0x80 //Normal file (no other attribs set)
 
 
 
@@ -776,7 +799,7 @@ private:
 class NetSmb2QuerydirectoryCmd  : public NetWireStruct   {
 public:
   NetSmb2QuerydirectoryCmd() {objectsize=33; }
-  NetWireword  StructureSize; // 33
+  NetWireword    StructureSize; // 33
   NetWirebyte    FileInformationClass;
   NetWirebyte    Flags;
   NetWiredword   FileIndex;

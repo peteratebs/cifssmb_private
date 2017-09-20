@@ -19,6 +19,8 @@
 // Session ids shares etc are not messhed. Implement treeconnect and create commands if server
 
 static bool Smb2ServerIsInitialized=false;
+static int _gl_sessionindex;
+
 static void Smb2ServerInitialize()
 {
   if (!Smb2ServerIsInitialized)
@@ -27,6 +29,8 @@ static void Smb2ServerInitialize()
      initialize_sharetable();
      add_sharename_to_sharetable("\\\\SHARE0", "/media/sf_0a_share_with_virtual_box/mountpoint", 1, false);
      Smb2ServerIsInitialized = true;
+     initialize_filetable();
+     _gl_sessionindex = 0;
   }
 }
 
@@ -50,6 +54,31 @@ bool Smb2ServerSession::connect_buffers() // private
   SendBuffer.attach_socket(SmbSocket);
   return true;
 }
+// Give my index into the session table needs work, returns only zero for now.
+int Smb2ServerSession::SessionIndex()
+{
+  return _p_sessionindex;
+}
+
+session_file_instance *Smb2ServerSession::allocate_session_file()
+{
+  for (int i=0; i < RTSMB_CFG_MAX_FILES_PER_SESSION; i++)
+  {
+    if (!session_file_table[i].in_use)
+    {
+      session_file_table[i].in_use = true;
+      session_file_table[i].session_file_id = i;    // index in the session file table
+      session_file_table[i].int_file_id = 0;            // index in the server file table
+      return &session_file_table[i];
+    }
+  }
+  return 0;
+}
+
+void Smb2ServerSession::release_session_file(session_file_instance *pFileInstance)
+{
+  pFileInstance->in_use = false;
+}
 
 
 Smb2ServerSession::Smb2ServerSession()
@@ -61,7 +90,9 @@ Smb2ServerSession::Smb2ServerSession()
   server_global_caps = 0x04; // LARGE_MTU
   server_require_signing = false;
   client_capabilities = 0;
+  memset(session_file_table, 0, sizeof(session_file_table));
   resistered_users["notebs"] = "notpassword";
+  _p_sessionindex = 0;
 }
 
 const word password_faked[] = {'n','o','t','p','a','s','s','w','o','r','d',0,};
@@ -115,6 +146,8 @@ extern "C" int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin,
      break;
    case SMB2_TREE_DISCONNECT    :
    case SMB2_CREATE             :
+     return glSession.ProcessCreate();
+     break;
    case SMB2_CLOSE              :
    case SMB2_FLUSH              :
    case SMB2_READ               :
@@ -127,6 +160,8 @@ extern "C" int FuckWithSmb2OO(void *read_origin, dword size, void *write_origin,
     return glSession.ProcessEcho();
    break;
    case SMB2_QUERY_DIRECTORY    :
+     return glSession.ProcessQueryDirectory();
+   break;
    case SMB2_CHANGE_NOTIFY      :
    case SMB2_QUERY_INFO         :
    case SMB2_SET_INFO           :

@@ -142,6 +142,12 @@ private:
 };
 
 
+/* This is a time-since-microsoft-epoch struct.  That means it records how many 100-nanoseconds have passed since Jan. 1, 1601. */
+typedef struct {
+    dword low_time;
+    dword high_time;
+} TIME_MS;
+
 
 #define TURN_ON(A, B)	{(A) |= (B);}
 /* if A is false, return B */
@@ -150,12 +156,12 @@ private:
 // #define ASSURE_V(A)     {if (!(A))	return;}
 
 
-#define RTSMB_CFG_MAX_SHARES                        2
+#define RTSMB_CFG_MAX_SHARES                         2
+#define RTSMB_CFG_MAX_FILES                         64
+#define RTSMB_CFG_MAX_FILES_PER_SESSION             64
 
-#define RTSMB_CFG_MAX_SESSIONS                      1
-#define RTSMB_CFG_MAX_SHARESPERSESSION              1
 
-#define RTSMB_CFG_MAX_FILESPERSESSION               8
+#define RTSMB_CFG_MAX_SESSIONS                       1
 
 #define RTSMB_CFG_MAX_SHARENAME_SIZE               80
 
@@ -169,6 +175,9 @@ private:
 #define RTSMB_CFG_MAX_USERNAME_SIZE    128  // the maximum size of account names
 #define RTSMB_CFG_MAX_PASSWORD_SIZE    128  // the maximum size of passwords (must be at least 24 when using encryption)
 #define RTSMB_CFG_MAX_DOMAIN_NAME_SIZE 128  // the maximum size of domain names
+
+#define RTSMB_CFG_MAX_FILESPERSESSION  64
+#define RTSMB_CFG_MAX_SHARESPERSESSION 64
 
 
 #define RTSMB_CFG_MAX_BUFFER_SIZE     32768    // The physical buffer size we stream through
@@ -325,10 +334,14 @@ extern void rtsmb_util_unicode_to_ascii (word *unicode_string, char *ascii_strin
 int rtsmb_util_unicode_strlen(word *str);
 word *rtsmb_util_string_to_upper (word *string);
 char *rtsmb_util_string_to_upper (char *cstring);
-word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string);
-char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string);
+word *rtsmb_util_malloc_ascii_to_unicode (char *ascii_string, int extra_bytes=0);
+char *rtsmb_util_malloc_unicodeto_ascii (word *unicode_string, int extra_bytes=0);
+char *rtsmb_util_malloc_fullpath_ascii (char *ascii_path, word *unicode_filename, int extra_bytes=0);
+
+
 char *rtsmb_util_malloc_ascii_to_ascii (char *ascii_string);
 int rtsmb_util_unicode_strnicmp(word * ch1, word * ch2, int n);
+word rtsmb_util_rtsmb_to_smb_attributes (byte rtsmb_attributes);
 
 
 typedef enum smb_diaglevel_e {
